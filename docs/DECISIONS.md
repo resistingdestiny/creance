@@ -90,3 +90,178 @@ the file last changed, not a live figure. A live figure would make every run
 dirty the working tree, which would break the "re-running the script changes
 nothing" acceptance line. The live balance is printed to standard output
 instead.
+
+## T04, CoverPool and CollateralVault, 4 September 2026
+
+### A reserve is an earmark inside the vault, not a transfer to the pool
+
+DESIGN.md 3.2 says the vault "reserves the sum of the limits of the exposed
+policies in the CoverPool", which reads as a token transfer from one contract to
+the other. It is an accounting counter inside the vault instead, and CoverPool
+never holds a balance.
+
+Why: only one contract account then has to be associated with the settlement
+token, which is a deploy step that can fail; there is one balance to reconcile
+rather than two; and `release` becomes the exact arithmetic inverse of
+`reserve` rather than a second transfer that can half succeed. The product
+behaviour is identical.
+
+### The contract decides whether a month is open, not the oracle
+
+DESIGN.md 4 gives `submitObservation(group, period, odi, hcsSequence)`, and the
+HCS message in 3.3 carries `"open":true,"open_reason":"level"`. Read literally
+the contract would be told the answer. It is
+`submitObservation(seriesId, period, odi, ebar, hcsSequence, sourceHash)`
+instead, and the contract computes `open` and `openReason` from the attachment
+and level line frozen at registration.
+
+Why: a wrong ODI is visible and disputable against the published source file,
+but a correct ODI with a wrong open flag is not. The dual form rule then lives
+in one place rather than in the oracle, the API, the web app and the contract.
+The oracle still publishes `open` in the HCS message, because the message has to
+read standalone, and the API compares the two.
+
+Also, the parameter is `seriesId` and not `group`: attachments and level lines
+are per series and frozen at issuance (docs/INDEX-FINDINGS.md 4), so a single
+group wide threshold would be wrong. `group` stays on the series as a label and
+is never used in a control flow decision.
+
+### The level line on chain is one value per series, not one per calendar month
+
+docs/INDEX-FINDINGS.md 6.1 requires the level line to be computed per calendar
+month, because these series are not seasonally adjusted and a whole-series line
+reads the school year peak as displacement. The contract holds one `levelLine`.
+
+Why: the twelve lines are a property of the index, and putting them on chain
+would mean the contract also has to hold the month matched selection rule and
+the October 2025 gap rule from 6.2. The frozen value in the contract is the line
+for the demo series' opening month, and a series whose lines differ by month is
+registered as the calibration for the month it settles in. If T02's month
+matched lines change the demo opening, the series is re-registered with the
+right number rather than the contract learning a calendar. Recorded here because
+it is a real narrowing: the on chain check is the published line for that
+series, and the published table is what a buyer can recompute.
+
+### The claim authorisation is EIP-712 typed data with three extra fields
+
+DESIGN.md 3.6 lists policy id, claim id, packet hash, decision hash, amount and
+separation month. The signed struct adds `nullifierHash`, `payee` and
+`deadline`, and signs `separationAt` as a timestamp rather than the month.
+
+Why: the nullifier binds the authorisation to the World ID identity that both
+bought the cover and re-verified at claim, so a signature cannot be moved to
+another policy with the same amount; the payee puts the destination inside the
+signed material; the deadline makes a leaked signature useless after thirty
+minutes, which matches the eligibility credential lifetime. The contract derives
+the separation month from the timestamp, so signing the month as well would
+create two sources of truth. Typed data rather than a packed hash because the
+domain separator binds a signature to this contract on chain 296, so an
+authorisation from the local test deployment cannot be replayed on testnet.
+
+The exact type string is in docs/HEDERA.md under Contracts, ABI conventions.
+
+### The payee must equal the policy holder
+
+The payee is a signed field so that an assignment of benefit could be added
+later without a new signature scheme, but `payClaim` requires it to equal
+`policy.holder` today. DESIGN.md 3.6 is explicit that the payout goes to the
+principal's wallet and not an agent's, and a free choice of destination on the
+money path is a degree of freedom with no current use.
+
+### An indexed series refuses to pay when the qualifying month opened on the level form
+
+DESIGN.md 3.2 gives the indexed payout as
+`limit * min(1, (ODI - attachment) / (exhaustion - attachment))`. That formula
+is defined against the shock form only: a month that opened because the smoothed
+excess crossed the level line can have an ODI well below the attachment, and the
+numerator is then negative.
+
+`registerSeries` rejects an indexed series unless exhaustion is above
+attachment, and `payClaim` on an indexed series whose qualifying month opened on
+the level form reverts with `IndexedModeNeedsShockOpening`. Refusing to pay a
+wrong number is better than inventing one. A series that wants an indexed payout
+on the level form needs a second exhaustion line set at issuance, which is a
+design change and not a patch. The demo series is full payout, so nothing in the
+demo touches this.
+
+### Lapse and expire are blocked while a claim window is open
+
+DESIGN.md 3.2 lapses a policy fifteen days after a missed premium. That still
+happens, but `lapse` and `expire` revert while the series is `ClaimsOpen`.
+
+Why: without the guard, whoever can lapse a policy can remove an exposed
+policyholder from the reserve in the middle of the claim window, which is the
+one transition in this design that could be used to avoid paying a valid claim.
+With it, no policy leaves the reserve except by being paid. The cost is a few
+days of premium accrual in the worst case; the lapse can be poked as soon as the
+window closes. Both are permissionless pokes for the same reason: no keeper to
+fail and no stuck state to explain.
+
+### Settling is an admin status near maturity, not the state after a window
+
+DESIGN.md 3.5 lists Settling between ClaimsOpen and Matured. The claim window's
+own cycle is `Active -> ClaimsOpen -> Active` and it can go round more than once
+inside a twelve month term, so `closeWindow` returns the series to whatever it
+was before the window opened. `Settling` is what an admin sets when a series
+stops accepting new policies near maturity: `bind` is refused in it,
+`submitObservation` is not.
+
+### A second open month tops the reserve up, it does not reserve again
+
+DESIGN.md leaves this open. On the first open month the vault reserves the whole
+`activeExposure`. On every later open month in the same window the pool reserves
+only the difference between the current exposure and what the reserve already
+covers, which is zero when nothing has been bound since. Reserving the exposure
+again would double count and quietly refuse later binds; reserving nothing would
+leave the reserve short of policies bound during the window, which is the more
+dangerous direction.
+
+### The settlement token is reached through IERC20, not the HTS system contract
+
+Both contracts consume the settlement asset through `IERC20` and OpenZeppelin's
+`SafeERC20`. Every HTS fungible token is callable through its ERC-20 facade, so
+the same bytecode runs against a six decimal mock locally and against TUSD on
+testnet.
+
+Why: the local Hardhat network has no token service, so a vault written against
+the 0x167 system contract could not be unit tested at all and every assertion
+would cost HBAR and could not warp time. `SafeERC20` also reverts on failure,
+where the raw `HederaTokenService` helper returns a response code that a caller
+can ignore, which in CoverPool would mean marking a claim paid after a failed
+payout.
+
+The one HTS specific call that remains is `associateSettlementToken`, which
+opts the vault in to holding the token through the HIP-719 facade. It is admin
+gated, runs once at deploy, and is on no money path. The HTS native operations
+the Hedera prize asks about live in the SDK layer: the token's own key set, the
+policy NFT freeze and the ATS compliance surface.
+
+### CLAIMS_ROLE is held by the api account in this deployment
+
+The prep design for these contracts wants ADMIN, ORACLE, BINDER and CLAIMS on
+four distinct keys. DESIGN.md 3.6 and docs/HEDERA.md both say the API signs the
+claim authorisation, and the api account is also the binder, so this deployment
+has three distinct addresses and not four: operator as admin, oracle, and api as
+binder, claims, subscription and treasury.
+
+The separation that matters is preserved and asserted at deploy time: the
+account that publishes the index cannot authorise the payout it triggers, and
+the account that administers the contracts is neither. `CLAIMS_ROLE` is a
+separate role rather than a hard coded address precisely so that a dedicated
+signing key can be granted and the api key revoked without a redeploy, which is
+a `grantRole` and a `revokeRole`.
+
+### A pause stops new exposure and never traps money
+
+`pause` blocks `bind`, `submitObservation`, `payClaim`, `subscribe`,
+`attributePremium` and `fundCoupon`. It deliberately does not block
+`closeWindow`, `reserve`, `release` or `redeemAtMaturity`: a pause that also
+traps money is a worse failure than the one it protects against.
+
+### There are no proxies and no upgrade path
+
+Both contracts are deployed once and are not upgradeable. New terms mean a new
+series; a code change means a new deployment. A proxy would add a storage layout
+hazard and a verification complication for no benefit here, and the Hedera EVM
+forbids `delegatecall` into system contracts, which is the pattern an
+upgradeable HTS consumer would reach for.

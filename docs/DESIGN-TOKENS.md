@@ -123,13 +123,13 @@ Focus states: `outline: 2px solid #000; outline-offset: 2px` on all interactive 
 ## 8. Copy deck (verbatim strings)
 
 Start: "Cover for the day your job is automated." / "A monthly payment now. A payout if your occupation is displaced." / "Get a quote" / "I want to invest"
-Occupation: "What do you do?" / "Search occupations" / the 11 BLS group names as listed in the screens.
+Occupation: "What do you do?" / "Search occupations" / the occupation group names as listed in docs/DESIGN-TOKENS-ADDENDUM.md, "Occupation picker correction": fifteen rows, in that order, with no Armed forces row.
 Amount: "Cover amount" / "28.00 a month" / "Pays out if the index for Office and administrative support rises 2 points above its trend. Full payout at 4 points." / "How the index works" / "Continue"
 Verify: "Confirm you're a real person." / "One person, one cover. This stops bots and duplicate accounts." / "Verify with World ID" / "Waiting for the World app" / "You're verified" / "We couldn't verify you." "Try again, or use a different device." / "Try again"
 Pay sheet: "Confirm your cover" / rows: Cover · Occupation · Monthly payment · First payment today · Pays from / "Pay 28.00"
 Home: "Cover" / "Covered" / "Next payment" "28.00 on 4 October" / "Index" "1.1, steady" / "See the index"
 Index: "steady" / "It counts unemployment in your occupation, compared with everyone else's." / "It is smoothed over three months, so one bad month does not move it." / "It is compared with a year ago, so it shows change, not level." / "What would have happened" / "No payout" / "Paid out" / "Pays out above 2.0"
-Triggered: "Paid out" / "Payout" "2,500" / "Share of cover" "50 percent" / "Verify to receive it. You have 30 days." / "Verify and receive" / "2,500 received" / "View receipt"
+Triggered (superseded by docs/DESIGN-TOKENS-ADDENDUM.md, which replaces this state with the two-key claim flow; the strings below stay for the paid state that follows a paid claim): "Paid out" / "Payout" "2,500" / "Share of cover" "50 percent" / "Verify to receive it. You have 30 days." / "Verify and receive" / "2,500 received" / "View receipt"
 Lapsed: "Payment due" / "Pay by 19 October to stay covered." / "Pay 28.00"
 Payment failed: "Your payment didn't go through." / "Check that your wallet has at least 28.00, then try again. Your cover is unchanged until 19 October."
 Offline: "You're offline." / "Your cover is unchanged. We'll update the index when you're back online." / "Retry"

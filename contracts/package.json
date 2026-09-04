@@ -6,8 +6,10 @@
   "main": "src/index.ts",
   "scripts": {
     "hedera:setup": "tsx --env-file-if-exists=../.env scripts/hedera-setup.ts",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "build": "hardhat build",
+    "test": "vitest run && pnpm run test:hardhat",
+    "test:hardhat": "hardhat test mocha",
+    "typecheck": "hardhat build && tsc --noEmit"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-network-helpers": "^3.0.11",

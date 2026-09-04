@@ -10,7 +10,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run && pnpm --filter @creance/contracts run test:hardhat",
     "test:testnet": "node scripts/stub.mjs test:testnet",
     "dev": "node scripts/stub.mjs dev",
     "lint": "eslint .",

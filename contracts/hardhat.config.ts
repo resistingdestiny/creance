@@ -1,4 +1,5 @@
 import type { HardhatUserConfig } from 'hardhat/config';
+import hardhatToolboxMochaEthers from '@nomicfoundation/hardhat-toolbox-mocha-ethers';
 
 // Testnet only. Hedera testnet reaches the EVM through the Hashio JSON-RPC
 // relay; 296 is the testnet chain id.
@@ -17,12 +18,26 @@ function deployAccounts(): string[] {
 }
 
 const config: HardhatUserConfig = {
+  plugins: [hardhatToolboxMochaEthers],
   solidity: {
     version: '0.8.24',
     settings: {
       optimizer: { enabled: true, runs: 200 },
       evmVersion: 'cancun',
     },
+  },
+  // The Solidity tests live apart from the vitest suites in test/, which run
+  // under a different runner and would otherwise be picked up by mocha.
+  paths: {
+    tests: { mocha: 'test/hardhat' },
+  },
+  // Manual HashScan verification is disabled; Sourcify supports chain 296 on
+  // its default server and HashScan reads the result from there.
+  // https://docs.hedera.com/hedera/tutorials/smart-contracts/how-to-verify-a-smart-contract-on-hashscan
+  verify: {
+    sourcify: { enabled: true },
+    etherscan: { enabled: false },
+    blockscout: { enabled: false },
   },
   networks: {
     // Local in-process chain, for unit tests only.

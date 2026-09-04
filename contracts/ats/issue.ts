@@ -15,10 +15,11 @@ import {
 } from './config.js';
 import {
   contractIdOf,
+  bondConfigVersion,
+  checkAtsAddresses,
   expectRevert,
   factoryAt,
   hashscan,
-  latestBondConfigVersion,
   noteAt,
   openSession,
   operatorKey,
@@ -136,6 +137,7 @@ function monthAfter(seconds: number): number {
 }
 
 async function deployBond(session: Session, plan: BondPlan, info: string): Promise<AtsNoteRecord> {
+  await checkAtsAddresses();
   const factory = factoryAt(session.operator);
   // The only role set at creation is the diamond owner, which is what the SDK
   // sends; every other role is granted afterwards so each grant is its own
@@ -183,7 +185,8 @@ async function deployBond(session: Session, plan: BondPlan, info: string): Promi
 
 async function status(session: Session, record: DeploymentRecord): Promise<void> {
   const ats = atsOf(record);
-  const version = await latestBondConfigVersion(session.provider);
+  await checkAtsAddresses();
+  const version = await bondConfigVersion(session.provider);
   const balance = await session.provider.getBalance(session.operator.address);
   console.log(`ats           ${ATS_VERSION} at ${ATS_TAG}`);
   console.log(`factory       ${ATS.factoryId} ${ATS.factory}`);
@@ -235,7 +238,7 @@ async function throwaway(session: Session, record: DeploymentRecord): Promise<vo
     console.log(`  already deployed at ${ats.throwaway.address}`);
     return;
   }
-  const version = await latestBondConfigVersion(session.provider);
+  const version = await bondConfigVersion(session.provider);
   ats.configVersion = version;
   const now = Math.floor(Date.now() / 1000);
   const plan: BondPlan = {
@@ -291,7 +294,7 @@ async function issue(session: Session, record: DeploymentRecord): Promise<void> 
   }
   const series = record.series;
   if (series === undefined) throw new Error('no series in the deployment record');
-  const version = await latestBondConfigVersion(session.provider);
+  const version = await bondConfigVersion(session.provider);
   ats.configVersion = version;
   const plan: BondPlan = {
     name: NOTE.name,

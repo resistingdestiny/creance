@@ -16,16 +16,27 @@ export const ATS_TAG = 'v.8.0.0-ats';
 /// five months and its resolver cannot carry the 8.0.0 facet hashes. See
 /// docs/harness-notes.md.
 export const ATS = {
-  resolverId: '0.0.9212226',
-  resolver: '0xba2d5fc2083a0b8f164c50e65d782087fba18e0a',
-  factoryId: '0.0.9213391',
-  factory: '0xd1f118a40f3b02883d35909ef2517e7edd78379d',
-  /// Configuration 1 is equity and 2 is bond. The version is read off the
-  /// resolver at run time rather than pinned here, because a resolver upgrade
-  /// changes it and a stale pin fails opaquely; the value actually used is
-  /// written into the deployment record.
-  bondConfigId: `0x${'00'.repeat(31)}02`,
+  resolverId: process.env.ATS_RESOLVER_ID ?? '0.0.9212226',
+  resolver: process.env.ATS_RESOLVER_ADDRESS ?? '0xba2d5fc2083a0b8f164c50e65d782087fba18e0a',
+  factoryId: process.env.ATS_FACTORY_ID ?? '0.0.9213391',
+  factory: process.env.ATS_FACTORY_ADDRESS ?? '0xd1f118a40f3b02883d35909ef2517e7edd78379d',
+  /// Configuration 1 is equity and 2 is bond.
+  bondConfigId: process.env.ATS_BOND_CONFIG_ID ?? `0x${'00'.repeat(31)}02`,
 } as const;
+
+/// The configuration version, if the environment pins one. Left unset it is
+/// read off the resolver at run time, which is what the ATS web application
+/// does; a stale pin fails opaquely. Whichever value is used ends up in the
+/// deployment record so the series stays reproducible.
+export function pinnedBondConfigVersion(): number | undefined {
+  const raw = (process.env.ATS_BOND_CONFIG_VERSION ?? '').trim();
+  if (raw === '') return undefined;
+  const version = Number(raw);
+  if (!Number.isInteger(version) || version < 1) {
+    throw new Error(`ATS_BOND_CONFIG_VERSION must be an integer of 1 or more, got "${raw}"`);
+  }
+  return version;
+}
 
 /// ATS holds every balance in one partition unless the security is created
 /// multi-partition, and this one is not.

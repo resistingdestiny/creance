@@ -8,7 +8,7 @@ import {
 
 import { deriveRoleKeyHex, labelForRole } from '../scripts/hedera/derive.js';
 import { ASSET_ABI, FACTORY_ABI, RESOLVER_ABI } from './abi.js';
-import { ATS, CHAIN_ID, MIRROR_URL, RPC_URL, readResources } from './config.js';
+import { ATS, CHAIN_ID, MIRROR_URL, RPC_URL, pinnedBondConfigVersion, readResources } from './config.js';
 
 /// Everything that talks to the chain. The path is ethers over the JSON-RPC
 /// relay rather than the ATS SDK, because the SDK's SupportedWallets are
@@ -93,7 +93,9 @@ export function noteAt(address: string, runner: Wallet | JsonRpcProvider): Contr
 /// leaves it empty and resolves it at submit time; a direct call cannot, so it
 /// is read here and then written into the deployment record so the series stays
 /// reproducible after the next resolver upgrade.
-export async function latestBondConfigVersion(provider: JsonRpcProvider): Promise<number> {
+export async function bondConfigVersion(provider: JsonRpcProvider): Promise<number> {
+  const pinned = pinnedBondConfigVersion();
+  if (pinned !== undefined) return pinned;
   const resolver = resolverAt(provider);
   const version = (await resolver.getLatestVersionByConfiguration!(ATS.bondConfigId)) as bigint;
   if (version === 0n) throw new Error('the resolver reports no registered bond configuration');
@@ -195,6 +197,27 @@ export async function contractIdOf(address: string, attempts = 10): Promise<stri
     await new Promise((resolve) => setTimeout(resolve, 3_000));
   }
   return undefined;
+}
+
+/// The 0.0.x id and the EVM address of the factory and the resolver are two
+/// spellings of the same contract, and both are in the example environment
+/// file, so they are checked against each other on the mirror node rather than
+/// trusted. An override of one and not the other is the failure this catches.
+export async function checkAtsAddresses(): Promise<void> {
+  for (const [what, id, address] of [
+    ['factory', ATS.factoryId, ATS.factory],
+    ['resolver', ATS.resolverId, ATS.resolver],
+  ] as const) {
+    const response = await fetch(`${MIRROR_URL}/contracts/${id}`);
+    if (!response.ok) throw new Error(`the mirror node does not know the ATS ${what} ${id}`);
+    const body = (await response.json()) as { evm_address?: string; deleted?: boolean };
+    if (body.deleted === true) throw new Error(`the ATS ${what} ${id} is deleted`);
+    if ((body.evm_address ?? '').toLowerCase() !== address.toLowerCase()) {
+      throw new Error(
+        `the ATS ${what} ${id} is ${body.evm_address} on the mirror node, not ${address}`,
+      );
+    }
+  }
 }
 
 export type HashscanKind = 'account' | 'contract' | 'transaction';

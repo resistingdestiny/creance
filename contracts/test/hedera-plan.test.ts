@@ -70,6 +70,7 @@ function completeRecord(): HederaRecord {
         metadataDetail: 'probe mint rejected 120 bytes in 60 characters',
       },
     },
+    blocky402: { facilitator: 'https://api.testnet.blocky402.com', feePayer: '0.0.7162784' },
     operatorBalanceHbarAtLastChange: '1030',
     lastChanged: '2026-09-04',
   };

@@ -59,6 +59,8 @@ export interface HederaRecord {
   /** Explicit associations already made, role to token ids. */
   associations: Partial<Record<AccountRole, string[]>>;
   findings: { freezeDefault: FreezeDefaultFinding | null };
+  /** The x402 facilitator that will settle premiums, recorded for T08. */
+  blocky402: { facilitator: string; feePayer: string } | null;
   operatorBalanceHbarAtLastChange: string;
   lastChanged: string;
 }

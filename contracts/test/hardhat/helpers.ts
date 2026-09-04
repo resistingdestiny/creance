@@ -56,19 +56,26 @@ export async function assertSolvent(
   expect(balance, 'vault solvency (I8)').to.be.greaterThanOrEqual(await vault.accountedTotal());
 }
 
-/// I1, exposure accounting: activeExposure equals the sum of the limits of the
-/// policies in that series that are still Active.
-export async function assertExposure(
-  pool: CoverPool,
-  seriesId: string,
-  policyIds: string[],
-): Promise<void> {
-  let expected = 0n;
-  for (const policyId of policyIds) {
-    const policy = await pool.policyOf(policyId);
-    if (policy.seriesId === seriesId && policy.status === POLICY_ACTIVE) {
-      expected += policy.limit;
-    }
+/// I1, exposure accounting: for every series, activeExposure equals the sum of
+/// the limits of the policies in it that are still Active. The policy list is
+/// read back from the PolicyBound log so a test that binds a fourth policy is
+/// covered without saying so.
+export async function assertExposure(pool: CoverPool): Promise<void> {
+  const bound = await pool.queryFilter(pool.filters.PolicyBound());
+  const bySeries = new Map<string, string[]>();
+  for (const event of bound) {
+    const seriesId = event.args.seriesId;
+    const ids = bySeries.get(seriesId) ?? [];
+    ids.push(event.args.policyId);
+    bySeries.set(seriesId, ids);
   }
-  expect(await pool.activeExposureOf(seriesId), 'exposure accounting (I1)').to.equal(expected);
+  for (const [seriesId, policyIds] of bySeries) {
+    let expected = 0n;
+    for (const policyId of policyIds) {
+      const policy = await pool.policyOf(policyId);
+      if (policy.status === POLICY_ACTIVE) expected += policy.limit;
+    }
+    expect(await pool.activeExposureOf(seriesId), `exposure accounting (I1) ${seriesId}`)
+      .to.equal(expected);
+  }
 }

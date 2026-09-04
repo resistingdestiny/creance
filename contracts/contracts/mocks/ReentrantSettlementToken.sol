@@ -3,10 +3,6 @@ pragma solidity 0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-interface IReentrantTarget {
-    function payClaimRaw(bytes calldata data) external;
-}
-
 /// @notice Test-only token that calls back into a target during a transfer, so
 /// the reentrancy guard on the claim path is exercised rather than assumed.
 contract ReentrantSettlementToken is ERC20 {

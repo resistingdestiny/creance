@@ -67,3 +67,102 @@ export async function deployVault() {
     maturityAt,
   };
 }
+
+/// Month arithmetic mirrored in TypeScript so a test can say "three months
+/// after the policy started" without asking the contract first.
+export function monthIndexOf(timestamp: number | bigint): number {
+  const d = new Date(Number(timestamp) * 1000);
+  return d.getUTCFullYear() * 12 + d.getUTCMonth();
+}
+
+export function yyyymmOf(monthIndex: number): number {
+  return Math.floor(monthIndex / 12) * 100 + (monthIndex % 12) + 1;
+}
+
+export function startOfMonth(monthIndex: number): number {
+  return Math.floor(Date.UTC(Math.floor(monthIndex / 12), monthIndex % 12, 1) / 1000);
+}
+
+export const SERIES_B = '0x' + Buffer.from('ODI-OFFICE-2026-01'.padEnd(32, '\0')).toString('hex');
+
+export const POLICY_IDS = [
+  '0x' + 'a1'.repeat(32),
+  '0x' + 'a2'.repeat(32),
+  '0x' + 'a3'.repeat(32),
+];
+export const NULLIFIERS = ['0x' + 'b1'.repeat(32), '0x' + 'b2'.repeat(32), '0x' + 'b3'.repeat(32)];
+
+/// The pool fixture starts the clock at the first instant of a month, so every
+/// "three months later" in the suite lands on a known boundary rather than on
+/// whatever day the suite happened to run.
+export async function deployPool() {
+  const { ethers, networkHelpers } = await network.getOrCreate();
+  const [deployer, admin, oracle, api, claimsSigner, holder1, holder2, holder3, investor1, investor2, outsider] =
+    await ethers.getSigners();
+
+  const monthStart = startOfMonth(monthIndexOf(await networkHelpers.time.latest()) + 1);
+  await networkHelpers.time.increaseTo(monthStart);
+
+  const token = await ethers.deployContract('MockSettlementToken', ['Creance Test USD', 'TUSD', 6]);
+  const vault = await ethers.deployContract('CollateralVault', [
+    await token.getAddress(),
+    admin.address,
+  ]);
+  const pool = await ethers.deployContract('CoverPool', [await vault.getAddress(), admin.address]);
+
+  await vault.connect(admin).setCoverPool(await pool.getAddress());
+  await vault.connect(admin).grantRole(await vault.SUBSCRIPTION_ROLE(), api.address);
+  await vault.connect(admin).grantRole(await vault.TREASURY_ROLE(), api.address);
+  await pool.connect(admin).grantRole(await pool.ORACLE_ROLE(), oracle.address);
+  await pool.connect(admin).grantRole(await pool.BINDER_ROLE(), api.address);
+  await pool.connect(admin).grantRole(await pool.CLAIMS_ROLE(), claimsSigner.address);
+
+  const startAt = monthStart;
+  const maturityAt = startAt + 400 * DAY;
+  await vault.connect(admin).openSeries(SERIES_ID, ethers.ZeroAddress, maturityAt);
+  await pool.connect(admin).registerSeries(DEMO_TERMS);
+
+  await token.mint(api.address, tusd(1_000_000));
+  await token.connect(api).approve(await vault.getAddress(), ethers.MaxUint256);
+  await vault.connect(api).subscribe(SERIES_ID, investor1.address, tusd(50_000));
+  await vault.connect(api).subscribe(SERIES_ID, investor2.address, tusd(50_000));
+
+  const holders = [holder1, holder2, holder3];
+  for (let i = 0; i < 3; i += 1) {
+    await pool.connect(api).bind({
+      policyId: POLICY_IDS[i],
+      seriesId: SERIES_ID,
+      holder: holders[i].address,
+      nullifierHash: NULLIFIERS[i],
+      limit: COVER_LIMIT,
+      premium: MONTHLY_PREMIUM,
+      startAt,
+      hcsReceiptSeq: 100n + BigInt(i),
+    });
+  }
+
+  const baseMonth = monthIndexOf(startAt);
+
+  return {
+    ethers,
+    networkHelpers,
+    deployer,
+    admin,
+    oracle,
+    api,
+    claimsSigner,
+    holders,
+    holder1,
+    holder2,
+    holder3,
+    investor1,
+    investor2,
+    outsider,
+    token,
+    vault,
+    pool,
+    startAt,
+    maturityAt,
+    baseMonth,
+  };
+}

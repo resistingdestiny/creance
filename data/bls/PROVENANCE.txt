@@ -1,0 +1,12 @@
+BLS archive provenance. Raw public source files only; no derived series.
+
+https://download.bls.gov/pub/time.series/ln/ln.series (gzipped as raw/ln.series.gz)  sha256_gz=ab380a9d92642fe4fe20c8a37d99f81591a23bb29e23e5d77afd9792df18a213  sha256_plain=f1a2f8cda6c53209b9df7b9ddab0d1739af5ef49cf3ba43eb556dbdb1ddc23fd  bytes_plain=15288538
+api.bls.gov/publicAPI/v1/timeseries/data (POST, keyless, series per series-ids.txt)  file=batch0_2000_2009.json  sha256=10303772ffd596ba710f40bf99b37a0ed68e4900c8bd336383536d11cfd0fa8d  bytes=152302
+api.bls.gov/publicAPI/v1/timeseries/data (POST, keyless, series per series-ids.txt)  file=batch0_2010_2019.json  sha256=70562fdc00b540c8797add0a6a6817d8ef60543a016c1504e084ca776dc1e07e  bytes=152433
+api.bls.gov/publicAPI/v1/timeseries/data (POST, keyless, series per series-ids.txt)  file=batch0_2020_2026.json  sha256=4d7af4325f7a55e886f75dce52f2de5158d826c74ed6348b7e3fd4cc3d32df6f  bytes=104422
+api.bls.gov/publicAPI/v1/timeseries/data (POST, keyless, series per series-ids.txt)  file=batch1_2000_2009.json  sha256=69efa03f63a451249f227ed4c0200975cf9cdfb02f6b6f456a10e9d268d6fe9f  bytes=152175
+api.bls.gov/publicAPI/v1/timeseries/data (POST, keyless, series per series-ids.txt)  file=batch1_2010_2019.json  sha256=316776a6b07f2efb462c66d7206b65ec72cbaba64110ad178defaa49a797e978  bytes=152227
+api.bls.gov/publicAPI/v1/timeseries/data (POST, keyless, series per series-ids.txt)  file=batch1_2020_2026.json  sha256=9e8763f620db788541be9e08ff45ea5a90ee246ef6c93eaf6b1e90e5d702b2b2  bytes=104506
+
+Fetched before kick-off with a descriptive User-Agent, as data collection.
+Latest source period at fetch: 2026 M07. The repository's own fetcher re-pulls and extends during the event.

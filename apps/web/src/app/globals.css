@@ -1,0 +1,163 @@
+@import "tailwindcss";
+
+/* docs/DESIGN-TOKENS.md sections 1, 2 and 3 as the Tailwind v4 theme. Tailwind
+   v4 has no tailwind.config.js: this @theme block is the config. The handoff's
+   v3 `theme.extend.colors` snippet is the source these values came from.
+
+   Two v4 defaults bite this design and are handled here and in the components:
+   a bare `border` paints currentColor, so every hairline is written
+   `border border-hairline`; the default ring is 1px currentColor, so no focus
+   state uses a ring, they are all the outline in the base layer below. */
+@theme {
+  /* Section 1: colour. The default palette is dropped so that bg-red-500 and
+     text-gray-500 do not exist and an off-palette colour cannot leak into a
+     design that has no brand accent. */
+  --color-*: initial;
+  --color-canvas: #ffffff;
+  --color-surface: #f4f5f7;
+  --color-hairline: #e4e6ea;
+  --color-ink: #000000;
+  --color-ink-2: #6b6f76;
+  --color-ink-3: #a3a7ae;
+  --color-covered: #0b8a4e;
+  --color-watch: #c77a00;
+  --color-triggered: #d13b3b;
+  --color-white: #ffffff;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  /* Marketing surface only, from docs/DESIGN-TOKENS-ADDENDUM.md. No worker or
+     investor screen may use these. Nothing in this ticket does. */
+  --color-night: #0a0d12;
+  --color-night-2: #11151c;
+
+  /* Section 2: type. The two font families are set by next/font in the root
+     layout; see src/lib/fonts.ts for the Option A and Option B switch. */
+  --font-display: var(--font-display-family), Inter, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-text: var(--font-text-family), -apple-system, "Helvetica Neue", Arial, sans-serif;
+
+  --text-display-xl: 64px;
+  --text-display-xl--line-height: 68px;
+  --text-display-l: 56px;
+  --text-display-l--line-height: 60px;
+  --text-headline: 36px;
+  --text-headline--line-height: 40px;
+  --text-title: 26px;
+  --text-title--line-height: 32px;
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 24px;
+  --text-body: 16px;
+  --text-body--line-height: 24px;
+  --text-button: 17px;
+  --text-button--line-height: 22px;
+  --text-secondary: 14px;
+  --text-secondary--line-height: 20px;
+  --text-caption: 13px;
+  --text-caption--line-height: 18px;
+
+  --tracking-display: -0.02em;
+  --tracking-headline: -0.015em;
+  --tracking-title: -0.01em;
+
+  /* Section 3: radii. Spacing stays on the default 4px scale, which already
+     gives the sheet's 4 8 12 16 20 24 32 40 48 as p-1 to p-12. */
+  --radius-field: 12px;
+  --radius-group: 16px;
+  --radius-card: 20px;
+  --radius-hero: 32px;
+}
+
+/* The single permitted elevation, landing hero card only, from
+   docs/DESIGN-TOKENS-ADDENDUM.md. It is declared here so nobody invents a
+   second one. Nothing in the product uses it and nothing in this ticket does. */
+:root {
+  --elevation-hero: 0 40px 80px -32px rgba(0, 0, 0, 0.55);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-text);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    /* The sheet asks for tabular figures everywhere a figure appears. Setting
+       it on the body and removing it from running prose is how that is met
+       without hunting for every number. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* docs/DESIGN-TOKENS.md section 7: the one focus state in the design. It is
+     an outline, never a ring, so the v4 ring default cannot change it. */
+  :focus-visible {
+    outline: 2px solid #000;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* docs/DESIGN-TOKENS.md section 4, the signature element, as plain CSS. A
+     four stop gradient plus two pseudo-element overlays is not a utility. */
+  .cover-card {
+    border: 1px solid #e4e6ea;
+    border-radius: 20px;
+    background: linear-gradient(118deg, #fdfdfe 0%, #e9ebef 36%, #f7f8fa 58%, #dfe2e7 100%);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* diagonal sheen */
+  .cover-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(118deg, transparent 40%, rgba(255, 255, 255, 0.85) 48%, transparent 58%);
+  }
+
+  /* landing size only: brushing + inner edge light. --hero adds ::after, it
+     does not replace ::before, so the hero card carries both overlays. */
+  .cover-card--hero {
+    border-radius: 32px;
+  }
+
+  .cover-card--hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    background: repeating-linear-gradient(118deg, rgba(255, 255, 255, 0.35) 0 1px, transparent 1px 5px);
+  }
+
+  /* Both overlays are painted after the content in source order, so anything
+     inside the card has to be lifted above them. This is the single most
+     common way the card renders wrong. */
+  .cover-card__content {
+    position: relative;
+    z-index: 10;
+  }
+
+  /* Gallery only: shows the padded hit area of a text link so a reviewer can
+     see that it clears 44px. Never used by a product screen. */
+  .debug-hit-area {
+    outline: 1px dashed var(--color-triggered);
+    outline-offset: 0;
+  }
+}
+
+@layer base {
+  /* Option B of the sheet's section 2. The Geist package names its own CSS
+     variable, so the two family slots are pointed at it here rather than in
+     the font module. Option A needs no equivalent: next/font writes
+     --font-display-family and --font-text-family directly. */
+  .font-option-b {
+    --font-display-family: var(--font-geist-sans);
+    --font-text-family: var(--font-geist-sans);
+  }
+}

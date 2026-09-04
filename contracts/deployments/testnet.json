@@ -53,7 +53,16 @@
     "payoutMode": "full",
     "maturityAt": 1820082162,
     "openSeriesTx": "0x2c042123014090e5b40ad3142518397ecf9d377471cde59fd75c7ee2138432d0",
-    "registerSeriesTx": "0x15e833ad75e2f1ae5ef38956959ac13d6b76eba7906ee9e6ba6b48895675bfda"
+    "registerSeriesTx": "0x15e833ad75e2f1ae5ef38956959ac13d6b76eba7906ee9e6ba6b48895675bfda",
+    "ats": {
+      "version": "8.0.0",
+      "tag": "v.8.0.0-ats",
+      "factoryId": "0.0.9213391",
+      "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+      "resolverId": "0.0.9212226",
+      "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+      "configId": "0x0000000000000000000000000000000000000000000000000000000000000002"
+    }
   },
   "verification": {
     "CollateralVault": "https://hashscan.io/testnet/contract/0xD0473d355ECB299F2ECc0d92124bc8CF63554e60",

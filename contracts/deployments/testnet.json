@@ -87,6 +87,19 @@
           "tx": "0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398",
           "result": "series ODI-COMP-2026-01 issued as an ATS bond, principal 100000, internal KYC on, clearing off, not controllable, Regulation S",
           "gasUsed": 7005006
+        },
+        "roles": {
+          "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER, ROLE_CORPORATE_ACTION, ROLE_PAUSER, ROLE_FREEZE_MANAGER, ROLE_MATURITY_REDEEMER, ROLE_MATURITY_MANAGER"
+        },
+        "issuer": {
+          "tx": "0x7a1a32e3178bea2e894552cd3822e1006933abe6e83c4a9098265bd052f89230",
+          "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+          "gasUsed": 126977
+        },
+        "kyc-investor-1": {
+          "tx": "0x44e5f93d56d72350baf85cea6bd5a6dc1dbe0054f9f87a598e592eb7c4ebf5b5",
+          "result": "getKycStatusFor(0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931) reads GRANTED (1)",
+          "gasUsed": 273905
         }
       },
       "configVersion": 1,
@@ -128,6 +141,25 @@
         "regulation": "Regulation S",
         "deployTx": "0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398",
         "gasUsed": 7005006
+      },
+      "roles": {
+        "ROLE_SSI_MANAGER": "0xad70c0dadfad9d50c9f2a1a98aee3f920bcce6a8bb237baaceafc69ca8e3cfee",
+        "ROLE_KYC": "0xbc18bea44c54733d43032050742ea766b2f4ee0fbccc3f40c538933b5c3cc06a",
+        "ROLE_ISSUER": "0xa53b622762f994432f0d9dd93a2c92c3d4e5dd77670b8d604c7ab180067cfe9a",
+        "ROLE_CORPORATE_ACTION": "0x89b15399594efca317b379d0a3e2962a6cc22006e076ede4887959d2b1a95a22",
+        "ROLE_PAUSER": "0xbe4e8a52cdd90d452582a2314005d317169d0d37b3d74c61566f10640025bac1",
+        "ROLE_FREEZE_MANAGER": "0x486f13c2a6e4fb6226613ee6f45128c0f7b87ac6fd04b0c57fd772cc9884da49",
+        "ROLE_MATURITY_REDEEMER": "0xe72bc61cdbcb71e76ba91b76d1dbf32e8754d6370d7df76937fd75f1cddf9e52",
+        "ROLE_MATURITY_MANAGER": "0x39ab7a21180b67c4f47ace2156446c05c04438f4aa3015e94a7bfc3330a9a874"
+      },
+      "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+      "kyc": {
+        "investor-1": {
+          "vcId": "urn:uuid:92801b75-ca3c-4617-a044-9533154baffe",
+          "validFrom": 1788552752,
+          "validTo": 4942152752,
+          "tx": "0x44e5f93d56d72350baf85cea6bd5a6dc1dbe0054f9f87a598e592eb7c4ebf5b5"
+        }
       }
     }
   },

@@ -9,7 +9,10 @@
     "build": "hardhat build",
     "test": "vitest run && pnpm run test:hardhat",
     "test:hardhat": "hardhat test mocha",
-    "typecheck": "hardhat build && tsc --noEmit"
+    "typecheck": "hardhat build && tsc --noEmit",
+    "deploy": "tsx --env-file-if-exists=../.env scripts/deploy/all.ts",
+    "deploy:step": "tsx --env-file-if-exists=../.env scripts/deploy/deploy.ts",
+    "verify": "tsx --env-file-if-exists=../.env scripts/deploy/verify.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.15",

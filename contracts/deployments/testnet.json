@@ -256,7 +256,44 @@
         "startDate": 1788552983,
         "endDate": 1791144983,
         "ratePercent": 8,
-        "holders": [],
+        "holders": [
+          {
+            "role": "investor-1",
+            "accountId": "0.0.10366460",
+            "address": "0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931",
+            "numerator": "1036800000000000000",
+            "denominator": "3153600000000000",
+            "amount": "328767123",
+            "remainder": "907200000000000",
+            "scheduleId": "0.0.10368878",
+            "scheduleCreateTx": "0.0.10366450@1788556746.724064738",
+            "scheduleMemo": "creance coupon ODI-COMP-2026-01 1 investor-1",
+            "executeAt": "2026-09-04T21:21:11.000Z",
+            "createFeeHbar": "1.29264098 ℏ",
+            "links": {
+              "schedule": "https://hashscan.io/testnet/schedule/0.0.10368878",
+              "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738"
+            }
+          },
+          {
+            "role": "investor-2",
+            "accountId": "0.0.10366462",
+            "address": "0xcaa1184cd59b9296f757efc7303a10ecec6ce51e",
+            "numerator": "1036800000000000000",
+            "denominator": "3153600000000000",
+            "amount": "328767123",
+            "remainder": "907200000000000",
+            "scheduleId": "0.0.10368880",
+            "scheduleCreateTx": "0.0.10366450@1788556748.511830975",
+            "scheduleMemo": "creance coupon ODI-COMP-2026-01 1 investor-2",
+            "executeAt": "2026-09-04T21:21:11.000Z",
+            "createFeeHbar": "1.29264098 ℏ",
+            "links": {
+              "schedule": "https://hashscan.io/testnet/schedule/0.0.10368880",
+              "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975"
+            }
+          }
+        ],
         "premiumSeed": {
           "from": "0.0.10366453",
           "amount": "657534246",

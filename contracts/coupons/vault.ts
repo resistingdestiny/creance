@@ -68,6 +68,38 @@ export async function subscribeInvestor(
   };
 }
 
+/// Enough HBAR to pay for a call at the relay's gas price. ethers reserves
+/// twice the base fee times the gas limit before it will send, so an account
+/// with a 2,000,000 gas call ahead of it needs about five HBAR free even though
+/// the call itself costs a fraction of that.
+const HBAR_TARGET = 12n * 10n ** 18n;
+
+/**
+ * Top the accounts that send their own transactions up to twelve HBAR.
+ *
+ * The stand-in premium payer and both noteholders sign their own transfers, and
+ * the api account pays for the coupon schedules, each of which costs about 1.3
+ * HBAR because it carries a contract call. An account cannot send a call at all
+ * unless it holds twice the gas limit times the base fee, whatever the call
+ * ends up costing.
+ */
+export async function fundAccounts(context: CouponContext): Promise<void> {
+  for (const party of [context.policyholder, ...context.investors, context.api]) {
+    const held = await context.provider.getBalance(party.address);
+    if (held >= HBAR_TARGET) {
+      console.log(`  ${party.role} holds ${held / 10n ** 18n} HBAR, enough`);
+      continue;
+    }
+    const tx = await context.operator.wallet.sendTransaction({
+      to: party.address,
+      value: HBAR_TARGET - held,
+      gasLimit: 500_000,
+    });
+    await tx.wait();
+    console.log(`  topped ${party.role} up to 12 HBAR in ${tx.hash}`);
+  }
+}
+
 /** The settlement token balance of an account, through the ERC-20 facade. */
 export async function tokenBalanceOf(context: CouponContext, address: string): Promise<bigint> {
   return (await context.token.getFunction('balanceOf')(address)) as bigint;

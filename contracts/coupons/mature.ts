@@ -12,7 +12,7 @@ import {
 } from './context.js';
 import { toBytes32 } from './plan.js';
 import type { MaturityDemoRecord, RedemptionRecord } from './record.js';
-import { subscribeInvestor, tokenBalanceOf } from './vault.js';
+import { fundAccounts, subscribeInvestor, tokenBalanceOf } from './vault.js';
 
 /// `pnpm coupons:mature` runs a maturity redemption on Hedera testnet.
 ///
@@ -27,10 +27,20 @@ import { subscribeInvestor, tokenBalanceOf } from './vault.js';
 /// It is a maturity demonstration and it is labelled as one everywhere. It is
 /// not the demo series and no screen reads it.
 
-const STEPS = ['status', 'open', 'bond', 'subscribe', 'wait', 'redeem', 'payout', 'all'] as const;
+const STEPS = [
+  'status',
+  'fund',
+  'open',
+  'bond',
+  'subscribe',
+  'wait',
+  'redeem',
+  'payout',
+  'all',
+] as const;
 type Step = (typeof STEPS)[number];
 
-const RUN: Step[] = ['open', 'bond', 'subscribe', 'wait', 'redeem', 'payout'];
+const RUN: Step[] = ['fund', 'open', 'bond', 'subscribe', 'wait', 'redeem', 'payout'];
 
 /// One unit of principal per holder, a fiftieth of the demo series, because
 /// this series exists to show the lifecycle end and not to hold money.
@@ -192,7 +202,7 @@ async function bond(context: CouponContext): Promise<void> {
         { gasLimit: ATS_GAS.grantKyc },
       ),
     );
-    demo.note.kycTx = grant.hash;
+    demo.note.kyc = { ...(demo.note.kyc ?? {}), [investor.role]: grant.hash };
     const mint = await send(
       `issueByPartition ${UNITS_PER_INVESTOR} unit to ${investor.role}`,
       note.getFunction('issueByPartition')(
@@ -205,7 +215,7 @@ async function bond(context: CouponContext): Promise<void> {
         { gasLimit: ATS_GAS.issue },
       ),
     );
-    demo.note.mintTx = mint.hash;
+    demo.note.mints = { ...(demo.note.mints ?? {}), [investor.role]: mint.hash };
     context.save();
   }
   console.log(`  principal on the note ${principalFor(plan)}`);
@@ -397,6 +407,7 @@ async function status(context: CouponContext): Promise<void> {
 
 const HANDLERS: Record<Exclude<Step, 'all'>, (context: CouponContext) => Promise<void>> = {
   status,
+  fund: fundAccounts,
   open,
   bond,
   subscribe,

@@ -114,8 +114,9 @@ export interface MaturityDemoRecord {
     maturityDate: number;
     deployTx: string;
     gasUsed?: number;
-    kycTx?: string;
-    mintTx?: string;
+    /// One KYC grant and one mint per holder, keyed by role.
+    kyc?: Record<string, string>;
+    mints?: Record<string, string>;
     minted?: string;
   };
   /// What the principal reduction after a paid claim reads as on chain, taken

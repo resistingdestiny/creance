@@ -365,5 +365,52 @@
       "payClaim": "https://hashscan.io/testnet/transaction/0x2295b762330bae87b3d30395b3623bb33e2d8cbcd2a883bf5afa9d9f46383c06"
     }
   },
-  "associationTx": "0xc7856204a02bd8caee265a17c83928ea89c5cbf0937452e251d4abe58638d6aa"
+  "associationTx": "0xc7856204a02bd8caee265a17c83928ea89c5cbf0937452e251d4abe58638d6aa",
+  "maturityDemo": {
+    "label": "ODI-MAT-1788558259",
+    "seriesId": "0x4f44492d4d41542d313738383535383235390000000000000000000000000000",
+    "maturityAt": 1788558259,
+    "openSeriesTx": "0xb9bfbd08157d273762ffb468dc3d8e87a472ac93a12a534965c6a176a6e506e8",
+    "subscriptions": [
+      {
+        "role": "investor-1",
+        "accountId": "0.0.10366460",
+        "address": "0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931",
+        "amount": "1000000000",
+        "fundTx": "0x0a4bb461058ad6af8394b51b9c3eeabec4c827490535cbca60b70e6035a6476a",
+        "approveTx": "0x408f39b76edfdeffd4988353dcb0c44d30e13440871d6712ed7576ed6ff828d3",
+        "subscribeTx": "0x203fc51f3970b77516f82b8d4b1d23a3fbcad5021b8f36260cc6cf7196fd688e",
+        "gasUsed": 124242
+      },
+      {
+        "role": "investor-2",
+        "accountId": "0.0.10366462",
+        "address": "0xcaa1184cd59b9296f757efc7303a10ecec6ce51e",
+        "amount": "1000000000",
+        "fundTx": "0xc633d1cc5b88182b7122e220c08179ee7af0c9fe66f0421679a9f11406b58a4d",
+        "approveTx": "0x5886b67b4905315d92405493d63d53d2e0ceb086499e86e24009e4a60424b389",
+        "subscribeTx": "0x23c3dd8643b086cac4387a0b3ce8af4faa8f6a9e24e0911e96eb385415ba5595",
+        "gasUsed": 90042
+      }
+    ],
+    "redemptions": [],
+    "note": {
+      "address": "0x6e89613455159365B07CdCB9852311caE318afC9",
+      "name": "Creance Maturity Demonstration ODI-MAT-1788558259",
+      "symbol": "CDBNMAT",
+      "isin": "ZZODIM8DMYD1",
+      "maturityDate": 1788558259,
+      "deployTx": "0x9371adcdaf34f7ad01bab510373d87718ec2b2e38a0d27cd6c242da597ab85a4",
+      "gasUsed": 7005600,
+      "minted": "1000000",
+      "kyc": {
+        "investor-1": "0x87f19076ceef03f522b1f0b843de78cc0da7980455e1af015a272402919ec924",
+        "investor-2": "0x1f42578c9d8086d09d910bdff774c483e00f310fdb7e66d18c3682d44d8ebee5"
+      },
+      "mints": {
+        "investor-1": "0xaa1d8c670f937a9c7d91e45b887914c2f2916775bc2397c718183ec072e29ecc",
+        "investor-2": "0xb77dc5b3a2a96367f6991d1e8759dd46a12ebbf46d6e7f35acc7d72f887b6af1"
+      }
+    }
+  }
 }

@@ -22,7 +22,7 @@ import {
   toBytes32,
 } from './plan.js';
 import type { CouponHolderSettlement, CouponSettlementRecord } from './record.js';
-import { subscribeInvestor, tokenBalanceOf } from './vault.js';
+import { fundAccounts, subscribeInvestor, tokenBalanceOf } from './vault.js';
 
 /// `pnpm coupons:pay` settles a declared ATS coupon on Hedera testnet.
 ///
@@ -53,12 +53,6 @@ const STEPS = [
 type Step = (typeof STEPS)[number];
 
 const RUN: Step[] = ['fund', 'probe', 'seed', 'subscribe', 'pay', 'publish', 'verify'];
-
-/// Enough HBAR to pay for a call at the relay's gas price. ethers reserves
-/// twice the base fee times the gas limit before it will send, so an account
-/// with a 2,000,000 gas call ahead of it needs about five HBAR free even though
-/// the call itself costs a fraction of that.
-const HBAR_TARGET = 12n * 10n ** 18n;
 
 /// What each noteholder subscribes for the demonstration: half the principal
 /// each, which is what they hold on the note.
@@ -208,31 +202,6 @@ async function status(context: CouponContext): Promise<void> {
       `  ${investor.role} note ${detail.tokenBalance}, subscription ${subscription}, ` +
         `entitlement ${numerator}/${denominator} = ${amount} minor units, recordDateReached ${recordDateReached}`,
     );
-  }
-}
-
-// ----------------------------------------------------------------- fund
-
-/**
- * Top the accounts that send their own transactions up to twelve HBAR. The
- * stand-in premium payer and both noteholders sign their own transfers here,
- * and an account cannot send a call at all unless it holds twice the gas limit
- * times the base fee, whatever the call actually ends up costing.
- */
-async function fund(context: CouponContext): Promise<void> {
-  for (const party of [context.policyholder, ...context.investors, context.api]) {
-    const held = await context.provider.getBalance(party.address);
-    if (held >= HBAR_TARGET) {
-      console.log(`  ${party.role} holds ${held / 10n ** 18n} HBAR, enough`);
-      continue;
-    }
-    const tx = await context.operator.wallet.sendTransaction({
-      to: party.address,
-      value: HBAR_TARGET - held,
-      gasLimit: 500_000,
-    });
-    await tx.wait();
-    console.log(`  topped ${party.role} up to 12 HBAR in ${tx.hash}`);
   }
 }
 
@@ -638,7 +607,7 @@ async function verify(context: CouponContext): Promise<void> {
 
 const HANDLERS: Record<Exclude<Step, 'all'>, (context: CouponContext) => Promise<void>> = {
   status,
-  fund,
+  fund: fundAccounts,
   probe,
   seed,
   subscribe,

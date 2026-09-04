@@ -15,11 +15,13 @@ export interface CouponHolderSettlement {
   amount: string;
   /// What the truncation left in the premium account, as a fraction of a minor unit.
   remainder: string;
-  /// The vault call that moved the amount out of the premium account.
-  fundCouponTx?: string;
-  fundCouponGasUsed?: number;
-  /// The Scheduled Transaction that paid the holder.
+  /// The Scheduled Transaction that paid the holder. It holds the vault's
+  /// `fundCoupon` call, so the schedule is the payment and there is no separate
+  /// transfer: the settlement token goes straight from the premium account to
+  /// the noteholder.
   scheduleId?: string;
+  createFeeHbar?: string;
+  gasUsed?: number;
   scheduleCreateTx?: string;
   scheduleMemo?: string;
   executeAt?: string;

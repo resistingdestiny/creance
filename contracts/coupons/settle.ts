@@ -1,18 +1,7 @@
-import {
-  ContractExecuteTransaction,
-  ScheduleCreateTransaction,
-  Timestamp,
-  TopicMessageSubmitTransaction,
-  TransactionId,
-} from '@hiero-ledger/sdk';
-import {
-  hashscanUrl,
-  scheduleTransfer,
-  waitForExecution,
-  type ScheduledTransfer,
-} from '@creance/client';
+import { TopicMessageSubmitTransaction } from '@hiero-ledger/sdk';
+import { hashscanUrl, scheduleContractCall, waitForExecution } from '@creance/client';
 
-import { contractIdOf, hashscan, send } from '../ats/chain.js';
+import { contractIdOf, send } from '../ats/chain.js';
 import type { DeploymentRecord } from '../scripts/deploy/record.js';
 import { EXECUTION_POLL, GAS, PROBE_LEAD_SECONDS, SCHEDULE_LEAD_SECONDS } from './config.js';
 import {
@@ -138,18 +127,38 @@ async function vaultContractId(context: CouponContext): Promise<string> {
   return vaultRecord.contractId;
 }
 
-/// The custom error a contract call reverted with, read back from the mirror
-/// node. A scheduled call has no receipt of its own to decode, so the revert
-/// data comes from the contract result endpoint.
-async function revertNameFromMirror(
+/// What a scheduled contract call did, read back from the mirror node.
+///
+/// The contract result of a scheduled call is not reachable by its transaction
+/// id: `/contracts/results/{transactionId}` answers 404 for it. It is reachable
+/// by the consensus timestamp of the execution, which is what the schedule
+/// record carries. See docs/harness-notes.md.
+async function contractResultAt(
   context: CouponContext,
-  transactionId: string,
-): Promise<string | undefined> {
-  const response = await fetch(`${context.mirrorUrl}/contracts/results/${transactionId}`);
+  executedAt: string,
+): Promise<{ result: string; gasUsed?: number; revert?: string } | undefined> {
+  const response = await fetch(`${context.mirrorUrl}/contracts/results?timestamp=${executedAt}`);
   if (!response.ok) return undefined;
-  const body = (await response.json()) as { error_message?: string | null };
-  const data = body.error_message ?? undefined;
-  if (data === undefined || !data.startsWith('0x') || data.length < 10) return data ?? undefined;
+  const body = (await response.json()) as {
+    results?: { result?: string; error_message?: string | null; gas_used?: number }[];
+  };
+  const outcome = body.results?.[0];
+  if (outcome === undefined) return undefined;
+  return {
+    result: outcome.result ?? '',
+    ...(outcome.gas_used === undefined ? {} : { gasUsed: outcome.gas_used }),
+    ...(decodeRevert(context, outcome.error_message) === undefined
+      ? {}
+      : { revert: decodeRevert(context, outcome.error_message) as string }),
+  };
+}
+
+/// The custom error name behind four bytes of revert data. Every error the
+/// vault can raise is in its ABI, so a revert reads back as a name.
+function decodeRevert(context: CouponContext, data: string | null | undefined): string | undefined {
+  if (data === null || data === undefined || !data.startsWith('0x') || data.length < 10) {
+    return data ?? undefined;
+  }
   try {
     const parsed = context.vault.interface.parseError(data);
     if (parsed !== null) {
@@ -263,26 +272,22 @@ async function probe(context: CouponContext): Promise<void> {
     0n,
   ]);
   const executeAt = new Date((now() + PROBE_LEAD_SECONDS) * 1000);
-  const inner = new ContractExecuteTransaction()
-    .setContractId(vaultId)
-    .setGas(GAS.fundCoupon)
-    .setFunctionParameters(Buffer.from(data.slice(2), 'hex'));
-  const create = new ScheduleCreateTransaction()
-    .setScheduledTransaction(inner)
-    .setScheduleMemo(`creance probe scheduled fundCoupon ${series.label}`)
-    .setExpirationTime(Timestamp.fromDate(executeAt))
-    .setWaitForExpiry(true)
-    .setAdminKey(context.api.key.publicKey)
-    .setTransactionId(TransactionId.generate(context.api.accountId));
 
   let statusText: string;
   let scheduleId: string | undefined;
   try {
-    const frozen = await create.freezeWith(context.client).sign(context.api.key);
-    const response = await frozen.execute(context.client);
-    const receipt = await response.getReceipt(context.client);
-    scheduleId = receipt.scheduleId?.toString();
-    statusText = `create ${receipt.status.toString()}`;
+    const created = await scheduleContractCall({
+      client: context.client,
+      contractId: vaultId,
+      callData: data,
+      gas: GAS.fundCoupon,
+      payer: { accountId: context.api.accountId, key: context.api.key },
+      executeAt,
+      memo: `creance probe scheduled fundCoupon ${series.label}`,
+      adminKey: context.api.key.publicKey,
+    });
+    scheduleId = created.scheduleId;
+    statusText = 'create SUCCESS';
   } catch (error) {
     const status = (error as { status?: { toString(): string } }).status;
     statusText = `create rejected ${status ? status.toString() : (error as Error).message}`;
@@ -296,7 +301,8 @@ async function probe(context: CouponContext): Promise<void> {
     const execution = await waitForExecution(context.mirrorUrl, scheduleId, { ...EXECUTION_POLL });
     if (execution !== null) {
       result = execution.result;
-      revert = await revertNameFromMirror(context, execution.executedTransactionId);
+      const outcome = await contractResultAt(context, execution.executedAt);
+      revert = outcome?.revert;
       console.log(`  executed ${execution.executedTransactionId} result ${result} ${revert ?? ''}`);
     } else {
       result = 'never executed';
@@ -448,15 +454,20 @@ async function subscribe(context: CouponContext): Promise<void> {
 // ------------------------------------------------------------------- pay
 
 /**
- * Move each holder's entitlement out of the premium account and settle it with
- * a Scheduled Transaction.
+ * Pay each noteholder their entitlement with a Scheduled Transaction that
+ * carries the vault's own `fundCoupon` call.
  *
- * The vault is a contract and a contract has no key, so it cannot sign the
- * transfer inside a schedule. `fundCoupon` therefore moves the amount from the
- * premium account to the api account, which holds TREASURY_ROLE, and the
- * scheduled transfer from the api account to the holder is the payment. The
- * schedule carries `waitForExpiry` and a memo naming the series, the coupon and
- * the holder, so an execution maps back to a coupon with no date arithmetic.
+ * The settlement token goes straight from the premium account to the
+ * noteholder: the schedule holds a contract call, not a transfer, so no
+ * intermediate account ever holds a noteholder's coupon. The vault has no key
+ * of its own, and it does not need one, because a scheduled contract call runs
+ * under the schedule payer's authority and the payer here is the api account,
+ * which holds TREASURY_ROLE. That was measured before it was relied on: see the
+ * probe step and docs/harness-notes.md.
+ *
+ * `fundCoupon` pays only from `premiumBalance` and reverts `InsufficientPremium`
+ * rather than touching principal, so the guard against paying a coupon out of
+ * the noteholders' own money is in the contract and not in this script.
  */
 async function pay(context: CouponContext): Promise<void> {
   const settlement = settlementOf(context);
@@ -464,6 +475,7 @@ async function pay(context: CouponContext): Promise<void> {
   const coupon = couponMeta(context.record);
   const note = noteContract(demoNoteAddress(context.record), context.provider);
   const reference = toBytes32(settlement.couponRef);
+  const vaultId = await vaultContractId(context);
 
   if (now() < coupon.executionTimestamp) {
     throw new Error(
@@ -506,29 +518,25 @@ async function pay(context: CouponContext): Promise<void> {
       remainder: remainder.toString(),
     };
 
-    if (entry.fundCouponTx === undefined) {
-      const funded = await send(
-        `fundCoupon ${investor.role}`,
-        context.vault.getFunction('fundCoupon')(series.id, reference, context.api.address, amount, {
-          gasLimit: GAS.fundCoupon,
-        }),
-      );
-      entry.fundCouponTx = funded.hash;
-      entry.fundCouponGasUsed = funded.gasUsed;
-    }
-
     if (entry.scheduleId === undefined) {
       const memo = couponMemo(series.label, coupon.id, investor.role);
-      const scheduled: ScheduledTransfer = await scheduleTransfer({
-        client: context.client,
-        tokenId: context.tokenId,
-        payer: { accountId: context.api.accountId, key: context.api.key },
-        to: investor.accountId,
+      const callData = context.vault.interface.encodeFunctionData('fundCoupon', [
+        series.id,
+        reference,
+        investor.address,
         amount,
+      ]);
+      const scheduled = await scheduleContractCall({
+        client: context.client,
+        contractId: vaultId,
+        callData,
+        gas: GAS.fundCoupon,
+        payer: { accountId: context.api.accountId, key: context.api.key },
         executeAt,
         memo,
-        // Without an admin key the schedule is immutable and a coupon that has
-        // to be stopped cannot be, so every schedule this build owns carries one.
+        // Without an admin key a schedule is immutable, and a coupon that has to
+        // be stopped before it executes cannot be, so every schedule this build
+        // owns carries one.
         adminKey: context.api.key.publicKey,
         waitForExpiry: true,
         readFee: true,
@@ -540,11 +548,11 @@ async function pay(context: CouponContext): Promise<void> {
       entry.scheduleCreateTx = scheduled.createTransactionId;
       entry.scheduleMemo = memo;
       entry.executeAt = executeAt.toISOString();
+      entry.createFeeHbar = scheduled.createFeeHbar ?? undefined;
       entry.links = {
         ...(entry.links ?? {}),
         schedule: scheduled.links.schedule,
         scheduleCreate: scheduled.links.create,
-        fundCoupon: hashscan('transaction', entry.fundCouponTx),
       };
     }
 
@@ -559,27 +567,27 @@ async function pay(context: CouponContext): Promise<void> {
   for (const { investor, entry } of pending) {
     if (entry.scheduleId === undefined) continue;
     console.log(`  waiting for ${investor.role} schedule ${entry.scheduleId}`);
-    const execution = await waitForExecution(
-      context.mirrorUrl,
-      entry.scheduleId,
-      { ...EXECUTION_POLL },
-    );
+    const execution = await waitForExecution(context.mirrorUrl, entry.scheduleId, {
+      ...EXECUTION_POLL,
+    });
     if (execution === null) {
       console.log(`  ${investor.role} schedule ${entry.scheduleId} has not executed`);
       continue;
     }
-    // A schedule executes whether or not the transfer inside it succeeded, so
-    // only SUCCESS may be recorded as paid.
+    // A schedule executes whether or not the transaction inside it succeeded, so
+    // only SUCCESS is a payment. A reverted fundCoupon leaves the premium
+    // account untouched and the holder unpaid, and it must not be recorded or
+    // published as though the coupon had been settled.
+    const outcome = await contractResultAt(context, execution.executedAt);
     entry.executedAt = execution.executedAt;
     entry.executedTransactionId = execution.executedTransactionId;
     entry.result = execution.result;
     entry.settled = execution.settled;
-    entry.links = {
-      ...(entry.links ?? {}),
-      settlement: execution.link,
-    };
+    entry.gasUsed = outcome?.gasUsed;
+    entry.links = { ...(entry.links ?? {}), settlement: execution.link };
     console.log(
-      `  ${investor.role} executed ${execution.executedTransactionId} result ${execution.result}`,
+      `  ${investor.role} executed ${execution.executedTransactionId} result ${execution.result}` +
+        `${outcome?.revert === undefined ? '' : ` ${outcome.revert}`}, gas ${outcome?.gasUsed ?? 0}`,
     );
     context.save();
   }

@@ -16,6 +16,10 @@ const fontModule =
 
 const config: NextConfig = {
   reactStrictMode: true,
+  // `next dev` writes an AGENTS.md and a CLAUDE.md into the workspace on first
+  // run. Documentation is not this ticket's to add and the repository holds
+  // product code, tests and the files a ticket asks for.
+  agentRules: false,
   turbopack: {
     resolveAlias: {
       'creance-active-font': fontModule,

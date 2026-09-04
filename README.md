@@ -39,6 +39,7 @@ Run all of these from the repository root.
 | `pnpm steward:run` | Runs one Steward cycle for the configured principal. |
 | `pnpm adjuster:run` | Decides the pending claims once. |
 | `pnpm contracts:deploy` | Deploys CoverPool and CollateralVault to Hedera testnet and verifies them. |
+| `pnpm hedera:setup` | Creates the day 0 Hedera testnet accounts, tokens and topics, and writes [docs/HEDERA.md](docs/HEDERA.md). Idempotent: run it again and it creates nothing. Needs the operator credentials in the local environment file. Add `--plan` to print what it would do and stop. |
 | `pnpm ats:issue` | Issues the demo Displacement Bond Note series through the ATS SDK. |
 | `pnpm demo:seed` | Seeds the demo series, policyholders, investors and claim packets. |
 

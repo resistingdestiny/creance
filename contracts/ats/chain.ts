@@ -150,6 +150,13 @@ export async function expectRevert(
   try {
     await contract[method]!.staticCall(...args, overrides);
   } catch (error) {
+    const code = (error as { code?: string }).code;
+    const decoded = (error as { revert?: { name?: string } }).revert?.name;
+    // An argument the ABI cannot encode never reaches the chain, so it proves
+    // nothing about compliance and must not be recorded as if it had.
+    if (decoded === undefined && code !== 'CALL_EXCEPTION') {
+      throw new Error(`${label} failed before it reached the chain: ${revertNameOf(error)}`);
+    }
     revert = revertNameOf(error);
   }
   if (revert === undefined) {

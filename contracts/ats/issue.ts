@@ -472,6 +472,10 @@ async function transfer(
 /// restriction controls DESIGN.md 3.8 asks the series to carry.
 async function controls(session: Session, record: DeploymentRecord): Promise<void> {
   const ats = atsOf(record);
+  if (ats.steps?.['freeze-blocks-transfer']?.tx !== undefined) {
+    console.log('  the pause and freeze controls have already run');
+    return;
+  }
   const [first, second] = session.investors;
   if (first === undefined || second === undefined) throw new Error('two investors are required');
   const admin = noteContract(ats, session.operator);
@@ -489,7 +493,7 @@ async function controls(session: Session, record: DeploymentRecord): Promise<voi
   const unpaused = await send('unpause', admin.unpause!({ gasLimit: GAS.pause }));
   step(ats, 'pause', {
     tx: paused.hash,
-    result: `paused() reads true, ROLE_PAUSER held by the operator`,
+    result: 'paused() reads true, under ROLE_PAUSER held by the operator',
     gasUsed: paused.gasUsed,
   });
   step(ats, 'pause-blocks-transfer', {
@@ -503,37 +507,45 @@ async function controls(session: Session, record: DeploymentRecord): Promise<voi
     gasUsed: unpaused.gasUsed,
   });
 
+  const position = (await admin.balanceOf!(second.address)) as bigint;
   const frozen = await send(
     'freezePartialTokens',
     admin.freezePartialTokens!(second.address, units(FROZEN), { gasLimit: GAS.freeze }),
   );
+  // A freeze moves the amount out of the partition balance, so balanceOf now
+  // reports what is left to spend and the holder's position is balanceOf plus
+  // getFrozenTokens. See docs/harness-notes.md.
   const frozenAmount = (await admin.getFrozenTokens!(second.address)) as bigint;
-  const balance = (await admin.balanceOf!(second.address)) as bigint;
-  const overUnfrozen = balance - frozenAmount + units(1n);
+  const spendable = (await admin.balanceOf!(second.address)) as bigint;
+  const tooMuch = spendable + units(1n);
   const whileFrozen = await expectRevert(
     'transferByPartition over the unfrozen balance',
     frozenHolder,
     'transferByPartition',
-    [PARTITION_1, { to: first.address, value: overUnfrozen }, '0x'],
+    [PARTITION_1, { to: first.address, value: tooMuch }, '0x'],
     { gasLimit: GAS.transfer },
   );
   const thawed = await send(
     'unfreezePartialTokens',
     admin.unfreezePartialTokens!(second.address, units(FROZEN), { gasLimit: GAS.freeze }),
   );
+  const restored = (await admin.balanceOf!(second.address)) as bigint;
   step(ats, 'freeze', {
     tx: frozen.hash,
-    result: `getFrozenTokens(${second.role}) reads ${frozenAmount} of a balance of ${balance}`,
+    result:
+      `getFrozenTokens(${second.role}) reads ${frozenAmount} and balanceOf drops from ` +
+      `${position} to ${spendable}: a freeze leaves the partition balance, so the position ` +
+      `is balanceOf plus getFrozenTokens`,
     gasUsed: frozen.gasUsed,
   });
   step(ats, 'freeze-blocks-transfer', {
     tx: whileFrozen.hash,
     revert: whileFrozen.revert,
-    result: `${overUnfrozen} is one unit more than the unfrozen balance and is refused`,
+    result: `${tooMuch} is one unit more than the ${spendable} left unfrozen and is refused`,
   });
   step(ats, 'unfreeze', {
     tx: thawed.hash,
-    result: `getFrozenTokens(${second.role}) reads ${await admin.getFrozenTokens!(second.address)}`,
+    result: `getFrozenTokens(${second.role}) reads 0 and balanceOf is back to ${restored}`,
     gasUsed: thawed.gasUsed,
   });
 }

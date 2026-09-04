@@ -125,6 +125,36 @@
           "tx": "0x9bee9bdcaf06955764bb38928e72c2596688591608f680de0da1ca66fcd113bd",
           "result": "balanceOf(investor-2) 10000000 to 50000000, 50 units",
           "gasUsed": 214419
+        },
+        "pause": {
+          "tx": "0xbeb15e8acfeac4008d0116d3c85a1032d3f5452773056a90b32f3cf1d72a86db",
+          "result": "paused() reads true, under ROLE_PAUSER held by the operator",
+          "gasUsed": 79287
+        },
+        "pause-blocks-transfer": {
+          "tx": "0xd6e1aa8e3839f9afab72295f34ba2769663c48aef0800f08565fd7877315370a",
+          "revert": "IsPaused",
+          "result": "one unit between two KYC granted noteholders is refused while the note is paused"
+        },
+        "unpause": {
+          "tx": "0x30a3eecd2db8868242106f589536d4783000527712490904ffae7a84fada7f3b",
+          "result": "paused() reads false again and transfers resume",
+          "gasUsed": 55060
+        },
+        "freeze": {
+          "tx": "0xeecbf14f96b9923b452966dc7fa31a34c890d8dea1f928fa9692922653fe7891",
+          "result": "getFrozenTokens(investor-2) reads 45000000 and balanceOf drops from 50000000 to 5000000: a freeze leaves the partition balance, so the position is balanceOf plus getFrozenTokens",
+          "gasUsed": 162283
+        },
+        "freeze-blocks-transfer": {
+          "tx": "0x04fbd62b599b3b0871ca85dacef17fb59df286400feb37496f25aa36b7706539",
+          "revert": "InsufficientBalance(0xCAa1184cd59B9296f757EfC7303a10eCec6ce51e, 5000000, 6000000, 0x0000000000000000000000000000000000000000000000000000000000000001)",
+          "result": "6000000 is one unit more than the 5000000 left unfrozen and is refused"
+        },
+        "unfreeze": {
+          "tx": "0x0edc8a9a1ad5459e7603a17e4efddd6cc3a4f1ea149c0c37eb95c1ac59a6b9f4",
+          "result": "getFrozenTokens(investor-2) reads 0 and balanceOf is back to 50000000",
+          "gasUsed": 123218
         }
       },
       "configVersion": 1,

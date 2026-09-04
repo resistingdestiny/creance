@@ -184,6 +184,7 @@ async function associate(record: DeploymentRecord, deployer: Wallet) {
     throw new Error('association reported success but isAssociated() is still false');
   }
   record.settlementTokenAssociated = true;
+  record.associationTx = tx.hash;
   record.gasUsed = { ...record.gasUsed, associateSettlementToken: Number(gasUsed) };
 }
 

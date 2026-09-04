@@ -68,5 +68,6 @@
       "submitObservation": "https://hashscan.io/testnet/transaction/0x00bbce06acd39293288aca58b27b0d1cc0fe2b66a45a5391a0278bd16feb5871",
       "payClaim": "https://hashscan.io/testnet/transaction/0x2295b762330bae87b3d30395b3623bb33e2d8cbcd2a883bf5afa9d9f46383c06"
     }
-  }
+  },
+  "associationTx": "0xc7856204a02bd8caee265a17c83928ea89c5cbf0937452e251d4abe58638d6aa"
 }

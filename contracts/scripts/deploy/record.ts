@@ -14,6 +14,7 @@ export interface DeploymentRecord {
   coverPool?: ContractRecord;
   coverPoolWired?: boolean;
   settlementTokenAssociated?: boolean;
+  associationTx?: string;
   roles?: Record<string, string>;
   series?: SeriesRecord;
   verification?: Record<string, string>;

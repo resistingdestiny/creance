@@ -220,7 +220,8 @@ export function describePlan(plan: SetupPlan): string[] {
     lines.push(`distribute the settlement token to: ${plan.distributions.join(', ')}`);
   }
   for (const association of plan.associations) {
-    lines.push(`associate ${association.role} with the ${association.kind} token`);
+    const what = association.kind === 'settlement' ? 'settlement token' : 'policy NFT';
+    lines.push(`associate ${association.role} with the ${what}`);
   }
   return lines;
 }

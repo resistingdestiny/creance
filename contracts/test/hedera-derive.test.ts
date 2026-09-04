@@ -13,6 +13,7 @@ import {
   normaliseRawKeyHex,
   roleKey,
   toMinorUnits,
+  toMirrorTransactionId,
 } from '../scripts/hedera/derive.js';
 
 // A throwaway key, never used on any network. The vectors below are pinned so
@@ -126,6 +127,13 @@ describe('naming', () => {
       key: 'HEDERA_POLICYHOLDER_1_KEY', // gitleaks:allow, this is a variable name
     });
     expect(envNamesForRole('api')).toEqual({ id: 'HEDERA_API_ID', key: 'HEDERA_API_KEY' });
+  });
+
+  it('turns an SDK transaction id into the form the explorer wants', () => {
+    expect(toMirrorTransactionId('0.0.10362512@1757003000.123456789')).toBe(
+      '0.0.10362512-1757003000-123456789',
+    );
+    expect(() => toMirrorTransactionId('0.0.10362512-1757003000-123456789')).toThrow();
   });
 
   it('builds explorer links', () => {

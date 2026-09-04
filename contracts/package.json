@@ -5,6 +5,7 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
+    "hedera:setup": "tsx --env-file-if-exists=../.env scripts/hedera-setup.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

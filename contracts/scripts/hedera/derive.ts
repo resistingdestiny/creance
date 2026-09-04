@@ -122,6 +122,18 @@ export function entityIdToEvmAddress(entityId: string): string {
   return `0x${num.toString(16).padStart(40, '0')}`;
 }
 
+/**
+ * The SDK prints a transaction id as `0.0.x@seconds.nanos`. The mirror node and
+ * HashScan both want `0.0.x-seconds-nanos`.
+ */
+export function toMirrorTransactionId(sdkTransactionId: string): string {
+  const match = /^(\d+\.\d+\.\d+)@(\d+)\.(\d+)$/.exec(sdkTransactionId.trim());
+  if (!match) {
+    throw new Error(`expected a shard.realm.number@seconds.nanos id, got ${sdkTransactionId}`);
+  }
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
 export type HashscanKind = 'account' | 'token' | 'topic' | 'transaction' | 'contract';
 
 /** Explorer link for anything this script creates. */

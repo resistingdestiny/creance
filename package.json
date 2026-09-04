@@ -23,6 +23,7 @@
     "steward:run": "node scripts/stub.mjs steward:run",
     "adjuster:run": "node scripts/stub.mjs adjuster:run",
     "contracts:deploy": "node scripts/stub.mjs contracts:deploy",
+    "hedera:setup": "pnpm --filter @creance/contracts run hedera:setup",
     "ats:issue": "node scripts/stub.mjs ats:issue",
     "demo:seed": "node scripts/stub.mjs demo:seed"
   },

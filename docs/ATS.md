@@ -43,6 +43,14 @@ associates with it. Do not write "associate" in any investor copy for the note.
     pnpm ats:issue status      # what the resolver reports and what is recorded
     pnpm ats:issue             # every step below, in order
 
+`ATS_FACTORY_ID`, `ATS_FACTORY_ADDRESS`, `ATS_RESOLVER_ID`,
+`ATS_RESOLVER_ADDRESS`, `ATS_BOND_CONFIG_ID` and `ATS_BOND_CONFIG_VERSION` in
+the local environment file point the scripts at a different ATS deployment. The
+id and the address of each contract are checked against each other on the mirror
+node before anything is deployed. Leaving the version blank takes whatever the
+resolver reports as the latest, which is what the ATS web application does;
+setting it pins one.
+
 The script is record driven. Every step reads
 `contracts/deployments/testnet.json`, skips what is already there and writes
 back what it did, so a relay timeout half way through is recovered by running
@@ -398,6 +406,10 @@ HBAR; on testnet on 4 September 2026 it cost under eight.
 | `pause` / `unpause` | 79,287 / 55,060 | |
 | `freezePartialTokens` / `unfreezePartialTokens` | 162,283 / 123,218 | |
 | `setCoupon` | 628,757 | |
+
+The whole ticket, both deployments, every call above and 14 HBAR moved to the
+two noteholders so they could pay for their own transfers, took the operator
+from 954.45 to 918.76 HBAR: 35.69 HBAR in all, of which 14 was the top up.
 
 Every call is sent with an explicit gas limit, for the reason
 `contracts/scripts/deploy` gives: the relay's `eth_estimateGas` cannot price a

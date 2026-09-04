@@ -128,6 +128,9 @@ export interface HederaResources {
   operator: { accountId: string; evmAddress: string };
   accounts: Record<string, { accountId: string; evmAddress: string }>;
   settlementToken: { tokenId: string; evmAddress: string; decimals: number; symbol: string };
+  /// The consensus topics day 0 created. The payments topic carries the premium
+  /// and coupon settlements and its submit key is the api key.
+  topics?: Record<string, { topicId: string; memo: string; submitKeyRole: string | null }>;
 }
 
 export function readResources(): HederaResources {

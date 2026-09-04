@@ -3,7 +3,11 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { AtsRecord } from '../../ats/record.js';
-import type { CouponSettlementRecord, MaturityDemoRecord } from '../../coupons/record.js';
+import type {
+  CouponSettlementRecord,
+  MaturityDemoRecord,
+  SubscriptionRecord,
+} from '../../coupons/record.js';
 
 /// The deployment record. Every step reads it, does only what is missing and
 /// writes it back, so a relay timeout half way through is recovered by running
@@ -54,6 +58,9 @@ export interface SeriesRecord {
   /// One entry per settled ATS coupon, keyed by the coupon id. Written by
   /// `pnpm coupons:pay`, read by the investor endpoints.
   couponSettlements?: Record<string, CouponSettlementRecord>;
+  /// What each noteholder has subscribed in the vault, so the principal the
+  /// note reports and the principal the vault holds can be compared.
+  subscriptions?: SubscriptionRecord[];
 }
 
 const RECORD_PATH = fileURLToPath(new URL('../../deployments/testnet.json', import.meta.url));

@@ -54,6 +54,10 @@ export interface CouponSettlementRecord {
     attributeTx: string;
     attributeGasUsed?: number;
   };
+  /// Whether a contract call can be wrapped in a Scheduled Transaction on
+  /// testnet, measured rather than assumed, because the answer decides whether
+  /// the vault can pay a holder directly. See docs/harness-notes.md.
+  scheduledContractCall?: { attempted: boolean; status: string; scheduleId?: string };
   holders: CouponHolderSettlement[];
 }
 

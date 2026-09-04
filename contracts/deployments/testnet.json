@@ -257,13 +257,43 @@
         "endDate": 1791144983,
         "ratePercent": 8,
         "holders": [],
+        "premiumSeed": {
+          "from": "0.0.10366453",
+          "amount": "657534246",
+          "transferTx": "0xd9b51875e52f63dc66eb1d73ebc949faab00bd32e15dc93a61625256f684840a",
+          "attributeTx": "0x219b93435de059c979fe8174dde65f82752416f8bafca289e8175fd4e2d69caf",
+          "attributeGasUsed": 66627
+        },
         "scheduledContractCall": {
           "attempted": true,
-          "status": "accepted, SUCCESS",
-          "scheduleId": "0.0.10368759"
+          "status": "create SUCCESS",
+          "scheduleId": "0.0.10368789",
+          "result": "CONTRACT_REVERT_EXECUTED"
         }
       }
-    }
+    },
+    "subscriptions": [
+      {
+        "role": "investor-1",
+        "accountId": "0.0.10366460",
+        "address": "0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931",
+        "amount": "50000000000",
+        "fundTx": "0x8a9236435e7da6fb76189555d0cb51b83bd14c9750102a142896518fe7cf2e09",
+        "approveTx": "0x89df6835218dc73d31d48753cd1ad4124ef9f0be3409d9b090db75242bb6ee4c",
+        "subscribeTx": "0x74ae1a67b1a4af2e33aeab5a39841aeb03562788db29019c61b650df0173dfb8",
+        "gasUsed": 124230
+      },
+      {
+        "role": "investor-2",
+        "accountId": "0.0.10366462",
+        "address": "0xcaa1184cd59b9296f757efc7303a10ecec6ce51e",
+        "amount": "50000000000",
+        "fundTx": "0x79b899ea25294a01419d56d067bab2746b4e869740f9575e5046dfa68c336bf0",
+        "approveTx": "0xc0018fdec4290d3e4bc1c9af85e3550136c9aa40500069edf0af9cdc7c43edca",
+        "subscribeTx": "0xf4eb398f22655e130d410a007c3c544a7cd19c4b808aa8a3a63ce76490670bc9",
+        "gasUsed": 90030
+      }
+    ]
   },
   "verification": {
     "CollateralVault": "https://hashscan.io/testnet/contract/0xD0473d355ECB299F2ECc0d92124bc8CF63554e60",

@@ -26,6 +26,10 @@ export const SCHEDULE_LEAD_SECONDS = 120;
 /// How long the short dated maturity series has to run. It has to outlast the
 /// subscription calls and the ATS mint, because both revert once the series has
 /// matured, and it is the wait before the redemption.
+/// How far ahead the probe schedule is created. Short, because nothing waits on
+/// it but the measurement.
+export const PROBE_LEAD_SECONDS = 45;
+
 export const MATURITY_LEAD_SECONDS = 15 * 60;
 
 /// The mirror node poll budget for one schedule execution. The default in the

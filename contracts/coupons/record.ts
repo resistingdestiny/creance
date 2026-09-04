@@ -57,7 +57,16 @@ export interface CouponSettlementRecord {
   /// Whether a contract call can be wrapped in a Scheduled Transaction on
   /// testnet, measured rather than assumed, because the answer decides whether
   /// the vault can pay a holder directly. See docs/harness-notes.md.
-  scheduledContractCall?: { attempted: boolean; status: string; scheduleId?: string };
+  scheduledContractCall?: {
+    attempted: boolean;
+    status: string;
+    scheduleId?: string;
+    /// The result of the executed schedule, once it has run.
+    result?: string;
+    /// The custom error the scheduled call reverted with, which is what names
+    /// the account the vault saw as the caller.
+    revert?: string;
+  };
   holders: CouponHolderSettlement[];
 }
 

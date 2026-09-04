@@ -13,6 +13,8 @@
 import {
   AccountId,
   Client,
+  ContractExecuteTransaction,
+  ContractId,
   Hbar,
   Key,
   PrivateKey,
@@ -20,6 +22,7 @@ import {
   ScheduleSignTransaction,
   Timestamp,
   TokenId,
+  Transaction,
   TransactionId,
   TransferTransaction,
 } from '@hiero-ledger/sdk';
@@ -272,7 +275,11 @@ export interface ScheduleTransferParams {
   maxTransactionFee?: Hbar;
 }
 
-export interface ScheduledTransfer {
+/**
+ * What a `ScheduleCreate` produced, whatever kind of transaction it holds. The
+ * same record describes a scheduled transfer and a scheduled contract call.
+ */
+export interface CreatedSchedule {
   scheduleId: string;
   /** The id the executed transfer will carry, ending in `?scheduled`. */
   scheduledTransactionId: string;
@@ -292,42 +299,41 @@ export interface ScheduledTransfer {
   };
 }
 
+/** The part of a schedule that is the same whatever transaction it holds. */
+interface ScheduleCommon {
+  client: Client;
+  payer: SchedulePayer;
+  executeAt: Date;
+  memo: string;
+  adminKey?: Key;
+  waitForExpiry: boolean;
+  preSign: boolean;
+  readFee: boolean;
+  network: string;
+  maxTransactionFee?: Hbar;
+}
+
 /**
- * Schedule one settlement token transfer of `amount` minor units from `payer`
- * to `to`, due at `executeAt`, signed by the payer key at creation.
+ * Wrap one unfrozen transaction in a `ScheduleCreate` and send it.
  *
  * The create is paid by the payer as well as the execution: the transaction id
- * is generated against the payer account and the frozen transaction is signed
- * with the payer key, which is the same signature the inner transfer needs.
+ * is generated against the payer account and the frozen create is signed with
+ * the payer key, which is the same signature the inner transaction needs.
  *
- * Creating a schedule proves nothing about whether it will pay. A payer without
- * the balance at execution time still gets a successful create, so missed
- * premiums are detected by reading the execution, not the create receipt.
+ * Creating a schedule proves nothing about whether it will do anything. A payer
+ * without the balance at execution time still gets a successful create, so an
+ * outcome is read from the execution and never from the create receipt.
  */
-export async function scheduleTransfer(params: ScheduleTransferParams): Promise<ScheduledTransfer> {
-  const {
-    client,
-    tokenId,
-    payer,
-    to,
-    amount,
-    executeAt,
-    memo,
-    adminKey,
-    waitForExpiry = true,
-    preSign = true,
-    readFee = false,
-    network = 'testnet',
-    maxTransactionFee,
-  } = params;
+async function createSchedule(
+  inner: Transaction,
+  options: ScheduleCommon,
+): Promise<CreatedSchedule> {
+  const { client, payer, executeAt, memo, adminKey, waitForExpiry, preSign, readFee, network, maxTransactionFee } =
+    options;
 
-  if (amount <= 0n) {
-    throw new Error(`a scheduled transfer moves a positive amount, got ${amount}`);
-  }
   if (Buffer.byteLength(memo, 'utf8') > MAX_SCHEDULE_MEMO_BYTES) {
     throw new Error(`the schedule memo is over ${MAX_SCHEDULE_MEMO_BYTES} bytes: ${memo}`);
   }
-
   if (preSign && !payer.key) {
     throw new Error('a pre-signed schedule needs the payer key; set preSign false to sign later');
   }
@@ -335,13 +341,8 @@ export async function scheduleTransfer(params: ScheduleTransferParams): Promise<
   const payerId =
     typeof payer.accountId === 'string' ? AccountId.fromString(payer.accountId) : payer.accountId;
 
-  // The inner transaction is not frozen; the schedule create carries it.
-  const transfer = new TransferTransaction()
-    .addTokenTransfer(tokenId, payerId, -amount)
-    .addTokenTransfer(tokenId, to, amount);
-
   let create = new ScheduleCreateTransaction()
-    .setScheduledTransaction(transfer)
+    .setScheduledTransaction(inner)
     .setScheduleMemo(memo)
     .setExpirationTime(Timestamp.fromDate(executeAt))
     .setWaitForExpiry(waitForExpiry)
@@ -397,6 +398,144 @@ export async function scheduleTransfer(params: ScheduleTransferParams): Promise<
       ),
     },
   };
+}
+
+/**
+ * Schedule one settlement token transfer of `amount` minor units from `payer`
+ * to `to`, due at `executeAt`, signed by the payer key at creation.
+ *
+ * The payer is also the account the settlement token leaves, so its signature
+ * on the frozen create is the only one the whole arrangement needs and the
+ * schedule is complete the moment it is created.
+ */
+export async function scheduleTransfer(params: ScheduleTransferParams): Promise<CreatedSchedule> {
+  const {
+    client,
+    tokenId,
+    payer,
+    to,
+    amount,
+    executeAt,
+    memo,
+    adminKey,
+    waitForExpiry = true,
+    preSign = true,
+    readFee = false,
+    network = 'testnet',
+    maxTransactionFee,
+  } = params;
+
+  if (amount <= 0n) {
+    throw new Error(`a scheduled transfer moves a positive amount, got ${amount}`);
+  }
+
+  const payerId =
+    typeof payer.accountId === 'string' ? AccountId.fromString(payer.accountId) : payer.accountId;
+
+  // The inner transaction is not frozen; the schedule create carries it.
+  const transfer = new TransferTransaction()
+    .addTokenTransfer(tokenId, payerId, -amount)
+    .addTokenTransfer(tokenId, to, amount);
+
+  return createSchedule(transfer, {
+    client,
+    payer,
+    executeAt,
+    memo,
+    ...(adminKey === undefined ? {} : { adminKey }),
+    waitForExpiry,
+    preSign,
+    readFee,
+    network,
+    ...(maxTransactionFee === undefined ? {} : { maxTransactionFee }),
+  });
+}
+
+export interface ScheduleContractCallParams {
+  client: Client;
+  /** The contract in `0.0.x` form. A Hedera transaction never takes an EVM address. */
+  contractId: string | ContractId;
+  /** The whole call data, selector included, as an ABI encoder returns it. */
+  callData: string | Uint8Array;
+  /** An explicit gas limit. The relay cannot price a call it cannot simulate. */
+  gas: number;
+  payer: SchedulePayer;
+  executeAt: Date;
+  memo: string;
+  adminKey?: Key;
+  waitForExpiry?: boolean;
+  preSign?: boolean;
+  readFee?: boolean;
+  network?: string;
+  maxTransactionFee?: Hbar;
+}
+
+/**
+ * Schedule a contract call, due at `executeAt`.
+ *
+ * The contract sees the schedule's payer as `msg.sender`, so a call behind a
+ * role check runs under the payer's authority and no key of the contract's own
+ * is needed, which a contract does not have. Measured on testnet: a scheduled
+ * call to a role gated function reverted on the argument it was given and not
+ * on the role, which is only possible if the payer was the caller. See
+ * docs/harness-notes.md.
+ *
+ * A scheduled contract call executes whether or not the call inside it
+ * succeeds, exactly like a scheduled transfer, so the result is read from the
+ * execution.
+ */
+export async function scheduleContractCall(
+  params: ScheduleContractCallParams,
+): Promise<CreatedSchedule> {
+  const {
+    client,
+    contractId,
+    callData,
+    gas,
+    payer,
+    executeAt,
+    memo,
+    adminKey,
+    waitForExpiry = true,
+    preSign = true,
+    readFee = false,
+    network = 'testnet',
+    maxTransactionFee,
+  } = params;
+
+  if (!Number.isInteger(gas) || gas <= 0) {
+    throw new Error(`a scheduled contract call needs a positive gas limit, got ${gas}`);
+  }
+
+  const call = new ContractExecuteTransaction()
+    .setContractId(contractId)
+    .setGas(gas)
+    .setFunctionParameters(toCallDataBytes(callData));
+
+  return createSchedule(call, {
+    client,
+    payer,
+    executeAt,
+    memo,
+    ...(adminKey === undefined ? {} : { adminKey }),
+    waitForExpiry,
+    preSign,
+    readFee,
+    network,
+    ...(maxTransactionFee === undefined ? {} : { maxTransactionFee }),
+  });
+}
+
+/** Call data as bytes, from either the 0x hex string form or the bytes form. */
+export function toCallDataBytes(callData: string | Uint8Array): Uint8Array {
+  if (typeof callData !== 'string') {
+    return callData;
+  }
+  const hex = callData.startsWith('0x') ? callData.slice(2) : callData;
+  if (hex.length === 0 || hex.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(hex)) {
+    throw new Error(`expected 0x prefixed call data with whole bytes, got ${callData}`);
+  }
+  return Uint8Array.from(Buffer.from(hex, 'hex'));
 }
 
 export interface SignScheduleParams {
@@ -639,7 +778,7 @@ export interface ScheduleNextParams extends Omit<ScheduleTransferParams, 'memo' 
 
 export interface ScheduleNextResult {
   execution: PremiumExecution;
-  next: ScheduledTransfer;
+  next: CreatedSchedule;
   slot: PremiumSlot;
 }
 

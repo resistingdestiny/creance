@@ -12,9 +12,9 @@ import {
   type ScheduledTransfer,
 } from '@creance/client';
 
-import { hashscan, send } from '../ats/chain.js';
+import { contractIdOf, hashscan, send } from '../ats/chain.js';
 import type { DeploymentRecord } from '../scripts/deploy/record.js';
-import { EXECUTION_POLL, GAS, SCHEDULE_LEAD_SECONDS } from './config.js';
+import { EXECUTION_POLL, GAS, PROBE_LEAD_SECONDS, SCHEDULE_LEAD_SECONDS } from './config.js';
 import {
   demoNoteAddress,
   demoSeries,
@@ -51,6 +51,7 @@ import type { CouponHolderSettlement, CouponSettlementRecord } from './record.js
 
 const STEPS = [
   'status',
+  'fund',
   'probe',
   'seed',
   'subscribe',
@@ -61,7 +62,13 @@ const STEPS = [
 ] as const;
 type Step = (typeof STEPS)[number];
 
-const RUN: Step[] = ['probe', 'seed', 'subscribe', 'pay', 'publish', 'verify'];
+const RUN: Step[] = ['fund', 'probe', 'seed', 'subscribe', 'pay', 'publish', 'verify'];
+
+/// Enough HBAR to pay for a call at the relay's gas price. ethers reserves
+/// twice the base fee times the gas limit before it will send, so an account
+/// with a 2,000,000 gas call ahead of it needs about five HBAR free even though
+/// the call itself costs a fraction of that.
+const HBAR_TARGET = 12n * 10n ** 18n;
 
 /// What each noteholder subscribes for the demonstration: half the principal
 /// each, which is what they hold on the note.
@@ -114,6 +121,48 @@ async function tokenBalance(context: CouponContext, address: string): Promise<bi
   return (await context.token.getFunction('balanceOf')(address)) as bigint;
 }
 
+/// The 0.0.x id of the vault, which is what a ContractExecuteTransaction takes.
+/// It is not in the deployment record from T04, so it is resolved once on the
+/// mirror node and written back.
+async function vaultContractId(context: CouponContext): Promise<string> {
+  const vaultRecord = context.record.collateralVault;
+  if (vaultRecord === undefined) throw new Error('no vault in the deployment record');
+  if (vaultRecord.contractId === undefined) {
+    const resolved = await contractIdOf(vaultRecord.address);
+    if (resolved === undefined) {
+      throw new Error(`the mirror node does not know ${vaultRecord.address}`);
+    }
+    vaultRecord.contractId = resolved;
+    context.save();
+  }
+  return vaultRecord.contractId;
+}
+
+/// The custom error a contract call reverted with, read back from the mirror
+/// node. A scheduled call has no receipt of its own to decode, so the revert
+/// data comes from the contract result endpoint.
+async function revertNameFromMirror(
+  context: CouponContext,
+  transactionId: string,
+): Promise<string | undefined> {
+  const response = await fetch(`${context.mirrorUrl}/contracts/results/${transactionId}`);
+  if (!response.ok) return undefined;
+  const body = (await response.json()) as { error_message?: string | null };
+  const data = body.error_message ?? undefined;
+  if (data === undefined || !data.startsWith('0x') || data.length < 10) return data ?? undefined;
+  try {
+    const parsed = context.vault.interface.parseError(data);
+    if (parsed !== null) {
+      return parsed.args.length > 0
+        ? `${parsed.name}(${parsed.args.map((value) => String(value)).join(', ')})`
+        : parsed.name;
+    }
+  } catch {
+    // Not one of the vault's own errors; the raw data is still evidence.
+  }
+  return data;
+}
+
 // ---------------------------------------------------------------- status
 
 async function status(context: CouponContext): Promise<void> {
@@ -156,42 +205,75 @@ async function status(context: CouponContext): Promise<void> {
   }
 }
 
+// ----------------------------------------------------------------- fund
+
+/**
+ * Top the accounts that send their own transactions up to twelve HBAR. The
+ * stand-in premium payer and both noteholders sign their own transfers here,
+ * and an account cannot send a call at all unless it holds twice the gas limit
+ * times the base fee, whatever the call actually ends up costing.
+ */
+async function fund(context: CouponContext): Promise<void> {
+  for (const party of [context.policyholder, ...context.investors, context.api]) {
+    const held = await context.provider.getBalance(party.address);
+    if (held >= HBAR_TARGET) {
+      console.log(`  ${party.role} holds ${held / 10n ** 18n} HBAR, enough`);
+      continue;
+    }
+    const tx = await context.operator.wallet.sendTransaction({
+      to: party.address,
+      value: HBAR_TARGET - held,
+      gasLimit: 500_000,
+    });
+    await tx.wait();
+    console.log(`  topped ${party.role} up to 12 HBAR in ${tx.hash}`);
+  }
+}
+
 // ---------------------------------------------------------------- probe
 
 /**
- * Can a contract call be wrapped in a Scheduled Transaction on testnet today?
+ * Can a contract call be wrapped in a Scheduled Transaction on testnet today,
+ * and does the vault see the schedule payer as the caller?
  *
  * It decides the shape of the settlement. If a `ContractExecuteTransaction` is
- * schedulable, `fundCoupon` itself could be scheduled for the coupon's
- * execution date and the vault would pay each holder directly. If it is not,
- * the vault has no key with which to sign anything, so the payment is a two
- * step move: `fundCoupon` to the treasury account, then a scheduled transfer
- * from the treasury to the holder.
+ * schedulable and executes with the payer as `msg.sender`, then `fundCoupon`
+ * itself can be scheduled for the coupon's execution date and the vault pays
+ * each noteholder straight out of the premium account. If it is not, the vault
+ * has no key with which to sign anything, and the payment has to be two moves:
+ * `fundCoupon` to the treasury account, then a scheduled transfer from there.
  *
- * The answer is measured, not assumed, and it is recorded either way.
+ * The probe schedules `fundCoupon` with a zero amount, which is free and cannot
+ * move money: the vault checks the role before it checks the amount, so the
+ * revert name is the answer. `ZeroAmount` means the role check passed and the
+ * caller is the payer. An access control error means it did not.
  */
 async function probe(context: CouponContext): Promise<void> {
   const settlement = settlementOf(context);
-  if (settlement.scheduledContractCall !== undefined) {
+  if (settlement.scheduledContractCall?.result !== undefined) {
     console.log(`  already measured: ${settlement.scheduledContractCall.status}`);
     return;
   }
   const series = demoSeries(context.record);
-  const vaultId = context.record.collateralVault?.contractId ?? (context.vault.target as string);
-  // A zero amount call, so that even if the network accepts and executes it,
-  // nothing moves: fundCoupon reverts ZeroAmount inside the scheduled call.
+  const vaultId = await vaultContractId(context);
+  const data = context.vault.interface.encodeFunctionData('fundCoupon', [
+    series.id,
+    toBytes32(settlement.couponRef),
+    context.api.address,
+    0n,
+  ]);
+  const executeAt = new Date((now() + PROBE_LEAD_SECONDS) * 1000);
   const inner = new ContractExecuteTransaction()
     .setContractId(vaultId)
     .setGas(GAS.fundCoupon)
-    .setFunction('fundCoupon');
-  const transactionId = TransactionId.generate(context.api.accountId);
+    .setFunctionParameters(Buffer.from(data.slice(2), 'hex'));
   const create = new ScheduleCreateTransaction()
     .setScheduledTransaction(inner)
-    .setScheduleMemo(`creance probe schedule contract call ${series.label}`)
-    .setExpirationTime(Timestamp.fromDate(new Date((now() + 300) * 1000)))
+    .setScheduleMemo(`creance probe scheduled fundCoupon ${series.label}`)
+    .setExpirationTime(Timestamp.fromDate(executeAt))
     .setWaitForExpiry(true)
     .setAdminKey(context.api.key.publicKey)
-    .setTransactionId(transactionId);
+    .setTransactionId(TransactionId.generate(context.api.accountId));
 
   let statusText: string;
   let scheduleId: string | undefined;
@@ -200,16 +282,32 @@ async function probe(context: CouponContext): Promise<void> {
     const response = await frozen.execute(context.client);
     const receipt = await response.getReceipt(context.client);
     scheduleId = receipt.scheduleId?.toString();
-    statusText = `accepted, ${receipt.status.toString()}`;
+    statusText = `create ${receipt.status.toString()}`;
   } catch (error) {
     const status = (error as { status?: { toString(): string } }).status;
-    statusText = status ? status.toString() : (error as Error).message;
+    statusText = `create rejected ${status ? status.toString() : (error as Error).message}`;
   }
   console.log(`  ScheduleCreate around a ContractExecuteTransaction: ${statusText}`);
+
+  let result: string | undefined;
+  let revert: string | undefined;
+  if (scheduleId !== undefined) {
+    console.log(`  waiting for ${scheduleId} to execute at ${executeAt.toISOString()}`);
+    const execution = await waitForExecution(context.mirrorUrl, scheduleId, { ...EXECUTION_POLL });
+    if (execution !== null) {
+      result = execution.result;
+      revert = await revertNameFromMirror(context, execution.executedTransactionId);
+      console.log(`  executed ${execution.executedTransactionId} result ${result} ${revert ?? ''}`);
+    } else {
+      result = 'never executed';
+    }
+  }
   settlement.scheduledContractCall = {
     attempted: true,
     status: statusText,
     ...(scheduleId === undefined ? {} : { scheduleId }),
+    ...(result === undefined ? {} : { result }),
+    ...(revert === undefined ? {} : { revert }),
   };
 }
 
@@ -567,6 +665,7 @@ async function verify(context: CouponContext): Promise<void> {
 
 const HANDLERS: Record<Exclude<Step, 'all'>, (context: CouponContext) => Promise<void>> = {
   status,
+  fund,
   probe,
   seed,
   subscribe,

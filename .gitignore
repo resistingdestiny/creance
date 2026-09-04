@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.autopilot/
+.claude/settings.local.json
+.claude/worktrees/
+dist/
+.next/
+coverage/
+artifacts/
+cache/
+typechain-types/
+*.log
+.DS_Store

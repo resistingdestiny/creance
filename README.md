@@ -41,7 +41,7 @@ Run all of these from the repository root.
 | `pnpm contracts:deploy` | Deploys CoverPool and CollateralVault to Hedera testnet and verifies them. |
 | `pnpm hedera:setup` | Creates the day 0 Hedera testnet accounts, tokens and topics, and writes [docs/HEDERA.md](docs/HEDERA.md). Idempotent: run it again and it creates nothing. Needs the operator credentials in the local environment file. Add `--plan` to print what it would do and stop. |
 | `pnpm hedera:schedule` | Runs the Scheduled Transactions spike against testnet: measures the expiry window, executes a scheduled premium transfer and chains the next month. Writes to testnet and costs fees. Stages: `bisect past immediate future chain`. |
-| `pnpm ats:issue` | Issues the demo Displacement Bond Note series through the ATS SDK. |
+| `pnpm ats:issue` | Issues the demo Displacement Bond Note series as an Asset Tokenization Studio bond on Hedera testnet and runs the compliance sequence: roles, the credential issuer, a KYC grant per noteholder, the mints, a blocked then allowed transfer, pause, freeze and the first coupon. Idempotent: run it again and it does nothing. The run through with a link for every transaction is [docs/ATS.md](docs/ATS.md). Stages: `status throwaway issue roles issuer kyc1 mint1 blocked kyc2 allowed mint2 controls coupon couponcheck verify`. |
 | `pnpm demo:seed` | Seeds the demo series, policyholders, investors and claim packets. |
 
 A single workspace can be run on its own, for example `pnpm --filter @creance/index-model test`.
@@ -54,6 +54,7 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
     apps/steward        buyer agent that pays for cover over x402
     apps/adjuster       claims agent that decides proof of loss packets
     contracts           Hardhat project for CoverPool and CollateralVault
+    contracts/ats       issuance and lifecycle of the note in the Asset Tokenization Studio
     packages/index-model  ODI maths and backtests, no chain dependencies
     packages/client     API client including an x402 payer helper
 

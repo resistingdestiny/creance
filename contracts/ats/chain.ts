@@ -157,7 +157,9 @@ export async function expectRevert(
     // An argument the ABI cannot encode never reaches the chain, so it proves
     // nothing about compliance and must not be recorded as if it had.
     if (decoded === undefined && code !== 'CALL_EXCEPTION') {
-      throw new Error(`${label} failed before it reached the chain: ${revertNameOf(error)}`);
+      throw new Error(`${label} failed before it reached the chain: ${revertNameOf(error)}`, {
+        cause: error,
+      });
     }
     revert = revertNameOf(error);
   }

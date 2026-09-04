@@ -30,7 +30,7 @@ export const SCHEDULE_LEAD_SECONDS = 120;
 /// it but the measurement.
 export const PROBE_LEAD_SECONDS = 45;
 
-export const MATURITY_LEAD_SECONDS = 15 * 60;
+export const MATURITY_LEAD_SECONDS = 20 * 60;
 
 /// The mirror node poll budget for one schedule execution. The default in the
 /// helper is two minutes; a coupon is created two minutes ahead of its

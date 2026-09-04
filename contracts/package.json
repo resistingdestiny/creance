@@ -16,7 +16,8 @@
     "test:testnet": "tsx --env-file-if-exists=../.env scripts/testnet/runthrough.ts",
     "hedera:schedule": "tsx --env-file-if-exists=../.env scripts/hedera/schedule-spike.ts",
     "ats:issue": "tsx --env-file-if-exists=../.env ats/issue.ts",
-    "coupons:pay": "tsx --env-file-if-exists=../.env coupons/settle.ts"
+    "coupons:pay": "tsx --env-file-if-exists=../.env coupons/settle.ts",
+    "coupons:mature": "tsx --env-file-if-exists=../.env coupons/mature.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.15",

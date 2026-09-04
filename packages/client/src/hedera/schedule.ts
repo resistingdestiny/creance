@@ -483,7 +483,24 @@ export interface ScheduleExecution {
   executedTransactionId: string;
   /** SUCCESS, or the failure the transfer hit. A failed transfer still executes. */
   result: string;
+  /**
+   * True only when the money actually moved. A schedule executes whether or not
+   * the transfer inside it succeeds, so `executedAt` alone says nothing about
+   * whether the premium was paid. `UNKNOWN`, which is what an execution whose
+   * transfer the mirror node would not return looks like, is not settled
+   * either: this fails closed, because the cost of missing a payment is a late
+   * lapse and the cost of inventing one is a policy that can never lapse.
+   */
+  settled: boolean;
   link: string;
+}
+
+/** The result string used when the mirror node never returned the transfer. */
+export const UNKNOWN_RESULT = 'UNKNOWN';
+
+/** Whether a mirror node result string means the settlement token moved. */
+export function isSettled(result: string): boolean {
+  return result === 'SUCCESS';
 }
 
 interface MirrorTransaction {
@@ -532,23 +549,45 @@ export async function waitForExecution(
   { attempts = 40, delayMs = 3000 }: PollOptions = {},
   network = 'testnet',
 ): Promise<ScheduleExecution | null> {
+  let executedAt: string | null = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const schedule = await readSchedule(mirrorUrl, scheduleId);
-    if (schedule?.executed_timestamp) {
-      const executed = await readExecutedTransfer(mirrorUrl, schedule.executed_timestamp);
-      const transactionId = executed?.transaction_id ?? '';
-      return {
-        scheduleId,
-        executedAt: schedule.executed_timestamp,
-        executedTransactionId: transactionId,
-        result: executed?.result ?? 'UNKNOWN',
-        link: transactionId ? hashscanUrl('transaction', transactionId, network) : '',
-      };
+    if (!executedAt) {
+      const schedule = await readSchedule(mirrorUrl, scheduleId);
+      if (schedule?.deleted && !schedule.executed_timestamp) {
+        return null;
+      }
+      executedAt = schedule?.executed_timestamp ?? null;
     }
-    if (schedule?.deleted) {
-      return null;
+    if (executedAt) {
+      // The two endpoints do not land at the same moment, so an execution the
+      // schedule already reports can still be missing from /transactions. Keep
+      // polling rather than reporting it with no result.
+      const executed = await readExecutedTransfer(mirrorUrl, executedAt);
+      if (executed) {
+        const transactionId = executed.transaction_id;
+        return {
+          scheduleId,
+          executedAt,
+          executedTransactionId: transactionId,
+          result: executed.result,
+          settled: isSettled(executed.result),
+          link: hashscanUrl('transaction', transactionId, network),
+        };
+      }
     }
     await sleep(delayMs);
+  }
+  if (executedAt) {
+    // It executed and the mirror node never showed the transfer. Report it, but
+    // never as a payment.
+    return {
+      scheduleId,
+      executedAt,
+      executedTransactionId: '',
+      result: UNKNOWN_RESULT,
+      settled: false,
+      link: '',
+    };
   }
   return null;
 }
@@ -556,15 +595,28 @@ export async function waitForExecution(
 // -- Chaining the next month -------------------------------------------------
 
 /**
- * What a watcher hands back when a premium executes. T09 turns this into the
- * `CoverPool.recordPremium(policyId, period)` call from the api account, and
- * T18 writes it to the payments topic. Without that call `lapse()` becomes
- * callable once the grace period past `paidThroughMonth` has run out, so an
- * execution nobody records looks exactly like a missed premium.
+ * What a watcher hands back when a premium executes. When `settled` is true,
+ * T09 turns this into the `CoverPool.recordPremium(policyId, period)` call from
+ * the api account and T18 writes it to the payments topic. Without that call
+ * `lapse()` becomes callable once the grace period past `paidThroughMonth` has
+ * run out, so an execution nobody records looks exactly like a missed premium.
+ *
+ * When `settled` is false the opposite rule applies and it matters more: the
+ * schedule ran but the money did not move, so recording it would mark an unpaid
+ * month as paid and `lapse()` could never fire again. That case goes to
+ * `onFailed`, never to `onExecuted`.
  */
 export interface PremiumExecution extends ScheduleExecution {
   policyId: string;
   period: number;
+}
+
+/** Attach a slot's policy and period to an execution. Pure, so it is testable. */
+export function premiumExecution(
+  execution: ScheduleExecution,
+  slot: PremiumSlot,
+): PremiumExecution {
+  return { ...execution, policyId: slot.policyId, period: slot.period };
 }
 
 export interface ScheduleNextParams extends Omit<ScheduleTransferParams, 'memo' | 'executeAt'> {
@@ -575,7 +627,14 @@ export interface ScheduleNextParams extends Omit<ScheduleTransferParams, 'memo' 
   /** How far the next slot steps. One month unless the demo clock says otherwise. */
   months?: number;
   poll?: PollOptions;
+  /** Called only when the settlement token actually moved. */
   onExecuted?: (execution: PremiumExecution) => void | Promise<void>;
+  /**
+   * Called when the schedule executed and the transfer inside it did not
+   * succeed, including the case where the mirror node never returned it. The
+   * policy is on its way to lapsing and nothing may be recorded as paid.
+   */
+  onFailed?: (execution: PremiumExecution) => void | Promise<void>;
 }
 
 export interface ScheduleNextResult {
@@ -584,32 +643,40 @@ export interface ScheduleNextResult {
   slot: PremiumSlot;
 }
 
+/** A caller that ignores the callbacks still has to read this. */
+export type ScheduleNextOutcome = ScheduleNextResult & { settled: boolean };
+
 /**
  * Wait for one premium to execute and create the following month's.
  *
  * A Hedera schedule cannot create another schedule, so the monthly chain is
- * this watcher and nothing else: poll for the execution, hand it to the
- * callback, then create the next month. The Steward runs it; if the process
- * stops, the chain stops, which is why the schedules are created a few months
- * ahead rather than one at a time.
+ * this watcher and nothing else: poll for the execution, hand it to whichever
+ * callback the settlement result calls for, then create the next month. The
+ * Steward runs it; if the process stops, the chain stops, which is why the
+ * schedules are created a few months ahead rather than one at a time.
+ *
+ * The next month is created whether or not this one settled. A failed premium
+ * is not a lapse: the policy has the 15 day grace period from DESIGN.md 3.5 to
+ * recover, and stopping the chain would leave a policyholder who tops up with
+ * no schedule to pay from. What a failure does change is that nothing is
+ * recorded as paid.
  */
 export async function scheduleNext(
   params: ScheduleNextParams,
-): Promise<ScheduleNextResult | null> {
-  const { mirrorUrl, scheduleId, slot, months = 1, poll, onExecuted, ...transfer } = params;
+): Promise<ScheduleNextOutcome | null> {
+  const { mirrorUrl, scheduleId, slot, months = 1, poll, onExecuted, onFailed, ...transfer } =
+    params;
 
   const execution = await waitForExecution(mirrorUrl, scheduleId, poll, transfer.network);
   if (!execution) {
     return null;
   }
 
-  const premium: PremiumExecution = {
-    ...execution,
-    policyId: slot.policyId,
-    period: slot.period,
-  };
-  if (onExecuted) {
-    await onExecuted(premium);
+  const premium = premiumExecution(execution, slot);
+  if (premium.settled) {
+    await onExecuted?.(premium);
+  } else {
+    await onFailed?.(premium);
   }
 
   const nextSlot = nextPremiumSlot(slot, months);
@@ -618,5 +685,5 @@ export async function scheduleNext(
     memo: nextSlot.memo,
     executeAt: nextSlot.executeAt,
   });
-  return { execution: premium, next, slot: nextSlot };
+  return { execution: premium, next, slot: nextSlot, settled: premium.settled };
 }

@@ -1,5 +1,5 @@
 import { Client } from '@hiero-ledger/sdk';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   addMonths,
@@ -14,9 +14,12 @@ import {
   periodFromMonthIndex,
   periodOf,
   premiumMemo,
+  premiumExecution,
   premiumSlot,
+  scheduleNext,
   scheduleTransfer,
   toMirrorTransactionId,
+  waitForExecution,
 } from '../src/hedera/schedule.js';
 
 // The chain free half of the premium chain. Everything here decides which month
@@ -196,5 +199,195 @@ describe('scheduleTransfer argument guards', () => {
 
   it('refuses to pre-sign without the payer key', async () => {
     await expect(scheduleTransfer({ ...base, payer })).rejects.toThrow(/needs the payer key/);
+  });
+});
+
+// -- The settlement gate -----------------------------------------------------
+
+interface StubSchedule {
+  executed_timestamp: string | null;
+  deleted?: boolean;
+}
+
+/**
+ * A mirror node that answers the two endpoints waitForExecution reads. No
+ * network: `transactions` is what /transactions returns for the execution
+ * timestamp, and an empty list is an execution the mirror node has not indexed.
+ */
+function stubMirror(schedule: StubSchedule, transactions: unknown[]): void {
+  vi.stubGlobal('fetch', async (url: string) => {
+    const body = url.includes('/schedules/')
+      ? { schedule_id: '0.0.1', deleted: false, ...schedule }
+      : { transactions };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    };
+  });
+}
+
+const MIRROR = 'https://testnet.mirrornode.hedera.com/api/v1';
+const POLL = { attempts: 3, delayMs: 1 };
+
+describe('waitForExecution', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('settles an execution whose transfer succeeded', async () => {
+    stubMirror({ executed_timestamp: '1788548305.112642208' }, [
+      { transaction_id: '0.0.7-1788548118-155677633', result: 'SUCCESS', scheduled: true },
+    ]);
+    const execution = await waitForExecution(MIRROR, '0.0.1', POLL);
+    expect(execution).toMatchObject({
+      result: 'SUCCESS',
+      settled: true,
+      executedTransactionId: '0.0.7-1788548118-155677633',
+    });
+    expect(execution?.link).toBe(
+      'https://hashscan.io/testnet/transaction/0.0.7-1788548118-155677633',
+    );
+  });
+
+  it('does not settle an execution whose transfer failed', async () => {
+    // The schedule ran, the money did not move. This is the case the docs
+    // describe: an underfunded payer still gets a successful schedule.
+    stubMirror({ executed_timestamp: '1788548305.112642208' }, [
+      {
+        transaction_id: '0.0.7-1788548118-155677633',
+        result: 'INSUFFICIENT_TOKEN_BALANCE',
+        scheduled: true,
+      },
+    ]);
+    const execution = await waitForExecution(MIRROR, '0.0.1', POLL);
+    expect(execution?.result).toBe('INSUFFICIENT_TOKEN_BALANCE');
+    expect(execution?.settled).toBe(false);
+  });
+
+  it('ignores the create when it looks for the transfer', async () => {
+    stubMirror({ executed_timestamp: '1788548305.112642208' }, [
+      { transaction_id: '0.0.7-1788548118-155677633', result: 'SUCCESS', scheduled: false },
+      {
+        transaction_id: '0.0.7-1788548118-155677633',
+        result: 'INSUFFICIENT_PAYER_BALANCE',
+        scheduled: true,
+      },
+    ]);
+    const execution = await waitForExecution(MIRROR, '0.0.1', POLL);
+    expect(execution?.result).toBe('INSUFFICIENT_PAYER_BALANCE');
+    expect(execution?.settled).toBe(false);
+  });
+
+  it('reports an execution the mirror node never showed as unknown, never as paid', async () => {
+    stubMirror({ executed_timestamp: '1788548305.112642208' }, []);
+    const execution = await waitForExecution(MIRROR, '0.0.1', POLL);
+    expect(execution).toMatchObject({
+      result: 'UNKNOWN',
+      settled: false,
+      executedTransactionId: '',
+      link: '',
+    });
+  });
+
+  it('returns null while nothing has executed', async () => {
+    stubMirror({ executed_timestamp: null }, []);
+    expect(await waitForExecution(MIRROR, '0.0.1', POLL)).toBeNull();
+  });
+
+  it('returns null for a schedule that was deleted before it ran', async () => {
+    stubMirror({ executed_timestamp: null, deleted: true }, []);
+    expect(await waitForExecution(MIRROR, '0.0.1', POLL)).toBeNull();
+  });
+});
+
+describe('premiumExecution', () => {
+  it('carries the policy and period from the slot and the settlement from the chain', () => {
+    const slot = premiumSlot('POL-0007', 202610, new Date('2026-10-04T18:58:25Z'));
+    const premium = premiumExecution(
+      {
+        scheduleId: '0.0.1',
+        executedAt: '1788548305.112642208',
+        executedTransactionId: '0.0.7-1788548118-155677633',
+        result: 'INSUFFICIENT_TOKEN_BALANCE',
+        settled: false,
+        link: '',
+      },
+      slot,
+    );
+    expect(premium.policyId).toBe('POL-0007');
+    expect(premium.period).toBe(202610);
+    expect(premium.settled).toBe(false);
+  });
+});
+
+describe('scheduleNext routes an execution by its settlement', () => {
+  const client = Client.forTestnet();
+  const slot = premiumSlot('POL-0007', 202610, new Date('2026-10-04T18:58:25Z'));
+
+  // The callbacks run before the next month is created, and the create here is
+  // given an amount it refuses, so the routing is observable without the chain.
+  const params = {
+    client,
+    mirrorUrl: MIRROR,
+    scheduleId: '0.0.1',
+    slot,
+    tokenId: '0.0.10366463',
+    payer: { accountId: '0.0.10366453' },
+    to: '0.0.10366451',
+    amount: 0n,
+    poll: POLL,
+  };
+
+  afterAll(() => {
+    client.close();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('hands a settled premium to onExecuted', async () => {
+    stubMirror({ executed_timestamp: '1788548305.112642208' }, [
+      { transaction_id: '0.0.7-1788548118-155677633', result: 'SUCCESS', scheduled: true },
+    ]);
+    const onExecuted = vi.fn();
+    const onFailed = vi.fn();
+    await expect(scheduleNext({ ...params, onExecuted, onFailed })).rejects.toThrow(
+      /positive amount/,
+    );
+    expect(onExecuted).toHaveBeenCalledTimes(1);
+    expect(onExecuted.mock.calls[0]?.[0]).toMatchObject({ policyId: 'POL-0007', period: 202610 });
+    expect(onFailed).not.toHaveBeenCalled();
+  });
+
+  it('never hands a failed premium to onExecuted', async () => {
+    stubMirror({ executed_timestamp: '1788548305.112642208' }, [
+      {
+        transaction_id: '0.0.7-1788548118-155677633',
+        result: 'INSUFFICIENT_TOKEN_BALANCE',
+        scheduled: true,
+      },
+    ]);
+    const onExecuted = vi.fn();
+    const onFailed = vi.fn();
+    await expect(scheduleNext({ ...params, onExecuted, onFailed })).rejects.toThrow(
+      /positive amount/,
+    );
+    expect(onExecuted).not.toHaveBeenCalled();
+    expect(onFailed).toHaveBeenCalledTimes(1);
+  });
+
+  it('never hands an unknown result to onExecuted', async () => {
+    stubMirror({ executed_timestamp: '1788548305.112642208' }, []);
+    const onExecuted = vi.fn();
+    const onFailed = vi.fn();
+    await expect(scheduleNext({ ...params, onExecuted, onFailed })).rejects.toThrow(
+      /positive amount/,
+    );
+    expect(onExecuted).not.toHaveBeenCalled();
+    expect(onFailed).toHaveBeenCalledTimes(1);
+    expect(onFailed.mock.calls[0]?.[0]).toMatchObject({ result: 'UNKNOWN', settled: false });
   });
 });

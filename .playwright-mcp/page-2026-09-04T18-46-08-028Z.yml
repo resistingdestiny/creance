@@ -1,0 +1,578 @@
+- generic [ref=f6e1]:
+  - main [ref=f6e3]:
+    - generic [ref=f6e4]:
+      - heading "Component gallery" [level=1] [ref=f6e5]
+      - paragraph [ref=f6e6]: Every component in the token sheet, in every state. Nothing here is a product screen and nothing here is linked from the app.
+    - generic [ref=f6e7]:
+      - heading "Colour tokens" [level=2] [ref=f6e8]
+      - paragraph [ref=f6e9]: Each token with its computed WCAG 2.x contrast ratio against canvas and against surface. The sheet declares a floor of 4.5 to 1. Three tokens do not clear it, which is why the state colours are indicators and never text, and why axis labels and the inactive tab label are ink-2.
+      - list [ref=f6e10]:
+        - listitem [ref=f6e11]:
+          - generic [ref=f6e13]: canvas
+          - generic [ref=f6e14]: "#FFFFFF"
+          - generic [ref=f6e15]: on canvas 1.00:1
+          - generic [ref=f6e16]: on surface 1.09:1
+          - generic [ref=f6e17]: page background
+        - listitem [ref=f6e18]:
+          - generic [ref=f6e20]: surface
+          - generic [ref=f6e21]: "#F4F5F7"
+          - generic [ref=f6e22]: on canvas 1.09:1
+          - generic [ref=f6e23]: on surface 1.00:1
+          - generic [ref=f6e24]: grouped sections, sheets, form fills
+        - listitem [ref=f6e25]:
+          - generic [ref=f6e27]: hairline
+          - generic [ref=f6e28]: "#E4E6EA"
+          - generic [ref=f6e29]: on canvas 1.25:1
+          - generic [ref=f6e30]: on surface 1.15:1
+          - generic [ref=f6e31]: all separation and depth, always 1px
+        - listitem [ref=f6e32]:
+          - generic [ref=f6e34]: ink
+          - generic [ref=f6e35]: "#000000"
+          - generic [ref=f6e36]: on canvas 21.00:1
+          - generic [ref=f6e37]: on surface 19.25:1
+          - generic [ref=f6e38]: text, primary actions
+        - listitem [ref=f6e39]:
+          - generic [ref=f6e41]: ink-2
+          - generic [ref=f6e42]: "#6B6F76"
+          - generic [ref=f6e43]: on canvas 5.05:1
+          - generic [ref=f6e44]: on surface 4.63:1
+          - generic [ref=f6e45]: secondary text, labels, axis labels, inactive tab
+        - listitem [ref=f6e46]:
+          - generic [ref=f6e48]: ink-3
+          - generic [ref=f6e49]: "#A3A7AE"
+          - generic [ref=f6e50]: on canvas 2.41:1 (below the text floor)
+          - generic [ref=f6e51]: on surface 2.21:1 (below the text floor)
+          - generic [ref=f6e52]: placeholder and disabled only
+        - listitem [ref=f6e53]:
+          - generic [ref=f6e55]: covered
+          - generic [ref=f6e56]: "#0B8A4E"
+          - generic [ref=f6e57]: on canvas 4.41:1 (below the text floor)
+          - generic [ref=f6e58]: on surface 4.04:1 (below the text floor)
+          - generic [ref=f6e59]: "state indicator: money in, active cover, paid"
+        - listitem [ref=f6e60]:
+          - generic [ref=f6e62]: watch
+          - generic [ref=f6e63]: "#C77A00"
+          - generic [ref=f6e64]: on canvas 3.38:1 (below the text floor)
+          - generic [ref=f6e65]: on surface 3.10:1 (below the text floor)
+          - generic [ref=f6e66]: "state indicator: index rising, payment due"
+        - listitem [ref=f6e67]:
+          - generic [ref=f6e69]: triggered
+          - generic [ref=f6e70]: "#D13B3B"
+          - generic [ref=f6e71]: on canvas 4.77:1
+          - generic [ref=f6e72]: on surface 4.38:1 (below the text floor)
+          - generic [ref=f6e73]: "state indicator: trigger fired, failed"
+    - generic [ref=f6e74]:
+      - heading "Pill button" [level=2] [ref=f6e75]
+      - generic [ref=f6e76]:
+        - generic [ref=f6e77]:
+          - paragraph [ref=f6e78]: Primary
+          - button "Pay 28.00" [ref=f6e79]
+        - generic [ref=f6e81]:
+          - paragraph [ref=f6e82]: Secondary
+          - button "I want to invest" [ref=f6e83]
+        - generic [ref=f6e85]:
+          - paragraph [ref=f6e86]: Disabled
+          - button "Submit claim" [disabled] [ref=f6e87]
+        - generic [ref=f6e89]:
+          - paragraph [ref=f6e90]: Loading, six pulsing dots, width unchanged
+          - button "Working" [disabled] [ref=f6e91]
+        - generic [ref=f6e100]:
+          - paragraph [ref=f6e101]: Focus
+          - button "Pay 28.00" [ref=f6e102]
+        - generic [ref=f6e104]:
+          - paragraph [ref=f6e105]: Default and loading side by side, same width
+          - generic [ref=f6e106]:
+            - button "Pay 28.00" [ref=f6e107]
+            - button "Working" [disabled] [ref=f6e109]
+    - generic [ref=f6e118]:
+      - heading "Text link" [level=2] [ref=f6e119]
+      - generic [ref=f6e120]:
+        - generic [ref=f6e121]:
+          - paragraph [ref=f6e122]: Default
+          - link "How the index works" [ref=f6e124] [cursor=pointer]:
+            - /url: "#text-link"
+        - generic [ref=f6e125]:
+          - paragraph [ref=f6e126]: Focus
+          - link "How the index works" [ref=f6e128] [cursor=pointer]:
+            - /url: "#text-link"
+        - generic [ref=f6e129]:
+          - paragraph [ref=f6e130]: Hit area, 44px, drawn for the review
+          - link "How the index works" [ref=f6e132] [cursor=pointer]:
+            - /url: "#text-link"
+    - generic [ref=f6e133]:
+      - heading "List row" [level=2] [ref=f6e134]
+      - generic [ref=f6e135]:
+        - generic [ref=f6e136]:
+          - paragraph [ref=f6e137]: Label and value, 52px
+          - generic [ref=f6e140]:
+            - generic [ref=f6e141]: Next payment
+            - generic [ref=f6e143]: 28.00 on 4 October
+        - generic [ref=f6e144]:
+          - paragraph [ref=f6e145]: With a chevron
+          - button "Index 1.10, steady" [ref=f6e148]:
+            - generic [ref=f6e149]: Index
+            - generic [ref=f6e151]: 1.10, steady
+        - generic [ref=f6e154]:
+          - paragraph [ref=f6e155]: With a check
+          - generic [ref=f6e156]: termination-letter.pdf
+        - generic [ref=f6e164]:
+          - paragraph [ref=f6e165]: Two lines, 72px
+          - generic [ref=f6e169]:
+            - generic [ref=f6e170]: Farming, fishing and forestry
+            - generic [ref=f6e171]: This cover has never paid for this occupation since 2010.
+    - generic [ref=f6e175]:
+      - heading "Surface group" [level=2] [ref=f6e176]
+      - generic [ref=f6e177]:
+        - generic [ref=f6e178]:
+          - paragraph [ref=f6e179]: Two rows, separators inset 16
+          - generic [ref=f6e181]:
+            - generic [ref=f6e182]:
+              - generic [ref=f6e183]: Cover
+              - generic [ref=f6e185]: 5,000
+            - generic [ref=f6e186]:
+              - generic [ref=f6e187]: Occupation
+              - generic [ref=f6e189]: Computer and mathematical
+        - generic [ref=f6e190]:
+          - paragraph [ref=f6e191]: Five rows
+          - generic [ref=f6e193]:
+            - generic [ref=f6e194]:
+              - generic [ref=f6e195]: Cover
+              - generic [ref=f6e197]: 5,000
+            - generic [ref=f6e198]:
+              - generic [ref=f6e199]: Occupation
+              - generic [ref=f6e201]: Computer and mathematical
+            - generic [ref=f6e202]:
+              - generic [ref=f6e203]: Monthly payment
+              - generic [ref=f6e205]: "28.00"
+            - generic [ref=f6e206]:
+              - generic [ref=f6e207]: First payment today
+              - generic [ref=f6e209]: "28.00"
+            - generic [ref=f6e210]:
+              - generic [ref=f6e211]: Pays from
+              - generic [ref=f6e213]: 0xcad3…b6f5
+    - generic [ref=f6e214]:
+      - heading "Bottom sheet" [level=2] [ref=f6e215]
+      - generic [ref=f6e216]:
+        - generic [ref=f6e217]:
+          - paragraph [ref=f6e218]: Closed, then opened over the frame
+          - generic [ref=f6e219]:
+            - generic [ref=f6e220]:
+              - paragraph [ref=f6e221]: The screen behind the sheet.
+              - button "Confirm your cover" [ref=f6e223]
+            - generic:
+              - button "Close"
+              - dialog [aria-hidden]:
+                - heading [level=2]: Confirm your cover
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic: Cover
+                        - generic: 5,000
+                      - generic:
+                        - generic: Occupation
+                        - generic: Computer and mathematical
+                      - generic:
+                        - generic: Monthly payment
+                        - generic: "28.00"
+                      - generic:
+                        - generic: Pays from
+                        - generic: 0xcad3…b6f5
+                  - paragraph: Demo wallet. Testnet only.
+                  - generic:
+                    - button:
+                      - generic: Pay 28.00
+        - paragraph [ref=f6e226]: Grabber 36 by 4 and the scrim at rgba(0,0,0,0.32)
+    - generic [ref=f6e230]:
+      - heading "Display number" [level=2] [ref=f6e231]
+      - generic [ref=f6e232]:
+        - generic [ref=f6e233]:
+          - paragraph [ref=f6e234]: display-xl
+          - generic [ref=f6e235]: 5,000
+        - generic [ref=f6e236]:
+          - paragraph [ref=f6e237]: display-l
+          - generic [ref=f6e238]: 2,500
+        - generic [ref=f6e239]:
+          - paragraph [ref=f6e240]: Negative, U+002D
+          - generic [ref=f6e241]: "-7,500"
+        - generic [ref=f6e242]:
+          - paragraph [ref=f6e243]: Count-up, 600ms, the one orchestrated moment
+          - generic [ref=f6e244]:
+            - generic [ref=f6e245]: 5,000
+            - button "Count up" [ref=f6e246]
+        - generic [ref=f6e248]:
+          - paragraph [ref=f6e249]: Count-up with reduced motion forced, lands in one frame
+          - generic [ref=f6e250]:
+            - generic [ref=f6e251]: 5,000
+            - button "Count up" [ref=f6e252]
+    - generic [ref=f6e254]:
+      - heading "Amount slider" [level=2] [ref=f6e255]
+      - generic [ref=f6e256]:
+        - generic [ref=f6e257]:
+          - paragraph [ref=f6e258]: At 1,000
+          - generic [ref=f6e259]:
+            - generic [ref=f6e260]: Cover amount
+            - slider "Cover amount" [ref=f6e261]: "1000"
+            - generic [ref=f6e262]:
+              - generic [ref=f6e263]: 1,000
+              - generic [ref=f6e264]: 10,000
+        - generic [ref=f6e265]:
+          - paragraph [ref=f6e266]: At 5,500
+          - generic [ref=f6e267]:
+            - generic [ref=f6e268]: Cover amount
+            - slider "Cover amount" [ref=f6e269]: "5500"
+            - generic [ref=f6e270]:
+              - generic [ref=f6e271]: 1,000
+              - generic [ref=f6e272]: 10,000
+        - generic [ref=f6e273]:
+          - paragraph [ref=f6e274]: At 10,000
+          - generic [ref=f6e275]:
+            - generic [ref=f6e276]: Cover amount
+            - slider "Cover amount" [ref=f6e277]: "10000"
+            - generic [ref=f6e278]:
+              - generic [ref=f6e279]: 1,000
+              - generic [ref=f6e280]: 10,000
+        - generic [ref=f6e281]:
+          - paragraph [ref=f6e282]: Interactive, keyboard focus with the arrow keys
+          - generic [ref=f6e283]:
+            - generic [ref=f6e284]:
+              - generic [ref=f6e285]: Cover amount
+              - slider "Cover amount" [ref=f6e286]: "5500"
+              - generic [ref=f6e287]:
+                - generic [ref=f6e288]: 1,000
+                - generic [ref=f6e289]: 10,000
+            - generic [ref=f6e290]: 5,500
+    - generic [ref=f6e291]:
+      - heading "Status pill" [level=2] [ref=f6e292]
+      - generic [ref=f6e293]:
+        - generic [ref=f6e294]: Covered
+        - generic [ref=f6e296]: Claims open
+        - generic [ref=f6e298]: Paid out
+        - generic [ref=f6e300]: Cover ended
+      - paragraph [ref=f6e301]: The dot is the state colour and the label is ink. No state colour is used as the colour of a string a person has to read.
+    - generic [ref=f6e302]:
+      - heading "Tab bar" [level=2] [ref=f6e303]
+      - generic [ref=f6e304]:
+        - generic [ref=f6e305]:
+          - paragraph [ref=f6e306]: Cover active
+          - navigation "Sections" [ref=f6e308]:
+            - button "Cover" [ref=f6e309]
+            - button "Index" [ref=f6e310]
+        - generic [ref=f6e311]:
+          - paragraph [ref=f6e312]: Index active
+          - navigation "Sections" [ref=f6e314]:
+            - button "Cover" [ref=f6e315]
+            - button "Index" [ref=f6e316]
+        - generic [ref=f6e317]:
+          - paragraph [ref=f6e318]: Interactive
+          - navigation "Sections" [ref=f6e320]:
+            - button "Cover" [ref=f6e321]
+            - button "Index" [ref=f6e322]
+    - generic [ref=f6e323]:
+      - heading "Toast and failure sheet" [level=2] [ref=f6e324]
+      - generic [ref=f6e325]:
+        - generic [ref=f6e326]:
+          - paragraph [ref=f6e327]: Toast, offline
+          - status [ref=f6e328]: You're offline.
+        - generic [ref=f6e329]:
+          - paragraph [ref=f6e330]: Toast, payment failed
+          - status [ref=f6e331]: Your payment didn't go through.
+        - generic [ref=f6e332]:
+          - paragraph [ref=f6e333]: Failure sheet, payment failed
+          - generic [ref=f6e334]:
+            - button "Show the sheet" [ref=f6e336]
+            - generic:
+              - button "Close"
+              - dialog [aria-hidden]:
+                - heading [level=2]: Your payment didn't go through.
+                - generic:
+                  - generic:
+                    - paragraph: Check that your wallet has at least 28.00, then try again. Your cover is unchanged until 19 October.
+                    - button:
+                      - generic: Pay 28.00
+        - generic [ref=f6e338]:
+          - paragraph [ref=f6e339]: Failure body, offline
+          - generic [ref=f6e340]:
+            - paragraph [ref=f6e341]: You're offline.
+            - paragraph [ref=f6e342]: Your cover is unchanged. We'll update the index when you're back online.
+            - button "Retry" [ref=f6e343]
+    - generic [ref=f6e345]:
+      - heading "Form field" [level=2] [ref=f6e346]
+      - generic [ref=f6e347]:
+        - generic [ref=f6e348]:
+          - paragraph [ref=f6e349]: Empty
+          - generic [ref=f6e350]:
+            - generic [ref=f6e351]: Employer
+            - textbox "Employer" [ref=f6e352]:
+              - /placeholder: Who you worked for
+        - generic [ref=f6e353]:
+          - paragraph [ref=f6e354]: Filled
+          - generic [ref=f6e355]:
+            - generic [ref=f6e356]: Employer
+            - textbox "Employer" [ref=f6e357]: Northgate Logistics
+        - generic [ref=f6e358]:
+          - paragraph [ref=f6e359]: Focus
+          - generic [ref=f6e360]:
+            - generic [ref=f6e361]: Employer
+            - textbox "Employer" [ref=f6e362]: Northgate Logistics
+        - generic [ref=f6e363]:
+          - paragraph [ref=f6e364]: Inline error, on canvas, outside the surface fill
+          - generic [ref=f6e365]:
+            - generic [ref=f6e366]: How did it end?
+            - textbox "How did it end?" [invalid] [ref=f6e367]: I resigned
+            - paragraph [ref=f6e368]: Cover doesn't pay for this. You can still submit and a person will look at it.
+    - generic [ref=f6e369]:
+      - heading "Table row" [level=2] [ref=f6e370]
+      - generic [ref=f6e371]:
+        - paragraph [ref=f6e372]: Header, body rows, numeric columns right aligned and tabular
+        - table [ref=f6e373]:
+          - caption [ref=f6e374]: Coupon history
+          - rowgroup [ref=f6e375]:
+            - row [ref=f6e376]:
+              - columnheader "Month" [ref=f6e377]
+              - columnheader "State" [ref=f6e378]
+              - columnheader "Amount" [ref=f6e379]
+              - columnheader "Reading" [ref=f6e380]
+          - rowgroup [ref=f6e381]:
+            - row [ref=f6e382]:
+              - cell "April 2026" [ref=f6e383]
+              - cell "Paid" [ref=f6e384]
+              - cell "1,666.00" [ref=f6e385]
+              - cell "2.35" [ref=f6e386]
+            - row [ref=f6e387]:
+              - cell "May 2026" [ref=f6e388]
+              - cell "Paid" [ref=f6e389]
+              - cell "1,666.00" [ref=f6e390]
+              - cell "2.41" [ref=f6e391]
+            - row [ref=f6e392]:
+              - cell "June 2026" [ref=f6e393]
+              - cell "Paid" [ref=f6e394]
+              - cell "1,666.00" [ref=f6e395]
+              - cell "2.29" [ref=f6e396]
+    - generic [ref=f6e397]:
+      - heading "Index line, small" [level=2] [ref=f6e398]
+      - paragraph [ref=f6e399]: 64 by 20, no band unless the state is triggered, no axis labels, 1.25px line.
+      - generic [ref=f6e400]:
+        - generic [ref=f6e401]:
+          - paragraph [ref=f6e402]: Flat
+          - figure [ref=f6e403]:
+            - img "Legal. Latest reading 1.11, Sept 2026. Pays out above 2.00." [ref=f6e404]
+        - generic [ref=f6e407]:
+          - paragraph [ref=f6e408]: Rising
+          - figure [ref=f6e409]:
+            - img "Computer and mathematical. Latest reading 1.71, Sept 2025. Pays out above 2.00." [ref=f6e410]
+        - generic [ref=f6e413]:
+          - paragraph [ref=f6e414]: Triggered, the line enters the band
+          - figure [ref=f6e415]:
+            - img "Computer and mathematical. Latest reading 2.52, Sept 2026. Pays out above 2.00." [ref=f6e416]
+    - generic [ref=f6e420]:
+      - heading "Index line, large" [level=2] [ref=f6e421]
+      - paragraph [ref=f6e422]: 24 months, 180px on a phone and 300px on the web, 1.5px line, two axis labels in ink-2 and the band label between them.
+      - generic [ref=f6e423]:
+        - generic [ref=f6e424]:
+          - paragraph [ref=f6e425]: Positive line with a positive band, triggered
+          - figure "Oct 2024 Pays out above 2.00 Sept 2026" [ref=f6e426]:
+            - img "Computer and mathematical. Latest reading 2.52, Sept 2026. Pays out above 2.00." [ref=f6e427]
+            - generic [ref=f6e431]:
+              - generic [ref=f6e432]: Oct 2024
+              - generic [ref=f6e433]: Pays out above 2.00
+              - generic [ref=f6e434]: Sept 2026
+            - group [ref=f6e435]:
+              - generic "The readings" [ref=f6e436] [cursor=pointer]
+        - generic [ref=f6e437]:
+          - paragraph [ref=f6e438]: Negative line with a negative band, no clamp at zero
+          - figure "Oct 2024 Pays out above -0.90 Sept 2026" [ref=f6e439]:
+            - img "Farming, fishing and forestry. Latest reading -0.69, Sept 2026. Pays out above -0.90." [ref=f6e440]
+            - generic [ref=f6e444]:
+              - generic [ref=f6e445]: Oct 2024
+              - generic [ref=f6e446]: Pays out above -0.90
+              - generic [ref=f6e447]: Sept 2026
+        - generic [ref=f6e448]:
+          - paragraph [ref=f6e449]: Band above the whole range
+          - figure "Oct 2024 Pays out above 4.00 Sept 2026" [ref=f6e450]:
+            - img "Legal. Latest reading 1.11, Sept 2026. Pays out above 4.00." [ref=f6e451]
+            - generic [ref=f6e455]:
+              - generic [ref=f6e456]: Oct 2024
+              - generic [ref=f6e457]: Pays out above 4.00
+              - generic [ref=f6e458]: Sept 2026
+        - generic [ref=f6e459]:
+          - paragraph [ref=f6e460]: A missing month, two paths and no bridge
+          - figure "Oct 2024 Pays out above 2.00 Sept 2026" [ref=f6e461]:
+            - img "Computer and mathematical. Latest reading 2.52, Sept 2026. Pays out above 2.00." [ref=f6e462]
+            - generic [ref=f6e467]:
+              - generic [ref=f6e468]: Oct 2024
+              - generic [ref=f6e469]: Pays out above 2.00
+              - generic [ref=f6e470]: Sept 2026
+        - generic [ref=f6e471]:
+          - paragraph [ref=f6e472]: At 300px, the web height
+          - figure "Oct 2024 Pays out above 2.00 Sept 2026" [ref=f6e473]:
+            - img "Computer and mathematical. Latest reading 2.52, Sept 2026. Pays out above 2.00." [ref=f6e474]
+            - generic [ref=f6e478]:
+              - generic [ref=f6e479]: Oct 2024
+              - generic [ref=f6e480]: Pays out above 2.00
+              - generic [ref=f6e481]: Sept 2026
+    - generic [ref=f6e482]:
+      - heading "Cover card" [level=2] [ref=f6e483]
+      - generic [ref=f6e484]:
+        - generic [ref=f6e485]:
+          - paragraph [ref=f6e486]: Default gradient, 20px radius, display-l amount
+          - generic [ref=f6e488]:
+            - generic [ref=f6e489]:
+              - paragraph [ref=f6e490]: Computer and mathematical
+              - generic [ref=f6e491]: Covered
+            - generic [ref=f6e493]:
+              - paragraph [ref=f6e494]: Cover
+              - paragraph [ref=f6e495]: 5,000
+        - generic [ref=f6e496]:
+          - paragraph [ref=f6e497]: Hero gradient with the brushing, 32px radius
+          - generic [ref=f6e499]:
+            - generic [ref=f6e500]:
+              - paragraph [ref=f6e501]: Computer and mathematical
+              - generic [ref=f6e502]: Covered
+            - generic [ref=f6e504]:
+              - paragraph [ref=f6e505]: Cover
+              - paragraph [ref=f6e506]: 5,000
+        - generic [ref=f6e507]:
+          - paragraph [ref=f6e508]: Long occupation label at the 190px cap
+          - generic [ref=f6e510]:
+            - generic [ref=f6e511]:
+              - paragraph [ref=f6e512]: Arts, design, entertainment and media
+              - generic [ref=f6e513]: Claims open
+            - generic [ref=f6e515]:
+              - paragraph [ref=f6e516]: Cover
+              - paragraph [ref=f6e517]: 10,000
+    - generic [ref=f6e518]:
+      - heading "Upload area and file rows" [level=2] [ref=f6e519]
+      - generic [ref=f6e520]:
+        - generic [ref=f6e521]:
+          - paragraph [ref=f6e522]: Empty
+          - generic [ref=f6e523]:
+            - generic [ref=f6e524] [cursor=pointer]:
+              - button "Add a file" [ref=f6e525]
+              - text: Add a file
+            - paragraph [ref=f6e526]: We keep your documents private. Only a fingerprint of each file goes on the public record.
+        - generic [ref=f6e527]:
+          - paragraph [ref=f6e528]: One file
+          - generic [ref=f6e529]:
+            - generic [ref=f6e530] [cursor=pointer]:
+              - button "Add a file" [ref=f6e531]
+              - text: Add a file
+            - list [ref=f6e532]:
+              - listitem [ref=f6e533]:
+                - generic [ref=f6e534]: termination-letter.pdf
+            - paragraph [ref=f6e538]: We keep your documents private. Only a fingerprint of each file goes on the public record.
+        - generic [ref=f6e539]:
+          - paragraph [ref=f6e540]: Three files, one over a megabyte, one failed
+          - generic [ref=f6e541]:
+            - generic [ref=f6e542] [cursor=pointer]:
+              - button "Add a file" [ref=f6e543]
+              - text: Add a file
+            - list [ref=f6e544]:
+              - listitem [ref=f6e545]:
+                - generic [ref=f6e546]: termination-letter.pdf
+              - listitem [ref=f6e550]:
+                - generic [ref=f6e551]:
+                  - generic [ref=f6e552]: final-pay-stat…-2026-scan.pdf
+                  - generic [ref=f6e553]: 3.2 MB
+              - listitem [ref=f6e556]:
+                - generic [ref=f6e557]: p45.jpg
+                - generic [ref=f6e559]: Not added. Try again.
+            - paragraph [ref=f6e561]: We keep your documents private. Only a fingerprint of each file goes on the public record.
+    - generic [ref=f6e562]:
+      - heading "Checkbox row" [level=2] [ref=f6e563]
+      - generic [ref=f6e564]:
+        - generic [ref=f6e565]:
+          - paragraph [ref=f6e566]: Unchecked
+          - generic [ref=f6e567] [cursor=pointer]:
+            - checkbox "Everything here is true. I understand that a false claim is fraud." [ref=f6e568]
+            - generic [ref=f6e570]: Everything here is true. I understand that a false claim is fraud.
+        - generic [ref=f6e571]:
+          - paragraph [ref=f6e572]: Checked
+          - generic [ref=f6e573] [cursor=pointer]:
+            - checkbox "Everything here is true. I understand that a false claim is fraud." [checked] [ref=f6e574]
+            - generic [ref=f6e578]: Everything here is true. I understand that a false claim is fraud.
+        - generic [ref=f6e579]:
+          - paragraph [ref=f6e580]: Interactive, focus with the tab key
+          - generic [ref=f6e581] [cursor=pointer]:
+            - checkbox "Everything here is true. I understand that a false claim is fraud." [ref=f6e582]
+            - generic [ref=f6e584]: Everything here is true. I understand that a false claim is fraud.
+    - generic [ref=f6e585]:
+      - heading "Segmented toggle" [level=2] [ref=f6e586]
+      - generic [ref=f6e587]:
+        - generic [ref=f6e588]:
+          - paragraph [ref=f6e589]: Three options, arrow keys move between them
+          - radiogroup "Which months to show" [ref=f6e590]:
+            - radio "Opened" [checked] [ref=f6e591]
+            - radio "All" [ref=f6e592]
+            - radio "Revised" [ref=f6e593]
+        - generic [ref=f6e594]:
+          - paragraph [ref=f6e595]: Each option active
+          - generic [ref=f6e596]:
+            - radiogroup "Which months to show, opened active" [ref=f6e597]:
+              - radio "Opened" [checked] [ref=f6e598]
+              - radio "All" [ref=f6e599]
+              - radio "Revised" [ref=f6e600]
+            - radiogroup "Which months to show, all active" [ref=f6e601]:
+              - radio "Opened" [ref=f6e602]
+              - radio "All" [checked] [ref=f6e603]
+              - radio "Revised" [ref=f6e604]
+            - radiogroup "Which months to show, revised active" [ref=f6e605]:
+              - radio "Opened" [ref=f6e606]
+              - radio "All" [ref=f6e607]
+              - radio "Revised" [checked] [ref=f6e608]
+    - generic [ref=f6e609]:
+      - heading "Copy button" [level=2] [ref=f6e610]
+      - generic [ref=f6e611]:
+        - paragraph [ref=f6e612]: Beside a value, swaps to a check for 1200ms
+        - generic [ref=f6e613]:
+          - text: 0xcad3…b6f5
+          - button "Copy the full address" [ref=f6e614]
+    - generic [ref=f6e619]:
+      - heading "Skeleton" [level=2] [ref=f6e620]
+      - paragraph [ref=f6e621]: Surface at the field radius, the exact final dimensions, and no shimmer. Nothing else on this screen moves, so a pulsing placeholder would be the only motion on the page.
+      - generic [ref=f6e622]:
+        - paragraph [ref=f6e624]: Rows
+        - paragraph [ref=f6e630]: Figure and chart box
+    - generic [ref=f6e635]:
+      - heading "Replay bar" [level=2] [ref=f6e636]
+      - generic [ref=f6e637]:
+        - generic [ref=f6e638]:
+          - paragraph [ref=f6e639]: Compact, in an app header
+          - generic [ref=f6e640]: "Replay: Jul 2026"
+        - generic [ref=f6e642]:
+          - paragraph [ref=f6e643]: Full, sticky at the top of a public page
+          - generic [ref=f6e644]:
+            - generic [ref=f6e645]: "Replay: Jul 2026"
+            - generic [ref=f6e647]: Months are replayed at ten seconds each.
+    - generic [ref=f6e648]:
+      - heading "Wallet" [level=2] [ref=f6e649]
+      - paragraph [ref=f6e650]: The worker flow shows the wallet exactly once, in the Pay sheet, as the Pays from row. No network name, no gas, no transaction hash. The demo mode is labelled wherever it shows.
+      - generic [ref=f6e651]:
+        - generic [ref=f6e654]:
+          - generic [ref=f6e655]: Pays from
+          - generic [ref=f6e657]: 0xcad3…b6f5
+        - paragraph [ref=f6e658]: Demo wallet. Testnet only.
+    - generic [ref=f6e659]:
+      - heading "Desktop frame" [level=2] [ref=f6e660]
+      - paragraph [ref=f6e661]: The tab bar is a mobile pattern. On a wide viewport the 390 frame is centred on canvas rather than stretched, and the frame gains hairline sides.
+      - generic [ref=f6e664]:
+        - generic [ref=f6e666]:
+          - generic [ref=f6e667]:
+            - paragraph [ref=f6e668]: Computer and mathematical
+            - generic [ref=f6e669]: Covered
+          - generic [ref=f6e671]:
+            - paragraph [ref=f6e672]: Cover
+            - paragraph [ref=f6e673]: 5,000
+        - generic [ref=f6e675]:
+          - generic [ref=f6e676]:
+            - generic [ref=f6e677]: Next payment
+            - generic [ref=f6e679]: 28.00 on 4 October
+          - generic [ref=f6e680]:
+            - generic [ref=f6e681]: Index
+            - generic [ref=f6e683]: 1.10, steady
+        - navigation "Sections" [ref=f6e686]:
+          - button "Cover" [ref=f6e687]
+          - button "Index" [ref=f6e688]
+  - contentinfo [ref=f6e689]:
+    - paragraph [ref=f6e690]: This is a testnet prototype built for a hackathon. It is not an offer of insurance or securities in any jurisdiction and no real funds are involved.
+  - button "Open Next.js Dev Tools" [ref=f6e696] [cursor=pointer]

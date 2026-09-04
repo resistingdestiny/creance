@@ -73,6 +73,12 @@ function Grid({ children }: { children: ReactNode }) {
   return <div className="grid gap-6 sm:grid-cols-2">{children}</div>;
 }
 
+/** A slider that starts at one of the sheet's stops and is live from there. */
+function SliderCase({ from }: { from: number }) {
+  const [value, setValue] = useState(from);
+  return <AmountSlider onChange={setValue} value={value} />;
+}
+
 const RISING: IndexPoint[] = [
   { period: '2024-10', value: 0.12 },
   { period: '2024-11', value: 0.21 },
@@ -347,13 +353,13 @@ export function Gallery() {
       <Section id="amount-slider" title="Amount slider">
         <Grid>
           <Case label="At 1,000">
-            <AmountSlider value={1000} />
+            <SliderCase from={1000} />
           </Case>
           <Case label="At 5,500">
-            <AmountSlider value={5500} />
+            <SliderCase from={5500} />
           </Case>
           <Case label="At 10,000">
-            <AmountSlider value={10_000} />
+            <SliderCase from={10_000} />
           </Case>
           <Case label="Interactive, keyboard focus with the arrow keys">
             <div className="flex flex-col gap-3">

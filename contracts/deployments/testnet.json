@@ -155,6 +155,14 @@
           "tx": "0x0edc8a9a1ad5459e7603a17e4efddd6cc3a4f1ea149c0c37eb95c1ac59a6b9f4",
           "result": "getFrozenTokens(investor-2) reads 0 and balanceOf is back to 50000000",
           "gasUsed": 123218
+        },
+        "coupon": {
+          "tx": "0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804",
+          "result": "coupon 1 declared at 8 percent a year over 1788552983 to 1791144983, record 1788553283, execution 1788553583",
+          "gasUsed": 628757
+        },
+        "verify": {
+          "result": "name Creance Displacement Bond Note ODI-COMP-2026-01, symbol CDBN01, decimals 6, totalSupply 100000000, getMaturityDate 1820082162, isInternalKycActivated true, isClearingActivated false, paused false; investor-1 50000000, investor-2 50000000; getKycStatusFor(policyholder-3) 0"
         }
       },
       "configVersion": 1,
@@ -221,6 +229,18 @@
           "validTo": 4942152788,
           "tx": "0xecdc481155d644bfb8a1254b39d040f0751cfc3e06456bbef878c88322024f9a"
         }
+      },
+      "coupon": {
+        "id": "1",
+        "ratePercent": 8,
+        "rate": "8",
+        "rateDecimals": 2,
+        "recordTimestamp": 1788553283,
+        "executionTimestamp": 1788553583,
+        "startTimestamp": 1788552983,
+        "endTimestamp": 1791144983,
+        "fixingTimestamp": 1788553283,
+        "tx": "0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804"
       }
     }
   },

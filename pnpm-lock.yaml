@@ -74,6 +74,9 @@ importers:
 
   contracts:
     dependencies:
+      '@creance/client':
+        specifier: workspace:*
+        version: link:../packages/client
       '@hiero-ledger/sdk':
         specifier: 2.87.0
         version: 2.87.0(bn.js@5.2.3)(supports-color@8.1.1)
@@ -122,6 +125,10 @@ importers:
         version: 3.2.7(@types/node@22.20.1)(supports-color@8.1.1)(tsx@4.23.13)
 
   packages/client:
+    dependencies:
+      '@hiero-ledger/sdk':
+        specifier: 2.87.0
+        version: 2.87.0(bn.js@5.2.3)(supports-color@8.1.1)
     devDependencies:
       typescript:
         specifier: ^5.9.3

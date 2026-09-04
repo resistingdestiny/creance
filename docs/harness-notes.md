@@ -256,3 +256,148 @@ ethers wraps it as `UNKNOWN_ERROR ... could not coalesce error`, which says
 nothing about the cause. The same command succeeded unchanged a minute later.
 Treat -32020 as a retry, the same as `THROTTLED_AT_CONSENSUS`, and do not go
 looking at your own code first.
+
+## T05, Scheduled Transactions, 4 September 2026
+
+Measured with `pnpm hedera:schedule`, which runs each finding below as its own
+stage against testnet. The payer throughout is policyholder-1 0.0.10366453 and
+the destination is the steward 0.0.10366451; the settlement token is TUSD
+0.0.10366463 with six decimals.
+
+### The 62 day expiry cap is exact, and it is measured from the consensus timestamp
+
+The create page gives the number without saying what it is measured against:
+"A timestamp for specifying when the transaction should be evaluated for
+execution and then expire (optional). The maximum allowed value is 62 days
+(5356800 seconds)." https://docs.hedera.com/native/scheduled/create
+
+Sixty-two days after what is the part that decides the code. It is not the time
+you send the transaction and it is not its valid start: it is the **consensus
+timestamp of the `ScheduleCreate` itself**, which on a normal testnet round
+lands five to eight seconds after the valid start the SDK generates. Bisected
+with 26 creates, each one's expiry set relative to its own valid start so the
+bracket does not drift with latency:
+
+    offset from valid start   status                    expiry minus consensus
+    3600s                     SUCCESS
+    17280000s                 SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE
+    ...
+    5356804s                  SUCCESS                    5356799s
+    5356805s                  SUCCESS                    5356800s
+    5356806s                  SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE
+
+So the accepted maximum is exactly 5,356,800 seconds, 62.0 days, past consensus,
+and 5,356,801 is rejected. The documented number is right; what is missing from
+the page is the reference point, and code that measures the window from
+`Date.now()` will build a schedule that fails intermittently within about eight
+seconds of the cap.
+
+The failed create is not free. A `ScheduleCreate` rejected with
+`SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE` was charged 0.12905667 HBAR, the
+same fee to the tinybar as the successful probe creates in the same run. The
+thirteen rejected probes and the thirteen accepted ones came to the same total.
+
+### An expiry in the past has its own status, which no page names
+
+Neither the create page nor the scheduled transaction concept page says what
+happens when the expiration time has already gone. Measured with an expiry 60
+seconds before the valid start:
+
+    ScheduleCreateTransaction().setExpirationTime(now - 60s)
+    -> SCHEDULE_EXPIRATION_TIME_MUST_BE_HIGHER_THAN_CONSENSUS_TIME
+
+Also charged the full 0.12905667 HBAR. Both boundary statuses are worth naming
+in the page, because the pair is what a caller has to distinguish: one means the
+due date is too far out and the schedule has to be created later, the other
+means the due date has passed and the payment is late.
+
+### A schedule can execute before the expiration time the mirror node reports
+
+The page says a schedule with `wait_for_expiry` set "will be evaluated for
+execution at expiration_time", and the concept page says execution happens "at
+the earliest available consensus time after their expiration time". Both read as
+a lower bound. Measured on schedule
+[0.0.10367507](https://hashscan.io/testnet/schedule/0.0.10367507):
+
+    expiration_time      1788548305.130000000
+    executed_timestamp   1788548305.112642208
+
+The transfer executed 17.4 milliseconds **before** the expiration time the
+mirror node reports for the same schedule. The whole second matches and the
+fraction does not, so the sub-second part of the expiration time is stored and
+served but is not what the evaluation waits for. Reproduced on a second schedule
+with a different fraction,
+[0.0.10367560](https://hashscan.io/testnet/schedule/0.0.10367560):
+
+    expiration_time      1788548590.230000000
+    executed_timestamp   1788548590.019679254
+
+210 milliseconds early, again inside the same second.
+
+It makes no practical difference to a monthly premium, and it is exactly the
+kind of thing a test asserts on. Nothing should compare an execution timestamp
+to an expiry with better than one second of tolerance, in either direction.
+
+### A fully signed schedule with wait_for_expiry false executes in the same round
+
+The default behaviour is documented as executing "at the time the minimum number
+of signatures are received", without saying how quickly. For a premium that is
+pre-signed at creation, the answer is immediately: schedule
+[0.0.10367504](https://hashscan.io/testnet/schedule/0.0.10367504) reports
+
+    consensus_timestamp  1788548119.891878716
+    executed_timestamp   1788548119.891878717
+
+one nanosecond apart, which is the same consensus round. This is the trap the
+premium schedule has to avoid: leaving `waitForExpiry` at its default with a
+pre-signed transfer drains the payer at bind time instead of at the due date,
+and the receipt looks perfectly normal.
+
+### Two schedules that differ only in their expiry are not identical schedules
+
+The create page warns that a second create of the same schedule returns
+`IDENTICAL_SCHEDULE_ALREADY_CREATED` and that the caller should sign the
+existing one instead. It does not say which fields the comparison covers. Two
+creates were accepted as separate schedules,
+[0.0.10367507](https://hashscan.io/testnet/schedule/0.0.10367507) and
+[0.0.10367560](https://hashscan.io/testnet/schedule/0.0.10367560), with the same
+creator, the same payer, the same admin key, the same memo
+`creance premium POL-SPIKE-1 202609` and the same inner transfer of 1.000000
+TUSD from 0.0.10366453 to 0.0.10366451. The only difference between them was the
+expiration time, and both executed.
+
+That is the wrong way round for a premium. A Steward that times out waiting for
+a receipt and retries with a freshly computed expiry does not get the safety net
+the page describes: it gets a second schedule and the policyholder pays twice.
+The duplicate check cannot be leaned on, so the caller has to hold the schedule
+id and check it before creating anything, which is what the `policy_schedules`
+row exists for.
+
+### The create and the transfer it schedules share one transaction id
+
+The create page says the scheduled transaction id "inherits the valid start time
+and the account ID from the original schedule transaction" and carries a
+`?scheduled` suffix in the SDK. What it does not say is that after the suffix is
+dropped for the mirror node's `0.0.x-seconds-nanos` form, the two are the same
+string. `GET /transactions/0.0.10366453-1788548118-155677633` returns two
+transactions:
+
+    SCHEDULECREATE   scheduled=false  consensus 1788548125.508381104  fee 0.13034724
+    CRYPTOTRANSFER   scheduled=true   consensus 1788548305.112642208  fee 0.01290566
+
+They are told apart by the `scheduled` flag and nothing else. So a HashScan
+`/transaction/<id>` link resolves to both, and any code that reads an execution
+out of the mirror node has to filter on `scheduled`, not pick the first element.
+
+### HashScan answers HTTP 404 for every deep link
+
+Not a Hedera behaviour, but it wastes an afternoon if a link checker is pointed
+at the evidence links this repository publishes. HashScan is a single page app:
+`GET https://hashscan.io/testnet/account/0.0.10362512` returns status 404 with
+the application shell in the body, and so does every other route including ones
+that resolve perfectly in a browser. The status code carries no information
+about whether the entity exists.
+
+The routes themselves are in the client router, and the one this ticket needed
+is `/{network}/schedule/{scheduleId}`, alongside `/{network}/transaction/{id}`
+and `/{network}/transactionsById/{id}`.

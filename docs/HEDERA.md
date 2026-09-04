@@ -221,9 +221,131 @@ Run through transactions:
 
 ## Scheduled transactions
 
-Filled in by T05. The measured maximum expiry window for a long-term scheduled
-transaction on testnet, and the link to the one scheduled settlement transfer
-that executed.
+Premiums move as Scheduled Transactions: one `ScheduleCreate` per policy per
+month, holding a settlement token transfer that executes at the due date. The
+helper is `packages/client/src/hedera/schedule.ts` and the spike that measured
+everything below is `pnpm hedera:schedule`, which writes to testnet and is not
+part of `pnpm test`.
+
+### The expiry window
+
+**A long-term schedule may expire at most 5,356,800 seconds, exactly 62.0 days,
+after the consensus timestamp of the create.** One second more is rejected with
+`SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE`; an expiry already in the past is
+rejected with `SCHEDULE_EXPIRATION_TIME_MUST_BE_HIGHER_THAN_CONSENSUS_TIME`.
+Bisected with 26 creates on 4 September 2026, see docs/harness-notes.md for the
+bracket and the reference point, which is the part the documentation leaves out.
+
+Sixty-two days is longer than a month, so the monthly premium chain works as
+DESIGN.md 3.5 describes it and the section 8 fallback is not needed. The demo
+clock cadence still runs the same code, because the helper takes an `executeAt`
+and never a duration.
+
+### The transfers that executed
+
+All four moved 1.000000 TUSD (`1000000` minor units) from policyholder-1
+0.0.10366453 to the steward 0.0.10366451, paid for by policyholder-1.
+
+| Schedule | Wait for expiry | Executed | Transfer |
+|---|---|---|---|
+| [0.0.10367504](https://hashscan.io/testnet/schedule/0.0.10367504) | false | 2026-09-04T18:55:19Z, the same consensus round as the create | [0.0.10366453-1788548112-130188515](https://hashscan.io/testnet/transaction/0.0.10366453-1788548112-130188515) |
+| [0.0.10367507](https://hashscan.io/testnet/schedule/0.0.10367507) | true | 2026-09-04T18:58:25Z, at its expiry | [0.0.10366453-1788548118-155677633](https://hashscan.io/testnet/transaction/0.0.10366453-1788548118-155677633) |
+| [0.0.10367560](https://hashscan.io/testnet/schedule/0.0.10367560) | true | 2026-09-04T19:03:10Z, at its expiry | [0.0.10366453-1788548402-487005336](https://hashscan.io/testnet/transaction/0.0.10366453-1788548402-487005336) |
+| [0.0.10367787](https://hashscan.io/testnet/schedule/0.0.10367787) | true | 2026-09-04T19:25:59Z, at its expiry | [0.0.10366453-1788549772-250616112](https://hashscan.io/testnet/transaction/0.0.10366453-1788549772-250616112) |
+
+The second and fourth rows are the long-term path the acceptance line asks for:
+created with `waitForExpiry` true and an expiry three minutes out, held until
+the expiry, then executed. `scheduleNext` watched each one, read `SUCCESS` off
+the executed transfer and created the following month:
+[0.0.10367530](https://hashscan.io/testnet/schedule/0.0.10367530) due
+2026-10-04T18:58:25Z, and
+[0.0.10367811](https://hashscan.io/testnet/schedule/0.0.10367811) due
+2026-10-04T19:25:59Z, both with the memo `creance premium POL-SPIKE-1 202610`
+and both pending until then. Their creates are
+[0.0.10366453-1788548303-209325632](https://hashscan.io/testnet/transaction/0.0.10366453-1788548303-209325632)
+and
+[0.0.10366453-1788549961-236590372](https://hashscan.io/testnet/transaction/0.0.10366453-1788549961-236590372).
+
+A create and the transfer it schedules share one transaction id and are told
+apart by the mirror node's `scheduled` flag, so each link in the last column
+resolves to both. Read an execution with
+`GET /schedules/{scheduleId}` for `executed_timestamp`, then
+`GET /transactions?timestamp={executed_timestamp}` filtered to `scheduled=true`.
+
+### The two-party path
+
+DESIGN.md 3.7 also allows the API to create the premium schedules and hand them
+back for the Steward to sign, so the payer key never leaves the Steward. Proved
+on [0.0.10367633](https://hashscan.io/testnet/schedule/0.0.10367633): the
+operator created it with `setPayerAccountId` naming policyholder-1 and without
+the payer signature, the mirror node showed it pending with one signature and no
+`executed_timestamp`, and it executed only after a
+[ScheduleSign](https://hashscan.io/testnet/transaction/0.0.10362512-1788548807-559562997)
+carrying the payer key. The create was charged to the operator and the execution
+fee to policyholder-1, which is what `setPayerAccountId` decides.
+
+The transaction id of the executed transfer belongs to the **creator**, not the
+payer: it is `0.0.10362512-1788548802-958639314` here. Match an execution to a
+policy by the schedule id and the memo, never by the account in the transaction
+id.
+
+### Fees
+
+Measured from the mirror node's `charged_tx_fee` on every transaction the spike
+produced, not from the SDK's estimate. A `ScheduleCreate` costs the same whether
+it succeeds or is rejected, which makes a bisection an expensive way to learn
+something once. Ranges are the spread actually observed across the runs; a
+Hedera fee is quoted in dollars and paid in HBAR, so the same transaction moves
+by a few thousand tinybars as the rate moves.
+
+| Transaction | HBAR |
+|---|---|
+| `ScheduleCreate`, one signature, rejected or accepted | 0.12905667 |
+| `ScheduleCreate` without the payer signature | 0.12954988 |
+| `ScheduleCreate`, pre-signed by a payer that is not the operator | 0.13034724 to 0.13084538 |
+| `ScheduleSign` | 0.01425047 |
+| `ScheduleDelete` | 0.01290566 |
+| the scheduled `CryptoTransfer` when it executes | 0.01161510 to 0.01295497 |
+
+So a premium costs its payer about 0.143 HBAR a month all in, and a twelve month
+policy pre-scheduled at bind costs about 1.72 HBAR in fees on top of the
+premiums themselves.
+
+### Conventions the rest of the build depends on
+
+- **The memo is the accounting record.** Every premium schedule carries
+  `creance premium <policyId> <YYYYMM>`, under the 100 byte memo cap, and
+  `parsePremiumMemo` reads it back. The period is the same `uint32` `YYYYMM`
+  CoverPool takes. Never derive the month from the execution timestamp: the
+  network picks that, and it can land either side of the stated expiry by a
+  fraction of a second.
+- **The payer pays three times over**: the create fee, the execution fee and the
+  premium itself. Its signature on the frozen create is the only one the
+  arrangement needs, so a premium is pre-signed at bind in one round trip.
+- **Set an admin key** or the schedule is immutable and a lapsed policy cannot
+  cancel the premiums it has already pre-signed. `ScheduleDelete` signed by that
+  key is the cancellation, proven on testnet.
+- **Creating a schedule proves nothing about whether it will pay.** A payer
+  without the balance at execution still got a successful create. Missed
+  premiums are detected by reading the execution, never the create receipt.
+- **After a premium settles, `CoverPool.recordPremium(policyId, period)` has to
+  be called by the api account, which holds BINDER_ROLE.** That is T07 and T09
+  work; the watcher hands back `(scheduleId, policyId, period, executed
+  transaction id)` for it, and T18 writes the same tuple to the payments topic.
+  Without the call, `lapse()` becomes callable once the 15 day grace past
+  `paidThroughMonth` has run out and a paid premium looks like a missed one.
+- **Settled is not the same as executed, and only settled may be recorded.** A
+  schedule executes whether or not the transfer inside it succeeds, so an
+  underfunded payer produces an execution with a result of
+  `INSUFFICIENT_TOKEN_BALANCE` and no money moved. `scheduleNext` calls
+  `onExecuted` only for `SUCCESS` and everything else goes to `onFailed`,
+  including the case where the mirror node never returned the transfer. Marking
+  an unpaid month as paid is the worse error of the two: it stops `lapse()` from
+  ever becoming callable on that policy.
+- **The due day is not the last execution date.** A policy due on the 31st runs
+  on 28 February, and the premium after that is due on 31 March. The chain
+  carries the unclamped `dueDay` so one short month does not move every later
+  premium back by three days.
 
 ## Asset Tokenization Studio
 

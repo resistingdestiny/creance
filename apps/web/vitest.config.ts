@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     include: ['test/**/*.test.ts', 'test/**/*.test.tsx'],
-    environmentMatchGlobs: [['test/**/*.dom.test.tsx', 'jsdom']],
+    // Files that need a DOM ask for one with a `@vitest-environment jsdom`
+    // docblock. Everything else runs in node, which is most of it.
   },
 });

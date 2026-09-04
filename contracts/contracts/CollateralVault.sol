@@ -7,6 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 import {ICollateralVault} from "./interfaces/ICollateralVault.sol";
+import {IHRC719} from "./interfaces/IHRC719.sol";
 
 /// @title CollateralVault
 /// @notice The only contract in this system that holds the settlement token.
@@ -27,6 +28,9 @@ contract CollateralVault is AccessControl, Pausable, ICollateralVault {
 
     bytes32 public constant SUBSCRIPTION_ROLE = keccak256("SUBSCRIPTION_ROLE");
     bytes32 public constant TREASURY_ROLE = keccak256("TREASURY_ROLE");
+
+    /// @dev The Hedera response code for SUCCESS.
+    uint256 private constant HTS_SUCCESS = 22;
 
     struct SeriesVault {
         uint256 principalFunded;
@@ -68,6 +72,7 @@ contract CollateralVault is AccessControl, Pausable, ICollateralVault {
     );
     event MaturityRedeemed(bytes32 indexed seriesId, address indexed holder, uint256 amount);
     event DustSwept(bytes32 indexed seriesId, address indexed to, uint256 amount);
+    event SettlementTokenAssociated(uint256 responseCode);
 
     error NotCoverPool();
     error SeriesUnknown(bytes32 seriesId);
@@ -85,6 +90,7 @@ contract CollateralVault is AccessControl, Pausable, ICollateralVault {
     error ReserveOutstanding(bytes32 seriesId, uint256 reserved);
     error NothingSubscribed(bytes32 seriesId, address holder);
     error SubscriptionsOutstanding(bytes32 seriesId, uint256 outstanding);
+    error AssociationFailed(uint256 responseCode);
 
     modifier onlyCoverPool() {
         if (msg.sender != coverPool) revert NotCoverPool();
@@ -122,6 +128,26 @@ contract CollateralVault is AccessControl, Pausable, ICollateralVault {
         if (pool == address(0)) revert ZeroAddress();
         coverPool = pool;
         emit CoverPoolSet(pool);
+    }
+
+    /// @notice Opt the vault in to holding the settlement token. A contract is
+    /// an account, and an HTS token cannot reach an account that has not
+    /// associated it, so this is a deploy step that runs once and is asserted
+    /// before any money moves. It is a no-op concept on a chain without the
+    /// token service, where it simply is not called.
+    function associateSettlementToken()
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        returns (uint256 responseCode)
+    {
+        responseCode = IHRC719(address(settlementToken)).associate();
+        if (responseCode != HTS_SUCCESS) revert AssociationFailed(responseCode);
+        emit SettlementTokenAssociated(responseCode);
+    }
+
+    /// @notice Whether the vault itself has associated the settlement token.
+    function isSettlementTokenAssociated() external view returns (bool) {
+        return IHRC719(address(settlementToken)).isAssociated();
     }
 
     function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {

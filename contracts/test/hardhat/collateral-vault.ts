@@ -342,6 +342,18 @@ describe('CollateralVault', () => {
     });
   });
 
+  describe('the settlement token association', () => {
+    it('is admin gated and reverts against a token with no HIP-719 facade', async () => {
+      const { vault, admin, outsider, ethers } = fixture;
+      await expect(vault.connect(outsider).associateSettlementToken())
+        .to.be.revertedWithCustomError(vault, 'AccessControlUnauthorizedAccount');
+      // The local network has no token service, so the facade call finds no
+      // function to run. On testnet this is the deploy step that opts the vault
+      // in to holding TUSD.
+      await expect(vault.connect(admin).associateSettlementToken()).to.be.revert(ethers);
+    });
+  });
+
   it('has no way to receive HBAR', async () => {
     const { vault, deployer, ethers } = fixture;
     await expect(

@@ -354,3 +354,26 @@ which is what T09 needs for `CoverPool.recordPremium` from the api account and
 T18 needs for the payments topic entry. If nobody makes that call, `lapse()`
 becomes callable once the 15 day grace past `paidThroughMonth` has run out, and
 a paid premium looks exactly like a missed one.
+
+### The watcher reports a premium only when the transfer settled
+
+An execution is not a payment. A schedule executes whether or not the transfer
+inside it succeeds, and the docs say so about the underfunded payer, so
+`executed_timestamp` on its own cannot be the signal that a month was paid.
+`scheduleNext` splits the two: `onExecuted` fires only on `SUCCESS`, everything
+else goes to `onFailed`, and the returned outcome carries `settled` for a caller
+that uses neither.
+
+The asymmetry is deliberate. Missing a real payment delays a `recordPremium`
+call, which the next cycle can repair. Reporting a payment that never happened
+marks an unpaid month as paid in CoverPool, and `lapse()` can then never become
+callable on that policy. So the `UNKNOWN` case, an execution whose transfer the
+mirror node would not return, counts as unsettled rather than assumed good.
+
+### The premium chain is anchored on the due day, not on the last execution date
+
+A policy due on the 31st has to run on 28 February and then on 31 March. Feeding
+each clamped date back into the next step instead moves the whole rest of the
+term to the 28th, which quietly shortens the cover the policyholder bought. Each
+slot therefore carries the unclamped `dueDay` and the clamp is recomputed from
+it every month.

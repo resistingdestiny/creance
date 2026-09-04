@@ -323,12 +323,24 @@ premiums themselves.
 - **Creating a schedule proves nothing about whether it will pay.** A payer
   without the balance at execution still got a successful create. Missed
   premiums are detected by reading the execution, never the create receipt.
-- **After a premium executes, `CoverPool.recordPremium(policyId, period)` has to
+- **After a premium settles, `CoverPool.recordPremium(policyId, period)` has to
   be called by the api account, which holds BINDER_ROLE.** That is T07 and T09
   work; the watcher hands back `(scheduleId, policyId, period, executed
   transaction id)` for it, and T18 writes the same tuple to the payments topic.
   Without the call, `lapse()` becomes callable once the 15 day grace past
   `paidThroughMonth` has run out and a paid premium looks like a missed one.
+- **Settled is not the same as executed, and only settled may be recorded.** A
+  schedule executes whether or not the transfer inside it succeeds, so an
+  underfunded payer produces an execution with a result of
+  `INSUFFICIENT_TOKEN_BALANCE` and no money moved. `scheduleNext` calls
+  `onExecuted` only for `SUCCESS` and everything else goes to `onFailed`,
+  including the case where the mirror node never returned the transfer. Marking
+  an unpaid month as paid is the worse error of the two: it stops `lapse()` from
+  ever becoming callable on that policy.
+- **The due day is not the last execution date.** A policy due on the 31st runs
+  on 28 February, and the premium after that is due on 31 March. The chain
+  carries the unclamped `dueDay` so one short month does not move every later
+  premium back by three days.
 
 ## Asset Tokenization Studio
 

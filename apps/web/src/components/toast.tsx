@@ -43,14 +43,15 @@ export function FailureBody({
   action,
   onAction,
 }: {
-  title: string;
+  /** Left out when the sheet's own title already carries it. */
+  title?: string;
   body: string;
   action: string;
   onAction?: () => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-body-lg font-medium text-ink">{title}</p>
+      {title ? <p className="text-body-lg font-medium text-ink">{title}</p> : null}
       <p className="text-secondary text-ink-2">{body}</p>
       <PillButton onClick={onAction}>{action}</PillButton>
     </div>

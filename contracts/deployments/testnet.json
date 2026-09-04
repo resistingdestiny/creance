@@ -1,0 +1,22 @@
+{
+  "network": "testnet",
+  "chainId": 296,
+  "settlementToken": {
+    "tokenId": "0.0.10366463",
+    "evmAddress": "0x00000000000000000000000000000000009e2dff"
+  },
+  "collateralVault": {
+    "address": "0x96E0c26864fbAFCa58655944b7F862f12eD1333D",
+    "contractId": "0.0.10366999",
+    "deploymentTx": "0x7d080e1ce4ce2f07c62a64907ab82557293af77961bc7371dd0311bff936e8be",
+    "gasUsed": 1549319,
+    "constructorArgs": [
+      "0x00000000000000000000000000000000009e2dff",
+      "0x639444758b987b4d938c57169a1f61a62b2d009c"
+    ]
+  },
+  "settlementTokenAssociated": true,
+  "gasUsed": {
+    "associateSettlementToken": 735563
+  }
+}

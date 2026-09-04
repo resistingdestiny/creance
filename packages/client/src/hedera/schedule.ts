@@ -17,6 +17,7 @@ import {
   Key,
   PrivateKey,
   ScheduleCreateTransaction,
+  ScheduleSignTransaction,
   Timestamp,
   TokenId,
   TransactionId,
@@ -200,10 +201,14 @@ export function mirrorScheduleUrl(mirrorUrl: string, scheduleId: string): string
  * the fee for executing the scheduled transfer. It is also the account the
  * settlement token leaves, so its key is the only signature the inner transfer
  * needs and the schedule is complete the moment it is created.
+ *
+ * The key is optional because DESIGN.md 3.7 allows the other shape too: the API
+ * creates the schedule and hands it back for the Steward to sign. Leave the key
+ * out, set `preSign` false, and finish it later with `signSchedule`.
  */
 export interface SchedulePayer {
   accountId: string | AccountId;
-  key: PrivateKey;
+  key?: PrivateKey;
 }
 
 export interface ScheduleTransferParams {
@@ -229,6 +234,13 @@ export interface ScheduleTransferParams {
    * a pre-signed transfer means immediately.
    */
   waitForExpiry?: boolean;
+  /**
+   * True signs the create with the payer key and charges the create to the
+   * payer, which completes the schedule in one round trip. False leaves the
+   * schedule pending on the payer's signature and charges the create to the
+   * client operator.
+   */
+  preSign?: boolean;
   /** Read the transaction record so the create fee comes back. Costs a query. */
   readFee?: boolean;
   network?: string;
@@ -244,6 +256,8 @@ export interface ScheduledTransfer {
   memo: string;
   expirationTime: Date;
   waitForExpiry: boolean;
+  /** False when the schedule is still waiting for `signSchedule`. */
+  preSigned: boolean;
   /** The ScheduleCreate fee in HBAR, only when `readFee` was set. */
   createFeeHbar: string | null;
   links: {
@@ -276,6 +290,7 @@ export async function scheduleTransfer(params: ScheduleTransferParams): Promise<
     memo,
     adminKey,
     waitForExpiry = true,
+    preSign = true,
     readFee = false,
     network = 'testnet',
     maxTransactionFee,
@@ -286,6 +301,10 @@ export async function scheduleTransfer(params: ScheduleTransferParams): Promise<
   }
   if (Buffer.byteLength(memo, 'utf8') > MAX_SCHEDULE_MEMO_BYTES) {
     throw new Error(`the schedule memo is over ${MAX_SCHEDULE_MEMO_BYTES} bytes: ${memo}`);
+  }
+
+  if (preSign && !payer.key) {
+    throw new Error('a pre-signed schedule needs the payer key; set preSign false to sign later');
   }
 
   const payerId =
@@ -301,9 +320,11 @@ export async function scheduleTransfer(params: ScheduleTransferParams): Promise<
     .setScheduleMemo(memo)
     .setExpirationTime(Timestamp.fromDate(executeAt))
     .setWaitForExpiry(waitForExpiry)
-    .setPayerAccountId(payerId)
-    .setTransactionId(TransactionId.generate(payerId));
+    .setPayerAccountId(payerId);
 
+  if (preSign) {
+    create = create.setTransactionId(TransactionId.generate(payerId));
+  }
   if (adminKey) {
     create = create.setAdminKey(adminKey);
   }
@@ -311,8 +332,9 @@ export async function scheduleTransfer(params: ScheduleTransferParams): Promise<
     create = create.setMaxTransactionFee(maxTransactionFee);
   }
 
-  const signed = await create.freezeWith(client).sign(payer.key);
-  const response = await signed.execute(client);
+  const frozen = create.freezeWith(client);
+  const response = await (preSign ? frozen.sign(payer.key as PrivateKey) : Promise.resolve(frozen))
+    .then((transaction) => transaction.execute(client));
 
   let createFeeHbar: string | null = null;
   let receipt;
@@ -338,6 +360,7 @@ export async function scheduleTransfer(params: ScheduleTransferParams): Promise<
     memo,
     expirationTime: executeAt,
     waitForExpiry,
+    preSigned: preSign,
     createFeeHbar,
     links: {
       schedule: hashscanUrl('schedule', scheduleId.toString(), network),
@@ -348,6 +371,45 @@ export async function scheduleTransfer(params: ScheduleTransferParams): Promise<
         network,
       ),
     },
+  };
+}
+
+export interface SignScheduleParams {
+  client: Client;
+  scheduleId: string;
+  key: PrivateKey;
+  network?: string;
+}
+
+export interface ScheduleSignature {
+  scheduleId: string;
+  transactionId: string;
+  status: string;
+  link: string;
+}
+
+/**
+ * Add a signature to a schedule that already exists. This is the second shape
+ * DESIGN.md 3.7 allows: the API creates the premium schedules and the Steward
+ * signs them, so the payer key never leaves the Steward.
+ *
+ * A schedule whose signatures are still incomplete at its expiry simply does
+ * not execute, which is the same outcome as a payer that cannot pay.
+ */
+export async function signSchedule(params: SignScheduleParams): Promise<ScheduleSignature> {
+  const { client, scheduleId, key, network = 'testnet' } = params;
+  const signed = await new ScheduleSignTransaction()
+    .setScheduleId(scheduleId)
+    .freezeWith(client)
+    .sign(key);
+  const response = await signed.execute(client);
+  const receipt = await response.getReceipt(client);
+  const transactionId = response.transactionId.toString();
+  return {
+    scheduleId,
+    transactionId,
+    status: receipt.status.toString(),
+    link: hashscanUrl('transaction', toMirrorTransactionId(transactionId), network),
   };
 }
 

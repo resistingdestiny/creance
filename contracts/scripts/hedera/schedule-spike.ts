@@ -17,6 +17,7 @@ import {
   readSchedule,
   scheduleNext,
   scheduleTransfer,
+  signSchedule,
   toMirrorTransactionId,
   waitForExecution,
 } from '@creance/client';
@@ -30,13 +31,14 @@ import { normaliseRawKeyHex, roleKey } from './derive.js';
 /// compressed demo-clock cadence.
 ///
 /// Stages, each runnable on its own: `pnpm hedera:schedule bisect past
-/// immediate future chain`. With no argument every stage runs in that order.
+/// immediate future chain sign`. With no argument every stage runs in that
+/// order.
 ///
 /// Nothing here is a test. It writes to testnet, it costs fees, and its output
 /// is transcribed into docs/HEDERA.md, docs/harness-notes.md and
 /// docs/DECISIONS.md by hand.
 
-const STAGES = ['bisect', 'past', 'immediate', 'future', 'chain'] as const;
+const STAGES = ['bisect', 'past', 'immediate', 'future', 'chain', 'sign'] as const;
 type Stage = (typeof STAGES)[number];
 
 const DAY = 24 * 60 * 60;
@@ -345,6 +347,61 @@ async function runChain(
   console.log(`  next create link    ${result.next.links.create}`);
 }
 
+/**
+ * The other shape DESIGN.md 3.7 allows: the schedule is created by one account
+ * and signed by another. The create is charged to the operator, the schedule
+ * sits incomplete until the payer signs, and only then does it execute.
+ */
+async function runSign(context: Context): Promise<void> {
+  console.log('\n== stage sign: created by one account, signed by the payer ==');
+  const dueAt = new Date(Date.now() + 2 * 60_000);
+  const slot = premiumSlot('POL-SPIKE-2', periodOfDate(dueAt), dueAt);
+
+  const scheduled = await scheduleTransfer({
+    client: context.client,
+    tokenId: context.tokenId,
+    payer: { accountId: context.payerId },
+    to: context.destination,
+    amount: UNIT,
+    executeAt: slot.executeAt,
+    memo: slot.memo,
+    adminKey: context.operatorKey.publicKey,
+    waitForExpiry: false,
+    preSign: false,
+    readFee: true,
+  });
+
+  console.log(`  schedule            ${scheduled.scheduleId}`);
+  console.log(`  create fee          ${String(scheduled.createFeeHbar)}`);
+  console.log(`  pre-signed          ${scheduled.preSigned}`);
+  console.log(`  create link         ${scheduled.links.create}`);
+
+  const before = await readSchedule(MIRROR_URL, scheduled.scheduleId);
+  console.log(`  executed before the signature  ${String(before?.executed_timestamp)}`);
+  console.log(`  signatures before              ${String(before?.signatures.length)}`);
+
+  const signature = await signSchedule({
+    client: context.client,
+    scheduleId: scheduled.scheduleId,
+    key: context.payerKey,
+  });
+  console.log(`  ScheduleSign        ${signature.status}`);
+  console.log(`  sign link           ${signature.link}`);
+
+  const execution = await waitForExecution(MIRROR_URL, scheduled.scheduleId, {
+    attempts: 20,
+    delayMs: 3000,
+  });
+  if (!execution) {
+    console.log('  it did not execute inside the poll budget');
+    return;
+  }
+  console.log(`  executed at         ${execution.executedAt}`);
+  console.log(`  executed tx id      ${execution.executedTransactionId}`);
+  console.log(`  result              ${execution.result}`);
+  console.log(`  executed link       ${execution.link}`);
+}
+
 async function main(): Promise<void> {
   const requested = process.argv.slice(2).filter((argument) => !argument.startsWith('-'));
   const stages: Stage[] =
@@ -405,6 +462,7 @@ async function main(): Promise<void> {
         }
         await runChain(context, watched);
       }
+      if (stage === 'sign') await runSign(context);
     }
   } finally {
     client.close();

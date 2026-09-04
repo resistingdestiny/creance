@@ -6,7 +6,10 @@ packages:
 # pnpm 11 blocks postinstall scripts unless they are listed here.
 # esbuild ships a platform binary that way and vitest needs it to run.
 # protobufjs also ships one, but the Hiero SDK imports and runs without it,
-# so it stays off.
+# so it stays off. The ATS credential chain pulls a BBS+ native binding the
+# same way; the credentials this build signs are EcdsaSecp256k1Signature2019,
+# so nothing calls it and it stays off too.
 allowBuilds:
   esbuild: true
   protobufjs: false
+  "@mattrglobal/node-bbs-signatures": false

@@ -7,6 +7,7 @@ node_modules/
 .claude/worktrees/
 dist/
 .next/
+*.tsbuildinfo
 coverage/
 artifacts/
 cache/

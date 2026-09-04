@@ -18,6 +18,7 @@ import {
   premiumSlot,
   scheduleNext,
   scheduleTransfer,
+  toCallDataBytes,
   toMirrorTransactionId,
   waitForExecution,
 } from '../src/hedera/schedule.js';
@@ -389,5 +390,24 @@ describe('scheduleNext routes an execution by its settlement', () => {
     expect(onExecuted).not.toHaveBeenCalled();
     expect(onFailed).toHaveBeenCalledTimes(1);
     expect(onFailed.mock.calls[0]?.[0]).toMatchObject({ result: 'UNKNOWN', settled: false });
+  });
+});
+
+describe('toCallDataBytes', () => {
+  it('takes the 0x hex form an ABI encoder returns', () => {
+    expect(Array.from(toCallDataBytes('0x1f2a2005'))).toEqual([0x1f, 0x2a, 0x20, 0x05]);
+  });
+
+  it('passes bytes through untouched', () => {
+    const bytes = Uint8Array.from([1, 2, 3]);
+    expect(toCallDataBytes(bytes)).toBe(bytes);
+  });
+
+  it('refuses call data that is not whole bytes', () => {
+    expect(() => toCallDataBytes('0x1f2')).toThrow(/whole bytes/);
+  });
+
+  it('refuses empty call data, which would call the fallback', () => {
+    expect(() => toCallDataBytes('0x')).toThrow(/whole bytes/);
   });
 });

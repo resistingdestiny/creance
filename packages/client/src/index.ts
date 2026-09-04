@@ -8,3 +8,4 @@ export function describeWorkspace(): string {
 }
 
 export * from './hedera/schedule.js';
+export * from './units.js';

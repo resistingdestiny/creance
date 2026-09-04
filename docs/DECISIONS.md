@@ -519,3 +519,159 @@ and the mirror node REST API only. The one Hedera SDK import in its graph is the
 existing key derivation in `contracts/scripts/hedera/derive.ts`, which is
 `@hiero-ledger/sdk` and is reused rather than copied so there is one derivation
 in the build.
+
+## T14, coupons and maturity, 4 September 2026
+
+### A coupon is paid by scheduling the vault's own fundCoupon call
+
+T06 settled the halves: the Asset Tokenization Studio coupon action declares the
+rate, the accrual window and each holder's entitlement, and it never moves
+money, because there is no settlement token anywhere in the coupon facet. This
+is the other half, and it decides how the money moves.
+
+The premium account is a balance inside `CollateralVault`, and a contract has no
+key with which to sign the transfer inside a Scheduled Transaction. Two shapes
+were available. The vault could pay the treasury account and a scheduled
+transfer from there could pay the holder, which is two moves and leaves a
+noteholder's coupon sitting in an operational account in between. Or the
+schedule could carry the vault call itself, if a contract call can be scheduled
+at all and if the vault sees the schedule payer as the caller.
+
+Both halves of that condition were measured before anything was relied on. A
+`ScheduleCreate` carrying a `ContractExecuteTransaction` was accepted on
+testnet, executed at its expiry, and a scheduled `fundCoupon` with a zero amount
+reverted `ZeroAmount` rather than on the role, which is only possible if the
+caller was the api account holding `TREASURY_ROLE`. The evidence is in
+docs/harness-notes.md.
+
+So a coupon is one Scheduled Transaction per noteholder, carrying
+`fundCoupon(seriesId, couponRef, holder, amount)`, created by the api account
+with `waitForExpiry` true, an admin key and the memo
+`creance coupon <series> <couponId> <holderRole>`. The settlement token goes
+straight from the premium account to the noteholder and no intermediate account
+ever holds it. `fundCoupon` pays only from `premiumBalance`, so the rule that a
+coupon is never paid out of principal is enforced by the contract and not by the
+script.
+
+The acceptance line asks for "the ATS coupon action or mass payout module".
+The answer is the coupon action, as the declaration half; Mass Payout was
+evaluated and cut in T06 as a NestJS backend, a PostgreSQL database and a second
+frontend for two noteholders. The scheduled `fundCoupon` call is the payment
+half, and the link between the two is recorded rather than inferred.
+
+The two step shape stays as the fallback and needs no new code:
+`fundCoupon` to the treasury account and `scheduleTransfer` from there, both of
+which already exist. It is what a network without schedulable contract calls
+would need.
+
+### The settlement amount is floor(numerator * 10^6 / denominator), and the remainder stays in the premium account
+
+The entitlement ATS returns is an exact fraction in **whole currency units**,
+because the on chain formula divides out both the token decimals and the nominal
+value decimals. The settlement amount is that fraction times the settlement
+token's own scale, truncated. Rounding up would pay out more than the note owes
+across a holder list, so the remainder, `907200000000000` of a denominator of
+`3153600000000000` for each holder of the first coupon, stays in the premium
+account and is recorded next to the amount.
+
+### The premium was seeded for the demonstration, and the live path is the watcher
+
+The first coupon had to be paid out of a premium account holding nothing. No
+policy has been bound against the demo series, because binding is T07 and T07 is
+blocked behind T02, so there was no premium inflow to pay from.
+
+`pnpm coupons:pay seed` therefore sends the coupon's own cost, 657.534246 TUSD,
+from a policyholder account to the vault as a stand-in premium and attributes it
+to the series with `attributePremium` from the api account, which holds
+`TREASURY_ROLE`. Both halves are real: a native token transfer into the vault,
+and the same attribution call the live path makes. What is missing is only the
+policy that would have produced the premium.
+
+The live path is unchanged and already specified: the premium schedule watcher
+reads a settled premium and the api account calls `attributePremium` for it,
+exactly as this step does. The 20 TUSD left in the vault by the T04 run through
+belongs to the throwaway series and was deliberately not attributed;
+`attributePremium` names a series, so only what this step sent was credited.
+
+### Both noteholders were subscribed, so the note and the vault agree on the principal
+
+Before this ticket the note had 100 units minted against a vault holding
+nothing: `principalFunded` was zero for the demo series, so every principal
+figure on an investor screen would have read zero against a note claiming
+100,000 of principal. The two would have contradicted each other on camera.
+
+`pnpm coupons:pay subscribe` moves 50,000 TUSD from each investor to the api
+account and subscribes it on the investor's behalf, which is the flow DESIGN.md
+3.8 describes, the API paying after the ATS mint. The vault now holds 100,000
+TUSD against 100 units of 1,000, and `subscriptionOf` names each investor for
+the redemption at maturity.
+
+### Maturity is shown on a second, short dated series
+
+Neither maturity date on the demo series can be brought into the event. The
+vault froze 4 September 2027 at `openSeries` and has no setter, and the note's
+`updateMaturityDate` only ever moves the date forward.
+
+`pnpm coupons:mature` therefore opens a short dated series in the vault,
+deploys a matching short dated ATS bond, subscribes both noteholders, waits and
+redeems both sides: `fullRedeemAtMaturity` burns each note holding under
+`ROLE_MATURITY_REDEEMER`, and `redeemAtMaturity` returns the principal from the
+vault. It is labelled a maturity demonstration everywhere it appears, in the
+series label itself, and nothing reads it as the demo series.
+
+### Principal reduction after a payout is read from the T04 series, not paid again
+
+"Principal reduced by payouts after a trigger" is already on chain: the T04 run
+through paid one 10,000 claim against a 30,000 principal on a throwaway series,
+and `principalRemaining` has read 20,000 ever since. `pnpm coupons:mature payout`
+reads those three numbers off testnet and records them.
+
+Paying a second real claim to show the same arithmetic belongs to T13, which
+owns the claim path, and the rounding cases are covered exhaustively in
+contracts/test/hardhat/collateral-vault.ts, including the 47,500 each after a
+5,000 claim that DESIGN.md 3.4 sets out.
+
+### The coupon settlement message on the payments topic, version 1
+
+T06 assigned the payments topic entry for a coupon to this ticket and T18 builds
+the read side, so the shape is fixed here and versioned.
+
+    {"v":1,"kind":"coupon","series":"ODI-COMP-2026-01","seriesId":"0x4f44...",
+     "couponId":"1","holder":"0.0.10366460","holderAddress":"0xb6c2...",
+     "numerator":"1036800000000000000","denominator":"3153600000000000",
+     "amount":"328767123","token":"0.0.10366463","scheduleId":"0.0.10368878",
+     "transactionId":"0.0.10366450-1788556746-724064738","result":"SUCCESS",
+     "paidAt":"1788556871.150984988"}
+
+Every amount is an integer string in the settlement token's minor units, and the
+fraction the amount came from travels with it so a reader can redo the
+arithmetic against the note rather than trusting the publisher. `kind` is there
+because premiums land on the same topic. A message is written only after the
+transfer settled: a schedule executes whether or not the transaction inside it
+succeeded, and publishing an unsettled execution would put a payment that never
+happened into the audit trail.
+
+### The investor endpoints stand alone in apps/api/src/investor
+
+apps/api is still the T01 placeholder: no Fastify, no Postgres, no dependencies,
+because building it is T07 and T07 is blocked behind T02. The two endpoints this
+ticket owes cannot wait for that.
+
+They are a self contained Fastify plugin that reads chain state directly, vault
+views and the note over the JSON-RPC relay through ethers, and the coupon
+settlements from `contracts/deployments/testnet.json`, which `pnpm coupons:pay`
+writes. No database and no Postgres dependency. T07 registers the same plugin
+and swaps the reader behind the `ChainReader` interface when the database
+exists.
+
+The plugin does not import from the contracts workspace, which would pull
+Hardhat into the API: the ABI fragments it needs are written out in
+`apps/api/src/investor/abi.ts`, narrow and all views. It reads the deployment
+record as a data file, and every value in it can be overridden from the
+environment.
+
+Conventions follow what the rest of the API will use: snake_case fields, every
+amount as `{amount, asset, decimals, display}` with `display` never parsed,
+RFC 3339 timestamps in UTC, and RFC 9457 problem documents for errors. The
+amount conversion lives in `packages/client/src/units.ts` so the API, the
+Steward and the web app share one implementation.

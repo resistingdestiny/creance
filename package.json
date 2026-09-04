@@ -26,6 +26,9 @@
     "hedera:setup": "pnpm --filter @creance/contracts run hedera:setup",
     "hedera:schedule": "pnpm --filter @creance/contracts run hedera:schedule",
     "ats:issue": "pnpm --filter @creance/contracts run ats:issue",
+    "coupons:pay": "pnpm --filter @creance/contracts run coupons:pay",
+    "coupons:mature": "pnpm --filter @creance/contracts run coupons:mature",
+    "api:dev": "pnpm --filter @creance/api run dev",
     "demo:seed": "node scripts/stub.mjs demo:seed"
   },
   "devDependencies": {

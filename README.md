@@ -42,6 +42,9 @@ Run all of these from the repository root.
 | `pnpm hedera:setup` | Creates the day 0 Hedera testnet accounts, tokens and topics, and writes [docs/HEDERA.md](docs/HEDERA.md). Idempotent: run it again and it creates nothing. Needs the operator credentials in the local environment file. Add `--plan` to print what it would do and stop. |
 | `pnpm hedera:schedule` | Runs the Scheduled Transactions spike against testnet: measures the expiry window, executes a scheduled premium transfer and chains the next month. Writes to testnet and costs fees. Stages: `bisect past immediate future chain`. |
 | `pnpm ats:issue` | Issues the demo Displacement Bond Note series as an Asset Tokenization Studio bond on Hedera testnet and runs the compliance sequence: roles, the credential issuer, a KYC grant per noteholder, the mints, a blocked then allowed transfer, pause, freeze and the first coupon. Idempotent: run it again and it does nothing. The run through with a link for every transaction is [docs/ATS.md](docs/ATS.md). Stages: `status throwaway issue roles issuer kyc1 mint1 blocked kyc2 allowed mint2 controls coupon couponcheck verify`. |
+| `pnpm coupons:pay` | Settles a declared coupon on Hedera testnet: seeds the premium account, subscribes the noteholders in the vault, pays each holder with a Scheduled Transaction carrying the vault's `fundCoupon` call, and publishes each settlement to the payments topic. Idempotent: run it again and it does nothing. The run through is [docs/ATS.md](docs/ATS.md) section 14. Stages: `status fund probe seed subscribe pay publish verify`. |
+| `pnpm coupons:mature` | Runs a maturity redemption on Hedera testnet, on a short dated series opened for the purpose because the demo series matures in 2027: opens the series and a matching note, subscribes both noteholders, waits, then burns each holding through ATS and returns the principal from the vault. Stages: `status fund open bond subscribe wait redeem payout`. |
+| `pnpm api:dev` | Runs the investor endpoints locally on port 3210: `GET /v1/series/:id` and `GET /v1/series/:id/coupons`, reading Hedera testnet. |
 | `pnpm demo:seed` | Seeds the demo series, policyholders, investors and claim packets. |
 
 A single workspace can be run on its own, for example `pnpm --filter @creance/index-model test`.
@@ -50,13 +53,15 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
 
     apps/web            worker, investor and admin screens, and the demo clock
     apps/api            quotes, binding, claims, x402 middleware, World verification
+    apps/api/src/investor  the investor endpoints, which read the chain directly
     apps/oracle         BLS fetch, ODI computation, HCS publish, replay
     apps/steward        buyer agent that pays for cover over x402
     apps/adjuster       claims agent that decides proof of loss packets
     contracts           Hardhat project for CoverPool and CollateralVault
     contracts/ats       issuance and lifecycle of the note in the Asset Tokenization Studio
     packages/index-model  ODI maths and backtests, no chain dependencies
-    packages/client     API client including an x402 payer helper
+    contracts/coupons   coupon settlement and the maturity demonstration
+    packages/client     API client, Scheduled Transactions and amount conversion
 
 Workspaces are named under the `@creance` scope. Every one of them extends [tsconfig.base.json](tsconfig.base.json), which sets TypeScript to strict.
 

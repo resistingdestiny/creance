@@ -339,6 +339,98 @@ date has passed, so it is not the signal that the record date has been reached;
 units, not minor units, because the on chain formula divides out both the token
 decimals and the nominal value decimals. Both are in docs/harness-notes.md.
 
+### 14. The first coupon settled
+
+The coupon action declared it and never moved anything. The money moved on the
+same day as one Scheduled Transaction per noteholder, each carrying the vault's
+own `fundCoupon` call, so the settlement token went straight from the premium
+account to the holder and no operational account held a noteholder's coupon in
+between. `pnpm coupons:pay` runs every step below and writes each one to
+`contracts/deployments/testnet.json`.
+
+The premium account was empty, because no policy has been bound against the
+series yet, so the coupon's own cost was seeded as a stand-in premium and
+attributed to the series. That is a demonstration shortcut and it is recorded as
+one in docs/DECISIONS.md; the live path is the premium schedule watcher calling
+`attributePremium` after each settled premium.
+
+| Step | Value |
+|---|---|
+| Stand-in premium, policyholder-1 to the vault | `657534246` TUSD minor units, [transfer](https://hashscan.io/testnet/transaction/0xd9b51875e52f63dc66eb1d73ebc949faab00bd32e15dc93a61625256f684840a) |
+| `attributePremium` | [0x219b9343...e2d69caf](https://hashscan.io/testnet/transaction/0x219b93435de059c979fe8174dde65f82752416f8bafca289e8175fd4e2d69caf), `premiumBalanceOf` 0 to `657534246`, 66,627 gas |
+| Subscribe investor-1 | 50,000 TUSD, [0x74ae1a67...173dfb8](https://hashscan.io/testnet/transaction/0x74ae1a67b1a4af2e33aeab5a39841aeb03562788db29019c61b650df0173dfb8), 124,230 gas |
+| Subscribe investor-2 | 50,000 TUSD, [0xf4eb398f...90670bc9](https://hashscan.io/testnet/transaction/0xf4eb398f22655e130d410a007c3c544a7cd19c4b808aa8a3a63ce76490670bc9), 90,030 gas |
+
+`principalFunded` for the series is now `100000000000`, which is the same
+100,000 the note carries as 100 units of 1,000.
+
+Then the coupon itself. Each holder's entitlement was read from the note at
+settlement time rather than taken from the record:
+
+    getCouponFor(1, holder) -> 1036800000000000000 / 3153600000000000, recordDateReached true
+    amount = floor(1036800000000000000 * 10^6 / 3153600000000000) = 328767123
+    remainder = 907200000000000, which stays in the premium account
+
+| Holder | Schedule | Memo | Executed | Result |
+|---|---|---|---|---|
+| investor-1 | [0.0.10368878](https://hashscan.io/testnet/schedule/0.0.10368878) | `creance coupon ODI-COMP-2026-01 1 investor-1` | [0.0.10366450-1788556746-724064738](https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738) | SUCCESS, 62,592 gas |
+| investor-2 | [0.0.10368880](https://hashscan.io/testnet/schedule/0.0.10368880) | `creance coupon ODI-COMP-2026-01 1 investor-2` | [0.0.10366450-1788556748-511830975](https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975) | SUCCESS, 57,792 gas |
+
+Both schedules were created with `waitForExpiry` true and an admin key, held
+until their expiry and executed there. Afterwards `premiumBalanceOf` reads `0`
+and each noteholder's TUSD balance is `200328767123`: 250,000 less the 50,000
+they subscribed, plus 328.767123 of coupon.
+
+Each settlement was then published to the payments topic
+[0.0.10366471](https://hashscan.io/testnet/topic/0.0.10366471) under the api
+key, at sequence numbers 1 and 2, carrying the coupon id, the holder, the
+fraction, the amount, the schedule id and the executed transaction. The message
+shape is in docs/DECISIONS.md, because T18 reads it back.
+
+**What it proves.** The declaration and the payment are two systems and the link
+between them is recorded rather than inferred. A reader can start at the
+`setCoupon` transaction, read the entitlement off the note, redo the
+arithmetic, and land on a transfer on HashScan that moved exactly that amount
+out of the premium account.
+
+### 15. Maturity, on a short dated series
+
+Neither maturity date on the demo series can be brought inside the event: the
+vault froze 4 September 2027 at `openSeries` and has no setter, and the note's
+`updateMaturityDate` only moves forward. So the maturity half runs on a second
+series opened for the purpose, `ODI-MAT-1788558259`, with a matching short dated
+bond. It is a **maturity demonstration and not the demo series**, and its label
+says so. `pnpm coupons:mature` runs it.
+
+| Field | Value |
+|---|---|
+| Vault series | `ODI-MAT-1788558259`, [openSeries](https://hashscan.io/testnet/transaction/0xb9bfbd08157d273762ffb468dc3d8e87a472ac93a12a534965c6a176a6e506e8), maturity 1788558259 |
+| Note | [0.0.10368952](https://hashscan.io/testnet/contract/0.0.10368952) `0x6e89613455159365B07CdCB9852311caE318afC9`, CDBNMAT, ISIN `ZZODIM8DMYD1` |
+| Deployment | [0x9371adcd...97ab85a4](https://hashscan.io/testnet/transaction/0x9371adcdaf34f7ad01bab510373d87718ec2b2e38a0d27cd6c242da597ab85a4), 7,005,600 gas |
+| Supply | 2 units of 1,000, one to each noteholder, both KYC granted first |
+| Subscribed | 1,000 TUSD each, `principalFunded` `2000000000` |
+
+After the maturity timestamp passed, once per holder:
+
+| Holder | ATS burn | Vault redemption | Returned |
+|---|---|---|---|
+| investor-1 | [0xf8541d29...2bf1524e](https://hashscan.io/testnet/transaction/0xf8541d294c1f124ea8c5e4162a5e49886cd6abcd8b76e16bafd26f2d2bf1524e), 218,097 gas | [0x99d1a179...cfbc47a6](https://hashscan.io/testnet/transaction/0x99d1a179ec384366352753347063e3894341c8b5f06b8f4dece2dfc1cfbc47a6), 86,424 gas | `1000000000` |
+| investor-2 | [0xef9b02f8...0ece5927](https://hashscan.io/testnet/transaction/0xef9b02f8c5e06973918f04d5556d5a2c2253f893736d967bf297037d0ece5927), 199,191 gas | [0x959ffb9e...758186cd](https://hashscan.io/testnet/transaction/0x959ffb9ecd3f00213c34e299b4c85d0f4720a56a1d2351332a41d7b0758186cd), 64,524 gas | `1000000000` |
+
+`balanceOf` on the note goes from `1000000` to `0` for each holder and the vault
+pays each of them 1,000 TUSD. `fullRedeemAtMaturity` needs the holder to still
+hold KYC when it is called, so the status is asserted immediately before each
+call; it also reverts if a partition balance is zero, so it runs once per holder
+and never twice.
+
+Principal was not reduced on this series, because nothing was claimed against
+it. The reduction is on chain already, on the T04 run through series
+`T04-SMOKE-1788546334`: `principalFunded` `30000000`, `principalPaid`
+`10000000` after one paid claim, `principalRemaining` `20000000`. A holder
+redeeming there receives their share of the remaining principal and not of the
+funded principal, which is the arithmetic
+`subscribed * (principalFunded - principalPaid) / principalFunded`.
+
 ## The test ISIN
 
 `ZZODIC55S1Q6` is a **structurally valid test identifier, not a registered
@@ -383,7 +475,7 @@ note is an unmodified ATS deployment whose source is public at tag
 | Investor eligibility | ATS | internal KYC plus the SSI issuer registry |
 | Transfer restriction, pause, freeze | ATS | `ROLE_PAUSER`, `ROLE_FREEZE_MANAGER`, control lists |
 | Coupon declaration, record date, per holder entitlement | ATS | `setCoupon`, the snapshot, `getCouponFor` |
-| Coupon payment | ours | a Scheduled Transaction of the settlement token from the premium account |
+| Coupon payment | ours | a Scheduled Transaction carrying the vault's `fundCoupon` call, paid out of the premium account |
 | Principal held, reserved on an open month, released at window close | ours | CollateralVault and CoverPool |
 | Principal reduction after a paid claim | ours | CollateralVault |
 | Burning the note at maturity | ATS | `fullRedeemAtMaturity` under `ROLE_MATURITY_REDEEMER` |
@@ -416,14 +508,13 @@ Every call is sent with an explicit gas limit, for the reason
 call whose cost depends on state it cannot see. The limits are in
 `contracts/ats/config.ts`.
 
-## Handed to T14
+## Handed to T14, and what T14 did
 
-- Coupon id `1` on the note, with `328767123` TUSD minor units payable to each
-  of the two noteholders on or after `1788553583`. Re-read it any time with
-  `pnpm ats:issue couponcheck`.
+- Coupon id `1`, with `328767123` TUSD minor units payable to each of the two
+  noteholders on or after `1788553583`. Settled on 4 September 2026, section 14.
 - The entitlement arrives as `numerator / denominator` in whole currency units;
   the settlement amount is `floor(numerator * 10^6 / denominator)` in TUSD minor
-  units.
+  units. That arithmetic is `contracts/coupons/plan.ts` and it carries tests.
 - `fullRedeemAtMaturity` needs the holder to still hold KYC at the moment it is
   called, and `updateMaturityDate` only moves the date forward, so a maturity
-  demonstration inside the event needs a second, short dated series.
+  demonstration inside the event needs a second, short dated series. Section 15.

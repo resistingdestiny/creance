@@ -212,6 +212,10 @@ The per transaction cap is 15 million.
 | `bind` | 224,668 | 800,000 |
 | `submitObservation` on an opening month | 271,024 | 1,000,000 |
 | `payClaim` (HTS transfer out) | 172,689 | 1,500,000 |
+| `attributePremium` | 66,627 | 1,000,000 |
+| `fundCoupon` (HTS transfer out, scheduled) | 62,592 | 1,500,000 |
+| `redeemAtMaturity` (HTS transfer out) | 86,424 | 1,500,000 |
+| ATS `fullRedeemAtMaturity` | 218,097 | 3,000,000 |
 
 Run through transactions:
 [subscribe](https://hashscan.io/testnet/transaction/0xafcf4a83a90455cf8c94d8ea8423994bdc479cdc588488cacd25b767c6745e46),
@@ -301,6 +305,7 @@ by a few thousand tinybars as the rate moves.
 | Transaction | HBAR |
 |---|---|
 | `ScheduleCreate`, one signature, rejected or accepted | 0.12905667 |
+| `ScheduleCreate` carrying a contract call, 1,500,000 gas limit | 1.29264098 |
 | `ScheduleCreate` without the payer signature | 0.12954988 |
 | `ScheduleCreate`, pre-signed by a payer that is not the operator | 0.13034724 to 0.13084538 |
 | `ScheduleSign` | 0.01425047 |
@@ -311,11 +316,41 @@ So a premium costs its payer about 0.143 HBAR a month all in, and a twelve month
 policy pre-scheduled at bind costs about 1.72 HBAR in fees on top of the
 premiums themselves.
 
+### Scheduling a contract call
+
+A schedule can carry a `ContractExecuteTransaction`, and the contract sees the
+schedule's payer as `msg.sender`. Measured on 4 September 2026, because the
+answer decides how a coupon is paid: the premium account is a balance inside
+`CollateralVault` and a contract has no key with which to sign a transfer.
+
+The probe scheduled `fundCoupon` with a zero amount from the api account, which
+holds `TREASURY_ROLE`. The vault checks the role before it checks the amount, so
+the revert name is the answer: schedule
+[0.0.10368856](https://hashscan.io/testnet/schedule/0.0.10368856) executed at
+its expiry and reverted `ZeroAmount`, not on the role. See
+docs/harness-notes.md, which also records that the create costs ten times a
+scheduled transfer and that the contract result of a scheduled call is reachable
+only by its consensus timestamp.
+
+That is how the coupon is paid. One schedule per noteholder carries
+`fundCoupon(seriesId, couponRef, holder, amount)`, so the settlement token goes
+straight from the premium account to the holder:
+
+| Holder | Schedule | Memo | Executed transfer |
+|---|---|---|---|
+| investor-1 | [0.0.10368878](https://hashscan.io/testnet/schedule/0.0.10368878) | `creance coupon ODI-COMP-2026-01 1 investor-1` | [0.0.10366450-1788556746-724064738](https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738) |
+| investor-2 | [0.0.10368880](https://hashscan.io/testnet/schedule/0.0.10368880) | `creance coupon ODI-COMP-2026-01 1 investor-2` | [0.0.10366450-1788556748-511830975](https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975) |
+
+Both carry an admin key and `waitForExpiry` true, and both executed with
+`SUCCESS`, at 62,592 and 57,792 gas. The helper is `scheduleContractCall` in
+`packages/client/src/hedera/schedule.ts`, beside `scheduleTransfer`.
+
 ### Conventions the rest of the build depends on
 
 - **The memo is the accounting record.** Every premium schedule carries
-  `creance premium <policyId> <YYYYMM>`, under the 100 byte memo cap, and
-  `parsePremiumMemo` reads it back. The period is the same `uint32` `YYYYMM`
+  `creance premium <policyId> <YYYYMM>` and every coupon schedule carries
+  `creance coupon <seriesLabel> <couponId> <holderRole>`, both under the 100
+  byte memo cap, and `parsePremiumMemo` and `parseCouponMemo` read them back. The period is the same `uint32` `YYYYMM`
   CoverPool takes. Never derive the month from the execution timestamp: the
   network picks that, and it can land either side of the stated expiry by a
   fraction of a second.
@@ -445,7 +480,31 @@ for each holder, which is 328.767123 USD, or `328767123` TUSD minor units.
 
 The coupon action declares and snapshots. It never moves money: there is no
 settlement token in the coupon facet. The payment is a Scheduled Transaction
-from the vault's premium account, which is T14.
+from the vault's premium account, and it settled on the same day: `328767123`
+TUSD minor units to each holder, out of a premium account seeded for the
+demonstration, published to the payments topic at sequence numbers 1 and 2. The
+schedules and the executed transfers are in the Scheduled transactions section
+above and the full run through is docs/ATS.md section 14.
+
+### The maturity demonstration
+
+The demo series and its note both mature on 4 September 2027, the vault has no
+setter for a maturity date and the note's `updateMaturityDate` only moves
+forward, so maturity is shown on a second, short dated series. It is a
+demonstration and not the demo series.
+
+| Field | Value |
+|---|---|
+| Vault series | `ODI-MAT-1788558259`, matured 1788558259 |
+| Note | [0.0.10368952](https://hashscan.io/testnet/contract/0.0.10368952) `0x6e89613455159365B07CdCB9852311caE318afC9`, CDBNMAT |
+| Subscribed | 1,000 TUSD per noteholder, `principalFunded` `2000000000` |
+| investor-1 | [burn](https://hashscan.io/testnet/transaction/0xf8541d294c1f124ea8c5e4162a5e49886cd6abcd8b76e16bafd26f2d2bf1524e), [redemption](https://hashscan.io/testnet/transaction/0x99d1a179ec384366352753347063e3894341c8b5f06b8f4dece2dfc1cfbc47a6), `1000000000` returned |
+| investor-2 | [burn](https://hashscan.io/testnet/transaction/0xef9b02f8c5e06973918f04d5556d5a2c2253f893736d967bf297037d0ece5927), [redemption](https://hashscan.io/testnet/transaction/0x959ffb9ecd3f00213c34e299b4c85d0f4720a56a1d2351332a41d7b0758186cd), `1000000000` returned |
+
+ATS burns the note holding and the vault returns the principal. Principal
+reduced by a payout is on chain on the T04 run through series
+`T04-SMOKE-1788546334`, where `principalFunded` is `30000000`, `principalPaid`
+is `10000000` after one paid claim and `principalRemaining` is `20000000`.
 
 ### Verification
 

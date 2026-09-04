@@ -30,6 +30,8 @@ export interface DisplayNumberProps {
   /** Runs the orchestrated count-up when this flips to true. */
   countUp?: boolean;
   durationMs?: number;
+  /** Behaves as though the user asked for reduced motion. The gallery shows both. */
+  forceReducedMotion?: boolean;
   className?: string;
 }
 
@@ -38,9 +40,10 @@ export function DisplayNumber({
   size = 'display-xl',
   countUp = false,
   durationMs = 600,
+  forceReducedMotion = false,
   className,
 }: DisplayNumberProps) {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotion() || forceReducedMotion;
   const [shown, setShown] = useState(value);
   const frame = useRef<number | null>(null);
 

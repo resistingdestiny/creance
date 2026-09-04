@@ -143,3 +143,68 @@ Consequence: the axis label is accepted at its natural width. Slicing it to
 three characters would produce "Sep", which is the American form, in an app
 whose whole copy deck is British English. The chart lays out two labels at the
 ends of the plot, so four characters cost nothing.
+
+### Tailwind reads prose as class names, and a sentence emitted the only shadow
+
+The design has no shadows. A test asserts that no rule in the built stylesheet
+sets `box-shadow` to anything but `none`. It failed, on this rule:
+
+    .ring{--tw-ring-shadow:...;box-shadow:var(--tw-inset-shadow), ...}
+
+Nothing in the app uses that utility. It was emitted because three source
+comments explained that the design's focus state is an outline rather than the
+framework's default, and the framework's class scanner treats every word in
+every reachable file as a candidate class name. The word matched a real utility,
+so the utility was generated.
+
+The behaviour is documented, in the sense that the detection page says source
+files are scanned "for class names" and that the scanner is deliberately
+ignorant of the language it is reading
+(https://tailwindcss.com/docs/detecting-classes-in-source-files, read
+2026-09-04). What no page says is that a comment counts, which is the part that
+costs an hour.
+
+Two fixes, both applied. The prose was reworded. More usefully, the source set
+is now pinned in the stylesheet:
+
+    @import "tailwindcss" source(none);
+    @source "../";
+
+so the candidate list comes from `src/` and cannot be widened by a test file, a
+fixture or a markdown document that happens to contain the wrong word.
+
+### The theme block drops tokens that nothing has used yet
+
+`@theme` emits only the variables some utility referenced. `--radius-hero` and
+the two marketing ground colours are in the sheet, are not used by any screen in
+this ticket, and were therefore absent from the built CSS, which failed the test
+that every token resolves to its hex.
+
+That is the documented behaviour and it is the right default for an application.
+It is the wrong default for a file that is the token sheet of record, so the
+block is declared `@theme static`, which emits every variable whether or not a
+utility reached for it
+(https://tailwindcss.com/docs/theme, read 2026-09-04).
+
+### A font module in the bundle graph is fetched whether or not it is used
+
+The ticket asks for both typeface options wired behind one switch, with the
+inactive one not loaded at runtime. The obvious shape is a conditional import in
+the root layout on an inlined public environment variable, so the bundler can
+drop the branch it does not take.
+
+It does not drop it. Built with Option A active, the page still carried:
+
+    <link rel="preload" href="/_next/static/media/Geist_Variable-s.p....woff2"
+          as="font" crossorigin="anonymous">
+
+The font loader runs over any module in the graph and emits its `@font-face` and
+its preload link at build time, before any branch can be evaluated. Neither the
+font optimisation page nor the environment variable page says this
+(https://nextjs.org/docs/app/api-reference/components/font and
+https://nextjs.org/docs/app/guides/environment-variables, both read 2026-09-04).
+
+The switch was moved to module resolution instead, aliasing one specifier to one
+of the two font modules in `next.config.ts`. Rebuilt and measured both ways:
+with A active there is no Geist file in the output, with B active there is no
+Inter file.

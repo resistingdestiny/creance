@@ -267,8 +267,9 @@
         "scheduledContractCall": {
           "attempted": true,
           "status": "create SUCCESS",
-          "scheduleId": "0.0.10368789",
-          "result": "CONTRACT_REVERT_EXECUTED"
+          "scheduleId": "0.0.10368856",
+          "result": "CONTRACT_REVERT_EXECUTED",
+          "revert": "ZeroAmount"
         }
       }
     },

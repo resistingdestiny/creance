@@ -106,6 +106,17 @@ export function renderGeneratedBlock(record: HederaRecord): string {
       `non-fungible, freeze default ${nft.freezeDefault ? 'true' : 'false'}`,
     ]);
   }
+  const nonTransferability =
+    record.policyNft?.freezeDefault === false
+      ? [
+          '',
+          'The policy receipt is non-transferable by freezing the holder after the',
+          'transfer, not by a default freeze on the collection: a default freeze does',
+          'not compose with automatic association, see the day 0 findings below. Each',
+          'bind is associate, transfer, freeze; a second policy for the same holder',
+          'needs an unfreeze first.',
+        ]
+      : [];
   sections.push(
     [
       '## Tokens',
@@ -113,6 +124,7 @@ export function renderGeneratedBlock(record: HederaRecord): string {
       'Token EVM addresses are the long-zero form, which is what a Solidity call to',
       'the HTS system contract at 0x167 takes. All settlement amounts are integers in',
       'minor units: 28.00 TUSD is 28000000.',
+      ...nonTransferability,
       '',
       table(['Class', 'Name', 'Token id', 'EVM address', 'Decimals', 'Note'], tokenRows),
     ].join('\n'),

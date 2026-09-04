@@ -239,3 +239,20 @@ Hardhat 3.15.0 runs it and then prints:
 
 The suites in this repository use `network.getOrCreate()`. Following the Hedera
 page verbatim works today and will stop working.
+
+### A mirror node timeout reaches the caller as a JSON-RPC error on eth_getBlockByNumber
+
+The relay troubleshooting page says to look a failed transaction up on the
+mirror node because the consensus level result is more specific than what the
+relay returns. The reverse case is not described: when the mirror node behind
+the relay is slow, an ordinary read fails with a code that reads like a client
+bug. Hit once on 4 September 2026, midway through a run against Hashio:
+
+    eth_getBlockByNumber ["latest", false]
+    -> code -32020, "Mirror node upstream failure: statusCode=504,
+       message=timeout of 30000ms exceeded"
+
+ethers wraps it as `UNKNOWN_ERROR ... could not coalesce error`, which says
+nothing about the cause. The same command succeeded unchanged a minute later.
+Treat -32020 as a retry, the same as `THROTTLED_AT_CONSENSUS`, and do not go
+looking at your own code first.

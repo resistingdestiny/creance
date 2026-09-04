@@ -23,6 +23,9 @@ const config: HardhatUserConfig = {
     version: '0.8.24',
     settings: {
       optimizer: { enabled: true, runs: 200 },
+      // The claim authorisation digest encodes nine fields at once, which is
+      // past what the legacy pipeline can hold on the stack.
+      viaIR: true,
       evmVersion: 'cancun',
     },
   },

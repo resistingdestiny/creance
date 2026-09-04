@@ -8,7 +8,14 @@ import {
   entitlementKey,
   wholeUnits,
 } from '../src/investor/view.js';
-import { CONFIG, ENTITLEMENT, NOTE_STATE, SERIES, VAULT_STATE } from './fixtures.js';
+import {
+  CONFIG,
+  ENTITLEMENT,
+  NOTE_STATE,
+  SERIES,
+  VAULT_STATE,
+  seriesWithoutNote,
+} from './fixtures.js';
 
 const holders = SERIES.holders.map((config) => ({
   config,
@@ -77,7 +84,7 @@ describe('the series view', () => {
   });
 
   it('serves a series with no note at all', () => {
-    const { note: _note, ...withoutNote } = SERIES;
+    const withoutNote = seriesWithoutNote();
     const view = buildSeriesView({
       series: withoutNote,
       network: CONFIG.network,

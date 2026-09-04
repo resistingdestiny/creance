@@ -1,7 +1,7 @@
 import { money, type Money } from '@creance/client';
 
 import type { CouponSettlementConfig, HolderConfig, SeriesConfig } from './config.js';
-import type { ChainReader, CouponEntitlement, HolderState, NoteState, VaultSeriesState } from './chain.js';
+import type { CouponEntitlement, HolderState, NoteState, VaultSeriesState } from './chain.js';
 
 /// The JSON the investor endpoints return, built from chain reads and the
 /// deployment record.
@@ -236,7 +236,6 @@ export function entitlementKey(couponId: string, address: string): string {
 
 export function buildCouponsView(input: CouponsViewInput): CouponsView {
   const { series, network, entitlements } = input;
-  const asset = series.settlementToken.tokenId;
   const decimals = series.settlementToken.decimals;
 
   return {

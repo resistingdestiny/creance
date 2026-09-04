@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { investorRoutes } from '../src/investor/index.js';
-import { CONFIG, FakeChainReader, SERIES } from './fixtures.js';
+import { CONFIG, FakeChainReader, SERIES, seriesWithoutNote } from './fixtures.js';
 
 /// The routes, driven through Fastify's own injector with a reader that answers
 /// from fixtures. No relay, no mirror node, no key.
@@ -83,7 +83,7 @@ describe('the investor endpoints', () => {
 
   it('serves a series whose note is not deployed', async () => {
     const bare = Fastify();
-    const { note: _note, ...withoutNote } = SERIES;
+    const withoutNote = seriesWithoutNote();
     await bare.register(investorRoutes, {
       config: { ...CONFIG, series: [withoutNote] },
       reader: new FakeChainReader({ note: null }),

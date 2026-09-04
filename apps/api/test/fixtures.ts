@@ -139,3 +139,11 @@ export class FakeChainReader implements ChainReader {
     return this.overrides.entitlement === undefined ? ENTITLEMENT : this.overrides.entitlement;
   }
 }
+
+/// The same series with no note deployed against it, which is what a series
+/// looks like between `openSeries` and `pnpm ats:issue`.
+export function seriesWithoutNote(): SeriesConfig {
+  const series = { ...SERIES };
+  delete series.note;
+  return series;
+}

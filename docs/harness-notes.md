@@ -256,3 +256,30 @@ ethers wraps it as `UNKNOWN_ERROR ... could not coalesce error`, which says
 nothing about the cause. The same command succeeded unchanged a minute later.
 Treat -32020 as a retry, the same as `THROTTLED_AT_CONSENSUS`, and do not go
 looking at your own code first.
+## T10, web app, 4 September 2026
+
+This section is not Hedera. It is here because the same rule applies: where a
+written expectation and the runtime disagree, the runtime wins and the
+disagreement gets written down. Nothing in this section belongs in the Hedera
+Harness contribution.
+
+### en-GB abbreviates September to four letters, not three
+
+The web app formats every date with a hard-coded `en-GB` locale so that a
+judge's machine cannot reorder a date. The chart axis label uses
+`Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric' })`. Every
+month abbreviates to three letters except September:
+
+    2025-01 -> "Jan 2025"
+    2024-09 -> "Sept 2024"
+
+That is CLDR's abbreviated form for British English, and the MDN reference for
+`month: "short"` describes it only as "the abbreviated name of the month" with
+no width guarantee
+(https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/DateTimeFormat/DateTimeFormat,
+read 2026-09-04). Measured on Node v22.23.1 with full ICU.
+
+Consequence: the axis label is accepted at its natural width. Slicing it to
+three characters would produce "Sep", which is the American form, in an app
+whose whole copy deck is British English. The chart lays out two labels at the
+ends of the plot, so four characters cost nothing.

@@ -1,0 +1,73 @@
+{
+  "network": "testnet",
+  "chainId": 296,
+  "settlementToken": {
+    "tokenId": "0.0.10366463",
+    "evmAddress": "0x00000000000000000000000000000000009e2dff"
+  },
+  "collateralVault": {
+    "address": "0xD0473d355ECB299F2ECc0d92124bc8CF63554e60",
+    "contractId": "0.0.10367194",
+    "deploymentTx": "0x00302fcad5ab5ea944ee5fa0a847462fa70d17d816a8860154051de5b94cce5b",
+    "gasUsed": 1549319,
+    "constructorArgs": [
+      "0x00000000000000000000000000000000009e2dff",
+      "0x639444758b987b4d938c57169a1f61a62b2d009c"
+    ]
+  },
+  "settlementTokenAssociated": true,
+  "gasUsed": {
+    "associateSettlementToken": 735563,
+    "registerSeries": 108134,
+    "subscribe": 141378,
+    "bind": 224668,
+    "submitObservationOpening": 271024,
+    "payClaim": 172689
+  },
+  "coverPool": {
+    "address": "0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09",
+    "contractId": "0.0.10367199",
+    "deploymentTx": "0x26d46e536a7bd3550933ec8e5444846807025517af049c06bd6ba9c6b45b4be4",
+    "gasUsed": 3847387,
+    "constructorArgs": [
+      "0xD0473d355ECB299F2ECc0d92124bc8CF63554e60",
+      "0x639444758b987b4d938c57169a1f61a62b2d009c"
+    ]
+  },
+  "coverPoolWired": true,
+  "roles": {
+    "admin": "0x639444758b987b4d938c57169a1f61a62b2d009c",
+    "ORACLE_ROLE": "0x8aaf5b093842dc2e32f56bad9534d12a83861301",
+    "BINDER_ROLE": "0x7c02879d6b95f923681f517b0487aa45af2b8fdf",
+    "CLAIMS_ROLE": "0x7c02879d6b95f923681f517b0487aa45af2b8fdf",
+    "SUBSCRIPTION_ROLE": "0x7c02879d6b95f923681f517b0487aa45af2b8fdf",
+    "TREASURY_ROLE": "0x7c02879d6b95f923681f517b0487aa45af2b8fdf"
+  },
+  "series": {
+    "id": "0x4f44492d434f4d502d323032362d303100000000000000000000000000000000",
+    "label": "ODI-COMP-2026-01",
+    "group": "computer_math",
+    "attachmentShock": "20000",
+    "levelLine": "-6800",
+    "exhaustionShock": "40000",
+    "payoutMode": "full",
+    "maturityAt": 1820082162,
+    "openSeriesTx": "0x2c042123014090e5b40ad3142518397ecf9d377471cde59fd75c7ee2138432d0",
+    "registerSeriesTx": "0x15e833ad75e2f1ae5ef38956959ac13d6b76eba7906ee9e6ba6b48895675bfda"
+  },
+  "verification": {
+    "CollateralVault": "https://hashscan.io/testnet/contract/0xD0473d355ECB299F2ECc0d92124bc8CF63554e60",
+    "CoverPool": "https://hashscan.io/testnet/contract/0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09"
+  },
+  "testnetRunthrough": {
+    "series": "T04-SMOKE-1788546334",
+    "at": "2026-09-04T18:27:29.575Z",
+    "links": {
+      "subscribe": "https://hashscan.io/testnet/transaction/0xafcf4a83a90455cf8c94d8ea8423994bdc479cdc588488cacd25b767c6745e46",
+      "bind": "https://hashscan.io/testnet/transaction/0xac8a8ad56f5f7ef8bd6fb6a3515abec55f50f38cca3b7d3ce6a7141856303b4b",
+      "submitObservation": "https://hashscan.io/testnet/transaction/0x00bbce06acd39293288aca58b27b0d1cc0fe2b66a45a5391a0278bd16feb5871",
+      "payClaim": "https://hashscan.io/testnet/transaction/0x2295b762330bae87b3d30395b3623bb33e2d8cbcd2a883bf5afa9d9f46383c06"
+    }
+  },
+  "associationTx": "0xc7856204a02bd8caee265a17c83928ea89c5cbf0937452e251d4abe58638d6aa"
+}

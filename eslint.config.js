@@ -11,6 +11,7 @@ export default tseslint.config(
       '**/.next/**',
       'contracts/artifacts/**',
       'contracts/cache/**',
+      'contracts/types/**',
     ],
   },
   js.configs.recommended,

@@ -272,8 +272,17 @@
             "createFeeHbar": "1.29264098 ℏ",
             "links": {
               "schedule": "https://hashscan.io/testnet/schedule/0.0.10368878",
-              "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738"
-            }
+              "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738",
+              "settlement": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738",
+              "topic": "https://hashscan.io/testnet/topic/0.0.10366471"
+            },
+            "executedAt": "1788556871.150984988",
+            "executedTransactionId": "0.0.10366450-1788556746-724064738",
+            "result": "SUCCESS",
+            "settled": true,
+            "gasUsed": 62592,
+            "topicSequenceNumber": "1",
+            "topicTx": "0.0.10366450@1788556891.388923306"
           },
           {
             "role": "investor-2",
@@ -290,8 +299,17 @@
             "createFeeHbar": "1.29264098 ℏ",
             "links": {
               "schedule": "https://hashscan.io/testnet/schedule/0.0.10368880",
-              "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975"
-            }
+              "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975",
+              "settlement": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975",
+              "topic": "https://hashscan.io/testnet/topic/0.0.10366471"
+            },
+            "executedAt": "1788556871.150985093",
+            "executedTransactionId": "0.0.10366450-1788556748-511830975",
+            "result": "SUCCESS",
+            "settled": true,
+            "gasUsed": 57792,
+            "topicSequenceNumber": "2",
+            "topicTx": "0.0.10366450@1788556890.534319993"
           }
         ],
         "premiumSeed": {

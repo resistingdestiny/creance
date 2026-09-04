@@ -430,6 +430,12 @@
         "investor-1": "0xaa1d8c670f937a9c7d91e45b887914c2f2916775bc2397c718183ec072e29ecc",
         "investor-2": "0xb77dc5b3a2a96367f6991d1e8759dd46a12ebbf46d6e7f35acc7d72f887b6af1"
       }
+    },
+    "principalAfterPayout": {
+      "series": "T04-SMOKE-1788546334",
+      "principalFunded": "30000000",
+      "principalPaid": "10000000",
+      "principalRemaining": "20000000"
     }
   }
 }

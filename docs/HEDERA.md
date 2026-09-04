@@ -95,8 +95,123 @@ Blocky402 at https://api.testnet.blocky402.com lists `hedera:testnet` with fee p
 
 ## Contracts
 
-Filled in by T04. CoverPool and CollateralVault addresses, their long-zero and
-EVM forms, the HashScan verification links and the measured gas limits.
+Deployed by `pnpm contracts:deploy`, which runs each step as its own process
+and writes `contracts/deployments/testnet.json`. Read the addresses from that
+file rather than from this table: it is the machine readable copy and it never
+drifts.
+
+| Contract | Contract id | EVM address | Long-zero form | Verification |
+|---|---|---|---|---|
+| CollateralVault | [0.0.10366999](https://hashscan.io/testnet/contract/0.0.10366999) | `0x96E0c26864fbAFCa58655944b7F862f12eD1333D` | `0x00000000000000000000000000000000009e3017` | [Sourcify exact match](https://sourcify.dev/server/repo-ui/296/0x96E0c26864fbAFCa58655944b7F862f12eD1333D) |
+| CoverPool | [0.0.10367008](https://hashscan.io/testnet/contract/0.0.10367008) | `0x2D0Fdda6c92F588E65Cb86d774F4f7eA80bf1348` | `0x00000000000000000000000000000000009e3020` | [Sourcify exact match](https://sourcify.dev/server/repo-ui/296/0x2D0Fdda6c92F588E65Cb86d774F4f7eA80bf1348) |
+
+Deployment transactions:
+[CollateralVault](https://hashscan.io/testnet/transaction/0x7d080e1ce4ce2f07c62a64907ab82557293af77961bc7371dd0311bff936e8be),
+[CoverPool](https://hashscan.io/testnet/transaction/0xafdec33c924d9ce2d07efb9842e0481994944df8dd871d88138f17b9acd8da04).
+The vault is associated with TUSD in
+[this transaction](https://hashscan.io/testnet/transaction/0xf45d708a8415ac0e44fa301a027fef8b44e904b7cf240ff752344249ee62e1a5);
+a contract is an account and cannot hold an HTS token until it has associated
+it, so this is a deploy step and the script asserts `isAssociated()` afterwards.
+
+Compiler: solc 0.8.24, optimizer on at 200 runs, `viaIR` on, EVM target
+`cancun`. Do not change any of those between a deploy and a verify or the
+match drops to partial.
+
+### Roles
+
+| Role | Contract | Holder | Address |
+|---|---|---|---|
+| DEFAULT_ADMIN_ROLE | both | operator 0.0.10362512 | `0x639444758b987b4d938c57169a1f61a62b2d009c` |
+| ORACLE_ROLE | CoverPool | oracle 0.0.10366447 | `0x8aaf5b093842dc2e32f56bad9534d12a83861301` |
+| BINDER_ROLE | CoverPool | api 0.0.10366450 | `0x7c02879d6b95f923681f517b0487aa45af2b8fdf` |
+| CLAIMS_ROLE | CoverPool | api 0.0.10366450 | `0x7c02879d6b95f923681f517b0487aa45af2b8fdf` |
+| SUBSCRIPTION_ROLE | CollateralVault | api 0.0.10366450 | `0x7c02879d6b95f923681f517b0487aa45af2b8fdf` |
+| TREASURY_ROLE | CollateralVault | api 0.0.10366450 | `0x7c02879d6b95f923681f517b0487aa45af2b8fdf` |
+
+CLAIMS_ROLE never appears in an `onlyRole` modifier. It is the set of addresses
+whose EIP-712 signature `payClaim` accepts, so rotating the signer is a
+`revokeRole` plus a `grantRole` and not a redeploy.
+
+### ABI conventions
+
+T07, T12 and T13 code against these, so they are part of the interface.
+
+- **Amounts** are `uint256` in the settlement token's minor units. TUSD has six
+  decimals, so 100,000 TUSD is `100000000000`. Neither contract is payable and
+  neither ever sees HBAR, so the 8 versus 18 decimal question does not arise.
+- **Index values** (`odi`, `ebar`, `attachmentShock`, `levelLine`,
+  `exhaustionShock`) are `int64` percentage points scaled by 1e4. 1.00 point is
+  `10000`, +0.30 points is `3000`, and the demo level line of -0.68 points is
+  `-6800`. They are signed because a level line for a low unemployment
+  profession is negative. Never let a float reach the contract boundary.
+- **Periods** cross the boundary as `uint32` `YYYYMM` (`202604`). Inside, every
+  window rule is arithmetic on the month index `year * 12 + (month - 1)`, so
+  2026-04 is `24315`. Events carry `YYYYMM`.
+- **Identifiers** (`seriesId`, `policyId`, `claimId`, `nullifierHash`,
+  `packetHash`, `decisionHash`, `group`) are `bytes32`. `seriesId` and `group`
+  are the ASCII label right padded with zero bytes, which is what
+  `ethers.encodeBytes32String` produces: `ODI-COMP-2026-01` is
+  `0x4f44492d434f4d502d323032362d303100000000000000000000000000000000`.
+- **The claim authorisation** is EIP-712 typed data. Domain
+  `{ name: "DisplacementBond", version: "1", chainId: 296, verifyingContract: <CoverPool address> }`;
+  type
+  `ClaimAuthorisation(bytes32 policyId,bytes32 claimId,bytes32 nullifierHash,bytes32 packetHash,bytes32 decisionHash,address payee,uint256 amount,uint64 separationAt,uint64 deadline)`.
+  Sign it with `signTypedData` from the CLAIMS account's ECDSA key. The signer
+  must have a key derived EVM address: a long-zero account cannot pass an
+  ECRECOVER check.
+- **The opening decision is the contract's.** `submitObservation` takes
+  `(seriesId, period, odi, ebar, hcsSequence, sourceHash)` and computes
+  `open` and `openReason` itself from the frozen thresholds. `openReason` is
+  0 none, 1 shock, 2 level.
+
+### The demo series
+
+Registered at deploy time from the published calibration for the detailed BLS
+group "computer and mathematical".
+
+| Field | Human | On chain |
+|---|---|---|
+| series id | ODI-COMP-2026-01 | `0x4f44492d434f4d502d323032362d303100000000000000000000000000000000` |
+| group | computer_math | `0x636f6d70757465725f6d61746800000000000000000000000000000000000000` |
+| shock attachment A | 2.0 points | `20000` |
+| level line L | -0.68 points | `-6800` |
+| exhaustion E | 4.0 points | `40000` |
+| payout mode | full | `0` |
+| waiting period | 60 days | `5184000` |
+| term | 12 months | `31536000` |
+| grace period | 15 days | `1296000` |
+| claim window from the observation | 30 days | `2592000` |
+| claim window from the separation | 60 days | `5184000` |
+| lookback | 2 months | `2` |
+
+[Opened in the vault](https://hashscan.io/testnet/transaction/0x8730867a9d36bf90e627120b9e5f05b28dcf929950fecd8444c51185d4f03c79),
+[registered in the pool](https://hashscan.io/testnet/transaction/0xda2bddc3b8e958caeccfe25daa204bc33ef48632cd9777986a68a97e46f5097a).
+Nothing in the terms is mutable after registration except the status.
+
+### Measured gas
+
+From the testnet run through, `pnpm test:testnet`, which drives one full claim
+on a throwaway series so the demo series stays clean. Set explicit gas limits
+from these numbers rather than trusting `eth_estimateGas`, which cannot price a
+token service call; unused gas is refunded in full, so a generous limit is free.
+The per transaction cap is 15 million.
+
+| Call | Gas used | Suggested limit |
+|---|---|---|
+| deploy CollateralVault | 1,549,319 | 4,000,000 |
+| deploy CoverPool | 3,887,828 | 6,000,000 |
+| `associateSettlementToken` | 735,563 | 2,000,000 |
+| `registerSeries` | 108,134 | 600,000 |
+| `subscribe` (HTS transferFrom) | 141,378 | 1,500,000 |
+| `bind` | 224,668 | 800,000 |
+| `submitObservation` on an opening month | 270,878 | 1,000,000 |
+| `payClaim` (HTS transfer out) | 172,701 | 1,500,000 |
+
+Run through transactions:
+[subscribe](https://hashscan.io/testnet/transaction/0x55f3695c161ea3d0bd5228059af4e03ddd7d75aa756f9837169b6fe50e89610d),
+[bind](https://hashscan.io/testnet/transaction/0xe52940b3abfed83d2d9109c6a0a4954ccce018d7fda7f0343cae70656b4ce605),
+[submitObservation](https://hashscan.io/testnet/transaction/0x390623e97d00e05ba1e6518466d9cd28088879a51dec3e11ff0119175a539840),
+[payClaim](https://hashscan.io/testnet/transaction/0x3185d7d188a332ddb585238b1282ec2cf4706f81be914526aade4b9cb106dcbd).
 
 ## Scheduled transactions
 

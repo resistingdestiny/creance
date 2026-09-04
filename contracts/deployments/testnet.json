@@ -18,7 +18,11 @@
   "settlementTokenAssociated": true,
   "gasUsed": {
     "associateSettlementToken": 735563,
-    "registerSeries": 108134
+    "registerSeries": 108134,
+    "subscribe": 141378,
+    "bind": 224668,
+    "submitObservationOpening": 270878,
+    "payClaim": 172701
   },
   "coverPool": {
     "address": "0x2D0Fdda6c92F588E65Cb86d774F4f7eA80bf1348",
@@ -54,5 +58,15 @@
   "verification": {
     "CollateralVault": "https://hashscan.io/testnet/contract/0x96E0c26864fbAFCa58655944b7F862f12eD1333D",
     "CoverPool": "https://hashscan.io/testnet/contract/0x2D0Fdda6c92F588E65Cb86d774F4f7eA80bf1348"
+  },
+  "testnetRunthrough": {
+    "series": "T04-SMOKE-1788545683",
+    "at": "2026-09-04T18:15:23.607Z",
+    "links": {
+      "subscribe": "https://hashscan.io/testnet/transaction/0x55f3695c161ea3d0bd5228059af4e03ddd7d75aa756f9837169b6fe50e89610d",
+      "bind": "https://hashscan.io/testnet/transaction/0xe52940b3abfed83d2d9109c6a0a4954ccce018d7fda7f0343cae70656b4ce605",
+      "submitObservation": "https://hashscan.io/testnet/transaction/0x390623e97d00e05ba1e6518466d9cd28088879a51dec3e11ff0119175a539840",
+      "payClaim": "https://hashscan.io/testnet/transaction/0x3185d7d188a332ddb585238b1282ec2cf4706f81be914526aade4b9cb106dcbd"
+    }
   }
 }

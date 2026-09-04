@@ -16,10 +16,10 @@ Companion series, used for pricing and context, never for the trigger: JOLTS lay
 
 The mapping lives in packages/index-model/src/series-map.json:
 
-    {"group_key":"office_admin","label":"Office and administrative support",
+    {"group_key":"office_admin_support","label":"Office and administrative support",
      "bls_series_id":"LNU0...","source":"CPS LN","selected_by":"T02","notes":""}
 
-Resolution procedure (T02, once): download ln.series from the BLS flat files, filter to monthly, not seasonally adjusted, unemployment rate, occupation-group dimension, and match the eleven A-13 group labels plus the all-occupation rate. Record the chosen series ids and the ln.series file hash in the mapping and in docs/INDEX.md. The mapping is then frozen: any change is a decision with a reason, and changing a series id after any observation was submitted for settlement is forbidden for that series' history.
+Resolution procedure (T02, once): download ln.series from the BLS flat files, filter to monthly, not seasonally adjusted, unemployment rate, occupation-group dimension, and match the fifteen bindable series plus the all-occupation rate, sixteen in all. Record the chosen series ids and the ln.series file hash in the mapping and in docs/INDEX.md. The mapping is then frozen: any change is a decision with a reason, and changing a series id after any observation was submitted for settlement is forbidden for that series' history.
 
 ## 4. Computation
 
@@ -34,7 +34,7 @@ Claims open for the group in month t when either form holds:
     shock   ODI_g,t  >= A_g
     level   ebar_g,t >= L_g
 
-A_g = max(1.5, 3 sigma of the series' ODI from 2010 excluding 2020 to 2021, rounded to 0.5). L_g = p95 of ebar over the fixed baseline decade 2010 to 2019, plus 0.75. Both are set at issuance, published in the series terms and in every message, and frozen; the baseline never rolls. A negative L is meaningful: it is deterioration against the series' own history, not high unemployment in absolute terms. Precision: keep source rates as published (one decimal), compute in full float, publish e, ebar and ODI rounded to two decimals; the trigger comparison uses the published two-decimal ODI so that anyone recomputing from the message gets the same boolean. A period needs months t-14 through t present to compute; otherwise the observation is published with "status":"insufficient_history" and is never submitted on chain. Missing source months are never interpolated.
+A_g = max(1.5, 3 sigma of the series' ODI from 2010 excluding 2020 to 2021, rounded to 0.5). L_g = p95 of ebar over the fixed baseline decade 2010 to 2019, plus 0.75. Both are set at issuance, published in the series terms and in every message, and frozen; the baseline never rolls. A negative L is meaningful: it is deterioration against the series' own history, not high unemployment in absolute terms. Precision: keep source rates as published (one decimal), compute in full float, publish e, ebar and ODI rounded to two decimals; the trigger comparison uses the published two-decimal ODI so that anyone recomputing from the message gets the same boolean. Availability is two independent checks, not one window. Months t, t-1 and t-2 give ebar and the level form; months t-12, t-13 and t-14 additionally give the ODI and the shock form. When the first set is incomplete the observation is published with "status":"insufficient_history", carries no ebar and no ODI, and is never submitted on chain. When the first set holds and the second does not, the observation is published with ebar, with "odi":null and "forms":["level"], and only the level form is evaluated. The published ODI is defined as pub(pub(ebar_t) - pub(ebar_t-12)), the difference of the two published smoothed values, so a reader recomputing it from the message gets the same number and the same boolean. Missing source months are never interpolated and the smoothing window never slides over a gap: it is t, t-1 and t-2 by the calendar.
 
 ## 5. Calendar and runs
 
@@ -68,7 +68,7 @@ Under 1 KB, canonical JSON (sorted keys, no whitespace) signed by the oracle key
 
 Run after compute, before publish. Any failure fails the run closed: nothing is published, nothing is submitted, an alert fires.
 
-- Completeness: all twelve series present for the target period.
+- Completeness: all sixteen series present for the target period.
 - Bounds: 0 <= u <= 30 for every series; |ODI| <= 10.
 - Jump: |ebar_g,t - ebar_g,t-1| <= 5 standard deviations of the trailing 24 months, per group.
 - Consistency: u_all lies between the min and max of the group rates for the period.

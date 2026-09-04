@@ -269,7 +269,7 @@
             "scheduleCreateTx": "0.0.10366450@1788556746.724064738",
             "scheduleMemo": "creance coupon ODI-COMP-2026-01 1 investor-1",
             "executeAt": "2026-09-04T21:21:11.000Z",
-            "createFeeHbar": "1.29264098 \u210f",
+            "createFeeHbar": "1.29264098",
             "links": {
               "schedule": "https://hashscan.io/testnet/schedule/0.0.10368878",
               "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738",
@@ -296,7 +296,7 @@
             "scheduleCreateTx": "0.0.10366450@1788556748.511830975",
             "scheduleMemo": "creance coupon ODI-COMP-2026-01 1 investor-2",
             "executeAt": "2026-09-04T21:21:11.000Z",
-            "createFeeHbar": "1.29264098 \u210f",
+            "createFeeHbar": "1.29264098",
             "links": {
               "schedule": "https://hashscan.io/testnet/schedule/0.0.10368880",
               "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975",

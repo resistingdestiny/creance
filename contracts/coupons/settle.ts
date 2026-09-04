@@ -62,6 +62,14 @@ function now(): number {
   return Math.floor(Date.now() / 1000);
 }
 
+/// The SDK prints an HBAR amount with its symbol on the end. The record is read
+/// by machines, so it keeps the number.
+function hbarAmount(value: string | null): string | undefined {
+  if (value === null) return undefined;
+  const match = /-?\d+(\.\d+)?/.exec(value);
+  return match?.[0];
+}
+
 function couponMeta(record: DeploymentRecord): NonNullable<
   NonNullable<NonNullable<DeploymentRecord['series']>['ats']>['coupon']
 > {
@@ -482,7 +490,7 @@ async function pay(context: CouponContext): Promise<void> {
       entry.scheduleCreateTx = scheduled.createTransactionId;
       entry.scheduleMemo = memo;
       entry.executeAt = executeAt.toISOString();
-      entry.createFeeHbar = scheduled.createFeeHbar ?? undefined;
+      entry.createFeeHbar = hbarAmount(scheduled.createFeeHbar);
       entry.links = {
         ...(entry.links ?? {}),
         schedule: scheduled.links.schedule,

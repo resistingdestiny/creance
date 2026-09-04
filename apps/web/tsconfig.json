@@ -10,7 +10,8 @@
     "noEmit": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "creance-active-font": ["./src/lib/fonts.option-a.ts"]
     }
   },
   "include": [

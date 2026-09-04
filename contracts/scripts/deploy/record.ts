@@ -2,6 +2,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { AtsRecord } from '../../ats/record.js';
+
 /// The deployment record. Every step reads it, does only what is missing and
 /// writes it back, so a relay timeout half way through is recovered by running
 /// the same command again. T07 and T12 read the addresses from here rather than
@@ -41,6 +43,10 @@ export interface SeriesRecord {
   maturityAt: number;
   openSeriesTx?: string;
   registerSeriesTx?: string;
+  /// The note issued for this series through the Asset Tokenization Studio,
+  /// written by `pnpm ats:issue`. The vault's own atsToken field is zero in
+  /// this deployment, so this is where the note address is read from.
+  ats?: AtsRecord;
 }
 
 const RECORD_PATH = fileURLToPath(new URL('../../deployments/testnet.json', import.meta.url));

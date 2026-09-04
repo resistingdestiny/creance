@@ -401,3 +401,212 @@ about whether the entity exists.
 The routes themselves are in the client router, and the one this ticket needed
 is `/{network}/schedule/{scheduleId}`, alongside `/{network}/transaction/{id}`
 and `/{network}/transactionsById/{id}`.
+
+## T06, the Asset Tokenization Studio, 4 September 2026
+
+Everything in this section was reproduced against the ATS testnet factory
+0.0.9213391 and resolver 0.0.9212226 with release 8.0.0, on 4 September 2026.
+Source references are to the repository at tag `v.8.0.0-ats`.
+
+### The SDK cannot be driven without a browser wallet or a custody account
+
+`packages/ats/sdk/src/domain/context/network/Wallet.ts` at 8.0.0 defines
+`SupportedWallets` as exactly `METAMASK`, `HWALLETCONNECT`, `DFNS`,
+`FIREBLOCKS` and `AWSKMS`. There is no key based or local signer option.
+`RPCTransactionAdapter.register` delegates to `MetamaskService`, which calls
+`detectEthereumProvider()` and reads `globalThis.window.ethereum`, so it needs a
+browser extension; `HWALLETCONNECT` needs a Reown project id and a wallet
+application to approve each transaction; the other three are third party
+custody services with their own credentials.
+
+The documentation does not say this. The SDK integration guide opens with a
+Node example. A headless script, a CI job or an agent therefore cannot use the
+SDK at all, and has to call the contracts directly with the ABIs from
+`@hashgraph/asset-tokenization-contracts`, which is what this build does.
+
+The adapter does expose `setSignerOrProvider`, so a local signer looks
+achievable without much work upstream; that would be the fix.
+
+### The SDK sends the supply cap unscaled, which caps a six decimal bond at a millionth of a unit
+
+`Bond.create` builds `maxSupply: BigDecimal.fromString(req.numberOfUnits)` and
+`SecurityDataBuilder.buildSecurityData` passes `maxSupply.toString()` straight
+into the factory. `BigDecimal.fromString("100")` with no decimals is the string
+`"100"`, so a request for 100 units of a six decimal bond sends a cap of `100`.
+
+The contract holds balances in the token's own decimals.
+`CapStorageWrapper.isCorrectMaxSupply` is
+`(_maxSupply == 0) || (_amount <= _maxSupply)`, so a cap of `100` on a six
+decimal note allows one ten thousandth of one unit and refuses everything
+above it.
+
+Reproduced: a bond deployed with `maxSupply` 100 and `decimals` 6
+([0.0.10368234](https://hashscan.io/testnet/contract/0.0.10368234)) refuses
+`issueByPartition` of `1000000`, one whole unit, with
+`MaxSupplyReached(100)`
+([transaction](https://hashscan.io/testnet/transaction/0xcf45fe36f004efcc9c5dd71f734a8a7b77b6343f949c7c3d9497d11b52f90fef)).
+The same bond with `maxSupply` `100000000` takes all hundred units
+([0.0.10368240](https://hashscan.io/testnet/contract/0.0.10368240)).
+
+Nothing in the creating-bond guide or the SDK reference says which scale
+`numberOfUnits` is in, and a zero cap silently means no cap at all, so the
+mistake only appears at the first mint.
+
+### Internal KYC and external KYC lists combine as an AND, and the guide says OR
+
+`docs/ats/user-guides/managing-compliance.md` says: "You can use Internal KYC +
+External KYC Lists + SSI simultaneously. Any method granting KYC allows the
+transfer."
+
+`packages/ats/contracts/contracts/domain/core/KycStorageWrapper.sol` says the
+opposite:
+
+    function verifyKycStatus(IKyc.KycStatus _kycStatus, address _account) internal view returns (bool) {
+        bool internalKycValid = !kycStorage().internalKycActivated ||
+            getKycStatusFor(_account, block.timestamp) == _kycStatus;
+        return internalKycValid && ExternalListManagementStorageWrapper.isExternallyGranted(_account, _kycStatus);
+    }
+
+and `ExternalListManagementStorageWrapper.isExternallyGranted` is true only when
+**every** registered external list reports the required status, vacuously true
+when there are none. So:
+
+| Internal KYC | External lists | Effective gate |
+|---|---|---|
+| on | none | internal KYC only |
+| off | one or more | every external list must agree |
+| on | one or more | both, an AND |
+| off | none | no KYC gate at all |
+
+Adding an external list as a fallback to internal KYC makes the gate stricter,
+not looser, and a transfer that worked stops working. This build uses internal
+KYC alone and registers no external list, which is why the blocked transfer in
+docs/ATS.md reverts `InvalidKycStatus` and not something else. The two file
+references above are the whole of the fix: the guide's sentence is wrong.
+
+### The compliance guide's createVC hardhat task does not exist
+
+`managing-compliance.md` tells the reader to run
+`npx hardhat createVC --holder <addr> --privatekey <key>` from
+`packages/ats/contracts`. `packages/ats/contracts/tasks/index.ts` at 8.0.0
+exports `Arguments`, `utils`, `deploy`, `transparentUpgradeableProxy`,
+`businessLogicResolver`, `compile`, `selector`, `generateRegistry` and
+`generateHashes`, and nothing called `createVC`.
+
+What does work, and what this build uses, is the recipe in the SDK's own test
+helper `packages/ats/sdk/__tests__/utils/verifiableCredentials.ts`:
+`createEcdsaCredential` from `@terminal3/ecdsa_vc`. Neither `@terminal3/ecdsa_vc`
+nor `@terminal3/vc_core` appears in any `package.json` in the repository; they
+resolve transitively under `@terminal3/verify_vc` and have to be installed
+explicitly by anyone writing the script.
+
+### The credential verifies with no network access, and no DID registry
+
+Worth recording because the test helper points its `provider` at
+`https://testnet.hashio.io/api` while hard coding a `didRegistryAddress` and a
+`revocationRegistryAddress`, which reads as though verification resolves a DID
+document somewhere. It does not. `createEcdsaCredential` with an empty options
+object produces an `EcdsaSecp256k1Signature2019` credential, and `verifyVc`
+accepts it offline: the proof is an ECDSA signature recovered against the
+address in the issuer DID. The DID method segment is free text as far as
+verification is concerned, so this build issues
+`did:ethr:hedera:<operator address>` rather than the helper's `did:ethr:polygon:`.
+
+Two smaller things in the same library. `verifyVc` reports a bad signature by
+**throwing** `Signature does not correspond to verificationMethod in the proof`,
+not by returning `{ isValid: false }`, so the SDK's own
+`if (!verificationResult.isValid) throw new InvalidVc()` in
+`GrantKycCommandHandler` never runs for the case it names. And a namespace
+containing a colon, for example `hedera:testnet`, is parsed as a chain id and
+fails inside ethers with `invalid BytesLike value`.
+
+### grantKyc stores the credential id and never checks the credential
+
+`packages/ats/contracts/contracts/facets/kyc/Kyc.sol` takes
+`(address _account, string _vcId, uint256 _validFrom, uint256 _validTo, address _issuer)`
+and stores `_vcId` as an opaque string. The only on chain conditions are the
+`ROLE_KYC` role, a registered issuer, a not yet granted account and
+`validFrom <= validTo` with `validTo >= block.timestamp`. Every claim about the
+credential itself is checked off chain, in the SDK, before the call.
+
+That is worth stating plainly because a reader of the contract will assume the
+verifiable credential is verified by the chain. It is not. Any caller with
+`ROLE_KYC` can pass any string. A build that bypasses the SDK, as this one does,
+has to run `verifyVc` itself or the on chain record points at nothing.
+
+### The SDK derives validFrom and validTo by taking the first ten characters of a millisecond timestamp
+
+`GrantKycCommandHandler` calls
+`BigDecimal.fromString(updatedSignedCredential.validFrom.substring(0, 10))`,
+where the value is a millisecond timestamp rendered as a decimal string. It is
+a string truncation standing in for a division by a thousand, and it holds only
+while millisecond timestamps have exactly thirteen digits. `Terminal3Vc` also
+defaults a missing `validUntil` to a hundred years from now rather than to the
+credential's own expiry, which is why the grants in docs/ATS.md carry
+`validTo` 4942152752, in the year 2126.
+
+### A partial freeze leaves the partition balance, so balanceOf reports only what is spendable
+
+`ERC3643StorageWrapper.freezeTokens` increments the frozen counters and then
+calls `ERC1410StorageWrapper.reducePartitionOnly` and
+`ERC20StorageWrapper.performTransfer(_account, address(0), _amount)`. So a
+freeze of 45 units on a holder of 50 leaves `balanceOf` and
+`balanceOfByPartition` reading 5, and emits an ERC-20 transfer to the zero
+address that looks exactly like a burn.
+
+Measured on the note: before the freeze `balanceOf(0xCAa1184c...ce51e)` was
+`50000000`; after
+[freezePartialTokens](https://hashscan.io/testnet/transaction/0xeecbf14f96b9923b452966dc7fa31a34c890d8dea1f928fa9692922653fe7891)
+of `45000000` it was `5000000` with `getFrozenTokens` at `45000000`; after
+[unfreezePartialTokens](https://hashscan.io/testnet/transaction/0x0edc8a9a1ad5459e7603a17e4efddd6cc3a4f1ea149c0c37eb95c1ac59a6b9f4)
+it was back to `50000000`.
+
+A holder's position is `balanceOf` plus `getFrozenTokens`. Any screen or
+indexer that reports `balanceOf` as the holding will understate a frozen holder
+and, if it follows transfer events, will record the freeze as a burn.
+
+### The coupon snapshot id stays zero after the record date
+
+The corporate actions guide describes the record date as taking a holder
+snapshot bound to the coupon by `snapshotId`. On the note, five minutes after
+the record date of coupon 1 had passed, `getCoupon(1)` still returned
+`snapshotId` `0`, while `getCouponFor(1, holder)` returned
+`recordDateReached true` and a non zero entitlement for both holders. The
+snapshot is taken lazily by the next operation that touches the balance, so
+`snapshotId` is not the signal that the record date has been reached.
+`recordDateReached` is.
+
+### The coupon entitlement is a fraction in whole currency units, not in token units
+
+`CouponStorageWrapper._calculateCouponAmount` returns
+
+    numerator   = balance * nominalValue / 10^nominalValueDecimals * rate * (endDate - startDate)
+    denominator = 10^(decimals + rateDecimals) * 365 days
+
+so both the token decimals and the rate decimals are divided out and what comes
+back is an amount in whole currency units. On the note,
+`1036800000000000000 / 3153600000000000` is `328.767...` United States dollars,
+not `328767123` of anything. The caller multiplies by the settlement token's own
+scale. The contract comment says the fraction defers rounding to the caller; it
+does not say which unit the fraction is in, and getting that wrong is a factor
+of a million.
+
+### A bond deployment costs about eight HBAR, not the fifty to two hundred the guide quotes
+
+`docs/ats/user-guides/creating-bond.md` puts a bond deployment at 50 to 200
+HBAR. Measured from the mirror node's `charged_tx_fee` on 4 September 2026:
+7.6332993 HBAR for the throwaway and 7.7055066 HBAR for the series, at
+6,939,363 and 7,005,006 gas against a 15,000,000 limit. Useful in the other
+direction too: the SDK's `GAS.CREATE_BOND_ST` of 15,000,000 is the whole per
+transaction cap, so a deployment cannot be batched with anything else.
+
+### The factory takes the resolver as an argument, so there is no pair to get wrong
+
+`IFactory.deployBond` carries `security.resolver` in its own request. The
+factory is not bound to a resolver at deployment, which means the two testnet
+address sets in the repository are not a matched pair that has to be discovered:
+the caller chooses the resolver, and the only requirement is that it has the
+8.0.0 bond configuration registered. `getLatestVersionByConfiguration(0x00..02)`
+on 0.0.9212226 returns `1`, and 0.0.9213391 deployed against it twice without
+complaint. The stale `deployed-addresses.md` page is still worth fixing, but the
+failure it would have caused is a missing configuration, not a mismatch.

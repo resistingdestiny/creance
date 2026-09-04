@@ -349,5 +349,110 @@ premiums themselves.
 
 ## Asset Tokenization Studio
 
-Filled in by T06. The Displacement Bond Note series ids, the ERC-3643 token
-address, the identity registry and the KYC grants.
+The Displacement Bond Note for the demo series is an Asset Tokenization Studio
+bond, release 8.0.0, deployed by the ATS testnet factory. It is a **contract,
+not an HTS token**: it has a contract id and an EVM address, it has no token id,
+its HashScan links are `/contract/`, and nobody associates with it. Issued and
+configured by `pnpm ats:issue`; the step by step run through with a link for
+every transaction is docs/ATS.md, and the machine readable copy is
+`series.ats` in `contracts/deployments/testnet.json`.
+
+### The note
+
+| Field | Value |
+|---|---|
+| Series id | ODI-COMP-2026-01 |
+| Contract id | [0.0.10368240](https://hashscan.io/testnet/contract/0.0.10368240) |
+| EVM address | `0xBB14C072d2861B944C18e5f873C5aEa71c2F1f36` |
+| Name, symbol | Creance Displacement Bond Note ODI-COMP-2026-01, CDBN01 |
+| Factory | [0.0.9213391](https://hashscan.io/testnet/contract/0.0.9213391) `0xd1f118a40f3b02883d35909ef2517e7edd78379d` |
+| Resolver | [0.0.9212226](https://hashscan.io/testnet/contract/0.0.9212226) `0xba2d5fc2083a0b8f164c50e65d782087fba18e0a` |
+| Configuration | bond `0x00...02`, version 1 |
+| ISIN | `ZZODIC55S1Q6`, a generated test value, see docs/ATS.md |
+| Decimals | 6, the same scale as TUSD |
+| Units, nominal | 100 units at 1,000 USD, principal 100,000 |
+| Supply cap | `100000000`, which is 100 units at 6 decimals |
+| Maturity | 1820082162, the same value the vault froze for the series |
+| Deploy transaction | [0x226d62fd...49ad398](https://hashscan.io/testnet/transaction/0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398) |
+
+Compliance switches, all set at creation and two of them irreversible: internal
+KYC on, clearing off, not controllable, no control list, no external KYC list,
+no external T-REX compliance module or identity registry, Regulation S.
+
+A throwaway bond
+[0.0.10368234](https://hashscan.io/testnet/contract/0.0.10368234) was deployed
+first to prove the factory and the resolver. It is not part of the demo and
+holds no supply.
+
+### Roles on the note
+
+All eight are held by the operator 0.0.10362512. The hashes are the 8.0.0
+values, which changed in that release.
+
+| Role | Purpose |
+|---|---|
+| ROLE_SSI_MANAGER | registers the credential issuer |
+| ROLE_KYC | grants and revokes KYC |
+| ROLE_ISSUER | mints to a noteholder |
+| ROLE_CORPORATE_ACTION | declares a coupon |
+| ROLE_PAUSER | stops every transfer |
+| ROLE_FREEZE_MANAGER | freezes part of a holding |
+| ROLE_MATURITY_REDEEMER | burns a holding at maturity |
+| ROLE_MATURITY_MANAGER | moves the maturity date, forward only |
+
+### Noteholders
+
+| Holder | Account | Balance | Units | KYC |
+|---|---|---|---|---|
+| investor-1 | [0.0.10366460](https://hashscan.io/testnet/account/0.0.10366460) | `50000000` | 50 | granted, `urn:uuid:92801b75-ca3c-4617-a044-9533154baffe` |
+| investor-2 | [0.0.10366462](https://hashscan.io/testnet/account/0.0.10366462) | `50000000` | 50 | granted, `urn:uuid:f2323f3c-423d-44e2-b006-55fb7816f13c` |
+
+Total supply `100000000`, exactly the cap. The credential issuer is the
+operator `0x639444758B987b4D938c57169a1F61A62b2d009C`, registered with
+[addIssuer](https://hashscan.io/testnet/transaction/0x7a1a32e3178bea2e894552cd3822e1006933abe6e83c4a9098265bd052f89230).
+Removing an issuer revokes every grant it made, silently, so that registration
+stands for the life of the series.
+
+### The compliance demonstration
+
+The same transfer of 10 units from investor-1 to investor-2, before and after
+the KYC grant, with nothing else changed:
+
+- [refused](https://hashscan.io/testnet/transaction/0x0791d049fa5ab514f4af143a5f652973df0f6a22f0a288d7dd39334529970cf1) with `InvalidKycStatus`
+- [the grant](https://hashscan.io/testnet/transaction/0xecdc481155d644bfb8a1254b39d040f0751cfc3e06456bbef878c88322024f9a)
+- [settled](https://hashscan.io/testnet/transaction/0xce6d12fcf5def0015a0cc15806a3a315e4f0d3dddfb108b50798ebe3b93d911c)
+
+Pause and freeze each block a transfer that would otherwise pass:
+[pause](https://hashscan.io/testnet/transaction/0xbeb15e8acfeac4008d0116d3c85a1032d3f5452773056a90b32f3cf1d72a86db),
+[refused with IsPaused](https://hashscan.io/testnet/transaction/0xd6e1aa8e3839f9afab72295f34ba2769663c48aef0800f08565fd7877315370a),
+[unpause](https://hashscan.io/testnet/transaction/0x30a3eecd2db8868242106f589536d4783000527712490904ffae7a84fada7f3b),
+[freeze](https://hashscan.io/testnet/transaction/0xeecbf14f96b9923b452966dc7fa31a34c890d8dea1f928fa9692922653fe7891),
+[refused with InsufficientBalance](https://hashscan.io/testnet/transaction/0x04fbd62b599b3b0871ca85dacef17fb59df286400feb37496f25aa36b7706539),
+[unfreeze](https://hashscan.io/testnet/transaction/0x0edc8a9a1ad5459e7603a17e4efddd6cc3a4f1ea149c0c37eb95c1ac59a6b9f4).
+
+A freeze leaves the partition balance, so while tokens are frozen `balanceOf`
+reports only the spendable part and a holder's position is `balanceOf` plus
+`getFrozenTokens`. Any screen that shows a holding has to add the two.
+
+### The first coupon
+
+Coupon id `1`,
+[declared](https://hashscan.io/testnet/transaction/0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804)
+at 8 percent a year over a real calendar month, 4 September to 4 October 2026,
+with the record date at 1788553283 and the execution date at 1788553583. After
+the record date, `getCouponFor` returns `1036800000000000000 / 3153600000000000`
+for each holder, which is 328.767123 USD, or `328767123` TUSD minor units.
+
+The coupon action declares and snapshots. It never moves money: there is no
+settlement token in the coupon facet. The payment is a Scheduled Transaction
+from the vault's premium account, which is T14.
+
+### Verification
+
+The note is a proxy the ATS factory deployed, dispatching through the Business
+Logic Resolver to facets this build neither compiled nor deployed, so there is
+nothing of ours to submit for it. Sourcify, which is where HashScan reads
+verification from on chain 296, has no match for the note, the throwaway, the
+ATS factory or the ATS resolver as of 4 September 2026. `CollateralVault` and
+`CoverPool`, which this build did write, are both exact matches and are linked
+above.

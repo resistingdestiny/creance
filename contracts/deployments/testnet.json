@@ -53,7 +53,199 @@
     "payoutMode": "full",
     "maturityAt": 1820082162,
     "openSeriesTx": "0x2c042123014090e5b40ad3142518397ecf9d377471cde59fd75c7ee2138432d0",
-    "registerSeriesTx": "0x15e833ad75e2f1ae5ef38956959ac13d6b76eba7906ee9e6ba6b48895675bfda"
+    "registerSeriesTx": "0x15e833ad75e2f1ae5ef38956959ac13d6b76eba7906ee9e6ba6b48895675bfda",
+    "ats": {
+      "version": "8.0.0",
+      "tag": "v.8.0.0-ats",
+      "factoryId": "0.0.9213391",
+      "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+      "resolverId": "0.0.9212226",
+      "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+      "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+      "steps": {
+        "fund-investor-1": {
+          "tx": "0x6c0dca725bd91ee40f591d705de62ce773442aa9c1d8427244b69d7937ec6085",
+          "result": "investor-1 topped up to 12 HBAR so it can pay for its own calls",
+          "gasUsed": 21000
+        },
+        "fund-investor-2": {
+          "tx": "0xef4a4786ef91bce7cd42d5b90ec1b1837af81bc0c984ef1e99382d19ca17a31c",
+          "result": "investor-2 topped up to 12 HBAR so it can pay for its own calls",
+          "gasUsed": 21000
+        },
+        "throwaway": {
+          "tx": "0x0648e03012c7ae5060411c15cccf622b402d15261887b4efb9efc774cc084a64",
+          "result": "the example environment factory pair deploys an 8.0.0 bond at config version 1",
+          "gasUsed": 6939363
+        },
+        "throwaway-max-supply": {
+          "tx": "0xcf45fe36f004efcc9c5dd71f734a8a7b77b6343f949c7c3d9497d11b52f90fef",
+          "revert": "MaxSupplyReached(100)",
+          "result": "one whole unit against an unscaled cap of 100 is refused"
+        },
+        "issue": {
+          "tx": "0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398",
+          "result": "series ODI-COMP-2026-01 issued as an ATS bond, principal 100000, internal KYC on, clearing off, not controllable, Regulation S",
+          "gasUsed": 7005006
+        },
+        "roles": {
+          "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER, ROLE_CORPORATE_ACTION, ROLE_PAUSER, ROLE_FREEZE_MANAGER, ROLE_MATURITY_REDEEMER, ROLE_MATURITY_MANAGER"
+        },
+        "issuer": {
+          "tx": "0x7a1a32e3178bea2e894552cd3822e1006933abe6e83c4a9098265bd052f89230",
+          "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+          "gasUsed": 126977
+        },
+        "kyc-investor-1": {
+          "tx": "0x44e5f93d56d72350baf85cea6bd5a6dc1dbe0054f9f87a598e592eb7c4ebf5b5",
+          "result": "getKycStatusFor(0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931) reads GRANTED (1)",
+          "gasUsed": 273905
+        },
+        "mint-investor-1": {
+          "tx": "0xc58192c2df8c6160828eacb1e9951b3291a63eb426e78870421b3b9fef96b98d",
+          "result": "balanceOf(investor-1) 0 to 60000000, 60 units",
+          "gasUsed": 475349
+        },
+        "transfer-blocked": {
+          "tx": "0x0791d049fa5ab514f4af143a5f652973df0f6a22f0a288d7dd39334529970cf1",
+          "revert": "InvalidKycStatus",
+          "result": "10 units from investor-1 to investor-2 refused while getKycStatusFor(0xcaa1184cd59b9296f757efc7303a10ecec6ce51e) reads NOT_GRANTED (0); internal KYC is the gate"
+        },
+        "kyc-investor-2": {
+          "tx": "0xecdc481155d644bfb8a1254b39d040f0751cfc3e06456bbef878c88322024f9a",
+          "result": "getKycStatusFor(0xcaa1184cd59b9296f757efc7303a10ecec6ce51e) reads GRANTED (1)",
+          "gasUsed": 256805
+        },
+        "transfer-allowed": {
+          "tx": "0xce6d12fcf5def0015a0cc15806a3a315e4f0d3dddfb108b50798ebe3b93d911c",
+          "result": "the same 10 units, the same parties, now settle: balanceOf(investor-2) 0 to 10000000",
+          "gasUsed": 473562
+        },
+        "mint-investor-2": {
+          "tx": "0x9bee9bdcaf06955764bb38928e72c2596688591608f680de0da1ca66fcd113bd",
+          "result": "balanceOf(investor-2) 10000000 to 50000000, 50 units",
+          "gasUsed": 214419
+        },
+        "pause": {
+          "tx": "0xbeb15e8acfeac4008d0116d3c85a1032d3f5452773056a90b32f3cf1d72a86db",
+          "result": "paused() reads true, under ROLE_PAUSER held by the operator",
+          "gasUsed": 79287
+        },
+        "pause-blocks-transfer": {
+          "tx": "0xd6e1aa8e3839f9afab72295f34ba2769663c48aef0800f08565fd7877315370a",
+          "revert": "IsPaused",
+          "result": "one unit between two KYC granted noteholders is refused while the note is paused"
+        },
+        "unpause": {
+          "tx": "0x30a3eecd2db8868242106f589536d4783000527712490904ffae7a84fada7f3b",
+          "result": "paused() reads false again and transfers resume",
+          "gasUsed": 55060
+        },
+        "freeze": {
+          "tx": "0xeecbf14f96b9923b452966dc7fa31a34c890d8dea1f928fa9692922653fe7891",
+          "result": "getFrozenTokens(investor-2) reads 45000000 and balanceOf drops from 50000000 to 5000000: a freeze leaves the partition balance, so the position is balanceOf plus getFrozenTokens",
+          "gasUsed": 162283
+        },
+        "freeze-blocks-transfer": {
+          "tx": "0x04fbd62b599b3b0871ca85dacef17fb59df286400feb37496f25aa36b7706539",
+          "revert": "InsufficientBalance(0xCAa1184cd59B9296f757EfC7303a10eCec6ce51e, 5000000, 6000000, 0x0000000000000000000000000000000000000000000000000000000000000001)",
+          "result": "6000000 is one unit more than the 5000000 left unfrozen and is refused"
+        },
+        "unfreeze": {
+          "tx": "0x0edc8a9a1ad5459e7603a17e4efddd6cc3a4f1ea149c0c37eb95c1ac59a6b9f4",
+          "result": "getFrozenTokens(investor-2) reads 0 and balanceOf is back to 50000000",
+          "gasUsed": 123218
+        },
+        "coupon": {
+          "tx": "0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804",
+          "result": "coupon 1 declared at 8 percent a year over 1788552983 to 1791144983, record 1788553283, execution 1788553583",
+          "gasUsed": 628757
+        },
+        "verify": {
+          "result": "name Creance Displacement Bond Note ODI-COMP-2026-01, symbol CDBN01, decimals 6, totalSupply 100000000, getMaturityDate 1820082162, isInternalKycActivated true, isClearingActivated false, paused false; investor-1 50000000, investor-2 50000000; getKycStatusFor(policyholder-3) 0"
+        },
+        "coupon-entitlement": {
+          "result": "snapshotId 0, isDisabled false; investor-1 balance 50000000, 1036800000000000000/3153600000000000 = 328767123 minor units, recordDateReached true; investor-2 balance 50000000, 1036800000000000000/3153600000000000 = 328767123 minor units, recordDateReached true"
+        }
+      },
+      "configVersion": 1,
+      "throwaway": {
+        "contractId": "0.0.10368234",
+        "address": "0x3D49836c6d26Bdb7922694747455d063E9FDd823",
+        "name": "Creance ATS Probe",
+        "symbol": "CPROBE",
+        "isin": "ZZT06TRK6CM7",
+        "decimals": 6,
+        "units": "100",
+        "nominalValue": "1000",
+        "principal": "100000",
+        "currency": "0x555344",
+        "maxSupply": "100",
+        "startingDate": 1788552658,
+        "maturityDate": 1788639058,
+        "internalKycActivated": false,
+        "regulation": "Regulation S",
+        "deployTx": "0x0648e03012c7ae5060411c15cccf622b402d15261887b4efb9efc774cc084a64",
+        "gasUsed": 6939363,
+        "finding": "the supply cap is a raw balance, not a unit count: with maxSupply 100 on a 6 decimal note, issuing one whole unit reverts MaxSupplyReached(100)"
+      },
+      "note": {
+        "contractId": "0.0.10368240",
+        "address": "0xBB14C072d2861B944C18e5f873C5aEa71c2F1f36",
+        "name": "Creance Displacement Bond Note ODI-COMP-2026-01",
+        "symbol": "CDBN01",
+        "isin": "ZZODIC55S1Q6",
+        "decimals": 6,
+        "units": "100",
+        "nominalValue": "1000",
+        "principal": "100000",
+        "currency": "0x555344",
+        "maxSupply": "100000000",
+        "startingDate": 1788552681,
+        "maturityDate": 1820082162,
+        "internalKycActivated": true,
+        "regulation": "Regulation S",
+        "deployTx": "0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398",
+        "gasUsed": 7005006
+      },
+      "roles": {
+        "ROLE_SSI_MANAGER": "0xad70c0dadfad9d50c9f2a1a98aee3f920bcce6a8bb237baaceafc69ca8e3cfee",
+        "ROLE_KYC": "0xbc18bea44c54733d43032050742ea766b2f4ee0fbccc3f40c538933b5c3cc06a",
+        "ROLE_ISSUER": "0xa53b622762f994432f0d9dd93a2c92c3d4e5dd77670b8d604c7ab180067cfe9a",
+        "ROLE_CORPORATE_ACTION": "0x89b15399594efca317b379d0a3e2962a6cc22006e076ede4887959d2b1a95a22",
+        "ROLE_PAUSER": "0xbe4e8a52cdd90d452582a2314005d317169d0d37b3d74c61566f10640025bac1",
+        "ROLE_FREEZE_MANAGER": "0x486f13c2a6e4fb6226613ee6f45128c0f7b87ac6fd04b0c57fd772cc9884da49",
+        "ROLE_MATURITY_REDEEMER": "0xe72bc61cdbcb71e76ba91b76d1dbf32e8754d6370d7df76937fd75f1cddf9e52",
+        "ROLE_MATURITY_MANAGER": "0x39ab7a21180b67c4f47ace2156446c05c04438f4aa3015e94a7bfc3330a9a874"
+      },
+      "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+      "kyc": {
+        "investor-1": {
+          "vcId": "urn:uuid:92801b75-ca3c-4617-a044-9533154baffe",
+          "validFrom": 1788552752,
+          "validTo": 4942152752,
+          "tx": "0x44e5f93d56d72350baf85cea6bd5a6dc1dbe0054f9f87a598e592eb7c4ebf5b5"
+        },
+        "investor-2": {
+          "vcId": "urn:uuid:f2323f3c-423d-44e2-b006-55fb7816f13c",
+          "validFrom": 1788552788,
+          "validTo": 4942152788,
+          "tx": "0xecdc481155d644bfb8a1254b39d040f0751cfc3e06456bbef878c88322024f9a"
+        }
+      },
+      "coupon": {
+        "id": "1",
+        "ratePercent": 8,
+        "rate": "8",
+        "rateDecimals": 2,
+        "recordTimestamp": 1788553283,
+        "executionTimestamp": 1788553583,
+        "startTimestamp": 1788552983,
+        "endTimestamp": 1791144983,
+        "fixingTimestamp": 1788553283,
+        "tx": "0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804"
+      }
+    }
   },
   "verification": {
     "CollateralVault": "https://hashscan.io/testnet/contract/0xD0473d355ECB299F2ECc0d92124bc8CF63554e60",

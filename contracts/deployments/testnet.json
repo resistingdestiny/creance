@@ -61,7 +61,74 @@
       "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
       "resolverId": "0.0.9212226",
       "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
-      "configId": "0x0000000000000000000000000000000000000000000000000000000000000002"
+      "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+      "steps": {
+        "fund-investor-1": {
+          "tx": "0x1cc65ba0d81f8700a1884130adcd92d27514d86fd995cbe8170a435d219b26fc",
+          "result": "investor-1 topped up to 12 HBAR so it can pay for its own calls",
+          "gasUsed": 21000
+        },
+        "fund-investor-2": {
+          "tx": "0x532fbe8e8aac41b1a02d9ecc46eab106be086e26a0dd653237d477e6c3063325",
+          "result": "investor-2 topped up to 12 HBAR so it can pay for its own calls",
+          "gasUsed": 21000
+        },
+        "throwaway": {
+          "tx": "0x0648e03012c7ae5060411c15cccf622b402d15261887b4efb9efc774cc084a64",
+          "result": "the example environment factory pair deploys an 8.0.0 bond at config version 1",
+          "gasUsed": 6939363
+        },
+        "throwaway-max-supply": {
+          "tx": "0xcf45fe36f004efcc9c5dd71f734a8a7b77b6343f949c7c3d9497d11b52f90fef",
+          "revert": "MaxSupplyReached(100)",
+          "result": "one whole unit against an unscaled cap of 100 is refused"
+        },
+        "issue": {
+          "tx": "0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398",
+          "result": "series ODI-COMP-2026-01 issued as an ATS bond, principal 100000, internal KYC on, clearing off, not controllable, Regulation S",
+          "gasUsed": 7005006
+        }
+      },
+      "configVersion": 1,
+      "throwaway": {
+        "contractId": "0.0.10368234",
+        "address": "0x3D49836c6d26Bdb7922694747455d063E9FDd823",
+        "name": "Creance ATS Probe",
+        "symbol": "CPROBE",
+        "isin": "ZZT06TRK6CM7",
+        "decimals": 6,
+        "units": "100",
+        "nominalValue": "1000",
+        "principal": "100000",
+        "currency": "0x555344",
+        "maxSupply": "100",
+        "startingDate": 1788552658,
+        "maturityDate": 1788639058,
+        "internalKycActivated": false,
+        "regulation": "Regulation S",
+        "deployTx": "0x0648e03012c7ae5060411c15cccf622b402d15261887b4efb9efc774cc084a64",
+        "gasUsed": 6939363,
+        "finding": "the supply cap is a raw balance, not a unit count: with maxSupply 100 on a 6 decimal note, issuing one whole unit reverts MaxSupplyReached(100)"
+      },
+      "note": {
+        "contractId": "0.0.10368240",
+        "address": "0xBB14C072d2861B944C18e5f873C5aEa71c2F1f36",
+        "name": "Creance Displacement Bond Note ODI-COMP-2026-01",
+        "symbol": "CDBN01",
+        "isin": "ZZODIC55S1Q6",
+        "decimals": 6,
+        "units": "100",
+        "nominalValue": "1000",
+        "principal": "100000",
+        "currency": "0x555344",
+        "maxSupply": "100000000",
+        "startingDate": 1788552681,
+        "maturityDate": 1820082162,
+        "internalKycActivated": true,
+        "regulation": "Regulation S",
+        "deployTx": "0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398",
+        "gasUsed": 7005006
+      }
     }
   },
   "verification": {

@@ -3,7 +3,10 @@ packages:
   - "packages/*"
   - "contracts"
 
-# esbuild ships a platform binary through a postinstall script. pnpm 11 blocks
-# build scripts unless they are listed here, and vitest needs esbuild to run.
+# pnpm 11 blocks postinstall scripts unless they are listed here.
+# esbuild ships a platform binary that way and vitest needs it to run.
+# protobufjs also ships one, but the Hiero SDK imports and runs without it,
+# so it stays off.
 allowBuilds:
   esbuild: true
+  protobufjs: false

@@ -185,7 +185,7 @@ contract CoverPool is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         uint64 hcsReceiptSeq,
         uint256 activeExposure
     );
-    event PremiumRecorded(bytes32 indexed policyId, uint32 period, uint32 paidThroughMonth);
+    event PremiumRecorded(bytes32 indexed policyId, uint32 period, uint32 paidThroughPeriod);
     event PolicyLapsed(bytes32 indexed policyId, uint256 activeExposure);
     event PolicyExpired(bytes32 indexed policyId, uint256 activeExposure);
     event ObservationSubmitted(
@@ -220,7 +220,7 @@ contract CoverPool is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         bytes32 packetHash,
         bytes32 decisionHash
     );
-    event WindowClosed(bytes32 indexed seriesId, uint256 released, uint32 lastOpenMonth);
+    event WindowClosed(bytes32 indexed seriesId, uint256 released, uint32 lastOpenPeriod);
 
     error ZeroAddress();
     error SeriesUnknown(bytes32 seriesId);
@@ -383,7 +383,7 @@ contract CoverPool is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         if (p.status == PolicyStatus.None) revert PolicyUnknown(policyId);
         uint32 m = MonthLib.toIndex(period);
         if (m > p.paidThroughMonth) p.paidThroughMonth = m;
-        emit PremiumRecorded(policyId, period, p.paidThroughMonth);
+        emit PremiumRecorded(policyId, period, MonthLib.toYyyymm(p.paidThroughMonth));
     }
 
     /// @notice Lapse a policy whose premium is unpaid past the grace period.
@@ -553,7 +553,7 @@ contract CoverPool is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         if (c.separationAt > termEndsAt) revert SeparationAfterTerm(c.separationAt, termEndsAt);
 
         uint32 separationMonth = MonthLib.monthIndexOf(c.separationAt);
-        (bool inWindow, uint32 qualifyingMonth) = isInLossWindow(p.seriesId, separationMonth);
+        (bool inWindow, uint32 qualifyingMonth) = _isInLossWindow(p.seriesId, separationMonth);
         if (!inWindow) revert SeparationOutsideLossWindow(p.seriesId, separationMonth);
 
         uint64 deadline = _claimDeadline(p.seriesId, s, c.separationAt, qualifyingMonth);
@@ -639,16 +639,30 @@ contract CoverPool is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         if (remaining > 0) vault.release(seriesId, remaining);
 
         emit SeriesStatusChanged(seriesId, uint8(SeriesStatus.ClaimsOpen), uint8(previous));
-        emit WindowClosed(seriesId, remaining, s.lastOpenMonth);
+        emit WindowClosed(seriesId, remaining, MonthLib.toYyyymm(s.lastOpenMonth));
     }
 
     // ----------------------------------------------------------------- views
 
-    /// @notice The index key. A separation in month m qualifies when some month
-    /// o with m <= o <= m + lookback is open, and the qualifying month is the
-    /// earliest such month.
-    function isInLossWindow(bytes32 seriesId, uint32 separationMonth)
-        public
+    /// @notice The index key, in the YYYYMM form every caller outside this
+    /// contract uses. A separation in month m qualifies when some month o with
+    /// m <= o <= m + lookback is open, and the qualifying month is the earliest
+    /// such month. Returns period 0 when none qualifies.
+    function isInLossWindow(bytes32 seriesId, uint32 separationPeriod)
+        external
+        view
+        returns (bool inWindow, uint32 qualifyingPeriod)
+    {
+        uint32 qualifying;
+        (inWindow, qualifying) = _isInLossWindow(seriesId, MonthLib.toIndex(separationPeriod));
+        return (inWindow, inWindow ? MonthLib.toYyyymm(qualifying) : 0);
+    }
+
+    /// @dev Three mapping reads and no loop over the open month list: the money
+    /// path must stay constant bounded, which is why lookbackMonths is capped
+    /// at registration.
+    function _isInLossWindow(bytes32 seriesId, uint32 separationMonth)
+        private
         view
         returns (bool, uint32 qualifyingMonth)
     {
@@ -666,7 +680,7 @@ contract CoverPool is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         SeriesTerms storage s = _series[seriesId];
         if (s.status == SeriesStatus.None) revert SeriesUnknown(seriesId);
         (bool inWindow, uint32 qualifyingMonth) =
-            isInLossWindow(seriesId, MonthLib.monthIndexOf(separationAt));
+            _isInLossWindow(seriesId, MonthLib.monthIndexOf(separationAt));
         if (!inWindow) return 0;
         return _claimDeadline(seriesId, s, separationAt, qualifyingMonth);
     }
@@ -689,9 +703,9 @@ contract CoverPool is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         Policy storage p = _policies[policyId];
         if (p.status == PolicyStatus.None) revert PolicyUnknown(policyId);
         SeriesTerms storage s = _series[p.seriesId];
-        (bool inWindow, uint32 qualifyingMonth) =
-            isInLossWindow(p.seriesId, MonthLib.monthIndexOf(separationAt));
-        if (!inWindow) revert SeparationOutsideLossWindow(p.seriesId, MonthLib.monthIndexOf(separationAt));
+        uint32 separationMonth = MonthLib.monthIndexOf(separationAt);
+        (bool inWindow, uint32 qualifyingMonth) = _isInLossWindow(p.seriesId, separationMonth);
+        if (!inWindow) revert SeparationOutsideLossWindow(p.seriesId, separationMonth);
         return _payout(p.seriesId, s, p.limit, qualifyingMonth);
     }
 
@@ -723,8 +737,15 @@ contract CoverPool is AccessControl, Pausable, ReentrancyGuard, EIP712 {
         return principal > s.activeExposure ? principal - s.activeExposure : 0;
     }
 
-    function openMonths(bytes32 seriesId) external view returns (uint32[] memory) {
-        return _openMonths[seriesId];
+    /// @notice Every month this series has ever opened, in YYYYMM order. The
+    /// history is permanent: it is what the index page renders and what makes
+    /// "this cover has never paid for this occupation" a checkable statement.
+    function openMonths(bytes32 seriesId) external view returns (uint32[] memory periods) {
+        uint32[] storage months = _openMonths[seriesId];
+        periods = new uint32[](months.length);
+        for (uint256 i = 0; i < months.length; ++i) {
+            periods[i] = MonthLib.toYyyymm(months[i]);
+        }
     }
 
     function observationOf(bytes32 seriesId, uint32 period)

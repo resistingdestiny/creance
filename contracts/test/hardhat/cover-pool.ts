@@ -288,9 +288,13 @@ describe('CoverPool', () => {
   describe('premiums, lapse and expiry', () => {
     it('advances the paid through month and never moves it backwards', async () => {
       const { pool, api, baseMonth } = f;
-      await pool.connect(api).recordPremium(POLICY_IDS[0], yyyymmOf(baseMonth + 2));
+      await expect(pool.connect(api).recordPremium(POLICY_IDS[0], yyyymmOf(baseMonth + 2)))
+        .to.emit(pool, 'PremiumRecorded')
+        .withArgs(POLICY_IDS[0], yyyymmOf(baseMonth + 2), yyyymmOf(baseMonth + 2));
       expect((await pool.policyOf(POLICY_IDS[0])).paidThroughMonth).to.equal(baseMonth + 2);
-      await pool.connect(api).recordPremium(POLICY_IDS[0], yyyymmOf(baseMonth + 1));
+      await expect(pool.connect(api).recordPremium(POLICY_IDS[0], yyyymmOf(baseMonth + 1)))
+        .to.emit(pool, 'PremiumRecorded')
+        .withArgs(POLICY_IDS[0], yyyymmOf(baseMonth + 1), yyyymmOf(baseMonth + 2));
       expect((await pool.policyOf(POLICY_IDS[0])).paidThroughMonth).to.equal(baseMonth + 2);
     });
 
@@ -496,7 +500,10 @@ describe('CoverPool', () => {
       await observe(baseMonth + 3, LEVEL_OPENING, 2n);
       expect((await pool.seriesOf(SERIES_ID)).status).to.equal(STATUS_CLAIMS_OPEN);
       expect(await vault.reservedOf(SERIES_ID)).to.equal(reserved);
-      expect(await pool.openMonths(SERIES_ID)).to.deep.equal([BigInt(baseMonth), BigInt(baseMonth + 3)]);
+      expect(await pool.openMonths(SERIES_ID)).to.deep.equal([
+        BigInt(yyyymmOf(baseMonth)),
+        BigInt(yyyymmOf(baseMonth + 3)),
+      ]);
     });
   });
 
@@ -508,12 +515,12 @@ describe('CoverPool', () => {
       await observe(open, LEVEL_OPENING);
 
       for (const offset of [0, 1, 2]) {
-        const [inWindow, qualifying] = await pool.isInLossWindow(SERIES_ID, open - offset);
+        const [inWindow, qualifying] = await pool.isInLossWindow(SERIES_ID, yyyymmOf(open - offset));
         expect(inWindow, `offset ${offset}`).to.equal(true);
-        expect(qualifying).to.equal(BigInt(open));
+        expect(qualifying).to.equal(BigInt(yyyymmOf(open)));
       }
-      expect((await pool.isInLossWindow(SERIES_ID, open - 3))[0]).to.equal(false);
-      expect((await pool.isInLossWindow(SERIES_ID, open + 1))[0]).to.equal(false);
+      expect((await pool.isInLossWindow(SERIES_ID, yyyymmOf(open - 3)))[0]).to.equal(false);
+      expect((await pool.isInLossWindow(SERIES_ID, yyyymmOf(open + 1)))[0]).to.equal(false);
     });
 
     it('returns the earliest qualifying month when two months are open', async () => {
@@ -521,9 +528,9 @@ describe('CoverPool', () => {
       await networkHelpers.time.increaseTo(startOfMonth(baseMonth + 4) + DAY);
       await observe(baseMonth + 2, LEVEL_OPENING);
       await observe(baseMonth + 3, LEVEL_OPENING, 2n);
-      const [inWindow, qualifying] = await pool.isInLossWindow(SERIES_ID, baseMonth + 1);
+      const [inWindow, qualifying] = await pool.isInLossWindow(SERIES_ID, yyyymmOf(baseMonth + 1));
       expect(inWindow).to.equal(true);
-      expect(qualifying).to.equal(BigInt(baseMonth + 2));
+      expect(qualifying).to.equal(BigInt(yyyymmOf(baseMonth + 2)));
     });
   });
 
@@ -817,13 +824,13 @@ describe('CoverPool', () => {
 
       await expect(pool.connect(outsider).closeWindow(SERIES_ID))
         .to.emit(pool, 'WindowClosed')
-        .withArgs(SERIES_ID, tusd(15_000), separationMonth);
+        .withArgs(SERIES_ID, tusd(15_000), yyyymmOf(separationMonth));
 
       expect(await vault.reservedOf(SERIES_ID)).to.equal(0n);
       expect((await pool.seriesOf(SERIES_ID)).status).to.equal(STATUS_ACTIVE);
       expect(await pool.exposureCoveredOf(SERIES_ID)).to.equal(0n);
       expect(await pool.isOpenMonth(SERIES_ID, separationMonth)).to.equal(true);
-      expect(await pool.openMonths(SERIES_ID)).to.deep.equal([BigInt(separationMonth)]);
+      expect(await pool.openMonths(SERIES_ID)).to.deep.equal([BigInt(yyyymmOf(separationMonth))]);
       expect(baseMonth).to.be.greaterThan(0);
     });
 
@@ -834,9 +841,10 @@ describe('CoverPool', () => {
       await pool.payClaim(claim.params, claim.signature);
       await networkHelpers.time.increaseTo(await pool.windowEndsAtOf(SERIES_ID));
 
+      const lastOpenMonth = await pool.seriesOf(SERIES_ID).then((series) => series.lastOpenMonth);
       await expect(pool.closeWindow(SERIES_ID))
         .to.emit(pool, 'WindowClosed')
-        .withArgs(SERIES_ID, tusd(10_000), await pool.seriesOf(SERIES_ID).then((s) => s.lastOpenMonth));
+        .withArgs(SERIES_ID, tusd(10_000), yyyymmOf(Number(lastOpenMonth)));
       expect(await vault.reservedOf(SERIES_ID)).to.equal(0n);
       expect(await vault.principalRemaining(SERIES_ID)).to.equal(tusd(95_000));
     });

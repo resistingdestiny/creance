@@ -308,6 +308,29 @@ at the record date, and exposes each holder's entitlement as an exact fraction.
 Paying it is a Scheduled Transaction from the vault's premium account, which is
 T14.
 
+### 13. The entitlement, after the record date
+
+Five minutes later, `pnpm ats:issue couponcheck`:
+
+    getCoupon(1)          -> recordDate 1788553283, snapshotId 0, isDisabled false
+    getCouponFor(1, investor-1) -> tokenBalance 50000000,
+                                   couponAmount 1036800000000000000 / 3153600000000000,
+                                   recordDateReached true
+    getCouponFor(1, investor-2) -> the same
+
+`1036800000000000000 / 3153600000000000` is `328.7671232876712` in whole US
+dollars, which is 50,000 of principal at 8 percent a year over the 30 days from
+4 September to 4 October: `50000 * 0.08 * 30 / 365`. In the settlement token's
+six decimals that is `328767123` TUSD minor units per holder, and the remainder
+is what the floor throws away. T14 pays that number and records the fraction it
+came from.
+
+Two things to know from this read. `snapshotId` is still `0` after the record
+date has passed, so it is not the signal that the record date has been reached;
+`recordDateReached` on `getCouponFor` is. And the fraction is in whole currency
+units, not minor units, because the on chain formula divides out both the token
+decimals and the nominal value decimals. Both are in docs/harness-notes.md.
+
 ## The test ISIN
 
 `ZZODIC55S1Q6` is a **structurally valid test identifier, not a registered
@@ -383,8 +406,9 @@ call whose cost depends on state it cannot see. The limits are in
 
 ## Handed to T14
 
-- Coupon id `1` on the note, snapshot and per holder entitlement read with
-  `pnpm ats:issue couponcheck` once the record date has passed.
+- Coupon id `1` on the note, with `328767123` TUSD minor units payable to each
+  of the two noteholders on or after `1788553583`. Re-read it any time with
+  `pnpm ats:issue couponcheck`.
 - The entitlement arrives as `numerator / denominator` in whole currency units;
   the settlement amount is `floor(numerator * 10^6 / denominator)` in TUSD minor
   units.

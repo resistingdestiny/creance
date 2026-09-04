@@ -13,18 +13,20 @@ export interface ColourToken {
   readonly name: string;
   readonly hex: string;
   readonly use: string;
+  /** True when the token is ever used as text or an indicator over a ground. */
+  readonly foreground: boolean;
 }
 
 export const COLOUR_TOKENS: readonly ColourToken[] = [
-  { name: 'canvas', hex: '#FFFFFF', use: 'page background' },
-  { name: 'surface', hex: '#F4F5F7', use: 'grouped sections, sheets, form fills' },
-  { name: 'hairline', hex: '#E4E6EA', use: 'all separation and depth, always 1px' },
-  { name: 'ink', hex: '#000000', use: 'text, primary actions' },
-  { name: 'ink-2', hex: '#6B6F76', use: 'secondary text, labels, axis labels, inactive tab' },
-  { name: 'ink-3', hex: '#A3A7AE', use: 'placeholder and disabled only' },
-  { name: 'covered', hex: '#0B8A4E', use: 'state indicator: money in, active cover, paid' },
-  { name: 'watch', hex: '#C77A00', use: 'state indicator: index rising, payment due' },
-  { name: 'triggered', hex: '#D13B3B', use: 'state indicator: trigger fired, failed' },
+  { foreground: false, name: 'canvas', hex: '#FFFFFF', use: 'page background' },
+  { foreground: false, name: 'surface', hex: '#F4F5F7', use: 'grouped sections, sheets, form fills' },
+  { foreground: false, name: 'hairline', hex: '#E4E6EA', use: 'all separation and depth, always 1px' },
+  { foreground: true, name: 'ink', hex: '#000000', use: 'text, primary actions' },
+  { foreground: true, name: 'ink-2', hex: '#6B6F76', use: 'secondary text, labels, axis labels, inactive tab' },
+  { foreground: true, name: 'ink-3', hex: '#A3A7AE', use: 'placeholder and disabled only' },
+  { foreground: true, name: 'covered', hex: '#0B8A4E', use: 'state indicator: money in, active cover, paid' },
+  { foreground: true, name: 'watch', hex: '#C77A00', use: 'state indicator: index rising, payment due' },
+  { foreground: true, name: 'triggered', hex: '#D13B3B', use: 'state indicator: trigger fired, failed' },
 ];
 
 export const CANVAS = '#FFFFFF';

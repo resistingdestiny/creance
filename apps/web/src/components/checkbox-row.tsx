@@ -37,6 +37,7 @@ export function CheckboxRow({
         className="sr-only"
         id={id}
         onChange={onChange ? (event) => onChange(event.target.checked) : undefined}
+        readOnly={onChange ? undefined : true}
         type="checkbox"
       />
       <span className="checkbox-row__box flex size-7 shrink-0 items-center justify-center rounded-[6px] border border-hairline bg-canvas text-ink">

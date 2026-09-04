@@ -34,14 +34,22 @@ export async function subscribeInvestor(
     return null;
   }
   const amount = wanted - already;
-  const fund = await send(
-    `${investor.role} sends its principal to the api account`,
-    (context.token.connect(investor.wallet) as Contract).getFunction('transfer')(
-      context.api.address,
-      amount,
-      { gasLimit: GAS.transfer },
-    ),
-  );
+  // Only the shortfall moves. A run that sent the principal and then failed on
+  // the approve or the subscribe would otherwise send it a second time, and the
+  // investor would be out the difference with the vault none the wiser.
+  const held = await tokenBalanceOf(context, context.api.address);
+  const short = amount > held ? amount - held : 0n;
+  const fund =
+    short === 0n
+      ? undefined
+      : await send(
+          `${investor.role} sends its principal to the api account`,
+          (context.token.connect(investor.wallet) as Contract).getFunction('transfer')(
+            context.api.address,
+            short,
+            { gasLimit: GAS.transfer },
+          ),
+        );
   const approve = await send(
     'approve the vault',
     (context.token.connect(context.api.wallet) as Contract).getFunction('approve')(
@@ -61,7 +69,7 @@ export async function subscribeInvestor(
     accountId: investor.accountId,
     address: investor.address,
     amount: wanted.toString(),
-    fundTx: fund.hash,
+    ...(fund === undefined ? {} : { fundTx: fund.hash }),
     approveTx: approve.hash,
     subscribeTx: subscribed.hash,
     gasUsed: subscribed.gasUsed,

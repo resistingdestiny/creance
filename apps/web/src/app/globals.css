@@ -1,4 +1,11 @@
-@import "tailwindcss";
+/* The source set is pinned to src/ rather than left to automatic detection.
+   Tailwind reads every file it can reach as a list of class name candidates,
+   including prose in comments and tests, and emits the utility for any word
+   that happens to be one. That is how a sentence about focus rings put the
+   only box-shadow in this build into the stylesheet. Pinning the set makes the
+   compiled CSS depend on the components and nothing else. */
+@import "tailwindcss" source(none);
+@source "../";
 
 /* docs/DESIGN-TOKENS.md sections 1, 2 and 3 as the Tailwind v4 theme. Tailwind
    v4 has no tailwind.config.js: this @theme block is the config. The handoff's
@@ -6,10 +13,21 @@
 
    Two v4 defaults bite this design and are handled here and in the components:
    a bare `border` paints currentColor, so every hairline is written
-   `border border-hairline`; the default ring is 1px currentColor, so no focus
-   state uses a ring, they are all the outline in the base layer below. */
-@theme {
-  /* Section 1: colour. The default palette is dropped so that bg-red-500 and
+   `border border-hairline`; the framework rings default to 1px in currentColor,
+   so no focus state uses one, they are all the outline in the base layer
+   below.
+
+   Do not write the singular of "rings" as a bare word anywhere in this
+   repository's sources. The utility scanner reads prose as class candidates and
+   emits the matching utility, which is the one rule in this build that would
+   set a box-shadow. */
+@theme static {
+  /* `static` because these are the tokens of record. Tailwind emits only the
+     theme variables a utility actually used unless it is told otherwise, and a
+     token sheet that silently loses --radius-hero the week nothing uses it is
+     not a token sheet.
+
+     Section 1: colour. The default palette is dropped so that bg-red-500 and
      text-gray-500 do not exist and an off-palette colour cannot leak into a
      design that has no brand accent. */
   --color-*: initial;
@@ -92,8 +110,9 @@
   }
 
   /* docs/DESIGN-TOKENS.md section 7: the one focus state in the design. It is
-     an outline, never a ring, so the v4 ring default cannot change it. */
-  :focus-visible {
+     an outline, so the framework's own focus rings cannot change it. */
+  :focus-visible,
+  :-moz-focusring {
     outline: 2px solid #000;
     outline-offset: 2px;
   }

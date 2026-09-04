@@ -412,12 +412,15 @@ async function mint(session: Session, record: DeploymentRecord, index: number, a
   const ats = atsOf(record);
   const investor = session.investors[index];
   if (investor === undefined) throw new Error(`no investor at position ${index}`);
-  const bond = noteContract(ats, session.operator);
-  const before = (await bond.balanceOf!(investor.address)) as bigint;
-  if (before >= units(amount)) {
-    console.log(`  ${investor.role} already holds ${whole(before)} units`);
+  // The guard is the record, not the balance: the demo moves units between the
+  // two mints, so a balance can be right without this mint having happened, and
+  // minting twice would break the supply cap.
+  if (ats.steps?.[`mint-${investor.role}`]?.tx !== undefined) {
+    console.log(`  ${investor.role} has already been issued to`);
     return;
   }
+  const bond = noteContract(ats, session.operator);
+  const before = (await bond.balanceOf!(investor.address)) as bigint;
   const sent = await send(
     `issueByPartition ${whole(units(amount))} units to ${investor.role}`,
     bond.issueByPartition!(
@@ -442,6 +445,11 @@ async function transfer(
   mustFail: boolean,
 ): Promise<void> {
   const ats = atsOf(record);
+  const name = mustFail ? 'transfer-blocked' : 'transfer-allowed';
+  if (ats.steps?.[name]?.tx !== undefined) {
+    console.log(`  ${name} has already run`);
+    return;
+  }
   const [from, to] = session.investors;
   if (from === undefined || to === undefined) throw new Error('two investors are required');
   const bond = noteContract(ats, from.wallet);

@@ -64,12 +64,12 @@
       "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
       "steps": {
         "fund-investor-1": {
-          "tx": "0x1cc65ba0d81f8700a1884130adcd92d27514d86fd995cbe8170a435d219b26fc",
+          "tx": "0x6c0dca725bd91ee40f591d705de62ce773442aa9c1d8427244b69d7937ec6085",
           "result": "investor-1 topped up to 12 HBAR so it can pay for its own calls",
           "gasUsed": 21000
         },
         "fund-investor-2": {
-          "tx": "0x532fbe8e8aac41b1a02d9ecc46eab106be086e26a0dd653237d477e6c3063325",
+          "tx": "0xef4a4786ef91bce7cd42d5b90ec1b1837af81bc0c984ef1e99382d19ca17a31c",
           "result": "investor-2 topped up to 12 HBAR so it can pay for its own calls",
           "gasUsed": 21000
         },

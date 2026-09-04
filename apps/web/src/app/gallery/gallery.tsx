@@ -165,11 +165,11 @@ export function Gallery() {
                 <span className="text-caption tabular-nums text-ink-2">{token.hex}</span>
                 <span className="text-caption tabular-nums text-ink">
                   on canvas {formatRatio(onCanvas)}
-                  {passesTextFloor(onCanvas) ? '' : ' (below the text floor)'}
+                  {token.foreground && !passesTextFloor(onCanvas) ? ' (below the text floor)' : ''}
                 </span>
                 <span className="text-caption tabular-nums text-ink">
                   on surface {formatRatio(onSurface)}
-                  {passesTextFloor(onSurface) ? '' : ' (below the text floor)'}
+                  {token.foreground && !passesTextFloor(onSurface) ? ' (below the text floor)' : ''}
                 </span>
                 <span className="text-caption text-ink-2">{token.use}</span>
               </li>

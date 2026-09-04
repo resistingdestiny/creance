@@ -32,7 +32,7 @@
   --color-night-2: #11151c;
 
   /* Section 2: type. The two font families are set by next/font in the root
-     layout; see src/lib/fonts.ts for the Option A and Option B switch. */
+     layout; src/lib/font-option.ts is the Option A and Option B switch. */
   --font-display: var(--font-display-family), Inter, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-text: var(--font-text-family), -apple-system, "Helvetica Neue", Arial, sans-serif;
 

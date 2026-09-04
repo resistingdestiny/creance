@@ -24,7 +24,7 @@ const frozen: FrozenCalibration = {
   },
   level_line_mode: 'single',
   base_effect_guard: false,
-  catalogue_sha256: dataset.archive.catalogueSha256,
+  catalogue_sha256: dataset.source.catalogueSha256 ?? '',
   series: calibration.map((series) => ({
     group_key: series.groupKey,
     bls_series_id: series.seriesId,

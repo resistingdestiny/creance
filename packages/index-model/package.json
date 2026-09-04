@@ -5,6 +5,8 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
+    "backtest": "tsx src/cli/backtest.ts",
+    "backfill": "tsx src/cli/backfill.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

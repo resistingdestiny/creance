@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { latestPeriod, loadArchive, type Archive } from './archive.js';
+import type { SourceObservation } from './bls-response.js';
 import {
   calibrateSeries,
   defaultWindows,
@@ -63,26 +64,49 @@ export function loadCalibration(): FrozenCalibration {
   return JSON.parse(readFileSync(join(HERE, 'calibration.json'), 'utf8')) as FrozenCalibration;
 }
 
+export type SourceKind = 'archive' | 'cache' | 'api';
+
+export interface SourceFile {
+  label: string;
+  url: string;
+  sha256: string;
+  bytes: number;
+}
+
+export interface DatasetSource {
+  kind: SourceKind;
+  description: string;
+  files: SourceFile[];
+  catalogueSha256: string | null;
+}
+
 export interface Dataset {
-  archive: Archive;
+  source: DatasetSource;
+  /** Present when the dataset came from the committed archive. */
+  archive: Archive | null;
   map: SeriesMap;
+  /** Every series the source carried, bindable or not. */
+  allSeries: Map<string, SourceObservation[]>;
   latest: Period;
   rateSeries: RateSeries[];
   aggregateRates: ReadonlyMap<Period, number>;
 }
 
-/** Load the archive and build the rate lookups for every bindable group. */
-export function loadDataset(root: string = archiveRoot()): Dataset {
-  const archive = loadArchive(root);
-  const map = loadSeriesMap();
+/** Build a dataset from any set of parsed series, whatever fetched them. */
+export function datasetFrom(
+  allSeries: Map<string, SourceObservation[]>,
+  source: DatasetSource,
+  archive: Archive | null = null,
+  map: SeriesMap = loadSeriesMap(),
+): Dataset {
   const aggregateId = aggregateSeriesId(map);
-  const aggregateRows = archive.series.get(aggregateId);
-  if (!aggregateRows) throw new Error(`the archive has no ${aggregateId}`);
+  const aggregateRows = allSeries.get(aggregateId);
+  if (!aggregateRows) throw new Error(`the source has no ${aggregateId}`);
   const aggregateRates = ratesOf(aggregateRows);
 
   const rateSeries = bindableGroups(map).map((entry) => {
-    const rows = archive.series.get(entry.bls_series_id);
-    if (!rows) throw new Error(`the archive has no ${entry.bls_series_id}`);
+    const rows = allSeries.get(entry.bls_series_id);
+    if (!rows) throw new Error(`the source has no ${entry.bls_series_id}`);
     return {
       groupKey: entry.group_key,
       seriesId: entry.bls_series_id,
@@ -91,17 +115,37 @@ export function loadDataset(root: string = archiveRoot()): Dataset {
     };
   });
 
-  return { archive, map, latest: latestPeriod(archive.series), rateSeries, aggregateRates };
+  return { source, archive, map, allSeries, latest: latestPeriod(allSeries), rateSeries, aggregateRates };
 }
 
-/** Build a rate lookup for any series in the archive, bindable or not. */
+/** Load the committed archive and build the rate lookups for every group. */
+export function loadDataset(root: string = archiveRoot()): Dataset {
+  const archive = loadArchive(root);
+  return datasetFrom(
+    archive.series,
+    {
+      kind: 'archive',
+      description: `data/bls, verified against PROVENANCE.txt`,
+      files: archive.verified.map((file) => ({
+        label: `data/bls/${file.path}`,
+        url: file.url,
+        sha256: file.sha256,
+        bytes: file.actualBytes,
+      })),
+      catalogueSha256: archive.catalogueSha256,
+    },
+    archive,
+  );
+}
+
+/** Build a rate lookup for any series in the source, bindable or not. */
 export function rateSeriesFor(
   dataset: Dataset,
   seriesId: string,
   groupKey = seriesId,
 ): RateSeries {
-  const rows = dataset.archive.series.get(seriesId);
-  if (!rows) throw new Error(`the archive has no ${seriesId}`);
+  const rows = dataset.allSeries.get(seriesId);
+  if (!rows) throw new Error(`the source has no ${seriesId}`);
   return {
     groupKey,
     seriesId,

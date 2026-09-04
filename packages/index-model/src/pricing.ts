@@ -80,7 +80,7 @@ export function hazardTable(dataset: Dataset, options: HazardOptions = {}): Haza
   const windows = defaultWindows(dataset.latest);
 
   const aggregateId = aggregateSeriesId(dataset.map);
-  const occupationIds = [...dataset.archive.series.keys()]
+  const occupationIds = [...dataset.allSeries.keys()]
     .filter((id) => id !== aggregateId)
     .sort();
 

@@ -324,7 +324,14 @@ a lower bound. Measured on schedule
 The transfer executed 17.4 milliseconds **before** the expiration time the
 mirror node reports for the same schedule. The whole second matches and the
 fraction does not, so the sub-second part of the expiration time is stored and
-served but is not what the evaluation waits for.
+served but is not what the evaluation waits for. Reproduced on a second schedule
+with a different fraction,
+[0.0.10367560](https://hashscan.io/testnet/schedule/0.0.10367560):
+
+    expiration_time      1788548590.230000000
+    executed_timestamp   1788548590.019679254
+
+210 milliseconds early, again inside the same second.
 
 It makes no practical difference to a monthly premium, and it is exactly the
 kind of thing a test asserts on. Nothing should compare an execution timestamp
@@ -344,6 +351,26 @@ one nanosecond apart, which is the same consensus round. This is the trap the
 premium schedule has to avoid: leaving `waitForExpiry` at its default with a
 pre-signed transfer drains the payer at bind time instead of at the due date,
 and the receipt looks perfectly normal.
+
+### Two schedules that differ only in their expiry are not identical schedules
+
+The create page warns that a second create of the same schedule returns
+`IDENTICAL_SCHEDULE_ALREADY_CREATED` and that the caller should sign the
+existing one instead. It does not say which fields the comparison covers. Two
+creates were accepted as separate schedules,
+[0.0.10367507](https://hashscan.io/testnet/schedule/0.0.10367507) and
+[0.0.10367560](https://hashscan.io/testnet/schedule/0.0.10367560), with the same
+creator, the same payer, the same admin key, the same memo
+`creance premium POL-SPIKE-1 202609` and the same inner transfer of 1.000000
+TUSD from 0.0.10366453 to 0.0.10366451. The only difference between them was the
+expiration time, and both executed.
+
+That is the wrong way round for a premium. A Steward that times out waiting for
+a receipt and retries with a freshly computed expiry does not get the safety net
+the page describes: it gets a second schedule and the policyholder pays twice.
+The duplicate check cannot be leaned on, so the caller has to hold the schedule
+id and check it before creating anything, which is what the `policy_schedules`
+row exists for.
 
 ### The create and the transfer it schedules share one transaction id
 

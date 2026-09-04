@@ -100,6 +100,31 @@
           "tx": "0x44e5f93d56d72350baf85cea6bd5a6dc1dbe0054f9f87a598e592eb7c4ebf5b5",
           "result": "getKycStatusFor(0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931) reads GRANTED (1)",
           "gasUsed": 273905
+        },
+        "mint-investor-1": {
+          "tx": "0xc58192c2df8c6160828eacb1e9951b3291a63eb426e78870421b3b9fef96b98d",
+          "result": "balanceOf(investor-1) 0 to 60000000, 60 units",
+          "gasUsed": 475349
+        },
+        "transfer-blocked": {
+          "tx": "0x0791d049fa5ab514f4af143a5f652973df0f6a22f0a288d7dd39334529970cf1",
+          "revert": "InvalidKycStatus",
+          "result": "10 units from investor-1 to investor-2 refused while getKycStatusFor(0xcaa1184cd59b9296f757efc7303a10ecec6ce51e) reads NOT_GRANTED (0); internal KYC is the gate"
+        },
+        "kyc-investor-2": {
+          "tx": "0xecdc481155d644bfb8a1254b39d040f0751cfc3e06456bbef878c88322024f9a",
+          "result": "getKycStatusFor(0xcaa1184cd59b9296f757efc7303a10ecec6ce51e) reads GRANTED (1)",
+          "gasUsed": 256805
+        },
+        "transfer-allowed": {
+          "tx": "0xce6d12fcf5def0015a0cc15806a3a315e4f0d3dddfb108b50798ebe3b93d911c",
+          "result": "the same 10 units, the same parties, now settle: balanceOf(investor-2) 0 to 10000000",
+          "gasUsed": 473562
+        },
+        "mint-investor-2": {
+          "tx": "0x9bee9bdcaf06955764bb38928e72c2596688591608f680de0da1ca66fcd113bd",
+          "result": "balanceOf(investor-2) 10000000 to 50000000, 50 units",
+          "gasUsed": 214419
         }
       },
       "configVersion": 1,
@@ -159,6 +184,12 @@
           "validFrom": 1788552752,
           "validTo": 4942152752,
           "tx": "0x44e5f93d56d72350baf85cea6bd5a6dc1dbe0054f9f87a598e592eb7c4ebf5b5"
+        },
+        "investor-2": {
+          "vcId": "urn:uuid:f2323f3c-423d-44e2-b006-55fb7816f13c",
+          "validFrom": 1788552788,
+          "validTo": 4942152788,
+          "tx": "0xecdc481155d644bfb8a1254b39d040f0751cfc3e06456bbef878c88322024f9a"
         }
       }
     }

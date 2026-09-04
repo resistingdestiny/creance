@@ -6,8 +6,9 @@ import type { InputHTMLAttributes } from 'react';
 /**
  * docs/DESIGN-TOKENS.md section 7: 52px high, 12px radius, hairline border,
  * value at 16 to 18px, and the same 2px black outline on focus as everything
- * else. The sheet calls that focus state a ring; it is built as an outline,
- * because a Tailwind v4 ring is 1px in currentColor.
+ * else. The sheet describes that focus state as two black pixels around the
+ * field; it is built with `outline`, because Tailwind v4's own focus rings are
+ * 1px in currentColor.
  *
  * Every field has a visible label. The placeholder is decoration and never
  * carries information, which is why it is allowed to stay ink-3.

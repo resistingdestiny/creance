@@ -45,7 +45,8 @@ import { DEMO_ACCOUNT, DEMO_WALLET_LABEL } from '../../lib/wallet';
  *
  * - a bare `border` in Tailwind v4 paints currentColor, so every hairline here
  *   is `border border-hairline`;
- * - the focus state is an outline, never a ring. The ".focus-demo" class paints
+ * - the focus state is an outline, never one of the framework rings. The
+ *   ".focus-demo" class paints
  *   the same outline on an element that does not have focus so it can be seen
  *   without holding the tab key down.
  */

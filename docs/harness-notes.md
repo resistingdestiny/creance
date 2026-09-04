@@ -115,3 +115,127 @@ key-derived EVM address and `max_automatic_token_associations = -1`, so none of
 them is long-zero and all of them can pass an ECRECOVER check. This is the
 property CoverPool depends on for the CLAIMS authorisation in T04, and it is
 cheap to assert at creation and expensive to discover later.
+
+## T04, contracts on the Hedera EVM, 4 September 2026
+
+### The documented HashScan verification server is now a redirect that drops the path
+
+The verification tutorial names `https://server-verify.hashscan.io` as the
+Sourcify style server for Hedera, and the same page says manual HashScan
+verification is temporarily disabled.
+https://docs.hedera.com/hedera/tutorials/smart-contracts/how-to-verify-a-smart-contract-on-hashscan
+
+Checked on 4 September 2026:
+
+    GET https://server-verify.hashscan.io/v2/contract/296/0x2D0F...1348
+    -> 308 Permanent Redirect
+    following it lands on https://sourcify.dev/server, path discarded
+    -> 404 Cannot GET /
+
+So the host still resolves, but any client configured with it as an `apiUrl`
+loses its path on the redirect and gets a 404 that looks like "contract not
+found" rather than "wrong server". The working route is the public Sourcify
+server with no custom `apiUrl` at all, which is what
+`@nomicfoundation/hardhat-verify` 3.1.0 uses by default:
+
+    verify: { sourcify: { enabled: true } }
+
+Both contracts verified that way and Sourcify reports `exact_match` for each:
+
+    GET https://sourcify.dev/server/v2/contract/296/0x96E0c26864fbAFCa58655944b7F862f12eD1333D
+    -> {"runtimeMatch":"exact_match", ...}
+
+Consequence for this build: nothing points at `server-verify.hashscan.io`. Do
+not add it back as an `apiUrl` because a doc page names it.
+
+### hardhat-verify needs a second attempt for a contract with imports, and says so
+
+The first Sourcify submission for CoverPool used the minimal compiler input and
+failed; the plugin retried by itself with the full solc input and got an exact
+match. The docs describe manual multi file upload as "extremely difficult and
+error prone" for a contract with dependencies but do not mention that the plugin
+handles it in two passes and warns that "unrelated contracts may be displayed on
+Sourcify as a result". Worth knowing before you read the first failure line as a
+real failure. CollateralVault, which has the same OpenZeppelin imports, matched
+on the first pass.
+
+### A contract associates itself with an HTS token through the HIP-719 facade, and isAssociated reads back true
+
+The system contract page documents `associate()` and the argument free
+`isAssociated()` on the token address, from consensus node 0.38 and 0.53.
+https://docs.hedera.com/hedera/core-concepts/smart-contracts/hedera-token-service-hts-system-contract
+
+Both work from inside a contract and are caller scoped, which is the whole
+story: CollateralVault can opt itself in and can read back its own state, and no
+contract can ask whether some other account is associated. Measured on testnet:
+
+    CollateralVault.associateSettlementToken()  -> success, 735,563 gas
+    CollateralVault.isSettlementTokenAssociated() -> true
+
+735,563 gas for one association is worth budgeting for. It is by a wide margin
+the most expensive call either contract makes, five times the cost of moving the
+token itself.
+
+### The ERC-20 facade is not orders of magnitude more expensive than storage
+
+The gas page explains that a call into the token service from Solidity is priced
+by converting a USD cost to gas and adding a twenty percent surcharge, which
+reads as a warning that any HTS touching call will dwarf ordinary storage.
+Measured against TUSD (0.0.10366463) through its ERC-20 facade, with everything
+else in the call being storage writes:
+
+    subscribe  (transferFrom into the vault)   141,378 gas
+    payClaim   (transfer out of the vault)     172,701 gas
+    bind       (no token call at all)          224,668 gas
+    submitObservation, opening month           270,878 gas
+
+A bind, which touches no token, costs more than either transfer. The surcharge
+is real but at this scale it is not the dominant term, and `associate` is the
+outlier rather than the rule. Explicit gas limits are still the right call
+because `eth_estimateGas` cannot see the state dependent part; the numbers this
+build uses are in docs/HEDERA.md.
+
+### ECRECOVER accepts an EIP-712 signature from a key derived Hedera account
+
+The address page warns that a long-zero account "cannot pass ECRECOVER-based
+signature checks", which leaves open whether a normal Hedera account can.
+https://docs.hedera.com/hedera/core-concepts/accounts/account-properties
+
+Confirmed on testnet: the api account 0.0.10366450, created with an ECDSA key
+and the matching key derived EVM address
+`0x7c02879d6b95f923681f517b0487aa45af2b8fdf`, signed a `ClaimAuthorisation`
+with `signTypedData` against domain
+`{ name: "DisplacementBond", version: "1", chainId: 296, verifyingContract: <CoverPool> }`,
+and `ECDSA.tryRecover` inside CoverPool recovered exactly that address. The
+payout went through in
+https://hashscan.io/testnet/transaction/0x3185d7d188a332ddb585238b1282ec2cf4706f81be914526aade4b9cb106dcbd
+
+So the qualifier is on the account's key type, not on Hedera. Every account this
+build signs with is ECDSA with a key derived address, and the deploy script
+refuses to grant a role to a long-zero address for the same reason.
+
+### Solidity 0.8.24 cannot compile the claim digest without the IR pipeline
+
+Not a Hedera fact, but it costs a compile cycle to discover. Hashing the
+EIP-712 struct is one `abi.encode` of a type hash plus nine fields, and the
+legacy code generator runs out of stack on it:
+
+    CompilerError: Stack too deep ... try viaIR
+
+`viaIR: true` with the optimizer on compiles it and verifies as an exact match.
+The setting has to be identical between the deploy and the verify, so it is
+pinned in `contracts/hardhat.config.ts` and written into docs/HEDERA.md.
+
+### Hardhat 3 deprecates network.connect(), which is what the Hedera docs use
+
+The Hedera Hardhat page's examples call `hre.network.connect()`.
+https://docs.hedera.com/hedera/tutorials/smart-contracts/deploy-a-smart-contract-using-hardhat
+
+Hardhat 3.15.0 runs it and then prints:
+
+    WARNING: hre.network.connect() is deprecated and will be removed in a
+    future version. Use hre.network.create() or hre.network.getOrCreate()
+    instead.
+
+The suites in this repository use `network.getOrCreate()`. Following the Hedera
+page verbatim works today and will stop working.

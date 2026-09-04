@@ -286,19 +286,25 @@ id.
 
 ### Fees
 
-Measured from the transaction records of the spike. A `ScheduleCreate` costs the
-same whether it succeeds or is rejected, which makes a bisection an expensive
-way to learn something once.
+Measured from the mirror node's `charged_tx_fee` on every transaction the spike
+produced, not from the SDK's estimate. A `ScheduleCreate` costs the same whether
+it succeeds or is rejected, which makes a bisection an expensive way to learn
+something once. Ranges are the spread actually observed across the runs; a
+Hedera fee is quoted in dollars and paid in HBAR, so the same transaction moves
+by a few thousand tinybars as the rate moves.
 
 | Transaction | HBAR |
 |---|---|
-| `ScheduleCreate`, one signature | 0.12905667 |
-| `ScheduleCreate`, pre-signed by a payer that is not the operator | 0.13034724 |
-| `ScheduleCreate` rejected on its expiry | 0.12905667 |
+| `ScheduleCreate`, one signature, rejected or accepted | 0.12905667 |
 | `ScheduleCreate` without the payer signature | 0.12954988 |
+| `ScheduleCreate`, pre-signed by a payer that is not the operator | 0.13034724 to 0.13084538 |
 | `ScheduleSign` | 0.01425047 |
 | `ScheduleDelete` | 0.01290566 |
-| the scheduled `CryptoTransfer` when it executes | 0.01165949 to 0.01290566 |
+| the scheduled `CryptoTransfer` when it executes | 0.01161510 to 0.01295497 |
+
+So a premium costs its payer about 0.143 HBAR a month all in, and a twelve month
+policy pre-scheduled at bind costs about 1.72 HBAR in fees on top of the
+premiums themselves.
 
 ### Conventions the rest of the build depends on
 

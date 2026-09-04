@@ -294,7 +294,8 @@ seconds of the cap.
 
 The failed create is not free. A `ScheduleCreate` rejected with
 `SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE` was charged 0.12905667 HBAR, the
-same fee to the tinybar as a successful one.
+same fee to the tinybar as the successful probe creates in the same run. The
+thirteen rejected probes and the thirteen accepted ones came to the same total.
 
 ### An expiry in the past has its own status, which no page names
 
@@ -381,7 +382,7 @@ dropped for the mirror node's `0.0.x-seconds-nanos` form, the two are the same
 string. `GET /transactions/0.0.10366453-1788548118-155677633` returns two
 transactions:
 
-    SCHEDULECREATE   scheduled=false  consensus 1788548125.508381104  fee 0.12905667
+    SCHEDULECREATE   scheduled=false  consensus 1788548125.508381104  fee 0.13034724
     CRYPTOTRANSFER   scheduled=true   consensus 1788548305.112642208  fee 0.01290566
 
 They are told apart by the `scheduled` flag and nothing else. So a HashScan

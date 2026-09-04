@@ -45,6 +45,14 @@ export async function connect() {
   return network.getOrCreate();
 }
 
+/// Indexing an array is optional under noUncheckedIndexedAccess. This turns a
+/// missing entry into one clear failure instead of a hundred type assertions.
+export function at<T>(items: readonly T[], index: number, what = 'entry'): T {
+  const item = items[index];
+  if (item === undefined) throw new Error(`no ${what} at index ${index}`);
+  return item;
+}
+
 /// I8, solvency: the vault can always meet what it says it owes. Asserted
 /// after every test in both suites, which turns each one into an invariant
 /// test for two lines of harness.

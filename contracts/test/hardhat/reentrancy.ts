@@ -3,7 +3,7 @@ import { network } from 'hardhat';
 
 import { claimDomain, signAuthorisation, type ClaimAuthorisation } from './authorisation.js';
 import { COVER_LIMIT, DEMO_TERMS, MONTHLY_PREMIUM, SERIES_ID, monthIndexOf, startOfMonth, yyyymmOf } from './fixtures.js';
-import { DAY, tusd } from './helpers.js';
+import { at, DAY, tusd } from './helpers.js';
 
 const POLICY_ID = '0x' + 'a1'.repeat(32);
 const NULLIFIER = '0x' + 'b1'.repeat(32);
@@ -18,7 +18,13 @@ const SOURCE_HASH = '0x' + 'e1'.repeat(32);
 describe('CoverPool reentrancy', () => {
   it('blocks a settlement token that calls back into payClaim', async () => {
     const { ethers, networkHelpers } = await network.getOrCreate();
-    const [, admin, oracle, api, claimsSigner, holder, investor] = await ethers.getSigners();
+    const signers = await ethers.getSigners();
+    const admin = at(signers, 1, 'signer');
+    const oracle = at(signers, 2, 'signer');
+    const api = at(signers, 3, 'signer');
+    const claimsSigner = at(signers, 4, 'signer');
+    const holder = at(signers, 5, 'signer');
+    const investor = at(signers, 6, 'signer');
 
     const monthStart = startOfMonth(monthIndexOf(await networkHelpers.time.latest()) + 1);
     await networkHelpers.time.increaseTo(monthStart);

@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import type { FunctionFragment } from 'ethers';
 import { network } from 'hardhat';
 
 import { claimDomain, signAuthorisation, type ClaimAuthorisation } from './authorisation.js';
@@ -35,6 +36,7 @@ import {
   STATUS_SETTLING,
   assertExposure,
   assertSolvent,
+  at,
   tusd,
 } from './helpers.js';
 
@@ -181,11 +183,9 @@ describe('CoverPool', () => {
       const { pool } = f;
       const mutating = pool.interface.fragments
         .filter((fragment) => fragment.type === 'function')
-        .filter((fragment) => {
-          const f2 = fragment as { stateMutability: string; name: string };
-          return f2.stateMutability !== 'view' && f2.stateMutability !== 'pure';
-        })
-        .map((fragment) => (fragment as { name: string }).name)
+        .map((fragment) => fragment as FunctionFragment)
+        .filter((fragment) => fragment.stateMutability !== 'view' && fragment.stateMutability !== 'pure')
+        .map((fragment) => fragment.name)
         .sort();
       expect(mutating).to.deep.equal([
         'bind',
@@ -381,7 +381,7 @@ describe('CoverPool', () => {
     it('takes the opening decision itself: the input carries no open flag', async () => {
       const { pool } = f;
       const fragment = pool.interface.getFunction('submitObservation');
-      const fields = fragment.inputs[0].components?.map((c) => c.name) ?? [];
+      const fields = at(fragment.inputs, 0, 'input').components?.map((c) => c.name) ?? [];
       expect(fields).to.deep.equal([
         'seriesId',
         'period',

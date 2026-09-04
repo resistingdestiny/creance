@@ -1,6 +1,6 @@
 import { network } from 'hardhat';
 
-import { DAY, PAYOUT_FULL, tusd } from './helpers.js';
+import { at, DAY, PAYOUT_FULL, tusd } from './helpers.js';
 
 /// The demo series, ODI-COMP-2026-01, for the detailed BLS group "computer and
 /// mathematical". The frozen calibration is a shock attachment of 2.0 points
@@ -33,8 +33,14 @@ export const DEMO_TERMS = {
 
 export async function deployVault() {
   const { ethers, networkHelpers } = await network.getOrCreate();
-  const [deployer, admin, api, coverPool, investor1, investor2, outsider] =
-    await ethers.getSigners();
+  const signers = await ethers.getSigners();
+  const deployer = at(signers, 0, 'signer');
+  const admin = at(signers, 1, 'signer');
+  const api = at(signers, 2, 'signer');
+  const coverPool = at(signers, 3, 'signer');
+  const investor1 = at(signers, 4, 'signer');
+  const investor2 = at(signers, 5, 'signer');
+  const outsider = at(signers, 6, 'signer');
 
   const token = await ethers.deployContract('MockSettlementToken', ['Creance Test USD', 'TUSD', 6]);
   const vault = await ethers.deployContract('CollateralVault', [
@@ -89,16 +95,30 @@ export const POLICY_IDS = [
   '0x' + 'a1'.repeat(32),
   '0x' + 'a2'.repeat(32),
   '0x' + 'a3'.repeat(32),
-];
-export const NULLIFIERS = ['0x' + 'b1'.repeat(32), '0x' + 'b2'.repeat(32), '0x' + 'b3'.repeat(32)];
+] as const;
+export const NULLIFIERS = [
+  '0x' + 'b1'.repeat(32),
+  '0x' + 'b2'.repeat(32),
+  '0x' + 'b3'.repeat(32),
+] as const;
 
 /// The pool fixture starts the clock at the first instant of a month, so every
 /// "three months later" in the suite lands on a known boundary rather than on
 /// whatever day the suite happened to run.
 export async function deployPool() {
   const { ethers, networkHelpers } = await network.getOrCreate();
-  const [deployer, admin, oracle, api, claimsSigner, holder1, holder2, holder3, investor1, investor2, outsider] =
-    await ethers.getSigners();
+  const signers = await ethers.getSigners();
+  const deployer = at(signers, 0, 'signer');
+  const admin = at(signers, 1, 'signer');
+  const oracle = at(signers, 2, 'signer');
+  const api = at(signers, 3, 'signer');
+  const claimsSigner = at(signers, 4, 'signer');
+  const holder1 = at(signers, 5, 'signer');
+  const holder2 = at(signers, 6, 'signer');
+  const holder3 = at(signers, 7, 'signer');
+  const investor1 = at(signers, 8, 'signer');
+  const investor2 = at(signers, 9, 'signer');
+  const outsider = at(signers, 10, 'signer');
 
   const monthStart = startOfMonth(monthIndexOf(await networkHelpers.time.latest()) + 1);
   await networkHelpers.time.increaseTo(monthStart);
@@ -130,10 +150,10 @@ export async function deployPool() {
   const holders = [holder1, holder2, holder3];
   for (let i = 0; i < 3; i += 1) {
     await pool.connect(api).bind({
-      policyId: POLICY_IDS[i],
+      policyId: at(POLICY_IDS, i, 'policy id'),
       seriesId: SERIES_ID,
-      holder: holders[i].address,
-      nullifierHash: NULLIFIERS[i],
+      holder: at(holders, i, 'holder').address,
+      nullifierHash: at(NULLIFIERS, i, 'nullifier'),
       limit: COVER_LIMIT,
       premium: MONTHLY_PREMIUM,
       startAt,

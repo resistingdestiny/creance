@@ -5,6 +5,7 @@
     "rootDir": "."
   },
   "include": [
+    "ats/**/*.ts",
     "src/**/*.ts",
     "scripts/**/*.ts",
     "test/**/*.ts",

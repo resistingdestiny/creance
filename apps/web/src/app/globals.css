@@ -223,3 +223,13 @@
     outline-offset: 2px;
   }
 }
+
+@layer components {
+  /* The checkbox input is clipped for the screen reader, so the focus outline
+     is moved onto the square the eye actually sees. Same declaration as the
+     base rule, because there is one focus state in this design. */
+  .checkbox-row input:focus-visible ~ .checkbox-row__box {
+    outline: 2px solid #000;
+    outline-offset: 2px;
+  }
+}

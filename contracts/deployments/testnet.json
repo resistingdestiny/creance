@@ -17,6 +17,42 @@
   },
   "settlementTokenAssociated": true,
   "gasUsed": {
-    "associateSettlementToken": 735563
+    "associateSettlementToken": 735563,
+    "registerSeries": 108134
+  },
+  "coverPool": {
+    "address": "0x2D0Fdda6c92F588E65Cb86d774F4f7eA80bf1348",
+    "contractId": "0.0.10367008",
+    "deploymentTx": "0xafdec33c924d9ce2d07efb9842e0481994944df8dd871d88138f17b9acd8da04",
+    "gasUsed": 3887828,
+    "constructorArgs": [
+      "0x96E0c26864fbAFCa58655944b7F862f12eD1333D",
+      "0x639444758b987b4d938c57169a1f61a62b2d009c"
+    ]
+  },
+  "coverPoolWired": true,
+  "roles": {
+    "admin": "0x639444758b987b4d938c57169a1f61a62b2d009c",
+    "ORACLE_ROLE": "0x8aaf5b093842dc2e32f56bad9534d12a83861301",
+    "BINDER_ROLE": "0x7c02879d6b95f923681f517b0487aa45af2b8fdf",
+    "CLAIMS_ROLE": "0x7c02879d6b95f923681f517b0487aa45af2b8fdf",
+    "SUBSCRIPTION_ROLE": "0x7c02879d6b95f923681f517b0487aa45af2b8fdf",
+    "TREASURY_ROLE": "0x7c02879d6b95f923681f517b0487aa45af2b8fdf"
+  },
+  "series": {
+    "id": "0x4f44492d434f4d502d323032362d303100000000000000000000000000000000",
+    "label": "ODI-COMP-2026-01",
+    "group": "computer_math",
+    "attachmentShock": "20000",
+    "levelLine": "-6800",
+    "exhaustionShock": "40000",
+    "payoutMode": "full",
+    "maturityAt": 1820081451,
+    "openSeriesTx": "0x8730867a9d36bf90e627120b9e5f05b28dcf929950fecd8444c51185d4f03c79",
+    "registerSeriesTx": "0xda2bddc3b8e958caeccfe25daa204bc33ef48632cd9777986a68a97e46f5097a"
+  },
+  "verification": {
+    "CollateralVault": "https://hashscan.io/testnet/contract/0x96E0c26864fbAFCa58655944b7F862f12eD1333D",
+    "CoverPool": "https://hashscan.io/testnet/contract/0x2D0Fdda6c92F588E65Cb86d774F4f7eA80bf1348"
   }
 }

@@ -18,6 +18,7 @@ export interface DeploymentRecord {
   series?: SeriesRecord;
   verification?: Record<string, string>;
   gasUsed?: Record<string, number>;
+  testnetRunthrough?: { series: string; at: string; links: Record<string, string> };
 }
 
 export interface ContractRecord {

@@ -12,7 +12,8 @@
     "typecheck": "hardhat build && tsc --noEmit",
     "deploy": "tsx --env-file-if-exists=../.env scripts/deploy/all.ts",
     "deploy:step": "tsx --env-file-if-exists=../.env scripts/deploy/deploy.ts",
-    "verify": "tsx --env-file-if-exists=../.env scripts/deploy/verify.ts"
+    "verify": "tsx --env-file-if-exists=../.env scripts/deploy/verify.ts",
+    "test:testnet": "tsx --env-file-if-exists=../.env scripts/testnet/runthrough.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.15",

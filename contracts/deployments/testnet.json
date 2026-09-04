@@ -245,6 +245,24 @@
         "fixingTimestamp": 1788553283,
         "tx": "0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804"
       }
+    },
+    "couponSettlements": {
+      "1": {
+        "couponId": "1",
+        "seriesLabel": "ODI-COMP-2026-01",
+        "couponRef": "ODI-COMP-2026-01#1",
+        "recordDate": 1788553283,
+        "executionDate": 1788553583,
+        "startDate": 1788552983,
+        "endDate": 1791144983,
+        "ratePercent": 8,
+        "holders": [],
+        "scheduledContractCall": {
+          "attempted": true,
+          "status": "accepted, SUCCESS",
+          "scheduleId": "0.0.10368759"
+        }
+      }
     }
   },
   "verification": {

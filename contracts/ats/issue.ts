@@ -605,12 +605,16 @@ async function couponcheck(session: Session, record: DeploymentRecord): Promise<
   if (ats.coupon === undefined) throw new Error('no coupon declared yet');
   const bond = noteContract(ats, session.operator);
   const id = BigInt(ats.coupon.id);
-  const [registered, exists] = (await bond.getCoupon!(id)) as [
-    { coupon: unknown; snapshotId: bigint },
+  // The second return is isDisabled_, not an existence flag: a coupon that was
+  // never declared reads back as an all zero struct rather than reverting.
+  const [registered, isDisabled] = (await bond.getCoupon!(id)) as [
+    { coupon: { recordDate: bigint }; snapshotId: bigint },
     boolean,
   ];
-  console.log(`  coupon ${id} exists ${exists}, snapshot ${registered.snapshotId}`);
-  const lines: string[] = [`snapshotId ${registered.snapshotId}`];
+  console.log(
+    `  coupon ${id} recordDate ${registered.coupon.recordDate}, snapshot ${registered.snapshotId}, disabled ${isDisabled}`,
+  );
+  const lines: string[] = [`snapshotId ${registered.snapshotId}, isDisabled ${isDisabled}`];
   for (const investor of session.investors) {
     const detail = (await bond.getCouponFor!(id, investor.address)) as {
       tokenBalance: bigint;

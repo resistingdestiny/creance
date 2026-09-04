@@ -265,3 +265,84 @@ series; a code change means a new deployment. A proxy would add a storage layout
 hazard and a verification complication for no benefit here, and the Hedera EVM
 forbids `delegatecall` into system contracts, which is the pattern an
 upgradeable HTS consumer would reach for.
+
+## T05, Scheduled Transactions, 4 September 2026
+
+### The long-term expiry window is 62 days, so the premium chain is one schedule per month
+
+Measured on testnet by bisection, not read off a page. A `ScheduleCreate` is
+accepted when the expiration time is at most **5,356,800 seconds, exactly 62.0
+days, after the consensus timestamp of the create**, and rejected one second
+later with `SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE`. The bisection and the
+exact bracket are in docs/harness-notes.md.
+
+A month fits inside that window with a month to spare, so the contingency in
+DESIGN.md section 8, "compress cadence with the demo clock and create the next
+transaction on each execution", is **not needed** for correctness. It stays in
+the demo path for a different reason: the demo clock runs a month every ten
+seconds, so every expiry is seconds away and the whole chain is visible inside a
+video. Both cadences run the same code, because the helper takes an `executeAt`
+and never a duration.
+
+Consequence for T09 and T14: a premium schedule is one Scheduled Transaction per
+month with `waitForExpiry` true, created ahead of time. Creating all twelve at
+bind is possible within the window but is twelve fees and twelve failure points
+inside the bind path, so the Steward creates the first few and tops up on each
+execution.
+
+### The helper lives in packages/client, not contracts/scripts
+
+The backlog offered either. It went to `packages/client/src/hedera/schedule.ts`
+because T09 (apps/steward) and T14 (apps/api) both import it, and neither can
+import from the contracts workspace without dragging Hardhat and ethers behind
+it.
+
+That means `packages/client` now has its first dependency, `@hiero-ledger/sdk`
+pinned to exactly 2.87.0, the same version the contracts workspace pins. Both
+resolve to one installed copy, so there is one protobuf runtime in a process
+that loads both, which is the condition the T03 entry above sets. The helper
+imports nothing from `contracts/scripts`: it takes a `Client`, an account id and
+a `PrivateKey`, and the spike script does the key derivation.
+
+### The payer pays the creation fee, the execution fee and the premium
+
+`scheduleTransfer(payer, to, amount, executeAt)` names one payer and it pays for
+everything: the `ScheduleCreate` fee, the fee for the scheduled transfer when it
+executes, and the transfer itself. The create is charged to the payer by
+generating the transaction id against the payer account rather than the client
+operator, and the execution is charged to it by `setPayerAccountId`. The payer's
+signature on the frozen create is therefore the only signature the whole
+arrangement needs, so a premium is pre-signed at bind in one round trip.
+
+The acceptance line does not say who pays what, and the alternative, letting the
+Steward or the API pay the fees for the policyholder's transfer, would put a
+second signature and a second funded account on the money path for no benefit.
+
+### Every premium schedule carries an admin key
+
+Without an admin key a schedule is immutable, and DESIGN.md 3.5 lapses a policy
+15 days past a missed premium. The only way to stop the premiums a lapsed policy
+has already pre-signed is `ScheduleDeleteTransaction` signed by the admin key,
+so the helper takes one and the spike proved the delete path on testnet.
+
+### The accounting month comes from the memo, never from the execution timestamp
+
+Execution is best effort at the earliest consensus time after the expiry, so the
+executed transfer's timestamp is later than the due time by an amount the
+network chooses. Every premium schedule carries the memo
+`creance premium <policyId> <YYYYMM>`, and `parsePremiumMemo` reads the policy
+and the period back out of it. The period is the `YYYYMM` `uint32` CoverPool
+takes, so an execution maps to `recordPremium(policyId, period)` with no date
+arithmetic at the boundary.
+
+### scheduleNext is a watcher, not an on-chain loop
+
+A Hedera schedule cannot create another schedule: `ScheduleCreateTransaction` is
+not on the list of transactions that can be scheduled. So "creates the following
+month's transfer when one executes" is a process that polls the mirror node for
+`executed_timestamp` and then creates the next one. `scheduleNext` returns
+`(scheduleId, policyId, period, executed transaction id)` through its callback,
+which is what T09 needs for `CoverPool.recordPremium` from the api account and
+T18 needs for the payments topic entry. If nobody makes that call, `lapse()`
+becomes callable once the 15 day grace past `paidThroughMonth` has run out, and
+a paid premium looks exactly like a missed one.

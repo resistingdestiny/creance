@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { Client } from '@hiero-ledger/sdk';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import {
   addMonths,
@@ -14,6 +15,7 @@ import {
   periodOf,
   premiumMemo,
   premiumSlot,
+  scheduleTransfer,
   toMirrorTransactionId,
 } from '../src/hedera/schedule.js';
 
@@ -140,5 +142,40 @@ describe('links', () => {
     expect(mirrorScheduleUrl('https://testnet.mirrornode.hedera.com/api/v1/', '0.0.1')).toBe(
       'https://testnet.mirrornode.hedera.com/api/v1/schedules/0.0.1',
     );
+  });
+});
+
+describe('scheduleTransfer argument guards', () => {
+  // Every one of these throws before the client is used, so the suite stays
+  // chain free. The network half is proved by pnpm hedera:schedule.
+  const client = Client.forTestnet();
+  const base = {
+    client,
+    tokenId: '0.0.10366463',
+    to: '0.0.10366451',
+    amount: 1_000_000n,
+    executeAt: new Date('2026-10-04T18:58:25Z'),
+    memo: 'creance premium POL-0007 202610',
+  };
+  const payer = { accountId: '0.0.10366453' };
+
+  afterAll(() => {
+    client.close();
+  });
+
+  it('refuses an amount that is not positive', async () => {
+    await expect(scheduleTransfer({ ...base, payer, amount: 0n })).rejects.toThrow(
+      /positive amount/,
+    );
+  });
+
+  it('refuses a memo over the 100 byte cap', async () => {
+    await expect(
+      scheduleTransfer({ ...base, payer, memo: 'x'.repeat(101) }),
+    ).rejects.toThrow(/over 100 bytes/);
+  });
+
+  it('refuses to pre-sign without the payer key', async () => {
+    await expect(scheduleTransfer({ ...base, payer })).rejects.toThrow(/needs the payer key/);
   });
 });

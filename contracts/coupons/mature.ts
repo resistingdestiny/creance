@@ -1,4 +1,4 @@
-import { factoryAt, send } from '../ats/chain.js';
+import { contractIdOf, factoryAt, send } from '../ats/chain.js';
 import { bondData, maxSupplyFor, principalFor, regulationData, type BondPlan } from '../ats/bond.js';
 import { GAS as ATS_GAS, NOTE, PARTITION_1, ROLES } from '../ats/config.js';
 import { createKycCredential, grantKycArguments, verifyCredential } from '../ats/credential.js';
@@ -171,6 +171,7 @@ async function bond(context: CouponContext): Promise<void> {
   );
 
   demo.note = {
+    ...(await contractIdOf(address).then((id) => (id === undefined ? {} : { contractId: id }))),
     address,
     name: plan.name,
     symbol: plan.symbol,

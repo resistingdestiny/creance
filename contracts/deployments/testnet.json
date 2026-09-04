@@ -269,7 +269,7 @@
             "scheduleCreateTx": "0.0.10366450@1788556746.724064738",
             "scheduleMemo": "creance coupon ODI-COMP-2026-01 1 investor-1",
             "executeAt": "2026-09-04T21:21:11.000Z",
-            "createFeeHbar": "1.29264098 ℏ",
+            "createFeeHbar": "1.29264098 \u210f",
             "links": {
               "schedule": "https://hashscan.io/testnet/schedule/0.0.10368878",
               "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738",
@@ -296,7 +296,7 @@
             "scheduleCreateTx": "0.0.10366450@1788556748.511830975",
             "scheduleMemo": "creance coupon ODI-COMP-2026-01 1 investor-2",
             "executeAt": "2026-09-04T21:21:11.000Z",
-            "createFeeHbar": "1.29264098 ℏ",
+            "createFeeHbar": "1.29264098 \u210f",
             "links": {
               "schedule": "https://hashscan.io/testnet/schedule/0.0.10368880",
               "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975",
@@ -414,6 +414,7 @@
       }
     ],
     "note": {
+      "contractId": "0.0.10368952",
       "address": "0x6e89613455159365B07CdCB9852311caE318afC9",
       "name": "Creance Maturity Demonstration ODI-MAT-1788558259",
       "symbol": "CDBNMAT",

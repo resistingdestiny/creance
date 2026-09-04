@@ -86,16 +86,21 @@ function daysInMonth(year: number, monthIndexZeroBased: number): number {
 
 /**
  * The same wall clock moment one or more months later, in UTC, with the day of
- * month clamped into the target month. 31 January steps to 28 February, and the
- * step after that is 31 March, because the clamp is applied to the original day
- * and never carried forward.
+ * month clamped into the target month.
+ *
+ * `dueDay` is the day the policy is actually due on, which is not always the
+ * day the previous premium ran. A policy due on the 31st runs on 28 February,
+ * and the step after that has to be 31 March, not 28 March. Pass the unclamped
+ * due day and the chain recovers; leave it out and the step is measured from
+ * `executeAt`, which is right for a one-off call and wrong for a chain.
  */
-export function nextExecuteAt(executeAt: Date, months = 1): Date {
+export function nextExecuteAt(executeAt: Date, months = 1, dueDay?: number): Date {
   const year = executeAt.getUTCFullYear();
   const monthIndex = executeAt.getUTCMonth() + months;
   const targetYear = year + Math.floor(monthIndex / 12);
   const targetMonth = ((monthIndex % 12) + 12) % 12;
-  const day = Math.min(executeAt.getUTCDate(), daysInMonth(targetYear, targetMonth));
+  const wanted = dueDay ?? executeAt.getUTCDate();
+  const day = Math.min(wanted, daysInMonth(targetYear, targetMonth));
   return new Date(
     Date.UTC(
       targetYear,
@@ -147,22 +152,42 @@ export interface PremiumSlot {
   period: number;
   executeAt: Date;
   memo: string;
+  /**
+   * The day of month the policy is due on, kept unclamped so that one short
+   * month does not move every later premium. A policy bound on the 31st has
+   * `dueDay` 31 even in the months where `executeAt` says 28.
+   */
+  dueDay: number;
 }
 
-/** Build a slot, with the memo derived rather than passed in. */
-export function premiumSlot(policyId: string, period: number, executeAt: Date): PremiumSlot {
-  return { policyId, period, executeAt, memo: premiumMemo(policyId, period) };
+/**
+ * Build a slot, with the memo derived rather than passed in. `dueDay` defaults
+ * to the day `executeAt` falls on, which is what the first slot of a chain
+ * wants; pass it explicitly when a chain is resumed from a clamped date.
+ */
+export function premiumSlot(
+  policyId: string,
+  period: number,
+  executeAt: Date,
+  dueDay = executeAt.getUTCDate(),
+): PremiumSlot {
+  return { policyId, period, executeAt, memo: premiumMemo(policyId, period), dueDay };
 }
 
 /**
  * The slot after this one. This is the whole of `scheduleNext` that can be
  * decided without the network, so it is the part that carries a unit test.
+ *
+ * The step is measured against `dueDay` and not against the previous
+ * `executeAt`, so a chain that passes through February comes back out on its
+ * own day of month instead of staying on the 28th for the rest of the term.
  */
 export function nextPremiumSlot(slot: PremiumSlot, months = 1): PremiumSlot {
   return premiumSlot(
     slot.policyId,
     addMonths(slot.period, months),
-    nextExecuteAt(slot.executeAt, months),
+    nextExecuteAt(slot.executeAt, months, slot.dueDay),
+    slot.dueDay,
   );
 }
 

@@ -114,6 +114,25 @@ describe('the next slot', () => {
     expect(january.memo).toBe('creance premium POL-0007 202701');
   });
 
+  it('comes back out of February on its own day of month', () => {
+    // Chaining is where a clamp turns into permanent drift: 28 February must not
+    // become 28 March for the rest of the term.
+    let slot = premiumSlot('POL-0007', 202601, new Date('2026-01-31T12:00:00Z'));
+    const dates: string[] = [];
+    for (let month = 0; month < 4; month += 1) {
+      slot = nextPremiumSlot(slot);
+      dates.push(slot.executeAt.toISOString());
+    }
+    expect(dates).toEqual([
+      '2026-02-28T12:00:00.000Z',
+      '2026-03-31T12:00:00.000Z',
+      '2026-04-30T12:00:00.000Z',
+      '2026-05-31T12:00:00.000Z',
+    ]);
+    expect(slot.dueDay).toBe(31);
+    expect(slot.period).toBe(202605);
+  });
+
   it('keeps the period and the due date in step over a full year', () => {
     let slot = premiumSlot('POL-0007', 202608, new Date('2026-08-15T00:00:00Z'));
     for (let month = 0; month < 12; month += 1) {

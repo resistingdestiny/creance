@@ -1,0 +1,9 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "contracts"
+
+# esbuild ships a platform binary through a postinstall script. pnpm 11 blocks
+# build scripts unless they are listed here, and vitest needs esbuild to run.
+allowBuilds:
+  esbuild: true

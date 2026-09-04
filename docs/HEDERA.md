@@ -243,7 +243,7 @@ and never a duration.
 
 ### The transfers that executed
 
-All three moved 1.000000 TUSD (`1000000` minor units) from policyholder-1
+All four moved 1.000000 TUSD (`1000000` minor units) from policyholder-1
 0.0.10366453 to the steward 0.0.10366451, paid for by policyholder-1.
 
 | Schedule | Wait for expiry | Executed | Transfer |
@@ -251,15 +251,20 @@ All three moved 1.000000 TUSD (`1000000` minor units) from policyholder-1
 | [0.0.10367504](https://hashscan.io/testnet/schedule/0.0.10367504) | false | 2026-09-04T18:55:19Z, the same consensus round as the create | [0.0.10366453-1788548112-130188515](https://hashscan.io/testnet/transaction/0.0.10366453-1788548112-130188515) |
 | [0.0.10367507](https://hashscan.io/testnet/schedule/0.0.10367507) | true | 2026-09-04T18:58:25Z, at its expiry | [0.0.10366453-1788548118-155677633](https://hashscan.io/testnet/transaction/0.0.10366453-1788548118-155677633) |
 | [0.0.10367560](https://hashscan.io/testnet/schedule/0.0.10367560) | true | 2026-09-04T19:03:10Z, at its expiry | [0.0.10366453-1788548402-487005336](https://hashscan.io/testnet/transaction/0.0.10366453-1788548402-487005336) |
+| [0.0.10367787](https://hashscan.io/testnet/schedule/0.0.10367787) | true | 2026-09-04T19:25:59Z, at its expiry | [0.0.10366453-1788549772-250616112](https://hashscan.io/testnet/transaction/0.0.10366453-1788549772-250616112) |
 
-The middle row is the long-term path the acceptance line asks for: created
-2026-09-04T18:55:25Z with `waitForExpiry` true and an expiry three minutes out,
-held until the expiry, then executed. `scheduleNext` watched it and created the
-following month,
-[0.0.10367530](https://hashscan.io/testnet/schedule/0.0.10367530), memo
-`creance premium POL-SPIKE-1 202610`, due 2026-10-04T18:58:25Z and pending until
-then. Its create is
-[0.0.10366453-1788548303-209325632](https://hashscan.io/testnet/transaction/0.0.10366453-1788548303-209325632).
+The second and fourth rows are the long-term path the acceptance line asks for:
+created with `waitForExpiry` true and an expiry three minutes out, held until
+the expiry, then executed. `scheduleNext` watched each one, read `SUCCESS` off
+the executed transfer and created the following month:
+[0.0.10367530](https://hashscan.io/testnet/schedule/0.0.10367530) due
+2026-10-04T18:58:25Z, and
+[0.0.10367811](https://hashscan.io/testnet/schedule/0.0.10367811) due
+2026-10-04T19:25:59Z, both with the memo `creance premium POL-SPIKE-1 202610`
+and both pending until then. Their creates are
+[0.0.10366453-1788548303-209325632](https://hashscan.io/testnet/transaction/0.0.10366453-1788548303-209325632)
+and
+[0.0.10366453-1788549961-236590372](https://hashscan.io/testnet/transaction/0.0.10366453-1788549961-236590372).
 
 A create and the transfer it schedules share one transaction id and are told
 apart by the mirror node's `scheduled` flag, so each link in the last column

@@ -22,6 +22,7 @@ import {
   toBytes32,
 } from './plan.js';
 import type { CouponHolderSettlement, CouponSettlementRecord } from './record.js';
+import { subscribeInvestor, tokenBalanceOf } from './vault.js';
 
 /// `pnpm coupons:pay` settles a declared ATS coupon on Hedera testnet.
 ///
@@ -104,10 +105,6 @@ function holderEntry(
   investor: Party,
 ): CouponHolderSettlement | undefined {
   return settlement.holders.find((holder) => holder.role === investor.role);
-}
-
-async function tokenBalance(context: CouponContext, address: string): Promise<bigint> {
-  return (await context.token.getFunction('balanceOf')(address)) as bigint;
 }
 
 /// The 0.0.x id of the vault, which is what a ContractExecuteTransaction takes.
@@ -193,7 +190,7 @@ async function status(context: CouponContext): Promise<void> {
   console.log(`  principalPaid   ${state.principalPaid}`);
   console.log(`  reserved        ${state.reserved}`);
   console.log(`  premiumBalance  ${premium}`);
-  console.log(`  vault TUSD      ${await tokenBalance(context, (context.vault.target as string))}`);
+  console.log(`  vault TUSD      ${await tokenBalanceOf(context, (context.vault.target as string))}`);
   console.log(`  coupon ${coupon.id} at ${coupon.ratePercent} percent, execution ${coupon.executionTimestamp} (now ${now()})`);
 
   for (const investor of context.investors) {
@@ -390,58 +387,26 @@ async function seed(context: CouponContext): Promise<void> {
  * Subscribe both noteholders in the vault, so the principal the note reports
  * and the principal the vault holds are the same number.
  *
- * `subscribe` pulls the settlement token from `msg.sender`, which is the api
- * account holding SUBSCRIPTION_ROLE, and credits it to the holder named in the
- * call. That is the shape DESIGN.md 3.8 describes: the API pays on the
- * investor's behalf after the ATS mint. So each investor sends its half of the
- * principal to the api account first.
+ * Nobody had subscribed to the demo series before this: the note had 100 units
+ * minted against a vault holding nothing, so every principal figure on the
+ * investor screen would have read zero. See docs/DECISIONS.md.
  */
 async function subscribe(context: CouponContext): Promise<void> {
   const series = demoSeries(context.record);
   const record = context.record.series;
   if (record === undefined) throw new Error('no series in the deployment record');
-  record.subscriptions ??= [];
 
   for (const investor of context.investors) {
-    const already = (await context.vault.getFunction('subscriptionOf')(
+    const subscription = await subscribeInvestor(
+      context,
       series.id,
-      investor.address,
-    )) as bigint;
-    if (already >= SUBSCRIPTION_PER_INVESTOR) {
-      console.log(`  ${investor.role} already subscribed ${already}`);
-      continue;
-    }
-    const amount = SUBSCRIPTION_PER_INVESTOR - already;
-    const fund = await send(
-      `${investor.role} sends its principal to the api account`,
-      context.token
-        .connect(investor.wallet)
-        .getFunction('transfer')(context.api.address, amount, { gasLimit: GAS.transfer }),
+      investor,
+      SUBSCRIPTION_PER_INVESTOR,
     );
-    const approve = await send(
-      'approve the vault',
-      context.token
-        .connect(context.api.wallet)
-        .getFunction('approve')(context.vault.target as string, amount, { gasLimit: GAS.approve }),
-    );
-    const subscribed = await send(
-      `subscribe ${investor.role}`,
-      context.vault.getFunction('subscribe')(series.id, investor.address, amount, {
-        gasLimit: GAS.subscribe,
-      }),
-    );
+    if (subscription === null) continue;
     record.subscriptions = [
-      ...record.subscriptions.filter((entry) => entry.role !== investor.role),
-      {
-        role: investor.role,
-        accountId: investor.accountId,
-        address: investor.address,
-        amount: SUBSCRIPTION_PER_INVESTOR.toString(),
-        fundTx: fund.hash,
-        approveTx: approve.hash,
-        subscribeTx: subscribed.hash,
-        gasUsed: subscribed.gasUsed,
-      },
+      ...(record.subscriptions ?? []).filter((entry) => entry.role !== investor.role),
+      subscription,
     ];
     context.save();
   }
@@ -662,7 +627,7 @@ async function verify(context: CouponContext): Promise<void> {
   console.log(`  premiumBalanceOf ${premium}`);
   console.log(`  principalFunded  ${state.principalFunded}`);
   for (const entry of settlement.holders) {
-    const balance = await tokenBalance(context, entry.address);
+    const balance = await tokenBalanceOf(context, entry.address);
     console.log(
       `  ${entry.role} paid ${entry.amount} in ${entry.executedTransactionId} (${entry.result}), TUSD balance ${balance}`,
     );

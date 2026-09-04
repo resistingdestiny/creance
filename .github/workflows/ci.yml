@@ -8,22 +8,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Detect workspace
-        id: ws
-        run: |
-          if [ -f pnpm-lock.yaml ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
+      # No version here on purpose: the action reads the packageManager field in
+      # package.json, so the pnpm that installs is the pnpm that wrote the lockfile.
       - uses: pnpm/action-setup@v4
-        if: steps.ws.outputs.present == 'true'
-        with:
-          version: 9
       - uses: actions/setup-node@v4
-        if: steps.ws.outputs.present == 'true'
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-        if: steps.ws.outputs.present == 'true'
+      - run: pnpm lint
+      - run: pnpm typecheck
       - run: pnpm test
-        if: steps.ws.outputs.present == 'true'
-      - run: echo "no workspace yet"
-        if: steps.ws.outputs.present != 'true'

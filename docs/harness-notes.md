@@ -610,3 +610,93 @@ the caller chooses the resolver, and the only requirement is that it has the
 on 0.0.9212226 returns `1`, and 0.0.9213391 deployed against it twice without
 complaint. The stale `deployed-addresses.md` page is still worth fixing, but the
 failure it would have caused is a missing configuration, not a mismatch.
+
+## T14, coupons and maturity, 4 September 2026
+
+### A contract call can be wrapped in a Scheduled Transaction, and the contract sees the schedule payer as the caller
+
+The Scheduled Transactions page lists the transaction types that can be
+scheduled and `ContractExecuteTransaction` is not among the examples, and the
+schedulable set is the kind of thing that changes between releases, so it was
+measured rather than assumed. It matters because the premium account is a
+balance inside `CollateralVault`, and a contract has no key with which to sign
+the transfer inside a schedule.
+
+On testnet on 4 September 2026 a `ScheduleCreate` carrying a
+`ContractExecuteTransaction` was accepted, and the schedule executed at its
+expiry. The second half of the question, which account the contract sees as
+`msg.sender`, was answered by scheduling `CollateralVault.fundCoupon` with a
+zero amount from the api account, which holds `TREASURY_ROLE`. The call is
+ordered `whenNotPaused`, then `onlyRole(TREASURY_ROLE)`, then the series check,
+then the amount check, so the revert name is the answer:
+
+    schedule    0.0.10368856, created by 0.0.10366450, wait_for_expiry true
+    executed    0.0.10366450-1788556686-320635056
+    result      CONTRACT_REVERT_EXECUTED, error_message 0x1f2a2005 = ZeroAmount()
+
+It reverted on the argument and not on the role, so the caller was the schedule
+payer. Checked rather than inferred: `hasRole(TREASURY_ROLE, 0x7c02879d...8fdf)`
+is true and `hasRole(TREASURY_ROLE, 0x00...9e2df2)` is false, and those are the
+two spellings of the same account.
+
+The consequence is the whole shape of T14: a coupon is paid by scheduling the
+vault's own `fundCoupon` call, so the settlement token goes straight from the
+premium account to the noteholder and no intermediate account ever holds a
+noteholder's coupon.
+
+### A ScheduleCreate that carries a contract call costs ten times one that carries a transfer
+
+Measured from `charged_tx_fee` on the same day, on the same account, with the
+same expiry and the same admin key.
+
+| Schedule holds | HBAR |
+|---|---|
+| a `CryptoTransfer` of the settlement token | 0.12905667 |
+| a `ContractExecuteTransaction` with a 1,500,000 gas limit | 1.29264098 |
+
+The execution fee is the ordinary contract call fee, 0.0322707 HBAR for the
+reverted probe and about 0.03 for each of the two coupon payments. Nothing in
+the fee schedule documentation prices the create by what it carries, and the
+difference is large enough to plan around: two noteholders cost 2.59 HBAR in
+create fees a month, which is fine, and a hundred would not be.
+
+### The contract result of a scheduled call is not reachable by its transaction id
+
+`GET /api/v1/contracts/results/{transactionIdOrHash}` answers
+
+    {"_status":{"messages":[{"message":"Not found"}]}}
+
+for `0.0.10366450-1788556362-164242817`, which is a scheduled contract call that
+executed and is visible at `GET /api/v1/transactions/{id}` with `scheduled`
+true. The result is reachable by the consensus timestamp of the execution
+instead:
+
+    GET /api/v1/contracts/results?timestamp=1788556414.010845823
+
+returns the row, with `result`, `gas_used` and `error_message`. The schedule
+record carries that timestamp as `executed_timestamp`, so the read is: schedule,
+then transactions by timestamp for the outcome, then contract results by the
+same timestamp for the revert data and the gas.
+
+### The mirror node reports the long-zero address as the caller of a scheduled contract call
+
+The contract result above has `"from": "0x00000000000000000000000000000000009e2df2"`,
+the long-zero form of 0.0.10366450, while the EVM inside the call saw
+`0x7c02879d6b95f923681f517b0487aa45af2b8fdf`, the key derived alias of the same
+account: the role check passed, and only the alias holds the role. Any indexer
+that matches a caller by the address in a contract result will miss every call
+made by an account that has an alias. Match on the account id.
+
+### ethers reserves twice the base fee times the gas limit before it will send
+
+Not a Hedera quirk, but it bites hard at Hedera's gas price. The relay reported
+`eth_gasPrice` of 1,160,000,000,000 weibar, which is 116 tinybar per gas, so a
+call sent with the 2,000,000 gas limit this build uses for a token service call
+needs 2.32 HBAR of headroom, and ethers checks against roughly twice that
+before it will sign. An account holding 4.15 HBAR failed with `insufficient
+funds for intrinsic transaction cost` on a transfer that went on to use 39,647
+gas and cost a fraction of a HBAR.
+
+So "unused gas is refunded in full, so a generous limit is free" is true of the
+fee and false of the balance. Every account that signs its own calls in this
+build is topped up to 12 HBAR first.

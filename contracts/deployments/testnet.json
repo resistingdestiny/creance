@@ -393,7 +393,26 @@
         "gasUsed": 90042
       }
     ],
-    "redemptions": [],
+    "redemptions": [
+      {
+        "role": "investor-1",
+        "address": "0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931",
+        "amount": "1000000000",
+        "tx": "0x99d1a179ec384366352753347063e3894341c8b5f06b8f4dece2dfc1cfbc47a6",
+        "gasUsed": 86424,
+        "burnTx": "0xf8541d294c1f124ea8c5e4162a5e49886cd6abcd8b76e16bafd26f2d2bf1524e",
+        "burnGasUsed": 218097
+      },
+      {
+        "role": "investor-2",
+        "address": "0xcaa1184cd59b9296f757efc7303a10ecec6ce51e",
+        "amount": "1000000000",
+        "tx": "0x959ffb9ecd3f00213c34e299b4c85d0f4720a56a1d2351332a41d7b0758186cd",
+        "gasUsed": 64524,
+        "burnTx": "0xef9b02f8c5e06973918f04d5556d5a2c2253f893736d967bf297037d0ece5927",
+        "burnGasUsed": 199191
+      }
+    ],
     "note": {
       "address": "0x6e89613455159365B07CdCB9852311caE318afC9",
       "name": "Creance Maturity Demonstration ODI-MAT-1788558259",

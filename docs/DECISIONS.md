@@ -318,6 +318,14 @@ The acceptance line does not say who pays what, and the alternative, letting the
 Steward or the API pay the fees for the policyholder's transfer, would put a
 second signature and a second funded account on the money path for no benefit.
 
+The other shape DESIGN.md 3.7 offers, where the API creates the schedules and
+returns them for the Steward to sign, is supported by the same helper: pass no
+payer key, set `preSign` false, and finish the schedule later with
+`signSchedule`. Then the creator pays the create fee and the payer named by
+`setPayerAccountId` still pays the execution. Both paths are proved on testnet
+in docs/HEDERA.md. Pre-signing is the default because it is one round trip and
+one fee payer.
+
 ### Every premium schedule carries an admin key
 
 Without an admin key a schedule is immutable, and DESIGN.md 3.5 lapses a policy

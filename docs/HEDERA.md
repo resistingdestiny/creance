@@ -267,6 +267,23 @@ resolves to both. Read an execution with
 `GET /schedules/{scheduleId}` for `executed_timestamp`, then
 `GET /transactions?timestamp={executed_timestamp}` filtered to `scheduled=true`.
 
+### The two-party path
+
+DESIGN.md 3.7 also allows the API to create the premium schedules and hand them
+back for the Steward to sign, so the payer key never leaves the Steward. Proved
+on [0.0.10367633](https://hashscan.io/testnet/schedule/0.0.10367633): the
+operator created it with `setPayerAccountId` naming policyholder-1 and without
+the payer signature, the mirror node showed it pending with one signature and no
+`executed_timestamp`, and it executed only after a
+[ScheduleSign](https://hashscan.io/testnet/transaction/0.0.10362512-1788548807-559562997)
+carrying the payer key. The create was charged to the operator and the execution
+fee to policyholder-1, which is what `setPayerAccountId` decides.
+
+The transaction id of the executed transfer belongs to the **creator**, not the
+payer: it is `0.0.10362512-1788548802-958639314` here. Match an execution to a
+policy by the schedule id and the memo, never by the account in the transaction
+id.
+
 ### Fees
 
 Measured from the transaction records of the spike. A `ScheduleCreate` costs the
@@ -278,8 +295,10 @@ way to learn something once.
 | `ScheduleCreate`, one signature | 0.12905667 |
 | `ScheduleCreate`, pre-signed by a payer that is not the operator | 0.13034724 |
 | `ScheduleCreate` rejected on its expiry | 0.12905667 |
+| `ScheduleCreate` without the payer signature | 0.12954988 |
+| `ScheduleSign` | 0.01425047 |
 | `ScheduleDelete` | 0.01290566 |
-| the scheduled `CryptoTransfer` when it executes | 0.01290566 |
+| the scheduled `CryptoTransfer` when it executes | 0.01165949 to 0.01290566 |
 
 ### Conventions the rest of the build depends on
 

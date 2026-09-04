@@ -51,6 +51,7 @@ export function AmountSlider({
         max={max}
         min={min}
         onChange={onChange ? (event) => onChange(Number(event.target.value)) : undefined}
+        readOnly={onChange ? undefined : true}
         step={step}
         style={{ ['--amount-slider-filled' as string]: `${filled}%` }}
         type="range"

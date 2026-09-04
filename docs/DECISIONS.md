@@ -265,3 +265,163 @@ series; a code change means a new deployment. A proxy would add a storage layout
 hazard and a verification complication for no benefit here, and the Hedera EVM
 forbids `delegatecall` into system contracts, which is the pattern an
 upgradeable HTS consumer would reach for.
+## T10, web scaffold, 4 September 2026
+
+### Design tokens live in @theme, not in a JS config
+
+The acceptance line asks for "the tokens in tailwind config". Tailwind 4.3.3
+has no `tailwind.config.js`: theme variables live in CSS, and a JS config is
+only read if a stylesheet pulls it in with an explicit `@config` directive.
+Keeping one would work and would keep the handoff's snippet copy-pasteable, and
+it would buy a second place where a colour can be defined. So the `@theme`
+block in `apps/web/src/app/globals.css` is the config, and the handoff's v3
+`theme.extend.colors` snippet is translated there.
+
+The default palette is dropped with `--color-*: initial`, so `bg-red-500` and
+`text-gray-500` do not exist and cannot be typed by accident into a design that
+has no brand accent. The cost is that any colour genuinely needed later has to
+be added to the theme first, which is the point.
+
+The block is `@theme static`. Tailwind emits only the theme variables some
+utility used unless told otherwise, and a token sheet that silently loses
+`--radius-hero` in the week nothing happens to use it is not a token sheet.
+
+The utility source set is pinned to `src/` with `source(none)` and one
+`@source`. Tailwind reads every file it can reach as a list of class name
+candidates, prose included, and emits the matching utility for any word that is
+one. See docs/harness-notes.md: a sentence about focus rings put the only
+box-shadow in this build into the stylesheet.
+
+The cost of all of this is that the token sheet's section 1 no longer matches
+the code line for line. The sheet stays the source of the values and the
+stylesheet is the form that ships.
+
+### One elevation token exists, for the landing page, and nothing here uses it
+
+`--elevation-hero` is declared once, in the global stylesheet, and no rule
+applies it. The landing hero card is the only place it is ever permitted; a
+card floating over a dark ground needs a separation a hairline cannot give.
+Naming it once is safer than leaving a builder to invent a shadow. The two
+marketing ground colours, `night` and `night-2`, are in the theme for the same
+reason and are equally unused by any worker or investor screen. A test asserts
+that no rule in the built CSS sets a box-shadow to anything but `none`.
+
+### The typeface is Option A, and the switch removes the other family entirely
+
+Inter Tight for display and numbers, Inter for text, at the weights the scale
+uses and no others. Both families and all three weights resolve in
+`next/font/google` at Next 16.3.4, which was the open question; Option B is not
+needed.
+
+Both options stay buildable behind `NEXT_PUBLIC_FONT_OPTION`, which defaults to
+A. The switch is applied at module resolution in `apps/web/next.config.ts`
+rather than as a branch in the layout. A conditional import is not enough: any
+font module left in the bundle graph gets its `@font-face` and its preload link
+emitted whether the branch runs or not, and building it that way shipped Geist
+alongside Inter. Aliasing the specifier means the inactive family leaves the
+build. Verified both ways: with A active the output has no Geist file, with B
+active it has no Inter file.
+
+Tabular figures are set once on `<body>` and removed where a running sentence
+would look wrong, rather than added per figure. That is how "everywhere a
+figure appears" is met without hunting.
+
+### State colours are indicators, not text; axis and inactive tab labels move from ink-3 to ink-2
+
+The sheet declares a contrast floor of 4.5:1 and asserts the palette clears it.
+Computed WCAG 2.x ratios say otherwise in three places: `covered` is 4.41:1 on
+canvas and 4.04:1 on surface, `watch` is 3.38:1 and 3.10:1, `triggered` is
+4.77:1 on canvas but 4.38:1 on surface, and `ink-3` is 2.41:1 and 2.21:1. The
+sheet's own component list puts `ink-3` on chart axis labels and the inactive
+tab label, which are information.
+
+So, applied throughout:
+
+- the status pill's dot is the state colour and its label is `ink`. A 6px dot
+  is a non-text indicator, needs 3:1, and all three state colours clear that on
+  the near-white pill;
+- chart axis labels and the inactive tab bar label are `ink-2`, not `ink-3`.
+  Two greys still read as a clear active state;
+- placeholders and disabled button text stay `ink-3`. Neither ever carries
+  information, and disabled controls are exempt from WCAG 1.4.3;
+- the cover card's occupation label is `ink`, not `ink-2`. The gradient's
+  darkest stop is `#DFE2E7`, where `ink-2` is 3.89:1 and black is 16.17:1;
+- the inline field error renders on canvas, outside a surface fill, where
+  `triggered` is 4.77:1;
+- hairlines at 1.25:1 stay. They are decorative separators, exempt under WCAG
+  1.4.11, and nothing depends on perceiving one to operate anything.
+
+The one state-coloured string in the product is the Index screen's display-xl
+reading in the triggered state: 64px at weight 600 is large text, the floor is
+3:1, and `triggered` on canvas is 4.77:1.
+
+No darker grey was invented. Darkening `ink-3` until it reaches 4.5:1 lands on
+`#73767B`, which is `ink-2` with extra steps. The gallery prints every token
+with both computed ratios beside the swatch so this cannot be quietly undone.
+
+### The wallet is a labelled demo mode behind a provider interface
+
+Demo mode presents policyholder-1 from docs/HEDERA.md, account 0.0.10366453,
+and says "Demo wallet. Testnet only." in `ink-2` wherever the wallet shows. The
+mode comes from `NEXT_PUBLIC_WALLET_MODE` and defaults to demo.
+
+Screens read one small interface: connect, disconnect, account id, EVM address,
+mode. DESIGN.md section 3.6 makes the account id the signal a Selfie Check
+binds to, so the account id is on the interface rather than hidden behind a
+connection object. HashPack over WalletConnect can be added later without a
+screen changing.
+
+HashPack was not wired because it needs a Reown (WalletConnect) project id that
+does not exist yet, and the Hedera testnet chain id 296, `hedera:testnet` in
+CAIP form. Asking for `hashpack` today throws rather than falling back to the
+demo account, because a demo that silently looks like a real connection is
+worse than one that says what it is. No private key reaches the browser in
+either mode; signing belongs to the API in T07.
+
+### The worker flow at 1280 is the 390 frame centred on canvas
+
+The sheet's tab bar is 80px high with a hairline top and two tabs, which is a
+mobile pattern, and nothing in the sheet says what the worker flow looks like on
+a desktop. The frame is centred on canvas with hairline sides above the `sm`
+breakpoint. The alternative, a separate desktop worker layout, is a day of
+design this event does not have, and the investor screens that genuinely need
+desktop are already specified as desktop.
+
+### The index chart is hand-rolled SVG with a local data shape
+
+The sheet's chart rules switch off gridlines, dots, legends, area fills and all
+but two axis labels, so a chart library would be mostly configuration to remove
+things, and the band above a threshold with a one pixel lower edge is a custom
+shape either way. It is about forty lines of SVG with the data mapped to pixels
+in TypeScript.
+
+The props type is local to the web app: points of period and value, threshold,
+state and label, with `null` for a month with no observation. The API's index
+payload does not exist yet, so T15 maps the endpoint onto this type rather than
+this component learning about an endpoint. The y domain spans the data and the
+threshold together with a tenth of the range as padding, and is never anchored
+to zero: an occupation whose unemployment is usually below average has a
+negative line and a negative threshold, and both have to draw.
+
+### Dates are formatted in en-GB, in UTC, and September abbreviates to four letters
+
+The locale is hard-coded, never the browser's, because the copy deck is British
+English and a screen that reorders a date because a judge's laptop is set to
+en-US is a defect. Every date the API sends is date-only, and
+`new Date("2026-10-04")` is UTC midnight, which a browser west of Greenwich
+renders as 3 October, so every date is built with `Date.UTC` and formatted with
+an explicit UTC time zone. All of it lives in `apps/web/src/lib/format.ts` and
+nothing else in the app formats a figure.
+
+One consequence is visible: en-GB abbreviates September to "Sept", so a chart
+axis label reads "Sept 2024" and not "Sep 2024". The four letter form is
+correct British English and is kept. See docs/harness-notes.md.
+
+### The public origin is carried by a second, public variable
+
+`PUBLIC_SITE_URL` stays the canonical origin for the API, the World Developer
+Portal and the x402 resource URLs. The web app reads `NEXT_PUBLIC_SITE_URL` for
+the same value, because framework public variables are inlined at build time and
+only a prefixed name reaches the browser bundle. Both are in `.env.example` with
+the same default, and both must be set to `https://creance.co` before the
+production build runs, not after.

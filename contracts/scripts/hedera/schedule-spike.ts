@@ -329,16 +329,24 @@ async function runChain(
     poll: { attempts: 20, delayMs: 3000 },
     onExecuted: (execution) => {
       console.log(
-        `  callback: policy ${execution.policyId} period ${execution.period} ` +
+        `  onExecuted: policy ${execution.policyId} period ${execution.period} ` +
           `paid in ${execution.executedTransactionId} (${execution.result})`,
       );
       console.log('  T09 turns that into CoverPool.recordPremium from the api account');
+    },
+    onFailed: (execution) => {
+      console.log(
+        `  onFailed: policy ${execution.policyId} period ${execution.period} ` +
+          `executed as ${execution.result} and moved nothing`,
+      );
+      console.log('  nothing may be recorded as paid; the policy is heading for lapse');
     },
   });
 
   if (!result) {
     throw new Error(`schedule ${watched.scheduleId} has not executed, so nothing was chained`);
   }
+  console.log(`  settled             ${result.settled}`);
   console.log(`  next period         ${result.slot.period}`);
   console.log(`  next due at         ${result.slot.executeAt.toISOString()}`);
   console.log(`  next schedule       ${result.next.scheduleId}`);

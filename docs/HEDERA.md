@@ -102,14 +102,14 @@ drifts.
 
 | Contract | Contract id | EVM address | Long-zero form | Verification |
 |---|---|---|---|---|
-| CollateralVault | [0.0.10366999](https://hashscan.io/testnet/contract/0.0.10366999) | `0x96E0c26864fbAFCa58655944b7F862f12eD1333D` | `0x00000000000000000000000000000000009e3017` | [Sourcify exact match](https://sourcify.dev/server/repo-ui/296/0x96E0c26864fbAFCa58655944b7F862f12eD1333D) |
-| CoverPool | [0.0.10367008](https://hashscan.io/testnet/contract/0.0.10367008) | `0x2D0Fdda6c92F588E65Cb86d774F4f7eA80bf1348` | `0x00000000000000000000000000000000009e3020` | [Sourcify exact match](https://sourcify.dev/server/repo-ui/296/0x2D0Fdda6c92F588E65Cb86d774F4f7eA80bf1348) |
+| CollateralVault | [0.0.10367194](https://hashscan.io/testnet/contract/0.0.10367194) | `0xD0473d355ECB299F2ECc0d92124bc8CF63554e60` | `0x00000000000000000000000000000000009e30da` | [Sourcify exact match](https://sourcify.dev/server/repo-ui/296/0xD0473d355ECB299F2ECc0d92124bc8CF63554e60) |
+| CoverPool | [0.0.10367199](https://hashscan.io/testnet/contract/0.0.10367199) | `0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09` | `0x00000000000000000000000000000000009e30df` | [Sourcify exact match](https://sourcify.dev/server/repo-ui/296/0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09) |
 
 Deployment transactions:
-[CollateralVault](https://hashscan.io/testnet/transaction/0x7d080e1ce4ce2f07c62a64907ab82557293af77961bc7371dd0311bff936e8be),
-[CoverPool](https://hashscan.io/testnet/transaction/0xafdec33c924d9ce2d07efb9842e0481994944df8dd871d88138f17b9acd8da04).
+[CollateralVault](https://hashscan.io/testnet/transaction/0x00302fcad5ab5ea944ee5fa0a847462fa70d17d816a8860154051de5b94cce5b),
+[CoverPool](https://hashscan.io/testnet/transaction/0x26d46e536a7bd3550933ec8e5444846807025517af049c06bd6ba9c6b45b4be4).
 The vault is associated with TUSD in
-[this transaction](https://hashscan.io/testnet/transaction/0xf45d708a8415ac0e44fa301a027fef8b44e904b7cf240ff752344249ee62e1a5);
+[this transaction](https://hashscan.io/testnet/transaction/0xc7856204a02bd8caee265a17c83928ea89c5cbf0937452e251d4abe58638d6aa);
 a contract is an account and cannot hold an HTS token until it has associated
 it, so this is a deploy step and the script asserts `isAssociated()` afterwards.
 
@@ -144,9 +144,15 @@ T07, T12 and T13 code against these, so they are part of the interface.
   `10000`, +0.30 points is `3000`, and the demo level line of -0.68 points is
   `-6800`. They are signed because a level line for a low unemployment
   profession is negative. Never let a float reach the contract boundary.
-- **Periods** cross the boundary as `uint32` `YYYYMM` (`202604`). Inside, every
-  window rule is arithmetic on the month index `year * 12 + (month - 1)`, so
-  2026-04 is `24315`. Events carry `YYYYMM`.
+- **Periods** cross the boundary as `uint32` `YYYYMM` (`202604`). Every
+  function argument, return value and event field that names a period is
+  `YYYYMM`: `submitObservation`, `recordPremium`, `observationOf`,
+  `isInLossWindow` and `openMonths` all speak it. Inside, every window rule is
+  arithmetic on the month index `year * 12 + (month - 1)`, so 2026-04 is
+  `24315`. The one place an index is visible from outside is the raw
+  `SeriesTerms` and `Policy` structs returned by `seriesOf` and `policyOf`,
+  whose `firstOpenMonth`, `lastOpenMonth`, `lastObservedMonth` and
+  `paidThroughMonth` are indices.
 - **Identifiers** (`seriesId`, `policyId`, `claimId`, `nullifierHash`,
   `packetHash`, `decisionHash`, `group`) are `bytes32`. `seriesId` and `group`
   are the ASCII label right padded with zero bytes, which is what
@@ -184,8 +190,8 @@ group "computer and mathematical".
 | claim window from the separation | 60 days | `5184000` |
 | lookback | 2 months | `2` |
 
-[Opened in the vault](https://hashscan.io/testnet/transaction/0x8730867a9d36bf90e627120b9e5f05b28dcf929950fecd8444c51185d4f03c79),
-[registered in the pool](https://hashscan.io/testnet/transaction/0xda2bddc3b8e958caeccfe25daa204bc33ef48632cd9777986a68a97e46f5097a).
+[Opened in the vault](https://hashscan.io/testnet/transaction/0x2c042123014090e5b40ad3142518397ecf9d377471cde59fd75c7ee2138432d0),
+[registered in the pool](https://hashscan.io/testnet/transaction/0x15e833ad75e2f1ae5ef38956959ac13d6b76eba7906ee9e6ba6b48895675bfda).
 Nothing in the terms is mutable after registration except the status.
 
 ### Measured gas
@@ -199,19 +205,19 @@ The per transaction cap is 15 million.
 | Call | Gas used | Suggested limit |
 |---|---|---|
 | deploy CollateralVault | 1,549,319 | 4,000,000 |
-| deploy CoverPool | 3,887,828 | 6,000,000 |
+| deploy CoverPool | 3,847,387 | 6,000,000 |
 | `associateSettlementToken` | 735,563 | 2,000,000 |
 | `registerSeries` | 108,134 | 600,000 |
 | `subscribe` (HTS transferFrom) | 141,378 | 1,500,000 |
 | `bind` | 224,668 | 800,000 |
-| `submitObservation` on an opening month | 270,878 | 1,000,000 |
-| `payClaim` (HTS transfer out) | 172,701 | 1,500,000 |
+| `submitObservation` on an opening month | 271,024 | 1,000,000 |
+| `payClaim` (HTS transfer out) | 172,689 | 1,500,000 |
 
 Run through transactions:
-[subscribe](https://hashscan.io/testnet/transaction/0x55f3695c161ea3d0bd5228059af4e03ddd7d75aa756f9837169b6fe50e89610d),
-[bind](https://hashscan.io/testnet/transaction/0xe52940b3abfed83d2d9109c6a0a4954ccce018d7fda7f0343cae70656b4ce605),
-[submitObservation](https://hashscan.io/testnet/transaction/0x390623e97d00e05ba1e6518466d9cd28088879a51dec3e11ff0119175a539840),
-[payClaim](https://hashscan.io/testnet/transaction/0x3185d7d188a332ddb585238b1282ec2cf4706f81be914526aade4b9cb106dcbd).
+[subscribe](https://hashscan.io/testnet/transaction/0xafcf4a83a90455cf8c94d8ea8423994bdc479cdc588488cacd25b767c6745e46),
+[bind](https://hashscan.io/testnet/transaction/0xac8a8ad56f5f7ef8bd6fb6a3515abec55f50f38cca3b7d3ce6a7141856303b4b),
+[submitObservation](https://hashscan.io/testnet/transaction/0x00bbce06acd39293288aca58b27b0d1cc0fe2b66a45a5391a0278bd16feb5871),
+[payClaim](https://hashscan.io/testnet/transaction/0x2295b762330bae87b3d30395b3623bb33e2d8cbcd2a883bf5afa9d9f46383c06).
 
 ## Scheduled transactions
 

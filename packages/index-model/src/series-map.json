@@ -1,0 +1,137 @@
+{
+  "catalogue": {
+    "file": "data/bls/raw/ln.series.gz",
+    "sha256": "f1a2f8cda6c53209b9df7b9ddab0d1739af5ef49cf3ba43eb556dbdb1ddc23fd",
+    "resolved_on": "2026-09-04"
+  },
+  "series": [
+    {
+      "group_key": "management_business_financial",
+      "label": "Management, business and financial operations",
+      "bls_series_id": "LNU04032216",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Management, Business, and Financial Operations Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "professional_related",
+      "label": "Professional and related",
+      "bls_series_id": "LNU04032217",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Professional and Related Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "service",
+      "label": "Service",
+      "bls_series_id": "LNU04032218",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Service Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "sales_related",
+      "label": "Sales and related",
+      "bls_series_id": "LNU04032220",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Sales and Related Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "office_admin_support",
+      "label": "Office and administrative support",
+      "bls_series_id": "LNU04032221",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Office and Administrative Support Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "farming_fishing_forestry",
+      "label": "Farming, fishing and forestry",
+      "bls_series_id": "LNU04032223",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Farming, Fishing, and Forestry Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "construction_extraction",
+      "label": "Construction and extraction",
+      "bls_series_id": "LNU04032224",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Construction and Extraction Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "installation_maintenance_repair",
+      "label": "Installation, maintenance and repair",
+      "bls_series_id": "LNU04032225",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Installation, Maintenance, and Repair Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "production",
+      "label": "Production",
+      "bls_series_id": "LNU04032227",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Production Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "transportation_material_moving",
+      "label": "Transportation and material moving",
+      "bls_series_id": "LNU04032228",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Transportation and Material Moving Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "computer_math",
+      "label": "Computer and mathematical",
+      "bls_series_id": "LNU04034021",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Computer and Mathematical Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "legal",
+      "label": "Legal",
+      "bls_series_id": "LNU04034025",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Legal Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "arts_design_ent_media",
+      "label": "Arts, design, entertainment, sports and media",
+      "bls_series_id": "LNU04034027",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Arts, Design, Entertainment, Sports, and Media Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "business_financial_ops",
+      "label": "Business and financial operations",
+      "bls_series_id": "LNU04034020",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Business and Financial Operations Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "education_training_library",
+      "label": "Education, training and library",
+      "bls_series_id": "LNU04034026",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "(Unadj) Unemployment Rate - Education, Training, and Library Occupations, 2000 M01 onward."
+    },
+    {
+      "group_key": "aggregate",
+      "label": "All occupations",
+      "bls_series_id": "LNU04000000",
+      "source": "CPS LN",
+      "selected_by": "T02",
+      "notes": "All-occupation rate, the denominator of every excess. Not bindable."
+    }
+  ]
+}

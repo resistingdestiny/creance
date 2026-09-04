@@ -1,0 +1,37 @@
+{
+  "name": "creance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Creance: parametric occupation cover funded by Displacement Bond Notes on Hedera testnet",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:testnet": "node scripts/stub.mjs test:testnet",
+    "dev": "node scripts/stub.mjs dev",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck",
+    "oracle:once": "node scripts/stub.mjs oracle:once",
+    "oracle:replay": "node scripts/stub.mjs oracle:replay",
+    "oracle:backtest": "node scripts/stub.mjs oracle:backtest",
+    "oracle:backfill": "node scripts/stub.mjs oracle:backfill",
+    "oracle:schedule": "node scripts/stub.mjs oracle:schedule",
+    "steward:run": "node scripts/stub.mjs steward:run",
+    "adjuster:run": "node scripts/stub.mjs adjuster:run",
+    "contracts:deploy": "node scripts/stub.mjs contracts:deploy",
+    "ats:issue": "node scripts/stub.mjs ats:issue",
+    "demo:seed": "node scripts/stub.mjs demo:seed"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^22.18.0",
+    "eslint": "^9.39.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^3.2.7"
+  }
+}

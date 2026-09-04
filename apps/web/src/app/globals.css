@@ -233,3 +233,13 @@
     outline-offset: 2px;
   }
 }
+
+@layer components {
+  /* Gallery only: paints the focus state on an element that does not have
+     focus, so a reviewer can see it without holding down the tab key. The
+     declaration is the same one the base layer applies for real. */
+  .focus-demo {
+    outline: 2px solid #000;
+    outline-offset: 2px;
+  }
+}

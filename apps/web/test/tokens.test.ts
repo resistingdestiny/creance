@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -77,5 +79,27 @@ describe('the greys the design leans on', () => {
 
   it('prints a ratio to two decimals', () => {
     expect(formatRatio(4.5)).toBe('4.50:1');
+  });
+});
+
+describe('the typeface switch', () => {
+  it('is Option A unless the environment asks for B', async () => {
+    const { activeFontOption } = await import('../src/lib/font-option.js');
+    expect(activeFontOption).toBe(process.env.NEXT_PUBLIC_FONT_OPTION === 'B' ? 'B' : 'A');
+  });
+
+  // The two font modules cannot be imported here: next/font only runs inside
+  // the framework's compiler. What can be checked is that they present the same
+  // two exports, which is what lets next.config.ts alias one for the other.
+  it('has the same shape for both options, so the alias can swap them', () => {
+    const dir = new URL('../src/lib/', import.meta.url);
+    const a = readFileSync(new URL('fonts.option-a.ts', dir), 'utf8');
+    const b = readFileSync(new URL('fonts.option-b.ts', dir), 'utf8');
+    for (const source of [a, b]) {
+      expect(source).toMatch(/export const fontOption = '[AB]';/);
+      expect(source).toMatch(/export const fontClassName =/);
+    }
+    expect(a).toContain("export const fontOption = 'A';");
+    expect(b).toContain("export const fontOption = 'B';");
   });
 });

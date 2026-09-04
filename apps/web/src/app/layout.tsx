@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
-import { activeFontOption } from '../lib/font-option';
+// Resolved by next.config.ts to fonts.option-a or fonts.option-b. See
+// src/lib/font-option.ts for what chooses which.
+import { fontClassName } from 'creance-active-font';
 
 import './globals.css';
 
@@ -35,20 +37,17 @@ export const viewport: Viewport = {
  * The root layout.
  *
  * The two typeface options of docs/DESIGN-TOKENS.md section 2 sit behind one
- * switch. NEXT_PUBLIC_FONT_OPTION is inlined by the framework at build time, so
- * the branch below is resolved by the bundler and the family that is not active
- * is never fetched by a browser. Option A is the default and the shipped
- * choice; both families resolve in next/font/google at every weight the scale
- * uses.
+ * switch, NEXT_PUBLIC_FONT_OPTION, which defaults to A. The switch is applied
+ * at module resolution in next.config.ts rather than as a branch here, because
+ * any font module left in the bundle graph gets a preload link emitted whether
+ * or not it is used, and the inactive family must not be fetched.
+ *
+ * Option A is the shipped choice. Both families resolve in next/font/google at
+ * every weight the scale uses.
  */
-export default async function RootLayout({ children }: { children: ReactNode }) {
-  const fonts =
-    activeFontOption === 'B'
-      ? await import('../lib/fonts.option-b')
-      : await import('../lib/fonts.option-a');
-
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html className={fonts.fontClassName} lang="en-GB">
+    <html className={fontClassName} lang="en-GB">
       <body className="flex min-h-dvh flex-col bg-canvas text-ink">
         <div className="flex-1">{children}</div>
         <Disclosure />

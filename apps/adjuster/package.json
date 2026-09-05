@@ -8,6 +8,7 @@
     "start": "tsx --env-file-if-exists=../../.env src/main.ts",
     "extract": "tsx --env-file-if-exists=../../.env scripts/extract.ts",
     "fixtures": "tsx scripts/render-fixtures.ts",
+    "testnet:seed": "tsx --env-file-if-exists=../../.env scripts/testnet/seed-claim.ts",
     "testnet:publish": "tsx --env-file-if-exists=../../.env scripts/testnet/publish.ts",
     "test": "vitest run",
     "test:testnet": "pnpm run testnet:publish",

@@ -126,7 +126,7 @@ export async function runCycle(options: RunOptions): Promise<number> {
   try {
     if (!decision.buy) {
       console.log('\n   the rule says hold, so nothing is bought. The cycle still journals.');
-      await journal(client, config, profile, decision, replay, settlements, undefined);
+      await journal(client, config, profile, decision, replay, settlements, undefined, 4);
       return 0;
     }
 
@@ -194,7 +194,7 @@ export async function runCycle(options: RunOptions): Promise<number> {
     });
 
     // 8. The journal.
-    const receipt = await journal(client, config, profile, decision, replay, settlements, {
+    const cycle = {
       quoteId: quote.body.quote_id,
       policyId: policy.policy_id,
       nft: { tokenId: policy.nft.token_id, serial: policy.nft.serial },
@@ -209,7 +209,8 @@ export async function runCycle(options: RunOptions): Promise<number> {
         period: schedules.periods[position] as number,
       })),
       deferred: schedules.deferredPeriods,
-    });
+    };
+    const receipt = await journal(client, config, profile, decision, replay, settlements, cycle, 8);
 
     if (options.wait && schedules.created.length > 0) {
       await watchFirstPremium(config, schedules.created[0] as CreatedSchedule);
@@ -409,6 +410,7 @@ async function journal(
   replay: boolean,
   settlements: JournalSettlements,
   bound: Parameters<typeof journalMessage>[0]['bound'],
+  step: number,
 ): Promise<{ link: string; sequenceNumber: number }> {
   const message = journalMessage({
     agent: config.steward.accountId,
@@ -420,7 +422,7 @@ async function journal(
     bound,
   });
   const text = encodeJournalMessage(message);
-  console.log(`\n8. the journal, topic ${config.journalTopicId}`);
+  console.log(`\n${step}. the journal, topic ${config.journalTopicId}`);
   console.log(`   ${text}`);
   const receipt = await publishJournal(client, config.journalTopicId, text);
   console.log(

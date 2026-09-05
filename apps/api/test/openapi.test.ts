@@ -87,6 +87,29 @@ describe('the Bazantic OpenAPI document', () => {
     }
   });
 
+  it('promises nothing on the free reads the server does not send', async () => {
+    const built = await buildTestServer();
+    app = built.app;
+    const document = buildOpenApiDocument({ version: '0.1.0' }) as {
+      components: { schemas: Record<string, { required?: string[] }> };
+    };
+
+    // The two series reads are the ones an investor screen and the renewal
+    // recipe read, and they were `type: object` in this document until T19, so
+    // what they promise is new and worth holding to the running server.
+    for (const [url, schema] of [
+      ['/v1/series/ODI-COMP-2026-01', 'Series'],
+      ['/v1/series/ODI-COMP-2026-01/coupons', 'SeriesCoupons'],
+    ] as const) {
+      const response = await built.app.inject({ method: 'GET', url });
+      expect(response.statusCode, url).toBe(200);
+      const body = response.json() as Record<string, unknown>;
+      for (const field of document.components.schemas[schema]?.required ?? []) {
+        expect(body[field], `${url} ${field}`).toBeDefined();
+      }
+    }
+  });
+
   it('documents the status a wrong request actually comes back with', async () => {
     const built = await buildTestServer();
     app = built.app;

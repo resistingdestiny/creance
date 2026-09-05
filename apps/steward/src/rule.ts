@@ -128,7 +128,7 @@ export function trendAt(history: HistoryPoint[], asOf?: string | undefined): Tre
       // Either the vantage month itself has no published ODI or the source has
       // a hole behind it. Both mean there is no three month trend to read.
       unavailable:
-        vantageReading === null || vantageReading.odi === null
+        vantageReading?.odi === undefined || vantageReading.odi === null
           ? 'no_reading_at_vantage'
           : 'incomplete_window',
     };

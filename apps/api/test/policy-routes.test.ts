@@ -154,6 +154,30 @@ describe('the policy endpoints', () => {
       expect(messages[1].serial).toBe(1);
     });
 
+    it('dates the receipt at the moment the price was struck, not at its expiry', async () => {
+      // The receipt is a permanent public record. quotedAt carrying the expiry
+      // would state the price was struck QUOTE_TTL_SECONDS after the cover began.
+      const built = await harness();
+      const quote = (await quoted(built)).json();
+      const token = await issueCredential(built);
+      const response = await built.app.inject({
+        method: 'POST',
+        url: '/v1/bind',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { quote_id: quote.quote_id },
+      });
+      expect(response.statusCode).toBe(201);
+
+      const row = await built.repository.quote(quote.quote_id);
+      const receipt = JSON.parse(built.hedera.published[0]?.message ?? '{}');
+      expect(receipt.quotedAt).toBe(row?.createdAt);
+      expect(receipt.quotedAt).not.toBe(row?.expiresAt);
+      expect(Date.parse(row?.expiresAt ?? '') - Date.parse(receipt.quotedAt)).toBe(
+        built.services.config.quoteTtlSeconds * 1000,
+      );
+      expect(Date.parse(receipt.quotedAt)).toBeLessThanOrEqual(Date.parse(receipt.startAt));
+    });
+
     it('records the first premium as uncollected, ready for the x402 gate', async () => {
       const built = await harness();
       const body = (await bound(built)).json();

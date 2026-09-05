@@ -36,6 +36,7 @@ export interface PolicyBindingMessage {
   premium: string;
   token: string;
   startAt: string;
+  /** When the price was struck, which is before startAt, never the expiry. */
   quotedAt: string;
 }
 

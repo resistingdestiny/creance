@@ -232,7 +232,7 @@ export async function bind(
         premium,
         tokenId: quote.asset,
         startAt: now,
-        quotedAt: new Date(quote.expiresAt),
+        quotedAt: new Date(quote.createdAt),
       }),
     ),
   );

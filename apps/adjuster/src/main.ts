@@ -2,7 +2,7 @@ import { parseArgs } from 'node:util';
 
 import { AdjusterApi } from './api.js';
 import { adjusterClient, NoPublisher, TopicDecisionPublisher } from './chain.js';
-import { loadAdjusterConfig } from './config.js';
+import { loadAdjusterConfig, requireAdminToken } from './config.js';
 import { ModelExtractor, RecordedExtractor } from './extract.js';
 import { runPass, type PassResult } from './run.js';
 
@@ -48,7 +48,7 @@ if (!Number.isInteger(intervalSeconds) || intervalSeconds < 1) {
 const dryRun = values['dry-run'] === true;
 
 const config = loadAdjusterConfig();
-const api = new AdjusterApi(config.apiUrl, config.adminToken);
+const api = new AdjusterApi(config.apiUrl, requireAdminToken(config));
 
 // Without a model key the Adjuster still runs: every document fails to be read,
 // every claim that needs one is referred to the queue, and the claims a cheap

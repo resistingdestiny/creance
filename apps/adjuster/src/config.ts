@@ -30,8 +30,13 @@ interface ResourcesFile {
 export interface AdjusterConfig {
   network: string;
   apiUrl: string;
-  /** The bearer token the queue is behind. */
-  adminToken: string;
+  /**
+   * The bearer token the queue is behind, when this deployment has one. It is
+   * undefined rather than fatal here so that the testnet publish, which talks
+   * only to the topic, runs without one. The pass asks for it and says which
+   * name to set.
+   */
+  adminToken: string | undefined;
   adjuster: { accountId: string; privateKey: string };
   /** The claims topic, whose submit key is the adjuster account's. */
   claimsTopicId: string;
@@ -67,6 +72,14 @@ function adjusterKey(): string {
   return roleKeyHex(operator, 'adjuster');
 }
 
+/** The admin token, or a refusal that names the variable to set. */
+export function requireAdminToken(config: AdjusterConfig): string {
+  return required(
+    config.adminToken,
+    "the Adjuster's admin token (ADJUSTER_ADMIN_TOKEN, or ADMIN_TOKEN)",
+  );
+}
+
 export function loadAdjusterConfig(): AdjusterConfig {
   const resourcesPath =
     env('CREANCE_HEDERA_RESOURCES') ?? fileURLToPath(new URL(DEFAULT_RESOURCES, import.meta.url));
@@ -84,10 +97,7 @@ export function loadAdjusterConfig(): AdjusterConfig {
   return {
     network,
     apiUrl: (env('CREANCE_API_URL') ?? DEFAULT_API_URL).replace(/\/+$/, ''),
-    adminToken: required(
-      env('ADJUSTER_ADMIN_TOKEN') ?? env('ADMIN_TOKEN'),
-      "the Adjuster's admin token",
-    ),
+    adminToken: env('ADJUSTER_ADMIN_TOKEN') ?? env('ADMIN_TOKEN'),
     adjuster: {
       accountId: required(
         env('HEDERA_ADJUSTER_ID') ?? resources?.accounts?.['adjuster']?.accountId,

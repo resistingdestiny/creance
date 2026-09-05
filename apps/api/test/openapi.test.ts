@@ -87,6 +87,63 @@ describe('the Bazantic OpenAPI document', () => {
     }
   });
 
+  it('documents the status a wrong request actually comes back with', async () => {
+    const built = await buildTestServer();
+    app = built.app;
+    const document = buildOpenApiDocument({ version: '0.1.0' }) as {
+      paths: Record<string, Record<string, { responses: Record<string, unknown> }>>;
+    };
+
+    // An agent switches on the status before it reads the body, so a refusal
+    // this document does not list is a refusal the agent handles by crashing.
+    // Each case is a mistake a caller makes, not an exhaustive sweep: the ones
+    // that need a payment, a chain write or a credential are proved by the
+    // gate, bind and credential suites.
+    const cases = [
+      { method: 'GET' as const, url: '/v1/policy/bad', path: '/v1/policy/{policyId}' },
+      {
+        method: 'GET' as const,
+        url: '/v1/policy/pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E',
+        path: '/v1/policy/{policyId}',
+      },
+      { method: 'GET' as const, url: '/v1/audit/bad', path: '/v1/audit/{policyId}' },
+      { method: 'GET' as const, url: '/v1/series/NOT-A-SERIES', path: '/v1/series/{seriesId}' },
+      {
+        method: 'GET' as const,
+        url: '/v1/series/NOT-A-SERIES/coupons',
+        path: '/v1/series/{seriesId}/coupons',
+      },
+      { method: 'POST' as const, url: '/v1/quote', payload: {}, path: '/v1/quote' },
+      {
+        method: 'POST' as const,
+        url: '/v1/quote',
+        payload: { group: 'not_an_occupation', limit: '5000000000', wallet: '0.0.10366453' },
+        path: '/v1/quote',
+      },
+      {
+        method: 'POST' as const,
+        url: '/v1/quote',
+        payload: { group: 'computer_math', limit: '1', wallet: '0.0.10366453' },
+        path: '/v1/quote',
+      },
+      { method: 'POST' as const, url: '/v1/bind', payload: { quote_id: 'qte_nope' }, path: '/v1/bind' },
+    ];
+
+    for (const testCase of cases) {
+      const response = await built.app.inject({
+        method: testCase.method,
+        url: testCase.url,
+        ...('payload' in testCase ? { payload: testCase.payload } : {}),
+      });
+      const documented = Object.keys(
+        document.paths[testCase.path]?.[testCase.method.toLowerCase()]?.responses ?? {},
+      );
+      expect(documented, `${testCase.method} ${testCase.url}`).toContain(
+        String(response.statusCode),
+      );
+    }
+  });
+
   it('documents the 402 and the payment headers on every metered operation', () => {
     const document = buildOpenApiDocument({ version: '0.1.0' }) as {
       paths: Record<string, Record<string, { parameters?: { name?: string }[]; responses: Record<string, unknown> }>>;

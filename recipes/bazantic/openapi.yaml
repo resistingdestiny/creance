@@ -49,6 +49,10 @@ paths:
         reader can recompute the number from the cited rows.
 
         Price: 0.01 TUSD, smallest unit `10000`, asset `0.0.10366463`, decimals 6.
+
+        The gate runs before the handler, so an unknown group is refused with 402
+        and not with 400: the 400 is what a paid call to an unknown group answers.
+        Send the group from the enum and the question does not arise.
       parameters:
         - name: group
           in: path
@@ -181,7 +185,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Quote'
         '400':
-          description: '`group_unknown` or `limit_out_of_range`.'
+          description: '`validation_failed` for a missing field, `group_unknown` or `limit_out_of_range`.'
           content:
             application/problem+json:
               schema:
@@ -203,8 +207,20 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/PaymentRequired'
+        '404':
+          description: '`series_not_found`: a `series_id` was sent and it does not cover that occupation.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '409':
           description: '`no_capacity_for_group`, `insufficient_capacity` or `series_not_open_for_binding`.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: '`index_unavailable`: no reading for that occupation, so cover cannot be priced.'
           content:
             application/problem+json:
               schema:
@@ -270,8 +286,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Policy'
+        '400':
+          description: >-
+            `validation_failed` for a missing `quote_id`, or `credential_ambiguous` when the header
+            and the body carry different credentials.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '401':
-          description: '`credential_missing` or `credential_invalid`.'
+          description: >-
+            `credential_missing`, `credential_invalid` or `credential_unknown`, which is a
+            well-formed credential this API did not issue.
           content:
             application/problem+json:
               schema:
@@ -294,7 +320,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaymentRequired'
         '403':
-          description: '`credential_expired`.'
+          description: '`credential_expired`. They last thirty minutes.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: '`quote_not_found` or `series_not_found`.'
           content:
             application/problem+json:
               schema:
@@ -302,7 +334,8 @@ paths:
         '409':
           description: >-
             `already_covered`, `credential_consumed`, `quote_consumed`, `wallet_mismatch`,
-            `group_mismatch`, `series_mismatch` or `insufficient_capacity`.
+            `group_mismatch`, `series_mismatch`, `series_not_open_for_binding` or
+            `insufficient_capacity`.
           content:
             application/problem+json:
               schema:
@@ -315,6 +348,14 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '502':
           description: '`chain_write_failed`: the pool refused the write.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: >-
+            `hedera_not_configured`: the API has no Hedera keys, so it can neither publish a receipt
+            nor mint one.
           content:
             application/problem+json:
               schema:

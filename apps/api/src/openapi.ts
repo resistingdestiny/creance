@@ -236,6 +236,10 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
             'reader can recompute the number from the cited rows.',
             '',
             'Price: 0.01 TUSD, smallest unit `10000`, asset `0.0.10366463`, decimals 6.',
+            '',
+            'The gate runs before the handler, so an unknown group is refused with 402',
+            'and not with 400: the 400 is what a paid call to an unknown group answers.',
+            'Send the group from the enum and the question does not arise.',
           ].join('\n'),
           parameters: [
             {
@@ -292,10 +296,18 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
               headers: { 'PAYMENT-RESPONSE': PAYMENT_RESPONSE_HEADER },
               content: { 'application/json': { schema: { $ref: '#/components/schemas/Quote' } } },
             },
-            '400': problemResponse('`group_unknown` or `limit_out_of_range`.'),
+            '400': problemResponse(
+              '`validation_failed` for a missing field, `group_unknown` or `limit_out_of_range`.',
+            ),
             '402': paymentRequired('0.05 TUSD'),
+            '404': problemResponse(
+              '`series_not_found`: a `series_id` was sent and it does not cover that occupation.',
+            ),
             '409': problemResponse(
               '`no_capacity_for_group`, `insufficient_capacity` or `series_not_open_for_binding`.',
+            ),
+            '503': problemResponse(
+              '`index_unavailable`: no reading for that occupation, so cover cannot be priced.',
             ),
           },
         },
@@ -340,14 +352,23 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
               headers: { 'PAYMENT-RESPONSE': PAYMENT_RESPONSE_HEADER },
               content: { 'application/json': { schema: { $ref: '#/components/schemas/Policy' } } },
             },
-            '401': problemResponse('`credential_missing` or `credential_invalid`.'),
+            '400': problemResponse(
+              '`validation_failed` for a missing `quote_id`, or `credential_ambiguous` when the header and the body carry different credentials.',
+            ),
+            '401': problemResponse(
+              '`credential_missing`, `credential_invalid` or `credential_unknown`, which is a well-formed credential this API did not issue.',
+            ),
             '402': paymentRequired('the first month premium from the quote'),
-            '403': problemResponse('`credential_expired`.'),
+            '403': problemResponse('`credential_expired`. They last thirty minutes.'),
+            '404': problemResponse('`quote_not_found` or `series_not_found`.'),
             '409': problemResponse(
-              '`already_covered`, `credential_consumed`, `quote_consumed`, `wallet_mismatch`, `group_mismatch`, `series_mismatch` or `insufficient_capacity`.',
+              '`already_covered`, `credential_consumed`, `quote_consumed`, `wallet_mismatch`, `group_mismatch`, `series_mismatch`, `series_not_open_for_binding` or `insufficient_capacity`.',
             ),
             '410': problemResponse('`quote_expired`.'),
             '502': problemResponse('`chain_write_failed`: the pool refused the write.'),
+            '503': problemResponse(
+              '`hedera_not_configured`: the API has no Hedera keys, so it can neither publish a receipt nor mint one.',
+            ),
           },
         },
       },

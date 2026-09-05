@@ -29,6 +29,8 @@ export interface PurchaseSession {
   limit: number | null;
   /** The quote the Pay sheet is about to bind. */
   quoteId: string | null;
+  /** That quote's premium, so a re-price can tell whether the price moved. */
+  premiumMinorUnits: string | null;
   /** The eligibility credential. Server side only, never sent to a browser. */
   credential: string | null;
   credentialExpiresAt: string | null;
@@ -69,6 +71,7 @@ function emptySession(): PurchaseSession {
     group: null,
     limit: null,
     quoteId: null,
+    premiumMinorUnits: null,
     credential: null,
     credentialExpiresAt: null,
     nullifier: freshNullifier(),

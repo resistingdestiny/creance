@@ -18,6 +18,8 @@ import { formatAmount } from '../lib/format';
 export const AMOUNT_MIN = 1000;
 export const AMOUNT_MAX = 10_000;
 export const AMOUNT_STEP = 500;
+/** Where the slider opens. DESIGN.md 3.4's demo limit. */
+export const AMOUNT_DEFAULT = 5_000;
 
 export interface AmountSliderProps {
   value: number;

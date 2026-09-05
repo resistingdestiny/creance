@@ -138,7 +138,13 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
     async (request, reply) => {
       requireAdmin(request, services.adminTokens);
       const limit = Math.min(Math.max(Number(request.query.limit ?? '20') || 20, 1), 100);
-      const claims = await unpublishedDecisions(services, limit);
+      const [claims, waiting] = await Promise.all([
+        unpublishedDecisions(services, limit),
+        services.repository.claimsAwaitingPacket(limit),
+      ]);
+      const evidence = await Promise.all(
+        waiting.map((claim) => services.repository.claimEvidence(claim.claimId)),
+      );
       return reply.send({
         count: claims.length,
         claims: claims.map((claim) => ({
@@ -147,26 +153,55 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
           decision: claim.decision,
           decision_hash: claim.decisionHash,
         })),
+        // The packets whose hash has not reached the topic, in the same list
+        // and for the same reason: the API writes the hash into the row and
+        // cannot publish it, because the claims topic's submit key is the
+        // adjuster account's. The Adjuster sweeps this at the start of a pass,
+        // so the packet hash is public before the decision hash that answers
+        // it. See docs/DECISIONS.md.
+        packets: waiting.map((claim, index) => ({
+          claim_id: claim.claimId,
+          policy_id: claim.policyId,
+          packet_hash: claim.packetHash,
+          evidence: (evidence[index] ?? []).map((file) => file.sha256),
+        })),
       });
     },
   );
 
-  app.post<{ Params: { claimId: string }; Body: { hcs_decision_seq?: unknown } }>(
-    '/v1/admin/claims/:claimId/published',
-    async (request, reply) => {
-      requireAdmin(request, services.adminTokens);
-      const sequence = request.body?.hcs_decision_seq;
-      if (typeof sequence !== 'number' || !Number.isInteger(sequence) || sequence < 1) {
+  app.post<{
+    Params: { claimId: string };
+    Body: { hcs_decision_seq?: unknown; hcs_submitted_seq?: unknown };
+  }>('/v1/admin/claims/:claimId/published', async (request, reply) => {
+    requireAdmin(request, services.adminTokens);
+    const body = request.body ?? {};
+    const decisionSeq = sequenceOr(body.hcs_decision_seq, 'hcs_decision_seq');
+    const packetSeq = sequenceOr(body.hcs_submitted_seq, 'hcs_submitted_seq');
+    if (decisionSeq === null && packetSeq === null) {
+      throw new AppError(
+        400,
+        'bad_sequence',
+        'Bad sequence number',
+        'Send hcs_decision_seq or hcs_submitted_seq, whichever the topic receipt was for.',
+      );
+    }
+
+    let stored: ClaimRow | null = null;
+    if (packetSeq !== null) {
+      stored = await services.repository.recordPacketSequence(request.params.claimId, packetSeq);
+      if (stored === null) {
         throw new AppError(
-          400,
-          'bad_sequence',
-          'Bad sequence number',
-          'hcs_decision_seq is the whole number the topic receipt carried.',
+          409,
+          'packet_not_publishable',
+          'Nothing to record',
+          'That claim has no packet hash waiting for a sequence number.',
         );
       }
-      const stored = await services.repository.recordDecisionSequence(
+    }
+    if (decisionSeq !== null) {
+      stored = await services.repository.recordDecisionSequence(
         request.params.claimId,
-        sequence,
+        decisionSeq,
       );
       if (stored === null) {
         throw new AppError(
@@ -176,13 +211,15 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
           'That claim has no decision hash waiting for a sequence number.',
         );
       }
-      return reply.send({
-        claim_id: stored.claimId,
-        decision_hash: stored.decisionHash,
-        hcs_decision_seq: stored.hcsDecisionSeq,
-      });
-    },
-  );
+    }
+    return reply.send({
+      claim_id: stored?.claimId ?? request.params.claimId,
+      packet_hash: stored?.packetHash ?? null,
+      decision_hash: stored?.decisionHash ?? null,
+      hcs_submitted_seq: stored?.hcsSubmittedSeq ?? null,
+      hcs_decision_seq: stored?.hcsDecisionSeq ?? null,
+    });
+  });
 
   app.post<{ Params: { claimId: string }; Body: DecideBody }>(
     '/v1/admin/claims/:claimId/decide',
@@ -475,6 +512,20 @@ function verifyHash(record: Record<string, unknown> | null, claimed: unknown): s
     );
   }
   return digest;
+}
+
+/** A topic sequence number, or null when the caller sent none. */
+function sequenceOr(value: unknown, name: string): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw new AppError(
+      400,
+      'bad_sequence',
+      'Bad sequence number',
+      `${name} is the whole number the topic receipt carried.`,
+    );
+  }
+  return value;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

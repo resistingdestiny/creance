@@ -43,6 +43,8 @@ export interface OracleConfig {
   submitGasLimit: number;
   statePath: string;
   observationsPath: string;
+  /** Where the runs table of docs/INDEX-SPEC.md section 10 is written. */
+  runsPath: string;
   /** Every registered cover series, in deployment record order. */
   series: OracleSeries[];
 }
@@ -51,6 +53,7 @@ const DEFAULT_RECORD = '../../../contracts/deployments/testnet.json';
 const DEFAULT_RESOURCES = '../../../docs/hedera.testnet.json';
 const DEFAULT_STATE = '../../../var/oracle/replay-state.json';
 const DEFAULT_OBSERVATIONS = '../../../var/oracle/observations.json';
+const DEFAULT_RUNS = '../../../var/oracle/runs.json';
 
 interface DeploymentFile {
   network?: string;
@@ -159,6 +162,7 @@ export function loadOracleConfig(options: LoadOptions = {}): OracleConfig {
     observationsPath: resolve(
       fromEnv(vars, 'ORACLE_OBSERVATIONS_PATH') ?? fromHere(DEFAULT_OBSERVATIONS),
     ),
+    runsPath: resolve(fromEnv(vars, 'ORACLE_RUNS_PATH') ?? fromHere(DEFAULT_RUNS)),
     series,
   };
 }

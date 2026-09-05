@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { roleKeyHex } from '@creance/client';
+
 /// Everything the policy endpoints need to know about the deployment, read
 /// once at boot and never at request time.
 ///
@@ -91,6 +93,26 @@ function required(value: string | undefined, what: string): string {
   return value;
 }
 
+/**
+ * The api account's key.
+ *
+ * It is named in the example environment, but it does not have to be filled in:
+ * every account in this build carries a key derived from the operator key with
+ * HKDF-SHA256 and the label `creance/testnet/<role>`, so a clone that has the
+ * operator key already has all of them and no derived secret is ever stored.
+ * An explicit value wins, which is what a rotation would look like.
+ */
+function roleKey(role: string, explicit: string | undefined): string | undefined {
+  if (explicit !== undefined && explicit.trim() !== '') return explicit.trim();
+  const operator = process.env.HEDERA_OPERATOR_KEY;
+  if (operator === undefined || operator.trim() === '') return undefined;
+  try {
+    return roleKeyHex(operator, role);
+  } catch {
+    return undefined;
+  }
+}
+
 function seconds(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw === undefined || raw.trim() === '') return fallback;
@@ -168,7 +190,7 @@ export function loadApiConfig(
     api: {
       accountId: process.env.HEDERA_API_ID ?? apiAccount?.accountId ?? '',
       address: apiAccount?.evmAddress ?? '',
-      key: process.env.HEDERA_API_KEY,
+      key: roleKey('api', process.env.HEDERA_API_KEY),
     },
     operator: {
       accountId: process.env.HEDERA_OPERATOR_ID ?? operator?.accountId ?? '',

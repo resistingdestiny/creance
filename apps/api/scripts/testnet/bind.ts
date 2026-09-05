@@ -7,7 +7,7 @@ import { loadApiConfig } from '../../src/config.js';
 import { createPool, PostgresRepository } from '../../src/db/postgres.js';
 import { migrate } from '../../src/db/migrate.js';
 import { buildServer } from '../../src/server.js';
-import { backfillObservations } from '../../src/services.js';
+import { backfillObservations, syncSeries } from '../../src/services.js';
 
 /// One bind against Hedera testnet, end to end, through the real server.
 ///
@@ -45,8 +45,10 @@ async function main(): Promise<void> {
   const config = loadApiConfig();
   assert.equal(config.network, 'testnet', 'this run is testnet only');
   const databaseUrl = requireEnv('DATABASE_URL');
-  requireEnv('HEDERA_API_KEY');
+  // The api key is derived from the operator key when it is not set
+  // explicitly, so the operator key is the only secret this run needs.
   requireEnv('HEDERA_OPERATOR_KEY');
+  assert.ok(config.api.key, 'the api account has no key: set HEDERA_OPERATOR_KEY or HEDERA_API_KEY');
 
   const resources = JSON.parse(
     await (await import('node:fs/promises')).readFile(
@@ -62,6 +64,7 @@ async function main(): Promise<void> {
   console.log(applied.length === 0 ? 'schema already up to date' : `applied ${applied.join(', ')}`);
 
   const app = await buildServer({ config, repository: new PostgresRepository(pool) });
+  console.log(`series synced from the chain: ${await syncSeries(app.services)}`);
   const written = await backfillObservations(app.services);
   console.log(`observations loaded from the archive: ${written} new`);
 

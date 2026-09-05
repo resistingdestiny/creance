@@ -12,7 +12,8 @@ import {
 } from '../receipts.js';
 import type { Services } from '../services.js';
 import { buildPolicyView, calendarDate, type PolicyView } from '../views.js';
-import { requiredString, seriesRowFrom } from './quote.js';
+import { seriesRowFrom } from '../series.js';
+import { requiredString } from './quote.js';
 
 /// POST /v1/bind
 ///
@@ -122,7 +123,7 @@ export async function bind(
       'That series is not taking new cover.',
     );
   }
-  await services.repository.upsertSeries(seriesRowFrom(seriesConfig, state, services));
+  await services.repository.upsertSeries(seriesRowFrom(seriesConfig, state, services.config));
 
   const now = new Date();
   const limit = BigInt(quote.coverLimit);

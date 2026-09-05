@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 
-import { seriesForGroup, type SeriesConfig } from '../config.js';
-import type { QuoteRow, SeriesRow } from '../db/types.js';
+import { seriesForGroup } from '../config.js';
+import type { QuoteRow } from '../db/types.js';
 import { AppError } from '../errors.js';
 import { newId } from '../ids.js';
 import {
@@ -11,8 +11,8 @@ import {
   limitIsOffered,
   priceCover,
 } from '../pricing.js';
-import type { SeriesChainState } from '../chain/cover-pool.js';
 import type { Services } from '../services.js';
+import { monthsOf, seriesRowFrom } from '../series.js';
 import { buildQuoteView, type QuoteView } from '../views.js';
 
 /// POST /v1/quote
@@ -135,7 +135,7 @@ export async function quote(
     principalRemaining: state.principalRemaining,
   });
 
-  await services.repository.upsertSeries(seriesRowFrom(seriesConfig, state, services));
+  await services.repository.upsertSeries(seriesRowFrom(seriesConfig, state, services.config));
 
   const now = new Date();
   const wallet = requiredString(body.wallet, 'wallet');
@@ -177,40 +177,6 @@ export async function quote(
 /** How the caller satisfied the gate. T08 makes `x402` the agent's answer. */
 function issuedVia(request: Pick<FastifyRequest, 'headers'>): QuoteRow['issuedVia'] {
   return typeof request.headers.authorization === 'string' ? 'credential' : 'open';
-}
-
-/** The whole `SeriesTerms` tuple, cached so the read side is not a chain call. */
-export function seriesRowFrom(
-  series: SeriesConfig,
-  state: SeriesChainState,
-  services: Services,
-): SeriesRow {
-  return {
-    seriesId: series.label,
-    seriesKey: series.seriesId,
-    groupKey: series.groupKey,
-    status: state.status === 'none' ? 'drafted' : state.status,
-    principal: state.principalRemaining.toString(),
-    couponRateBps: 800,
-    attachmentShock: state.attachmentShock,
-    levelLine: state.levelLine,
-    exhaustionShock: state.exhaustionShock,
-    payoutMode: state.payoutMode,
-    termMonths: monthsOf(state.termSeconds),
-    waitingPeriodDays: Math.round(state.waitingPeriodSeconds / 86_400),
-    gracePeriodDays: Math.round(state.gracePeriodSeconds / 86_400),
-    claimWindowObsDays: Math.round(state.claimWindowObsSeconds / 86_400),
-    claimWindowSepDays: Math.round(state.claimWindowSepSeconds / 86_400),
-    lookbackMonths: state.lookbackMonths,
-    coverPool: services.config.coverPoolAddress,
-    collateralVault: services.config.vaultAddress,
-    maturesAt: new Date(series.maturityAt * 1000).toISOString(),
-  };
-}
-
-/** The term is `uint32` seconds on chain; twelve months is 31,536,000 of them. */
-export function monthsOf(seconds: number): number {
-  return Math.round(seconds / (365 * 86_400 / 12));
 }
 
 export function requiredString(value: unknown, field: string): string {

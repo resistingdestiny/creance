@@ -1,5 +1,5 @@
 import { buildServer } from './server.js';
-import { backfillObservations } from './services.js';
+import { backfillObservations, syncSeries } from './services.js';
 
 /// The entry point. `pnpm api:dev` runs this; the server itself is in
 /// server.ts so a test can build one without listening on a port.
@@ -12,6 +12,7 @@ const port = Number(process.env.PORT ?? 3210);
 const host = process.env.HOST ?? '127.0.0.1';
 
 const app = await buildServer();
+const series = await syncSeries(app.services);
 const written = await backfillObservations(app.services);
-app.log.info({ observations: written }, 'index history loaded');
+app.log.info({ series, observations: written }, 'series and index history loaded');
 await app.listen({ port, host });

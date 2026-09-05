@@ -1,11 +1,13 @@
 // Pure helpers for the day 0 Hedera setup. Nothing here touches the network, so
 // the unit suite can cover all of it and `pnpm test` stays offline.
-import { hkdfSync } from 'node:crypto';
 import { PrivateKey } from '@hiero-ledger/sdk';
+import { deriveRoleKeyHex, labelForRole, normaliseRawKeyHex } from '@creance/client';
 
-// Order of the secp256k1 group. A private key must be in [1, n-1], so a derived
-// 32 byte string outside that range has to be rejected and re-derived.
-const SECP256K1_ORDER = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
+// The HKDF derivation itself lives in packages/client, because apps/api needs
+// it too and an import from this workspace would pull Hardhat into the API's
+// dependency graph. One implementation, re-exported here so that nothing which
+// already reads it from this module has to move.
+export { deriveRoleKeyHex, labelForRole, normaliseRawKeyHex };
 
 /** The roles this build creates from the operator account, in creation order. */
 export const ACCOUNT_ROLES = [
@@ -43,44 +45,6 @@ export const ROLE_FUNDING_HBAR: Record<AccountRole, number> = {
 export function envNamesForRole(role: AccountRole): { id: string; key: string } {
   const stem = role.toUpperCase().replace(/-/g, '_');
   return { id: `HEDERA_${stem}_ID`, key: `HEDERA_${stem}_KEY` };
-}
-
-/**
- * Accept the raw 32 byte hex form of an ECDSA key with or without the 0x
- * prefix and return it lowercase without the prefix. Anything else throws,
- * because a DER encoded key silently produces a different account.
- */
-export function normaliseRawKeyHex(raw: string): string {
-  const trimmed = raw.trim();
-  const hex = trimmed.startsWith('0x') || trimmed.startsWith('0X') ? trimmed.slice(2) : trimmed;
-  if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
-    throw new Error('expected a raw 32 byte hex ECDSA private key, 64 hex characters');
-  }
-  return hex.toLowerCase();
-}
-
-/**
- * Derive a role key from the operator key with HKDF-SHA256. The label is the
- * only input that varies, so the same operator key always yields the same ten
- * accounts and a re-run recovers them without storing a single new secret.
- * Testnet only: every derived key is exactly as secret as the operator key.
- */
-export function deriveRoleKeyHex(operatorKeyHex: string, label: string): string {
-  const ikm = Buffer.from(normaliseRawKeyHex(operatorKeyHex), 'hex');
-  for (let counter = 0; counter < 256; counter += 1) {
-    const info = counter === 0 ? label : `${label}#${counter}`;
-    const out = Buffer.from(hkdfSync('sha256', ikm, Buffer.alloc(0), info, 32));
-    const scalar = BigInt(`0x${out.toString('hex')}`);
-    if (scalar > 0n && scalar < SECP256K1_ORDER) {
-      return out.toString('hex');
-    }
-  }
-  throw new Error(`no valid secp256k1 scalar derived for ${label}`);
-}
-
-/** The HKDF label for a role. Kept in one place so nobody re-spells it. */
-export function labelForRole(role: string): string {
-  return `creance/testnet/${role}`;
 }
 
 /** Derive the role key and return it as an SDK key. */

@@ -6,6 +6,7 @@ import { migrate } from './db/migrate.js';
 import type { GroupRow, Repository } from './db/types.js';
 import { EthersChainGateway, type ChainGateway } from './chain/cover-pool.js';
 import { SdkHederaGateway, type HederaGateway } from './chain/hedera.js';
+import { seriesRowFrom } from './series.js';
 import {
   allObservationRows,
   frozenThresholds,
@@ -129,6 +130,24 @@ function buildHederaGateway(config: ApiConfig): HederaGateway | null {
     operatorAccountId: config.operator.accountId,
     operatorKey: config.operator.key,
   });
+}
+
+/**
+ * Write the registered series into `series` from what the chain says.
+ *
+ * The row is a cache: `registerSeries` froze the terms and nothing off chain
+ * may disagree with them. It runs at boot because the credentials and the
+ * policies both reference it, so the first request must not be the thing that
+ * discovers it is missing.
+ */
+export async function syncSeries(services: Services): Promise<number> {
+  let written = 0;
+  for (const series of services.config.series) {
+    const state = await services.chain.seriesState(series.seriesId);
+    await services.repository.upsertSeries(seriesRowFrom(series, state, services.config));
+    written += 1;
+  }
+  return written;
 }
 
 /**

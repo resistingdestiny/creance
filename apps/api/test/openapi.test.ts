@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import SwaggerParser from '@apidevtools/swagger-parser';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -9,11 +10,13 @@ import { renderJson, renderYaml } from '../scripts/openapi.js';
 import { buildTestServer } from './policy-fixtures.js';
 
 /// The spec has to match the endpoints, which is the acceptance line for this
-/// ticket, so two things are checked here rather than by eye.
+/// ticket, so three things are checked here rather than by eye.
 ///
-/// One, the committed files are what the code generates, so nobody can edit the
-/// YAML and have it survive. Two, every path and method in the document routes
-/// on the running server, so an operation cannot be documented into existence.
+/// One, the committed YAML parses and validates as OpenAPI 3.0, so "validated"
+/// is a command anyone can run and not an assurance. Two, the committed files
+/// are what the code generates, so nobody can edit the YAML and have it
+/// survive. Three, every path and method in the document routes on the running
+/// server, so an operation cannot be documented into existence.
 
 const RECIPE_DIR = new URL('../../../recipes/bazantic/', import.meta.url);
 
@@ -27,6 +30,18 @@ describe('the Bazantic OpenAPI document', () => {
   afterEach(async () => {
     await app?.close();
     app = null;
+  });
+
+  it('validates as OpenAPI 3.0, from the committed file', async () => {
+    // The file, not the object the generator returns, because the file is what
+    // an importer is given. swagger-parser reads it, resolves every $ref and
+    // checks the document against the OpenAPI 3.0 schema, and it also refuses a
+    // path parameter that the path template declares and the operation does
+    // not, which is the failure this document is most likely to grow.
+    const validated = (await SwaggerParser.validate(
+      fileURLToPath(new URL('openapi.yaml', RECIPE_DIR)),
+    )) as { info: { title: string } };
+    expect(validated.info.title).toBe('Creance');
   });
 
   it('is committed exactly as the code generates it', () => {

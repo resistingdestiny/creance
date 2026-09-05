@@ -244,6 +244,10 @@ export function buildIndexOpenApiDocument(options: DocumentOptions): Record<stri
             '',
             'It is under the metered prefix and it is free. Nothing here is an index',
             'value: it says whether the numbers are current, not what they are.',
+            '',
+            'It answers 200 even when the feed is unhealthy, including when the database',
+            'behind the readings cannot be reached: `status` and `database` carry that,',
+            'and the last run and the gates are read from files rather than from Postgres.',
           ].join('\n'),
           'x-agent-hint':
             'Call this before relying on a reading you paid for. If status is stale or the last run failed, the newest month may be older than it looks and the reading should be reported with its period, not as current.',
@@ -443,13 +447,13 @@ export function buildIndexOpenApiDocument(options: DocumentOptions): Record<stri
         },
         IndexHealth: {
           type: 'object',
-          required: ['status', 'mode', 'time', 'qa', 'source', 'model_version'],
+          required: ['status', 'mode', 'time', 'qa', 'database', 'source', 'model_version'],
           properties: {
             status: {
               type: 'string',
-              enum: ['ok', 'stale', 'failed', 'never_run'],
+              enum: ['ok', 'stale', 'failed', 'degraded', 'never_run'],
               description:
-                'One word for the whole feed. `failed` when the last run failed, `stale` when the source has not published for more than 45 days, `never_run` on a deployment whose oracle has not run yet.',
+                'One word for the whole feed. `failed` when the last run failed, `degraded` when the published periods could not be read, `stale` when nothing newer than 45 days has been published, `never_run` on a deployment whose oracle has not run yet.',
             },
             mode: {
               type: 'string',
@@ -499,9 +503,16 @@ export function buildIndexOpenApiDocument(options: DocumentOptions): Record<stri
                 },
               },
             },
+            database: {
+              type: 'string',
+              enum: ['ok', 'unreachable'],
+              description:
+                'Where `last_period_by_group` and `source.newest_period` came from. When it is `unreachable` the periods are absent rather than empty: the run, the gates and the mode are read from files and are still reported.',
+            },
             last_period_by_group: {
               type: 'object',
-              description: 'The newest published month for each group, keyed by group key.',
+              description:
+                'The newest published month for each group, keyed by group key. Empty when the database is unreachable.',
               additionalProperties: { type: 'string', example: '2026-07' },
             },
             source: {

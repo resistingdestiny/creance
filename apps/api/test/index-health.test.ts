@@ -9,6 +9,7 @@ import { sourceHealth, type IndexHealth } from '../src/oracle/health.js';
 import { readLastRun, type OracleRun } from '../src/oracle/runs.js';
 import { idleReplayState, type ReplayState } from '../src/replay/state.js';
 import { indexHealthRoutes } from '../src/routes/index-health.js';
+import type { Repository } from '../src/db/types.js';
 import { buildTestServices, observation } from './policy-fixtures.js';
 
 /// GET /v1/index/health, the operations endpoint of docs/INDEX-SPEC.md section
@@ -46,14 +47,35 @@ const REPLAYING: ReplayState = {
   current_period: '2026-04',
 };
 
+/**
+ * The same repository with `latestPeriods` refusing, keeping every other method.
+ *
+ * `Object.create` rather than a spread: the repository is a class instance and
+ * its methods are on the prototype, so a spread would produce an object with
+ * the fields and none of the behaviour.
+ */
+function withUnreachableDatabase(repository: Repository): Repository {
+  const failing = Object.create(repository) as Repository;
+  return Object.assign(failing, {
+    latestPeriods: async (): Promise<never> => {
+      throw new Error('connect ECONNREFUSED 127.0.0.1:5432');
+    },
+  });
+}
+
 async function serverWith(options: {
   run?: OracleRun | null;
   replay?: ReplayState;
   now?: Date;
+  database?: 'ok' | 'unreachable';
 }): Promise<FastifyInstance> {
-  const { services } = await buildTestServices({
+  const built = await buildTestServices({
     observations: [observation(), observation({ groupKey: 'legal', period: 202606 })],
   });
+  const services =
+    options.database === 'unreachable'
+      ? { ...built.services, repository: withUnreachableDatabase(built.repository) }
+      : built.services;
   const app = Fastify();
   await app.register(indexHealthRoutes, {
     services,
@@ -99,6 +121,7 @@ describe('GET /v1/index/health', () => {
       stale_after_days: 45,
     });
     expect(body.model_version).toBe('odi-1.0.0');
+    expect(body.database).toBe('ok');
   });
 
   it('names the gates that failed, so a pager body says what to look at', async () => {
@@ -130,6 +153,35 @@ describe('GET /v1/index/health', () => {
     // The archive is loaded at boot, so the periods are there even when no run
     // on this machine put them there.
     expect(body.last_period_by_group).toEqual({ computer_math: '2026-07', legal: '2026-06' });
+  });
+
+  it('still answers with the last run when the database is unreachable', async () => {
+    // The half that matters most to an operator comes from files, not from
+    // Postgres: whether the oracle ran last night, whether the gates passed and
+    // which calendar the feed is on. A database outage must not take that away.
+    const body = await health({ run: DONE, database: 'unreachable' });
+    expect(body.status).toBe('degraded');
+    expect(body.database).toBe('unreachable');
+    expect(body.last_run).toMatchObject({ id: 12, state: 'done', target_period: '2026-07' });
+    expect(body.qa).toMatchObject({ status: 'pass' });
+    expect(body.mode).toBe('live');
+
+    // Not published periods it could not read. An empty map beside a null
+    // newest period says the question could not be asked; `stale` false says
+    // the same, because a source that could not be measured is not late.
+    expect(body.last_period_by_group).toEqual({});
+    expect(body.source).toEqual({
+      newest_period: null,
+      stale_days: null,
+      stale: false,
+      stale_after_days: 45,
+    });
+  });
+
+  it('reports a failed run as failed even when the database is also down', async () => {
+    const body = await health({ run: FAILED, database: 'unreachable' });
+    expect(body.status).toBe('failed');
+    expect(body.database).toBe('unreachable');
   });
 
   it('is not cached, because a cached health document reports the past', async () => {

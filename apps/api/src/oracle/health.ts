@@ -23,6 +23,14 @@ import type { FailedGate, OracleRun } from './runs.js';
  * apps/api/src/replay/state.ts holds a second copy of the state reader: the API
  * must not import the worker. The line is docs/INDEX-SPEC.md section 9's, so
  * both copies answer to the specification rather than to each other.
+ *
+ * The two do not measure from the same place, on purpose. The oracle measures
+ * the newest period the source carries, because its question is whether the
+ * Bureau has published. This measures the newest period that was published
+ * here, because its question is whether the feed a caller is paying for is
+ * current. They agree while publication is keeping up, and when they disagree
+ * the difference is the thing worth seeing: a source that has moved on while
+ * this deployment has not.
  */
 
 export const STALE_AFTER_DAYS = 45;
@@ -43,11 +51,13 @@ export interface IndexQa {
 }
 
 export interface IndexHealth {
-  status: 'ok' | 'stale' | 'failed' | 'never_run';
+  status: 'ok' | 'stale' | 'failed' | 'degraded' | 'never_run';
   mode: string;
   time: string;
   last_run: OracleRun | null;
   qa: IndexQa;
+  /** Where `last_period_by_group` and the newest period came from. */
+  database: 'ok' | 'unreachable';
   last_period_by_group: Record<string, string>;
   source: IndexSource;
   replay: ReplayState;
@@ -82,15 +92,23 @@ export function sourceHealth(newest: string | null, now: Date): IndexSource {
 export interface HealthInput {
   run: OracleRun | null;
   replay: ReplayState;
-  /** One row per group with a published observation, as the repository reports. */
-  latest: readonly LatestPeriod[];
+  /**
+   * One row per group with a published observation, as the repository reports,
+   * or null when the database could not be read.
+   *
+   * Null and empty are different answers and are reported differently. An empty
+   * list is a deployment that has published nothing; null is a deployment that
+   * could not be asked, and saying "no group has a period" of that one would be
+   * a claim the document has no basis for.
+   */
+  latest: readonly LatestPeriod[] | null;
   now: Date;
 }
 
 export function buildIndexHealth(input: HealthInput): IndexHealth {
   const byGroup: Record<string, string> = {};
   let newest: string | null = null;
-  for (const row of [...input.latest].sort((a, b) => a.groupKey.localeCompare(b.groupKey))) {
+  for (const row of [...(input.latest ?? [])].sort((a, b) => a.groupKey.localeCompare(b.groupKey))) {
     const period = periodFromInteger(row.period);
     byGroup[row.groupKey] = period;
     if (newest === null || period > newest) newest = period;
@@ -109,17 +127,22 @@ export function buildIndexHealth(input: HealthInput): IndexHealth {
   };
 
   return {
-    // One word for a screen and for a pager. A failed last run outranks a stale
-    // source, because a source that stopped publishing is a fact about the
-    // world and a run that failed is a fact about this deployment.
+    // One word for a screen and for a pager. A failed last run outranks
+    // everything, because a run that failed is a fact about this deployment and
+    // the rest are facts about the world or about what could be read. A
+    // database that could not be reached outranks freshness, because freshness
+    // is the thing that could not be measured.
     status:
       input.run === null
         ? 'never_run'
         : input.run.state === 'failed'
           ? 'failed'
-          : source.stale
-            ? 'stale'
-            : 'ok',
+          : input.latest === null
+            ? 'degraded'
+            : source.stale
+              ? 'stale'
+              : 'ok',
+    database: input.latest === null ? 'unreachable' : 'ok',
     // Which calendar the feed is on, which is the run state's answer and not
     // the last run's: a replay walks history without changing what `live` runs
     // published.
@@ -139,6 +162,9 @@ export function indexHealthSummary(health: IndexHealth): Record<string, unknown>
   return {
     status: health.status,
     mode: health.mode,
+    // Why `newest_period` may be null, which otherwise reads as "nothing has
+    // ever been published" rather than "nobody could be asked".
+    database: health.database,
     last_run: health.last_run === null ? null : {
       id: health.last_run.id,
       state: health.last_run.state,

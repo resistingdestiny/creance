@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 
+import type { LatestPeriod } from '../db/types.js';
 import { buildIndexHealth, type IndexHealth } from '../oracle/health.js';
 import { readLastRun, type OracleRun } from '../oracle/runs.js';
 import { readReplayState, type ReplayState } from '../replay/state.js';
@@ -30,6 +31,16 @@ import type { Services } from '../services.js';
 /// The two files it reads are the oracle's, over the volume both containers
 /// mount. Neither is fetched over HTTP: a process that reaches itself through
 /// the proxy to answer a health check is reporting the proxy's health.
+///
+/// The database is the only part of this document that can fail, and it is the
+/// smaller half: the run, the gates and the mode come from files. So an
+/// unreachable database degrades the answer rather than ending it, and the
+/// failure is reported as `database: unreachable` with the periods left out.
+/// Two things depend on that. `GET /health` embeds this document, and it has to
+/// keep returning the degraded document with the git SHA, `deps.db` and the
+/// replay state when Postgres is down, which is the case it exists for. And an
+/// operator whose database is down still wants to know whether the oracle ran
+/// last night.
 
 export interface IndexHealthPluginOptions {
   services: Services;
@@ -43,12 +54,18 @@ export async function indexHealth(options: IndexHealthPluginOptions): Promise<In
   const readRun = options.readRun ?? ((): OracleRun | null => readLastRun());
   const readReplay = options.readReplay ?? ((): ReplayState => readReplayState());
   const now = options.now ?? ((): Date => new Date());
-  return buildIndexHealth({
-    run: readRun(),
-    replay: readReplay(),
-    latest: await options.services.repository.latestPeriods(),
-    now: now(),
-  });
+
+  // Null, not an empty list: a database that cannot be reached has not told us
+  // that no group has a published period, and reporting the second as the first
+  // would say the index had never published anything.
+  let latest: LatestPeriod[] | null;
+  try {
+    latest = await options.services.repository.latestPeriods();
+  } catch {
+    latest = null;
+  }
+
+  return buildIndexHealth({ run: readRun(), replay: readReplay(), latest, now: now() });
 }
 
 export const indexHealthRoutes: FastifyPluginAsync<IndexHealthPluginOptions> = async (

@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import type { Repository } from '../src/db/types.js';
 import type { OracleRun } from '../src/oracle/runs.js';
 import { idleReplayState, type ReplayState } from '../src/replay/state.js';
 import { opsRoutes } from '../src/routes/ops.js';
@@ -145,6 +146,7 @@ describe('the index block on GET /health', () => {
     expect(body.index).toEqual({
       status: 'ok',
       mode: 'live',
+      database: 'ok',
       last_run: {
         id: 12,
         state: 'done',
@@ -192,5 +194,80 @@ describe('the index block on GET /health', () => {
     } finally {
       await stale.close();
     }
+  });
+});
+
+describe('GET /health with the database down', () => {
+  let app: FastifyInstance | null = null;
+
+  afterEach(async () => {
+    await app?.close();
+    app = null;
+  });
+
+  /**
+   * A repository that refuses every read, keeping the rest of the instance.
+   *
+   * `Object.create` rather than a spread, because the methods are on the
+   * prototype: a spread would give an object with the fields and none of the
+   * behaviour, which is a different failure from the one being tested.
+   */
+  function unreachable(repository: Repository): Repository {
+    const refuse = async (): Promise<never> => {
+      throw new Error('connect ECONNREFUSED 127.0.0.1:5432');
+    };
+    return Object.assign(Object.create(repository) as Repository, {
+      groups: refuse,
+      latestPeriods: refuse,
+    });
+  }
+
+  async function degraded(): Promise<FastifyInstance> {
+    const built = await buildTestServices({ observations: [observation()] });
+    const server = Fastify();
+    await server.register(opsRoutes, {
+      services: { ...built.services, repository: unreachable(built.repository) },
+      readReplay: () => REPLAYING,
+      readRun: () => LAST_RUN,
+      now: () => new Date('2026-09-05T14:10:00Z'),
+    });
+    await server.ready();
+    return server;
+  }
+
+  it('still returns the degraded document, with the sha and the replay state', async () => {
+    // The case this endpoint exists for. A handler that throws because it could
+    // not read the database answers with an error envelope, and then the one
+    // call that says which commit is deployed and whether the clock is walking
+    // says neither, exactly when an operator needs it most.
+    app = await degraded();
+    const response = await app.inject({ method: 'GET', url: '/health' });
+
+    expect(response.statusCode).toBe(503);
+    const body = response.json();
+    expect(body.status).toBe('degraded');
+    expect(body.sha).toBe('testsha');
+    expect(body.deps.db).toBe('unreachable');
+    expect(body.replay).toEqual(REPLAYING);
+  });
+
+  it('still carries an index block, because the run and the gates come from files', async () => {
+    app = await degraded();
+    const body = (await app.inject({ method: 'GET', url: '/health' })).json();
+    expect(body.index).toEqual({
+      status: 'degraded',
+      mode: 'replay',
+      database: 'unreachable',
+      last_run: {
+        id: 12,
+        state: 'done',
+        target_period: '2026-07',
+        finished_at: '2026-09-05T14:10:26Z',
+      },
+      qa: 'pass',
+      newest_period: null,
+      stale_days: null,
+      stale: false,
+    });
   });
 });

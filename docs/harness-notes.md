@@ -1026,3 +1026,88 @@ names" and does not say which trailing punctuation ends a token
 2026-09-05). A colon does not, because a colon is the variant separator, so
 `shadow:` reads as the start of a variant and the base utility is emitted. The
 comment was reworded. The test caught it, which is the argument for having it.
+## T12, the oracle worker, 5 September 2026
+
+Measured against Hedera testnet on 5 September 2026, during the replay of real
+BLS history for ODI-COMP-2026-01 recorded in docs/HEDERA.md.
+
+### The contract does not ignore a duplicate observation, it reverts three ways
+
+docs/INDEX-SPEC.md section 6 says "The contract ignores a second submission for
+the same (group, period)". CoverPool does not. All three of the following are
+`eth_call` results against the deployed pool at
+`0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09` after the April 2026 submission,
+so they are what a rerun actually meets:
+
+    resubmit 2026-04, already present
+      ObservationExists(0x4f44...0100, 202604)
+    submit 2026-03, submitted earlier in the same run
+      ObservationExists(0x4f44...0100, 202603)
+    submit 2025-10, never submitted and behind the last observed month
+      PeriodNotAfterLast(0x4f44...0100, 202510, 24315)
+    submit 2026-12, a month that has not started
+      PeriodInFuture(0x4f44...0100, 202612)
+
+The presence check runs before the ordering check, so a month that is both
+present and behind reports `ObservationExists`. The specification's sentence is
+the one that is wrong, and the contract's behaviour is the one to keep: silently
+ignoring a resubmission would hide a bug in the worker.
+
+Idempotence is therefore the worker's job, not the contract's. Before each call
+the oracle reads `observationOf(seriesId, period).present` and
+`seriesOf(seriesId).lastObservedMonth`, and treats an existing observation as
+done rather than as an error. The specification should be corrected to say so.
+
+### Without error fragments in the ABI, ethers reports "unknown custom error"
+
+A hand written narrow ABI that carries only the functions and events decodes a
+revert as `execution reverted (unknown custom error)` and nothing else, which is
+useless in a run log. The four `error` fragments cost nothing to add and are
+what turns a failed submission into a sentence. Worth doing on every hand
+written fragment list in this build.
+
+### The first submission on a series costs 15 percent more than the rest
+
+Measured over thirteen `submitObservation` calls on the same series:
+
+    first submission, 2025-01              127,525
+    every later non-opening month          110,451 to 110,841
+    the opening month, 2026-04             253,941
+
+The first call writes `lastObservedMonth` from zero, which is a cold storage
+slot. docs/HEDERA.md records 271,024 for an opening month, measured on the T04
+smoke series; the 253,941 here is the same call on a series whose
+`firstOpenMonth` and `windowEndsAt` were also being written for the first time
+but whose `activeExposure` was already non-zero. Both are comfortably inside the
+1,000,000 limit this build uses, and the spread is the reason the limit is
+explicit rather than estimated.
+
+### Sixteen HCS messages and thirteen contract calls cost 1.79 HBAR
+
+The oracle account went from 14.4093 to 12.6181 HBAR over the whole replay. The
+contract calls dominate: the messages are a fraction of a tinybar each at
+roughly 553 to 571 bytes. Budgeting one HBAR per ten submitted months is
+generous and correct.
+
+### A signed observation is 553 bytes, not near the 1 KB cap
+
+DESIGN.md 4 warns that HCS messages are capped at roughly 1 KB. With the compact
+provenance form, a v2 observation carrying both thresholds, both measured
+values, the opening decision, the model version, a 64 character source hash and
+a 130 character signature is 553 bytes for a final month and 571 bytes for the
+longest, `insufficient_history`. The margin is real: the array form of
+`source_files` from docs/INDEX-SPEC.md section 7 would not have fitted with the
+archive's seven files, which is what forced the choice recorded in
+docs/DECISIONS.md.
+
+### The collection gap switches the jump QA gate off for fifteen months
+
+docs/INDEX-SPEC.md section 8 asks for five standard deviations of the trailing
+24 months. October, November and December 2025 have no smoothed excess for any
+group, so no target month from 2025-10 to 2026-09 has 24 values in its trailing
+window, and a literal reading of the gate abstains for fifteen consecutive
+months including both months the demo settles on. The window stays 24 calendar
+months and the gate now runs on whatever those months collected, with a floor of
+twelve values. This is a specification bug that only shows up against real data
+with a real hole in it, and it is the kind of thing a fixture-only test suite
+never finds.

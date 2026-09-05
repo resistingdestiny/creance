@@ -6,7 +6,7 @@ Everything runs on Hedera testnet. There is no mainnet path and no real money an
 
 ## Status
 
-Being built. The contracts, the note series, the coupon and maturity runs, the index model, the API and the investor screens are live on Hedera testnet; the API's three metered endpoints are gated with x402 and settle through Blocky402. The oracle, the Steward and the Adjuster commands still print what they will do instead of doing it, and later tickets fill them in one at a time.
+Being built. The contracts, the note series, the coupon and maturity runs, the index model, the API, the investor screens, the index oracle and the Steward agent are live on Hedera testnet; the API's three metered endpoints are gated with x402 and settle through Blocky402. The scheduler, the Adjuster and the demo seed still print what they will do instead of doing it, and later tickets fill them in one at a time.
 
 ## Requirements
 
@@ -46,7 +46,7 @@ Run all of these from the repository root.
 | `pnpm oracle:backtest` | Prints the open months per occupation group from January 2010 to the newest month the source carries, at the frozen per series attachment and level line, then the same window at the generic attachment of 2.0, a check that every series reproduces its frozen parameters from that source, and the empirical hazard on the distance to the level line. Options: `--from YYYY-MM`, `--source archive\|cache\|api`. |
 | `pnpm oracle:backfill` | Computes the whole index history, settles nothing, and regenerates [docs/INDEX.md](docs/INDEX.md) from it. `pnpm oracle:backfill --from 2000-01` builds the full history. Options: `--from YYYY-MM`, `--source archive\|cache\|api`, `--out PATH`, and `--check` to regenerate and compare without writing. Deterministic: two runs over the same source produce a byte identical file. |
 | `pnpm oracle:schedule` | Runs the daily index check and pipeline with QA gates and alerts. |
-| `pnpm steward:run` | Runs one Steward cycle for the configured principal. |
+| `pnpm steward:run` | Runs one Steward cycle for the configured principal against Hedera testnet: reads the profile, pays for the index feed, applies the written decision rule, and if the rule says buy, quotes, binds with the first premium over x402, creates the next premiums as Scheduled Transactions and writes a journal entry to the agent-journal topic. Needs the API running with the x402 gate on. Options: `--profile PATH`, `--as-of YYYY-MM`, `--cadence monthly\|demo`, `--interval SECONDS`, `--premiums N`, `--wait`. See [The Steward agent](#the-steward-agent). |
 | `pnpm adjuster:run` | Decides the pending claims once. |
 | `pnpm contracts:deploy` | Deploys CoverPool and CollateralVault to Hedera testnet and verifies them. |
 | `pnpm hedera:setup` | Creates the day 0 Hedera testnet accounts, tokens and topics, and writes [docs/HEDERA.md](docs/HEDERA.md). Idempotent: run it again and it creates nothing. Needs the operator credentials in the local environment file. Add `--plan` to print what it would do and stop. |
@@ -95,7 +95,8 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
     apps/api            quotes, binding, claims, x402 middleware, World verification
     apps/api/src/investor  the investor endpoints, which read the chain directly
     apps/oracle         BLS fetch, ODI computation, HCS publish, replay
-    apps/steward        buyer agent that pays for cover over x402
+    apps/steward        buyer agent: the decision rule, the x402 payer, the premium schedule and the HCS journal
+    apps/steward/profiles  the principal profiles the agent acts for, one file each
     apps/adjuster       claims agent that decides proof of loss packets
     contracts           Hardhat project for CoverPool and CollateralVault
     contracts/ats       issuance and lifecycle of the note in the Asset Tokenization Studio
@@ -203,6 +204,52 @@ account [0.0.10366451](https://hashscan.io/testnet/account/0.0.10366451):
 Each one is a transfer of TUSD from 0.0.10366451 to 0.0.10366450 whose network
 fee was paid by 0.0.7162784, and each is on the payments topic at sequence 16,
 17 and 20.
+
+## The Steward agent
+
+`pnpm steward:run` is one cycle of the agent in [apps/steward](apps/steward),
+acting for one principal. DESIGN.md 3.7 gives the loop and this is it in order:
+read the principal's profile, pay for the index, decide by a written rule,
+quote, bind with the first premium over x402, create the premium schedule, and
+write a journal entry to the agent-journal topic
+[0.0.10366475](https://hashscan.io/testnet/topic/0.0.10366475). The API has to
+be running with the gate on; the agent pays every metered call from its own
+testnet account [0.0.10366451](https://hashscan.io/testnet/account/0.0.10366451)
+and needs enough of the settlement token for the index read, the quote and the
+premiums.
+
+The profile is committed and carries no secret: the occupation group, the
+principal's wallet, the cover limit and where the eligibility credential comes
+from. The default is
+[apps/steward/profiles/policyholder-2.json](apps/steward/profiles/policyholder-2.json);
+`STEWARD_PROFILE` points at another. The agent never performs the Selfie Check.
+It binds by presenting a credential issued to its principal, and the policy NFT
+is minted to the principal's wallet, not to the agent's. Until T11 wires IDKit
+the credential comes from the API's interim issuer, which the run labels in
+plain words as not being a World check.
+
+The rule, written down. Buy when there is no cover in force and the three month
+ODI trend is rising, or when the term is inside its last 30 days. The trend is
+the ODI at the vantage month and the two months before it, all three consecutive
+calendar months with a published value, and it is rising when the three are
+strictly increasing. The vantage is the newest published month unless `--as-of`
+gives an earlier one, which is the same labelled replay the demo clock uses. The
+rule is one pure function, its inputs and its result are printed in the run and
+published in the journal entry, and a cycle that decides to hold still journals
+and still exits 0.
+
+Months two onwards are not x402. The Hedera exact scheme requires a bare
+`TransferTransaction` and forbids one wrapped in a `ScheduleCreateTransaction`,
+so the first premium is the paid request and the rest are Scheduled Transactions
+the agent creates and pre-signs itself, one per month, each held until its due
+date and each carrying an admin key so a lapsed policy can stop them. A schedule
+may not expire more than 62 days after it is created, so at the real monthly
+cadence the third premium does not fit and is left to the watcher, which creates
+each following month when one executes. `--cadence demo` runs the same code with
+the due dates seconds apart, so a whole chain is visible inside one run.
+
+A full run against testnet, with every link, is in
+[docs/demo/steward.txt](docs/demo/steward.txt).
 
 ## Audit trail
 

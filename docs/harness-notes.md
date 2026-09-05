@@ -1607,3 +1607,42 @@ The general shape is worth stating for anyone integrating the two services:
 **any write to HCS that a later EVM call depends on needs its durable local
 record between them, not after both.** The same applies in reverse to a contract
 call whose result is then published to a topic.
+
+## T09, the Steward agent, 5 September 2026
+
+### A schedule's own admin key public key has to be handed in, not the private key
+
+`ScheduleCreateTransaction.setAdminKey` on the SDK's own create page shows a
+public key going in, and it is easy to reach for the payer's `PrivateKey`
+object instead, because `PrivateKey` also satisfies the `Key` type the setter
+takes and the compiler says nothing. It still runs: the create succeeds and the
+schedule is genuinely admin-keyed, so nothing looks wrong until a
+`ScheduleDeleteTransaction` is tried later signed with a key that turns out not
+to match what was actually recorded. Passing `key.publicKey` explicitly, as
+`createPremiumSchedules` in apps/steward/src/chain.ts does, is the one line
+that avoids the confusion; the page does not call out that the setter accepts
+both types and only one of them is the one meant.
+
+### The compressed demo cadence needs the schedule create itself accounted for
+
+`--cadence demo` with a 90 second interval plans the first premium 90 seconds
+out from the moment the plan is built, but three schedules are created one
+after another and each create itself takes one to two seconds of consensus
+time. On a run made against a busier testnet moment, the gap between "planned"
+and "created" can eat into the interval enough that a naive implementation
+would compute `executeAt` once and then create schedules whose due dates are
+uncomfortably close to the create's own consensus timestamp. `premiumPlan`
+takes one `createdAt` for the whole plan rather than re-stamping it per
+schedule, which keeps the three due dates evenly spaced regardless of how long
+the creates themselves take.
+
+### An index reading that is genuinely falling is the ordinary case, not the exception
+
+The archived history for the demo group, computer and mathematical, ends at
+2026-07 with three months of ODI 0.07, -0.13, -0.07: falling. A Steward run with
+no options against the live archive returns "hold" every time, honestly, which
+is the correct behaviour and not a bug to work around. Proving the "buy" path
+for the acceptance transcript needs an explicit `--as-of` vantage into a month
+where the same published series was rising (July 2024, 0.27, 0.40, 0.60), which
+is why the option exists and why the run labels it as a replay rather than
+silently picking a favourable month.

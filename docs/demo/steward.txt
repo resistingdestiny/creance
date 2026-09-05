@@ -1,0 +1,103 @@
+One full run of `pnpm steward:run` against Hedera testnet, 5 September 2026, the
+API running with X402_ENABLED on. `--as-of 2024-07` stands the written decision
+rule in an earlier month of the same published index history: the demo group's
+newest reading (2026-07) is falling, so an unqualified run correctly holds and
+buys nothing, and this is the labelled replay that proves the buy path instead,
+on real published data, no scenario file. `--cadence demo` is the compressed
+demo clock: the accounting months still step one at a time, the due dates are
+seconds apart, so all three premiums fit inside this transcript.
+
+$ pnpm steward:run --as-of 2024-07 --cadence demo --interval 90 --premiums 3 --wait
+
+creance steward, one cycle for policyholder-2
+   agent      0.0.10366451
+   api        http://127.0.0.1:3210
+   settles in TUSD 0.0.10366463, premiums to 0.0.10366450
+   cadence    demo, one premium every 90 seconds
+
+1. the principal's profile: /srv/dbond/wt/lane-2/apps/steward/profiles/policyholder-2.json
+   occupation computer_math, wallet 0.0.10366457
+   cover wanted 1000.00 TUSD, credential from the API interim issuer
+   no policy from an earlier run
+   the agent holds 63.175 TUSD
+
+2. GET /v1/index/computer_math, the metered feed
+   402: 0.01 TUSD to 0.0.10366450, scheme exact on hedera:testnet, facilitator fee payer 0.0.7162784
+   paid, settled 0.0.7162784@1788612706.567692623
+   https://hashscan.io/testnet/transaction/0.0.7162784-1788612706-567692623
+   latest reading 2026-07: odi -0.07, ebar -1.37, claims closed
+
+3. the decision rule (DESIGN.md 3.7)
+   vantage month 2024-07 (replay, labelled)
+   three month ODI 2024-05 2024-06 2024-07 = 0.27 0.40 0.60
+   rising true, cover in force false, at renewal false
+   buy: the three month ODI trend is rising; 2024-05, 2024-06, 2024-07 ODI 0.27 -> 0.40 -> 0.60
+
+4. POST /v1/quote
+   paid, settled 0.0.7162784@1788612707.547097625
+   https://hashscan.io/testnet/transaction/0.0.7162784-1788612707-547097625
+   quote qte_01M1RT09689KHQ5NPMXYV4M7ZD on ODI-COMP-2026-01: premium 0.891667 TUSD a month for 1000.00 TUSD of cover, 12 months, expires 2026-09-05T13:06:55Z
+
+5. the eligibility credential
+   from POST /v1/demo/eligibility, the API interim issuer. NOT a World Selfie Check: it stands in for one until T11 wires IDKit.
+   issued to 0.0.10366457 for computer_math
+
+6. POST /v1/bind, the first month premium over x402
+   paid, settled 0.0.7162784@1788612713.561769785
+   https://hashscan.io/testnet/transaction/0.0.7162784-1788612713-561769785
+   policy pol_01M1RT0CKRJK5SQX4FQD9DFZ9F, status bound, premium 0.891667 TUSD
+   receipt NFT 0.0.10366468 serial 13, minted to 0.0.10366457, not to the agent
+   HCS receipt topic 0.0.10366471 sequence 76
+   cover 2026-09-05 to 2027-09-05, paid through 2026-09
+
+7. the premium schedule, 3 months as Scheduled Transactions
+   not x402: the exact scheme requires a bare TransferTransaction and forbids one wrapped in a ScheduleCreate
+   payer 0.0.10366451, payee 0.0.10366450, 0.891667 TUSD a month
+   202610  schedule 0.0.10378177, due 2026-09-05T12:53:49.115Z, memo "creance premium pol_01M1RT0CKRJK5SQX4FQD9DFZ9F 202610"
+          https://hashscan.io/testnet/schedule/0.0.10378177
+   202611  schedule 0.0.10378178, due 2026-09-05T12:55:19.115Z, memo "creance premium pol_01M1RT0CKRJK5SQX4FQD9DFZ9F 202611"
+          https://hashscan.io/testnet/schedule/0.0.10378178
+   202612  schedule 0.0.10378179, due 2026-09-05T12:56:49.115Z, memo "creance premium pol_01M1RT0CKRJK5SQX4FQD9DFZ9F 202612"
+          https://hashscan.io/testnet/schedule/0.0.10378179
+   nothing calls CoverPool.recordPremium for these months yet: it is onlyRole(BINDER_ROLE),
+   held by the api account, and no endpoint exposes it. The schedule ids and memos are in the
+   journal so the watcher can find them. See docs/DECISIONS.md, T09.
+
+8. the journal, topic 0.0.10366475
+   {"v":1,"kind":"journal","at":"2026-09-05T12:52:24.918Z","agent":"0.0.10366451","principal":{"wallet":"0.0.10366457","group":"computer_math"},"eligibility":"api_demo_issuer","rule":{"as_of":"2024-07","periods":["2024-05","2024-06","2024-07"],"odi":["0.27","0.40","0.60"],"rising":true,"cover_in_force":false,"at_renewal":false,"decision":"buy","reason":"trend_rising","replay":true},"settlements":{"index":"0.0.7162784@1788612706.567692623","quote":"0.0.7162784@1788612707.547097625","premium":"0.0.7162784@1788612713.561769785"},"quote_id":"qte_01M1RT09689KHQ5NPMXYV4M7ZD","policy_id":"pol_01M1RT0CKRJK5SQX4FQD9DFZ9F","nft":{"token_id":"0.0.10366468","serial":13},"premium":{"amount":"891667","asset":"0.0.10366463","decimals":6,"display":"0.891667"},"cadence":"demo","schedules":[{"id":"0.0.10378177","period":202610},{"id":"0.0.10378178","period":202611},{"id":"0.0.10378179","period":202612}],"deferred":[]}
+   published at sequence 5, transaction 0.0.10366451@1788612740.041765928
+   https://hashscan.io/testnet/topic/0.0.10366475
+
+9. waiting up to 173s for schedule 0.0.10378177 to execute at 2026-09-05T12:53:49.115Z
+   executed 1788612829.071572208, result SUCCESS, settled true
+   https://hashscan.io/testnet/transaction/0.0.10366451-1788612733-462417755
+   schedule https://hashscan.io/testnet/schedule/0.0.10378177
+
+the cycle cost the agent 1.843334 TUSD in payments and premiums, plus HBAR fees for the schedules and the journal
+
+links
+   index read     https://hashscan.io/testnet/transaction/0.0.7162784-1788612706-567692623
+   quote          https://hashscan.io/testnet/transaction/0.0.7162784-1788612707-547097625
+   first premium  https://hashscan.io/testnet/transaction/0.0.7162784-1788612713-561769785
+   premium 202610   https://hashscan.io/testnet/schedule/0.0.10378177
+   premium 202611   https://hashscan.io/testnet/schedule/0.0.10378178
+   premium 202612   https://hashscan.io/testnet/schedule/0.0.10378179
+   journal        https://hashscan.io/testnet/topic/0.0.10366475 sequence 5
+
+Confirmation, read back from the mirror node after the run finished (the
+--wait flag only waits for the first scheduled premium; the second and third
+are confirmed here separately, minutes later, from the same run's schedules):
+
+  schedule 0.0.10378178 (202611): expiration_time 1788612919.115000000,
+    executed_timestamp 1788612919.211755835
+    transfer 0.0.10366451-1788612734-360403582 SUCCESS
+    https://hashscan.io/testnet/schedule/0.0.10378178
+
+  schedule 0.0.10378179 (202612): expiration_time 1788613009.115000000,
+    executed_timestamp 1788613009.091703208
+    transfer 0.0.10366451-1788612738-340028654 SUCCESS
+    https://hashscan.io/testnet/schedule/0.0.10378179
+
+All three scheduled premiums for policy pol_01M1RT0CKRJK5SQX4FQD9DFZ9F executed
+and settled, moving 0.891667 TUSD each from the Steward 0.0.10366451 to the api
+account 0.0.10366450, on top of the first premium paid at bind over x402.

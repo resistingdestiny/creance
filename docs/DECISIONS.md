@@ -2142,3 +2142,149 @@ The chain call was never at risk. `submitObservation` is guarded separately by
 `ObservationExists` regardless, so the duplicate was on the settlement topic
 alone. T26's Postgres writer replaces this file and has to carry the same rule:
 the unique index belongs on group and period, not on group, period and mode.
+
+## T09, the Steward agent, 5 September 2026
+
+### The decision rule, written down
+
+DESIGN.md 3.7 gives the rule in one sentence, "buy if no active policy and the
+ODI three-month trend is rising, or at annual renewal", and leaves three things
+open. They are settled here and implemented as one pure function,
+`apps/steward/src/rule.ts`, whose inputs and result are printed in the run and
+published in the journal entry.
+
+Which field: the `odi` on each month of the history the paid index read returns.
+Not `ebar`, which is what the level form of the trigger compares, and not the
+trigger status. The rule is about the direction of the displacement signal, not
+about whether claims are open today.
+
+Which three months: the vantage month and the two before it, all three
+consecutive calendar months with a published ODI. The source has real holes in
+it, October 2025 was never collected, and three readings that are not three
+consecutive months are not a trend; the rule reports `incomplete_window` instead
+of calling them one.
+
+What counts as rising: strictly increasing across the three, compared as
+decimals rather than as floats, because the endpoint publishes decimal strings
+for the reason docs/DECISIONS.md already gives for index values. Two equal
+months are not a rise.
+
+The whole rule, in order: hold when cover is in force and is not near its
+renewal; buy when the trend is rising; buy when the last policy is inside the
+last 30 days of its term; hold otherwise. The renewal limb needs a policy to
+renew, so it is read as "no active policy, and either the trend is rising or the
+term is running out", which is the only reading in which the renewal clause does
+any work.
+
+A hold is a real outcome: the cycle still writes its journal entry and exits 0.
+An agent that only ever reports buying is not running a rule.
+
+### The rule's vantage month can be an earlier month, and it is labelled
+
+The rule as written says nothing about which month it stands in, and the
+default is the newest published reading. `--as-of YYYY-MM` stands it in an
+earlier month of the same published history, which is the labelled replay
+DESIGN.md 2 already gives the demo clock, and it is disclosed in three places:
+the run prints `(replay, labelled)` beside the vantage, the journal entry
+carries `rule.replay: true` on chain, and the transcript says so at the top.
+
+It is needed because the demo group's own history says hold. At the newest
+month in the committed archive, 2026-07, the computer and mathematical ODI runs
+0.07, -0.13, -0.07: falling, so the rule refuses to buy, and it does refuse when
+the command is run with no options. The transcript in docs/demo/steward.txt is a
+run where the rule said buy, so it stands in July 2024, where the same published
+series runs 0.27, 0.40, 0.60. Nothing is invented and no scenario file exists:
+the numbers are the ones the index endpoint returned in the same run.
+
+### The premium chain creates every month that fits the 62 day cap and defers the rest
+
+The acceptance line asks for the next three premiums as Scheduled Transactions.
+At a real monthly cadence they fall about 30, 61 and 91 days out, and a
+`ScheduleCreate` is rejected with `SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE`
+more than 5,356,800 seconds, 62.0 days, past the consensus timestamp of the
+create (T05 above). So the third cannot be created at bind and the second sits
+inside the last day of the window.
+
+`premiumPlan` therefore plans all three, creates the ones inside the cap less a
+five minute margin, and reports the rest as deferred rather than failing. The
+deferred months are the watcher's: `scheduleNext` in packages/client creates the
+following month when one executes, which is the shape T05 already fixed. The
+periods it left behind go into the journal entry under `deferred`, so a reader
+of the topic can see the gap rather than infer it.
+
+The compressed demo cadence, `--cadence demo`, puts the due dates seconds apart
+and all three then fit, which is what the transcript runs. Both cadences run the
+same code: the helper takes an `executeAt` and never a duration, and the
+accounting period on each slot still steps one calendar month, because the memo
+is what names the month a premium is for and the execution timestamp never can.
+
+### The agent pays for its own schedules, and holds their admin key
+
+`scheduleTransfer` names one payer and it pays for everything: the create, the
+execution and the premium itself. That payer is the Steward account, whose
+purpose in docs/HEDERA.md is "buys cover over x402 and pays the premium
+schedule", and the payee is the api account 0.0.10366450, the same account the
+first premium settles to over x402. One signature completes the whole
+arrangement, so a premium is pre-signed in one round trip.
+
+Every schedule carries an admin key, the Steward's own, because a schedule
+without one is immutable and DESIGN.md 3.5 lapses a policy 15 days past a missed
+premium: the only way to stop the premiums a lapsed policy has already pre-signed
+is `ScheduleDeleteTransaction` signed by that key.
+
+### Nothing calls recordPremium yet, and the journal is what the watcher will read
+
+`CoverPool.recordPremium` is `onlyRole(BINDER_ROLE)`, held by the api account,
+so the Steward cannot call it, and no API route exposes it. T08 recorded that
+the first premium needs no `recordPremium` because `bind` sets
+`paidThroughMonth`, and that the call gets its first caller "in T09, from the
+premium schedule watcher, for month two onwards". That watcher is not in this
+ticket: apps/api is out of scope here and under another lane's ticket, and
+adding a route to it would collide.
+
+So the gap stands and is stated rather than hidden. The run prints it, and the
+schedule ids, their memos and their periods go into the journal entry so the
+watcher can find them from the topic alone. Until something makes that call, a
+paid month two looks exactly like a missed one and `lapse()` becomes callable
+once the 15 day grace past `paidThroughMonth` runs out. The backlog line this
+needs is a premium watcher plus a `recordPremium` endpoint, lane B.
+
+### The journal message is snake_case, version 1, and never carries the person
+
+The agent-journal topic 0.0.10366475 has no submit key and is public by design,
+so the Steward submits to it under its own account and anybody can read it back.
+One message per cycle, whatever the cycle decided.
+
+The fields are snake_case, unlike the payments topic messages that came before
+it, which mix camelCase into the same object. The journal is a new topic with no
+existing readers, snake_case is what every API payload in this build uses, and
+the alternative was matching an inconsistency for the sake of it. Amounts follow
+the convention that does hold everywhere: an integer string in the asset's minor
+units with the asset and the scale beside it.
+
+It carries the agent, the principal's wallet and group, where the eligibility
+credential came from, the rule's inputs and its result, the quote and policy
+ids, the NFT serial, the three settlement transaction ids, the schedule ids with
+their periods and the periods the cap deferred. It never carries the nullifier,
+the credential or anything else derived from the person. Like every other topic
+message in this build it is refused rather than chunked over 1 KB; a full buying
+cycle comes to about 920 bytes.
+
+### The agent keeps one pointer file per principal, and the API decides the rest
+
+"No active policy" needs state, and no endpoint lists a wallet's policies. So
+the Steward writes the id of the last policy it bound for each principal to
+`var/steward/<principal>.json` and reads the live status back from
+`GET /v1/policy/:id`, which is free. The file is a pointer and never a copy: the
+status, the dates and the premium always come from the API.
+
+Losing it is not a correctness problem. The agent would buy again and the bind
+would be refused with `already_covered`, because one active policy per nullifier
+per series is enforced in the API and not in the agent.
+
+### The renewal limb reads cover_ends, not term_months
+
+The policy view carries `cover_starts` and `cover_ends` and does not carry
+`term_months`, which is on the quote. So "at annual renewal" is read as
+`cover_ends` falling inside the next 30 days, which is the same question and
+needs one field rather than two.

@@ -123,6 +123,23 @@ describe('principal at risk', () => {
     expect(principalAtRisk(SERIES).ifTriggered).toBeNull();
     expect(principalAtRisk(claimsOpenSeries()).ifTriggered).toBe('80,000 if triggered');
   });
+
+  // The live state since T07 began binding policies: capacity is taken but no
+  // month is open, so the vault has earmarked nothing. Capacity used and
+  // principal at risk are different questions and must not move together.
+  it('keeps the worst case hidden when cover is bound but nothing is reserved', () => {
+    const bound = {
+      ...SERIES,
+      cover_pool: {
+        ...SERIES.cover_pool!,
+        active_exposure: { ...SERIES.cover_pool!.active_exposure, amount: '2000000000' },
+        capacity_used_percent: 2,
+      },
+    };
+    expect(capacityLine(bound)).toBe('2 percent');
+    expect(principalAtRisk(bound).ifTriggered).toBeNull();
+    expect(principalAtRisk(bound).current).toBe('Currently 100,000, 100 percent intact');
+  });
 });
 
 describe('the series rows', () => {

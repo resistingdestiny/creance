@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 
 import { investorRoutes } from './investor/index.js';
+import { replayRoutes } from './replay/index.js';
 
 /// A minimal bootstrap for the investor endpoints, so they can be run and
 /// curled before the rest of the API exists.
@@ -12,5 +13,6 @@ import { investorRoutes } from './investor/index.js';
 export async function buildServer(): Promise<ReturnType<typeof Fastify>> {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } });
   await app.register(investorRoutes);
+  await app.register(replayRoutes);
   return app;
 }

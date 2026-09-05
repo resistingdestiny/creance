@@ -110,6 +110,24 @@ export function formatMoney(minorUnits: bigint | number, decimals = 6): string {
 }
 
 /**
+ * The same money, written the way the investor copy deck writes a principal:
+ * "100,000" rather than "100,000.00". The decimals come back the moment there
+ * is a fraction to show, so a part payment of 92,500.25 is never rounded away
+ * into a figure that looks whole. Coupon amounts stay on formatMoney, because
+ * a coupon is money at the money scale and is two decimals by the sheet's own
+ * rule.
+ */
+export function formatWholeMoney(minorUnits: bigint | number, decimals = 6): string {
+  const minor = typeof minorUnits === 'bigint' ? minorUnits : BigInt(Math.round(minorUnits));
+  const scale = 10n ** BigInt(decimals);
+  if (minor % scale !== 0n) return formatMoney(minor, decimals);
+  const negative = minor < 0n;
+  const units = (negative ? -minor : minor) / scale;
+  const grouped = new Intl.NumberFormat(LOCALE, { useGrouping: true }).format(units);
+  return `${negative ? MINUS : ''}${grouped}`;
+}
+
+/**
  * A whole cover amount: thousands separators, no decimals. The slider's 1,000
  * to 10,000 range and the "5,000" in the copy deck.
  */

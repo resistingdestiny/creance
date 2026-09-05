@@ -11,7 +11,7 @@ that origin. The facilitator, the payment and the topics are the real ones.
 
 $ pnpm --filter @creance/api testnet:agentify
 
-payer 0.0.10366451 holds 47.798332 TUSD
+payer 0.0.10366451 holds 47.788332 TUSD
 schema already up to date
 series synced from the chain: 1
 observations loaded from the archive: 0
@@ -36,8 +36,8 @@ the agent has one URL and a key. Nothing else.
    which is exactly what the description file promised
 
 5. paid 0.01 and read it
-   settled 0.0.7162784@1788636307.034403213
-   https://hashscan.io/testnet/transaction/0.0.7162784-1788636307-034403213
+   settled 0.0.7162784@1788636717.287109241
+   https://hashscan.io/testnet/transaction/0.0.7162784-1788636717-287109241
 
    Management, business and financial operations, 2026-07
    ebar -1.87 against a level line of -0.98, odi 0.10 against a shock attachment of 1.50
@@ -47,10 +47,10 @@ the agent has one URL and a key. Nothing else.
    topic 0.0.10366470 sequence 17: 2026-07, ebar -1.87, odi 0.1, open false (none)
    the paid reading agrees with sequence 17 on ebar, odi, both frozen lines and whether the month is open
 
-7. payments topic 0.0.10366471 sequence 179
-   {"v":1,"kind":"settlement","endpoint":"GET /v1/index/:group","x402":2,"scheme":"exact","network":"hedera:testnet","payer":"0.0.10366451","payTo":"0.0.10366450","amount":"10000","asset":"0.0.10366463","decimals":6,"tx":"0.0.7162784@1788636307.034403213","facilitator":"api.testnet.blocky402.com","ref":"management_business_financial","at":"2026-09-05T19:25:17.491Z"}
+7. payments topic 0.0.10366471 sequence 180
+   {"v":1,"kind":"settlement","endpoint":"GET /v1/index/:group","x402":2,"scheme":"exact","network":"hedera:testnet","payer":"0.0.10366451","payTo":"0.0.10366450","amount":"10000","asset":"0.0.10366463","decimals":6,"tx":"0.0.7162784@1788636717.287109241","facilitator":"api.testnet.blocky402.com","ref":"management_business_financial","at":"2026-09-05T19:32:05.240Z"}
 
 links
-  settlement     https://hashscan.io/testnet/transaction/0.0.7162784-1788636307-034403213
+  settlement     https://hashscan.io/testnet/transaction/0.0.7162784-1788636717-287109241
   index topic    https://hashscan.io/testnet/topic/0.0.10366470
   payments topic https://hashscan.io/testnet/topic/0.0.10366471

@@ -1093,10 +1093,10 @@ What it did, in order:
 
 | What | Value |
 |---|---|
-| Payer | steward [0.0.10366451](https://hashscan.io/testnet/account/0.0.10366451), holding 47.798332 TUSD before the call |
+| Payer | steward [0.0.10366451](https://hashscan.io/testnet/account/0.0.10366451), holding 47.788332 TUSD before the call |
 | Amount | 10000, which is 0.01 TUSD `0.0.10366463` |
-| Settlement | [0.0.7162784-1788636307-034403213](https://hashscan.io/testnet/transaction/0.0.7162784-1788636307-034403213) |
-| Payments topic | [0.0.10366471](https://hashscan.io/testnet/topic/0.0.10366471) sequence 179 |
+| Settlement | [0.0.7162784-1788636717-287109241](https://hashscan.io/testnet/transaction/0.0.7162784-1788636717-287109241) |
+| Payments topic | [0.0.10366471](https://hashscan.io/testnet/topic/0.0.10366471) sequence 180 |
 | Reading | Management, business and financial operations, 2026-07 |
 
 The reading: `ebar` -1.87 against a level line of -0.98, `odi` 0.10 against a
@@ -1116,13 +1116,13 @@ month, the same frozen `attachment_shock` and `level_line`, and the same
 the topic carries JSON numbers and `"open_reason":"none"`, the API carries
 decimal strings and `null`.
 
-The settlement message the API wrote to the payments topic at sequence 179:
+The settlement message the API wrote to the payments topic at sequence 180:
 
     {"v":1,"kind":"settlement","endpoint":"GET /v1/index/:group","x402":2,
      "scheme":"exact","network":"hedera:testnet","payer":"0.0.10366451",
      "payTo":"0.0.10366450","amount":"10000","asset":"0.0.10366463","decimals":6,
-     "tx":"0.0.7162784@1788636307.034403213","facilitator":"api.testnet.blocky402.com",
-     "ref":"management_business_financial","at":"2026-09-05T19:25:17.491Z"}
+     "tx":"0.0.7162784@1788636717.287109241","facilitator":"api.testnet.blocky402.com",
+     "ref":"management_business_financial","at":"2026-09-05T19:32:05.240Z"}
 
 ### What this run is and is not
 

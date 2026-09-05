@@ -140,7 +140,7 @@ client given nothing but the description file and a funded key discovers the
 feed, pays over x402 on Hedera testnet and gets a reading that matches the
 settled record. That run is docs/HEDERA.md, "The index feed, discovered and paid
 for cold", settlement
-https://hashscan.io/testnet/transaction/0.0.7162784-1788636307-034403213, and
+https://hashscan.io/testnet/transaction/0.0.7162784-1788636717-287109241, and
 the transcript is docs/demo/agentify.txt.
 
 Staying callable is documented rather than assumed:

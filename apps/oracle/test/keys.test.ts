@@ -20,6 +20,19 @@ describe('oracle key handling', () => {
     expect(first).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  // Pinned values, not just self consistency. The derivation moved out of this
+  // app and into packages/client when T07 merged, and a derivation that changed
+  // would silently sign with a key no account holds the role for. These are
+  // what the copy in this app produced before the swap.
+  it('derives the values the copy in this app produced before it was shared', () => {
+    expect(deriveRoleKeyHex(OPERATOR, labelForRole('oracle'))).toBe(
+      '85ff9719d7e96a7da535dd677bc31b0fbd8bf2139913e7687b4edbaa1209c7af',
+    );
+    expect(deriveRoleKeyHex(OPERATOR, labelForRole('api'))).toBe(
+      '6ddcb61c2c8a7e60df86ce39963847f756925d7509b8f3a47db062d01dfd01a2',
+    );
+  });
+
   it('prefers the explicit key and falls back to the operator', () => {
     const explicit = 'cd'.repeat(32);
     expect(oracleKeyHex({ HEDERA_ORACLE_KEY: explicit })).toBe(explicit);

@@ -40,15 +40,21 @@ describe('@creance/index-model', () => {
 describe('the public surface', () => {
   it('canonicalises and hashes the way a message is signed', () => {
     expect(canonicalize({ b: 1, a: [true, null] })).toBe('{"a":[true,null],"b":1}');
-    const rows = [{ seriesId: 'LNU04034021', period: '2026-04', value: '4.1' }];
-    expect(sourceHash(rows)).toMatch(/^sha256:[0-9a-f]{64}$/);
-    expect(sourceHash(rows)).toBe(sourceHash([...rows]));
+    const rows = [
+      { seriesID: 'LNU04034021', year: '2026', period: 'M04', value: '4.1', footnote_codes: [] },
+    ];
+    expect(sourceHash(rows)).toMatch(/^[0-9a-f]{64}$/);
+    // The rows are sorted before hashing, so the order they arrive in cannot
+    // change the hash a message carries.
+    expect(sourceHash([...rows, ...rows].reverse())).toBe(sourceHash([...rows, ...rows]));
   });
 
   it('formats and scales a published value', () => {
     expect(fmt2(-0.6)).toBe('-0.60');
-    expect(fmt2(null)).toBe('-');
-    expect(toScaledInt('-0.68')).toBe(-68n);
+    expect(fmt2(null)).toBe('null');
+    // Scaled by 10,000, parsed from the string rather than multiplied out.
+    expect(toScaledInt('-0.68')).toBe(-6800n);
+    expect(toScaledInt('0.29')).toBe(2900n);
   });
 
   it('walks the calendar', () => {
@@ -59,7 +65,7 @@ describe('the public surface', () => {
   });
 
   it('reads the frozen series map and calibration', () => {
-    expect(seriesIdFor('computer_math', loadSeriesMap())).toBe('LNU04032215');
+    expect(seriesIdFor('computer_math', loadSeriesMap())).toBe('LNU04034021');
     const frozen = frozenParameters(loadCalibration());
     const computerMath = frozen.get('computer_math');
     expect(computerMath?.attachmentShock).toBe(2.0);
@@ -72,7 +78,7 @@ describe('the public surface', () => {
     const periods: Period[] = ['2026-02', '2026-03', '2026-04'];
     const input: SeriesInput = {
       groupKey: 'computer_math',
-      seriesId: 'LNU04032215',
+      seriesId: 'LNU04034021',
       groupRates: new Map(periods.map((period) => [period, 4.1])),
       aggregateRates: new Map(periods.map((period) => [period, 4.5])),
       parameters: { attachmentShock: 2.0, levelLine: -0.68 },
@@ -100,7 +106,7 @@ describe('the public surface', () => {
     expect(ENDPOINTS.v1.endsWith('/')).toBe(true);
     expect(
       latestPeriod(
-        new Map([['LNU04032215', [{ seriesId: 'LNU04032215', period: '2026-07', value: 4.1 }]]]),
+        new Map([['LNU04034021', [{ seriesId: 'LNU04034021', period: '2026-07', value: 4.1 }]]]),
       ),
     ).toBe('2026-07');
   });

@@ -14,6 +14,13 @@ export const COVER_POOL_ABI = [
   'function observationOf(bytes32 seriesId, uint32 period) view returns (tuple(int64 odi, int64 ebar, uint64 submittedAt, uint64 hcsSequence, bytes32 sourceHash, uint8 openReason, bool present))',
   'function seriesOf(bytes32 seriesId) view returns (tuple(bytes32 group, int64 attachmentShock, int64 levelLine, int64 exhaustionShock, uint8 payoutMode, uint32 waitingPeriod, uint32 term, uint32 gracePeriod, uint32 claimWindowFromObservation, uint32 claimWindowFromSeparation, uint8 lookbackMonths, uint8 status, uint8 statusBeforeWindow, uint256 activeExposure, uint256 exposureCovered, uint32 firstOpenMonth, uint32 lastOpenMonth, uint32 lastObservedMonth, uint64 windowEndsAt))',
   'function paused() view returns (bool)',
+  // The three reverts a rerun can reach. Without the fragments ethers reports
+  // "execution reverted (unknown custom error)" and a run log says nothing
+  // about which rule was hit.
+  'error ObservationExists(bytes32 seriesId, uint32 period)',
+  'error PeriodNotAfterLast(bytes32 seriesId, uint32 period, uint32 lastObserved)',
+  'error PeriodInFuture(bytes32 seriesId, uint32 period)',
+  'error SeriesNotActive(bytes32 seriesId, uint8 status)',
   'event ObservationSubmitted(bytes32 indexed seriesId, uint32 indexed period, int64 odi, int64 ebar, bool open, uint8 openReason, uint64 hcsSequence, bytes32 sourceHash)',
   'event ClaimsOpened(bytes32 indexed seriesId, uint32 indexed period, uint8 openReason, uint256 reserved, uint64 windowEndsAt)',
   'event ReserveToppedUp(bytes32 indexed seriesId, uint32 indexed period, uint256 added, uint256 reserved)',

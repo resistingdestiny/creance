@@ -1,3 +1,6 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FacilitatorClient } from '@x402/core/server';
@@ -235,6 +238,30 @@ describe('the x402 gate', () => {
       expect(
         (await built.app.inject({ method: 'GET', url: '/.well-known/jwks.json' })).statusCode,
       ).toBe(200);
+    });
+
+    // The replay badge sat at GET /v1/index/replay until T12 merged this gate.
+    // The route map pattern is a glob, `GET /v1/index/*`, so it matched, and a
+    // configured gate answered the badge with a 402. The endpoint moved out
+    // from under the prefix rather than being carved out of the glob. T26's
+    // health endpoint has the same constraint.
+    // server.ts registers the plugin with no options, so the route reads
+    // ORACLE_STATE_PATH. Point it at a path that does not exist for the length
+    // of this test: otherwise the body is whatever a local `pnpm oracle:replay`
+    // last left in var/oracle, and the test passes or fails by accident.
+    it('does not meter the oracle run state, which is not an index reading', async () => {
+      const previous = process.env.ORACLE_STATE_PATH;
+      process.env.ORACLE_STATE_PATH = join(tmpdir(), 'no-such-creance-state.json');
+      try {
+        const built = await harness();
+        const response = await built.app.inject({ method: 'GET', url: '/v1/replay' });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({ mode: 'live', running: false });
+      } finally {
+        if (previous === undefined) delete process.env.ORACLE_STATE_PATH;
+        else process.env.ORACLE_STATE_PATH = previous;
+      }
     });
   });
 

@@ -39,8 +39,10 @@ Run all of these from the repository root.
 | `pnpm dev` | Runs the web app on http://localhost:3000 and the API on http://localhost:3210, together. The component gallery, which is the design review surface, is at http://localhost:3000/gallery. The worker flow starts at http://localhost:3000 and runs through `/occupation`, `/amount`, `/verify`, `/pay` to `/home` and `/cover/index`. The investor screens are at http://localhost:3000/invest and http://localhost:3000/invest/subscribe, and the receipt for a policy is at http://localhost:3000/receipt/:policyId. All of them read the API. |
 | `pnpm lint` | Runs eslint across the repository. |
 | `pnpm typecheck` | Runs the TypeScript compiler in every workspace without emitting. |
-| `pnpm oracle:once` | Pulls BLS data, computes the ODI and publishes one observation to HCS. |
-| `pnpm oracle:replay` | Replays the demo clock from a start month. |
+| `pnpm oracle:once` | One live run. Pulls the sixteen BLS series, computes both trigger forms for every bindable group, runs the QA gates of [docs/INDEX-SPEC.md](docs/INDEX-SPEC.md) section 8, publishes one signed observation per group to the index topic, and submits the groups that have a cover series registered in CoverPool. Options: `--period YYYY-MM` (defaults to the newest month the source carries), `--source archive\|cache\|api` (defaults to `api`, the live path), `--series LABEL` to publish one group only, `--no-submit` to publish without a contract call, and `--dry-run` to compute, gate, sign and encode everything and send nothing. A group and month that already reached the index topic is never published again, whichever command put it there: the demo replay runs to the newest month the source carries and this command defaults to that same month, so running one after the other publishes it once. |
+| `pnpm oracle:replay` | The demo clock. Replays real historical months for one cover series at one month per ten seconds, publishing and submitting exactly as the live path does, and writes the run state the API serves so the web app can show the REPLAY badge. Options: `--from YYYY-MM` (defaults to `2025-01`), `--to YYYY-MM`, `--series LABEL` (defaults to the demo series), `--interval-ms N` (defaults to 10000), `--source archive\|cache\|api` (defaults to `archive`, which covers the whole window with no BLS call), `--scenario NAME` for a labelled synthetic trigger from `apps/oracle/scenarios`, `--no-submit` and `--dry-run`. A scenario never writes the index topic and never calls the contract. Not every window can be replayed: see the note below. |
+| `pnpm oracle:preflight` | Reads every precondition a real run depends on and prints it, sending nothing: the oracle's HBAR balance, the index topic and how many messages it already carries, and each series' status, `activeExposure`, reserve and last observed month. Run it before a testnet replay. |
+| `pnpm oracle:verify` | Reads the index topic back through the mirror node and checks every message: that it is canonical JSON and that the signature recovers to the oracle's address. Public data only. Options: `--topic 0.0.x`, `--signer 0x...`. |
 | `pnpm oracle:backtest` | Prints the open months per occupation group from January 2010 to the newest month the source carries, at the frozen per series attachment and level line, then the same window at the generic attachment of 2.0, a check that every series reproduces its frozen parameters from that source, and the empirical hazard on the distance to the level line. Options: `--from YYYY-MM`, `--source archive\|cache\|api`. |
 | `pnpm oracle:backfill` | Computes the whole index history, settles nothing, and regenerates [docs/INDEX.md](docs/INDEX.md) from it. `pnpm oracle:backfill --from 2000-01` builds the full history. Options: `--from YYYY-MM`, `--source archive\|cache\|api`, `--out PATH`, and `--check` to regenerate and compare without writing. Deterministic: two runs over the same source produce a byte identical file. |
 | `pnpm oracle:schedule` | Runs the daily index check and pipeline with QA gates and alerts. |
@@ -52,12 +54,35 @@ Run all of these from the repository root.
 | `pnpm ats:issue` | Issues the demo Displacement Bond Note series as an Asset Tokenization Studio bond on Hedera testnet and runs the compliance sequence: roles, the credential issuer, a KYC grant per noteholder, the mints, a blocked then allowed transfer, pause, freeze and the first coupon. Idempotent: run it again and it does nothing. The run through with a link for every transaction is [docs/ATS.md](docs/ATS.md). Stages: `status throwaway issue roles issuer kyc1 mint1 blocked kyc2 allowed mint2 controls coupon couponcheck verify`. |
 | `pnpm coupons:pay` | Settles a declared coupon on Hedera testnet: seeds the premium account, subscribes the noteholders in the vault, pays each holder with a Scheduled Transaction carrying the vault's `fundCoupon` call, and publishes each settlement to the payments topic. Idempotent: run it again and it does nothing. The run through is [docs/ATS.md](docs/ATS.md) section 14. Stages: `status fund probe seed subscribe pay publish verify`. |
 | `pnpm coupons:mature` | Runs a maturity redemption on Hedera testnet, on a short dated series opened for the purpose because the demo series matures in 2027: opens the series and a matching note, subscribes both noteholders, waits, then burns each holding through ATS and returns the principal from the vault. Stages: `status fund open bond subscribe wait redeem payout`. |
-| `pnpm api:dev` | Runs the API alone on port 3210, reading Hedera testnet and the local database. Endpoints: `POST /v1/quote`, `POST /v1/bind`, `GET /v1/policy/:id`, `GET /v1/audit/:id`, `GET /v1/index/:group`, `GET /v1/series/:id`, `GET /v1/series/:id/coupons`, `GET /healthz` and `GET /.well-known/jwks.json`. The index, quote and bind routes are paid: see [Payment flow](#payment-flow). Set `PORT` to move it, and `X402_ENABLED=false` to serve them open. |
+| `pnpm api:dev` | Runs the API alone on port 3210, reading Hedera testnet and the local database. Endpoints: `POST /v1/quote`, `POST /v1/bind`, `GET /v1/policy/:id`, `GET /v1/audit/:id`, `GET /v1/index/:group`, `GET /v1/series/:id`, `GET /v1/series/:id/coupons`, `GET /v1/replay`, `GET /healthz` and `GET /.well-known/jwks.json`. The index, quote and bind routes are paid: see [Payment flow](#payment-flow). `GET /v1/replay` is the oracle's run state, which is what puts the REPLAY badge on the web app; it sits outside `/v1/index/` because everything under that prefix is metered. Set `PORT` to move it, and `X402_ENABLED=false` to serve them open. |
 | `pnpm api:migrate` | Creates the API schema and seeds the fifteen occupation groups. Idempotent. |
 | `pnpm api:openapi` | Regenerates [recipes/bazantic/openapi.yaml](recipes/bazantic/openapi.yaml) and the JSON beside it from the routes. A test fails if the committed files differ. |
 | `pnpm demo:seed` | Seeds the demo series, policyholders, investors and claim packets. |
 
 Both oracle commands read `data/bls` first, the snapshot of the raw BLS files committed at kick-off, which is verified against its `PROVENANCE.txt` hashes before anything is computed. That makes the published tables reproducible from a clean clone with no network and no credentials. `--source cache` reads whatever a previous live fetch left under `var/cache/bls`, and `--source api` fetches from the BLS Public Data API and caches the raw responses there. The API path works without a key, on the v1 endpoint, at 25 requests a day; set `BLS_API_KEY` in `.env` to use v2 and its higher allowance. Both paths send `BLS_CONTACT` as the User-Agent, because BLS refuses a client that does not identify itself.
+
+### Which replay windows run
+
+The QA gates of [docs/INDEX-SPEC.md](docs/INDEX-SPEC.md) section 8 fail closed,
+and one of them, the jump gate, legitimately refuses April 2020: every white
+collar group moved more than five standard deviations that month. A window
+spanning it therefore cannot be replayed, and the gate is right.
+
+The gates run over the whole window before the first message is published, so a
+window that cannot finish publishes nothing at all and the command exits 1
+naming the month it stopped at and the longest window that would have run. Three
+windows are known to complete:
+
+| Command | Months | Note |
+| --- | --- | --- |
+| `pnpm oracle:replay` | 2025-01 to the newest month | The default, and the demo window of DESIGN.md 3.4. Opens April and May 2026 on the level form. |
+| `pnpm oracle:replay --from 2021-01` | 2021-01 to the newest month | The longest window that runs in one go, 67 months. |
+| `pnpm oracle:replay --from 2019-01 --to 2020-03` | 15 months | Everything before the pandemic. |
+
+`pnpm oracle:replay --from 2019-01` on its own stops at 2020-04 and tells you to
+add `--to 2020-03`. The gates are not overridable: a month that fails one is not
+published, because the first value published for a period settles it forever.
+Add `--dry-run` to test any window without sending anything.
 
 A single workspace can be run on its own, for example `pnpm --filter @creance/index-model test`.
 

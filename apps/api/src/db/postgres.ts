@@ -146,8 +146,8 @@ export class PostgresRepository implements Repository {
     await this.pool.query(
       `INSERT INTO quotes (quote_id, series_id, group_key, wallet, wallet_evm, cover_limit,
                            premium, asset, asset_decimals, annual_rate_bps, pricing_basis,
-                           issued_via, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+                           issued_via, created_at, expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       [
         row.quoteId,
         row.seriesId,
@@ -161,6 +161,7 @@ export class PostgresRepository implements Repository {
         row.annualRateBps,
         JSON.stringify(row.pricingBasis),
         row.issuedVia,
+        row.createdAt,
         row.expiresAt,
       ],
     );
@@ -493,6 +494,7 @@ function toQuote(row: Row): QuoteRow {
     annualRateBps: Number(row['annual_rate_bps']),
     pricingBasis: (row['pricing_basis'] ?? {}) as Record<string, unknown>,
     issuedVia: text(row, 'issued_via') as QuoteRow['issuedVia'],
+    createdAt: instant(row, 'created_at'),
     expiresAt: instant(row, 'expires_at'),
     consumedAt: maybeInstant(row, 'consumed_at'),
     policyId: maybeText(row, 'policy_id'),

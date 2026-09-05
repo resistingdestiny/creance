@@ -152,6 +152,7 @@ export async function quote(
     annualRateBps: price.annualRateBps,
     pricingBasis: { ...price.basis, observed_period: latest.period, source: latest.source },
     issuedVia: issuedVia(request),
+    createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + services.config.quoteTtlSeconds * 1000).toISOString(),
     consumedAt: null,
     policyId: null,

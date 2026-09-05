@@ -85,6 +85,8 @@ export interface QuoteRow {
   annualRateBps: number;
   pricingBasis: Record<string, unknown>;
   issuedVia: 'x402' | 'credential' | 'open';
+  /** When the price was struck. The binding receipt publishes this as quotedAt. */
+  createdAt: string;
   expiresAt: string;
   consumedAt: string | null;
   policyId: string | null;

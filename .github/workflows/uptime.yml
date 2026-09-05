@@ -1,0 +1,42 @@
+name: uptime
+# DESIGN.md section 8 answers "a judge cannot reach the app" with a public host,
+# a health endpoint and an uptime check in CI. This is that check.
+#
+# It reads the repository variable PUBLIC_SITE_URL, the same name .env.example
+# uses, and does nothing when it is unset, so this workflow is green before the
+# host exists and starts failing loudly the moment the host stops answering.
+# Set it under Settings, Secrets and variables, Actions, Variables.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: GET /health
+        env:
+          SITE: ${{ vars.PUBLIC_SITE_URL }}
+        run: |
+          set -eu
+          if [ -z "${SITE:-}" ]; then
+            echo "PUBLIC_SITE_URL is not set. There is no public host to check yet."
+            exit 0
+          fi
+          url="${SITE%/}/health"
+          echo "checking $url"
+          code=$(curl -sS -o response.json -w '%{http_code}' --max-time 20 "$url" || echo 000)
+          echo "http $code"
+          cat response.json || true
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::$url answered $code"
+            exit 1
+          fi
+          sha=$(sed -n 's/.*"sha":"\([^"]*\)".*/\1/p' response.json)
+          if [ -z "$sha" ] || [ "$sha" = "unknown" ]; then
+            echo "::error::$url answered 200 but reports no commit, so GIT_SHA was not baked into the image"
+            exit 1
+          fi
+          echo "live at $sha"

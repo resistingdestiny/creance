@@ -6,17 +6,28 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "tsx --env-file-if-exists=../../.env src/main.ts",
+    "migrate": "tsx --env-file-if-exists=../../.env src/db/cli.ts",
+    "openapi": "tsx scripts/openapi.ts",
     "test": "vitest run",
+    "test:testnet": "tsx --env-file-if-exists=../../.env scripts/testnet/bind.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/pg": "^8.23.1",
+    "js-yaml": "^4.3.2",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
   },
   "dependencies": {
     "@creance/client": "workspace:*",
+    "@creance/index-model": "workspace:*",
+    "@hiero-ledger/sdk": "2.87.0",
     "ethers": "^6.15.0",
-    "fastify": "^5.12.1"
+    "fastify": "^5.12.1",
+    "jose": "^6.2.10",
+    "pg": "^8.23.0",
+    "ulid": "^3.0.2"
   }
 }

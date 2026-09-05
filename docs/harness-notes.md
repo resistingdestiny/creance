@@ -970,6 +970,125 @@ of the two font modules in `next.config.ts`. Rebuilt and measured both ways:
 with A active there is no Geist file in the output, with B active there is no
 Inter file.
 
+## T07, the API, 5 September 2026
+
+### The account that holds BINDER_ROLE cannot write to the index topic
+
+docs/HEDERA.md's topic table and the T07 acceptance disagree. The acceptance
+asks for the bind receipt on the index topic; the index topic's submit key is
+the oracle's. The api account holds BINDER_ROLE, CLAIMS_ROLE and the payments
+topic submit key, and nothing more. A `TopicMessageSubmitTransaction` to the
+index topic signed by the api key fails, so this is a design constraint and not
+a runtime discovery: the receipt goes to the payments topic. See
+docs/DECISIONS.md.
+
+### The policy NFT's supply and freeze keys belong to the operator, not the API
+
+Same shape of gap, on the token side. `pnpm hedera:setup` created CPOL with the
+operator key as treasury, admin, supply and freeze key. The API is the process
+that mints a policy receipt, so it needs the operator key too, not only the api
+key. Two keys in one process is worth saying out loud, because a reader of
+DESIGN.md 4 would reasonably expect the api account to own everything the API
+does.
+
+### `hcsReceiptSeq` forces the receipt to be published before the bind
+
+`CoverPool.bind` takes the HCS sequence number as an input. A bind therefore
+publishes first and calls second, and a revert leaves a message on a public
+settlement topic describing a policy that was never registered. HCS has no
+retraction. The T04 note anticipated this and proposed passing zero; the API
+passes the real sequence number and writes a second message resolving the first,
+because a receipt that is never resolved is worse than two messages.
+
+Measured on testnet: the two messages landed at sequences 3 and 4 for the first
+policy and 5 and 6 for the second, on topic
+[0.0.10366471](https://hashscan.io/testnet/topic/0.0.10366471).
+
+### A second policy for the same holder needs the unfreeze, and it is a mirror read
+
+docs/DECISIONS.md's "The policy NFT collection has no default freeze" says a
+second policy for the same holder needs an unfreeze first. There is no cheap way
+to ask the network whether an account is frozen for a token: the SDK has no
+query for it, so the answer comes from the mirror node's
+`/accounts/{id}/tokens?token.id={token}`, whose `freeze_status` reads `FROZEN`
+or `UNFROZEN`. That read is on the bind path, which means a bind depends on the
+mirror node being current for a fact the network already knows.
+
+Proven both ways on testnet against
+[0.0.10366458](https://hashscan.io/testnet/account/0.0.10366458): the first bind
+found no relationship freeze and minted serial 1; the second found `FROZEN`,
+unfroze, minted serial 2, transferred and froze again.
+
+### The premium the formula of record produces is not DESIGN's demo number
+
+DESIGN.md 3.4 gives the demo premium as "around 15 to 30 a month" for a 5,000
+limit. docs/DECISIONS.md's "Premium is a guide price from the index multiplied
+by a capacity term" supersedes DESIGN's frequency formula, and it prices from
+the distance to the level line, which moves every month. Computed from the
+committed archive at zero utilisation, for a 5,000 limit:
+
+| Month | ebar | Distance to the line | Rate | Monthly premium |
+|---|---|---|---|---|
+| 2026-03 | -0.80 | 0.12 | 524 bps | 21.83 |
+| 2026-04 | -0.60 | -0.08, open on the level form | 1210 bps | 50.42 |
+| 2026-05 | -0.63 | -0.05, open on the level form | 1063 bps | 44.29 |
+| 2026-06 | -1.00 | 0.32 | 248 bps | 10.33 |
+| 2026-07 | -1.37 | 0.69 | 96 bps | 4.00 |
+
+So DESIGN's 15 to 30 is right for March 2026, the month before claims open, and
+wrong for the archive's latest month, which is what a clone quotes today. The
+number is not a constant and the copy deck's 28.00 placeholder should stay
+interpolated at runtime, which DESIGN.md already says.
+
+### The Hedera SDK's TokenMintTransaction takes metadata as bytes, and the cap is bytes
+
+Already recorded from T03 as a day 0 finding, confirmed from the API side:
+`setMetadata([Buffer])` is the shape, one entry per serial, and 100 bytes is the
+limit. The policy metadata is `{"p":"pol_<ulid>","s":"<series>"}`, 60 bytes, so
+a longer series label would still fit and a second field would not.
+
+### A ULID with a four character prefix is exactly 30 bytes, which fits bytes32
+
+`ethers.encodeBytes32String` takes at most 31 bytes. `pol_` plus a 26 character
+ULID is 30, with one byte to spare, so a policy id round trips between the JSON,
+the database and the chain with no lookup table and a HashScan event log decodes
+to something a person can read. A UUID would not have fitted, which is why the
+ids are ULIDs.
+
+### The mirror node's NFT metadata is base64, and its `/tokens/{id}/nfts/{serial}` answers 404 before it answers 200
+
+Consistent with the T03 note on topic messages: the entity endpoints 404 while
+the mirror catches up, so both the NFT read and the topic message read after a
+bind are polls. Measured on testnet at roughly one to three seconds behind
+consensus for both.
+
+### The Node PostgreSQL driver returns numeric as a string, which is what this build wants
+
+`numeric(78,0)` comes back from `pg` as a JavaScript string rather than a
+number, which is the behaviour every amount in this system depends on. It is not
+a setting and it is easy to read as a bug, so it is written down: a `pg` type
+parser that "fixes" it by returning a number would silently truncate every
+amount over 2^53.
+
+### Flipping the last base64url character of a JWT signature does not always break it
+
+Found by a test of this build's own, which failed about one run in four and
+passed the rest. The test forged a credential by flipping the final character of
+the signature segment and expected `jwtVerify` to refuse it. Sometimes it did
+not.
+
+An Ed25519 signature is 64 bytes and its base64url form is 86 characters. Those
+encode 516 bits for 512 bits of signature, so the last character carries four
+significant bits and two that the decoder discards. For sixteen of the
+sixty-four possible final characters the flip lands entirely in the discarded
+bits, the signature decodes to the same 64 bytes, and the token verifies
+normally.
+
+Nothing is wrong with `jose` here; the test was wrong. It is worth writing down
+because "flip a character to corrupt it" is the obvious way to write this test
+and it is subtly unsound for any base64 payload whose length is not a multiple
+of three bytes. Decode, flip a byte, re-encode.
+
 ## T17, web investor screens, 5 September 2026
 
 ### The ATS internal KYC register is a uint, and the docs only ever show it as a word

@@ -1,16 +1,56 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 
+import { registerErrorHandling } from './errors.js';
 import { investorRoutes } from './investor/index.js';
+import { bindRoutes } from './routes/bind.js';
+import { indexRoutes } from './routes/index-feed.js';
+import { opsRoutes } from './routes/ops.js';
+import { policyRoutes } from './routes/policy.js';
+import { quoteRoutes } from './routes/quote.js';
+import { buildServices, type BuildServicesOptions, type Services } from './services.js';
 
-/// A minimal bootstrap for the investor endpoints, so they can be run and
-/// curled before the rest of the API exists.
+/// The server.
 ///
-/// T07 builds the real server: the x402 gate, the World verification, the
-/// claim intake and Postgres. It registers `investorRoutes` the same way this
-/// does, so nothing here has to be unpicked then.
+/// It is here rather than in main.ts so a test can build one without listening
+/// on a port. The investor plugin from T14 is registered unchanged, which is
+/// what docs/DECISIONS.md, "The investor endpoints stand alone", said would
+/// happen when this ticket arrived.
 
-export async function buildServer(): Promise<ReturnType<typeof Fastify>> {
-  const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } });
+export interface ServerOptions extends BuildServicesOptions {
+  services?: Services;
+}
+
+export async function buildServer(
+  options: ServerOptions = {},
+): Promise<FastifyInstance & { services: Services }> {
+  const services = options.services ?? (await buildServices(options));
+
+  const app = Fastify({
+    logger: {
+      level: process.env.LOG_LEVEL ?? 'info',
+      // The one certain way to leak a person's identity out of this system is
+      // an error log that serialises a request body.
+      redact: [
+        'req.headers.authorization',
+        'req.headers["payment-signature"]',
+        'req.headers.cookie',
+        'req.body.eligibility',
+        'nullifier',
+      ],
+    },
+    // A JSON API has no business accepting a megabyte, which is Fastify's
+    // default. The claim evidence route in T13 raises it for itself.
+    bodyLimit: 64 * 1024,
+  });
+
+  registerErrorHandling(app);
+
   await app.register(investorRoutes);
-  return app;
+  await app.register(opsRoutes, { services });
+  await app.register(indexRoutes, { services });
+  await app.register(quoteRoutes, { services });
+  await app.register(bindRoutes, { services });
+  await app.register(policyRoutes, { services });
+
+  return Object.assign(app, { services }) as FastifyInstance & { services: Services };
 }

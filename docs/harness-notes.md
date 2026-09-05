@@ -1069,3 +1069,22 @@ number, which is the behaviour every amount in this system depends on. It is not
 a setting and it is easy to read as a bug, so it is written down: a `pg` type
 parser that "fixes" it by returning a number would silently truncate every
 amount over 2^53.
+
+### Flipping the last base64url character of a JWT signature does not always break it
+
+Found by a test of this build's own, which failed about one run in four and
+passed the rest. The test forged a credential by flipping the final character of
+the signature segment and expected `jwtVerify` to refuse it. Sometimes it did
+not.
+
+An Ed25519 signature is 64 bytes and its base64url form is 86 characters. Those
+encode 516 bits for 512 bits of signature, so the last character carries four
+significant bits and two that the decoder discards. For sixteen of the
+sixty-four possible final characters the flip lands entirely in the discarded
+bits, the signature decodes to the same 64 bytes, and the token verifies
+normally.
+
+Nothing is wrong with `jose` here; the test was wrong. It is worth writing down
+because "flip a character to corrupt it" is the obvious way to write this test
+and it is subtly unsound for any base64 payload whose length is not a multiple
+of three bytes. Decode, flip a byte, re-encode.

@@ -118,7 +118,11 @@ export CREANCE_GIT_SHA
 
 echo "deploy: $SITE at $GIT_SHA with $COMPOSE"
 if [ "$BUILD" = yes ]; then
-	$COMPOSE up -d --build
+	# --force-recreate is load bearing. podman-compose with containers already
+	# present runs no build at all for `up -d --build` and simply starts what is
+	# there, so a redeploy would keep serving the previous image and the check
+	# below would fail every time. Measured; see docs/harness-notes.md.
+	$COMPOSE up -d --build --force-recreate
 else
 	echo "deploy: --no-build, so whatever is already built is what starts"
 	$COMPOSE up -d

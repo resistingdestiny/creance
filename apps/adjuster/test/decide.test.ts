@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { FIXTURE_NOW, packetA, packetB } from '../fixtures/index.js';
 import { toRuleInput } from '../src/adapt.js';
-import { AdjusterApi, type AdminClaim, type DecisionPost } from '../src/api.js';
+import {
+  AdjusterApi,
+  type AdminClaim,
+  type DecisionPost,
+  type UnpublishedDecision,
+} from '../src/api.js';
 import type { DecisionPublisher, TopicReceipt } from '../src/chain.js';
 import { decide, expectedPayout, formatDate } from '../src/decide.js';
 import type { EvidenceFile, Extractor } from '../src/extract.js';
@@ -105,10 +110,22 @@ describe('the prompt', () => {
 /// A stand-in for the API, so the pass is exercised without a server.
 class FakeApi extends AdjusterApi {
   readonly posted: { claimId: string; post: DecisionPost }[] = [];
-  notDecidable = false;
+  readonly sequences: { claimId: string; sequenceNumber: number }[] = [];
+  waiting: UnpublishedDecision[] = [];
 
   constructor(private readonly claims: AdminClaim[]) {
     super('http://api.invalid', 'token');
+  }
+
+  override async unpublished(): Promise<UnpublishedDecision[]> {
+    const pending = this.waiting;
+    // The sweep is not a loop: what it publishes it does not see again.
+    this.waiting = [];
+    return pending;
+  }
+
+  override async published(claimId: string, sequenceNumber: number): Promise<void> {
+    this.sequences.push({ claimId, sequenceNumber });
   }
 
   override async queue(): Promise<never[] | never> {
@@ -265,6 +282,34 @@ describe('one pass', () => {
     expect(results[0]?.decision).toBe('approve');
     expect(results[0]?.hcsSequenceNumber).toBeNull();
     expect(api.posted[0]?.post.hcs_decision_seq).toBeNull();
+  });
+
+  it("puts a reviewer's decision on the topic and records where it landed", async () => {
+    const packet = packetA();
+    const api = new FakeApi([]);
+    api.waiting = [
+      {
+        claim_id: packet.claim.claim_id,
+        policy_id: packet.claim.policy_id,
+        decision: 'approve',
+        decision_hash: 'sha256:abcd',
+      },
+    ];
+    const publisher = new RecordingPublisher();
+    const results = await runPass({
+      api,
+      extractor: new FixedExtractor({}),
+      publisher,
+      asset: ASSET,
+      now: () => new Date(FIXTURE_NOW),
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.hcsSequenceNumber).toBe(1);
+    expect(api.sequences).toEqual([{ claimId: packet.claim.claim_id, sequenceNumber: 1 }]);
+    const message = JSON.parse(publisher.published[0] as string);
+    expect(message.decisionHash).toBe('sha256:abcd');
+    expect(message.decision).toBe('approve');
   });
 
   it('skips a claim somebody took between the list and the read', async () => {

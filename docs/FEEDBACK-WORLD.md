@@ -137,7 +137,7 @@ completing a Selfie Check needs a phone with the Sandbox App and a face. What
 follows is what was exercised without one, and exactly what is left for the
 device run.
 
-### The verify endpoint accepts a real `rp_id` in the path
+### The verify endpoint accepts a real `rp_id`, and body validation runs before any id check
 
 Date: 5 September 2026. Endpoint:
 `POST https://developer.world.org/api/v4/verify/{id}`.
@@ -146,21 +146,56 @@ What we were doing: proving the endpoint was reachable and learning which id
 form the path takes, before any proof existed.
 
 What we expected: from the endpoint summary, `rp_id` preferred and `app_id`
-accepted.
+accepted, and an empty body to tell us which.
 
-What happened: exactly that. Both `rp_d6ae9b4ff2018a15` and
-`app_8569aa8d1bbfb24b1243e86d4fc34adc` passed the path format check and reached
-body validation, each answering:
+What happened, first attempt, which taught us nothing: an empty body answers the
+same thing for every id, because body validation runs before the id is looked at
+at all.
 
-```json
-{"code":"validation_error","detail":"action is required for uniqueness proofs","attribute":"action"}
+```text
+POST /api/v4/verify/rp_d6ae9b4ff2018a15   (our real rp id)
+POST /api/v4/verify/rp_test
+POST /api/v4/verify/rp_0000000000000000
+POST /api/v4/verify/foo
+POST /api/v4/verify/12345
+body: {}
+
+all five: {"code":"validation_error","detail":"action is required for uniqueness proofs","attribute":"action"}
 ```
 
-Worth recording because probing the same endpoint with synthetic `rp_...` values
-before the app existed rejected every shape tried with "Invalid ID format", so
-the format check is real and a made-up id is not a useful smoke test. A real one
-is: two curl calls with an empty body prove reachability and both id forms in
-under a minute, and we recommend that as the first step of any integration.
+So two curl calls with an empty body prove that the endpoint is up and nothing
+else. We recorded the opposite here first and it was wrong; the correction is
+the useful part of this entry.
+
+What discriminates is the same request with a body-valid payload carrying a
+synthetic proof. Then the id is reached and three outcomes separate cleanly:
+
+```text
+rp_d6ae9b4ff2018a15                    all_verifications_failed, invalid_format on `proof`
+app_8569aa8d1bbfb24b1243e86d4fc34adc   all_verifications_failed, invalid_format on `proof`
+rp_0000000000000000                    app_not_migrated
+app_1234567890abcdef1234567890abcdef   app_not_migrated
+rp_test / rp_d6ae9b4ff2018a1 / foo     invalid_request, "Invalid ID format. Expected app_id (app_xxx) or rp_id (rp_xxx)."
+```
+
+Reaching proof verification is the proof of acceptance: the id was resolved to a
+registered, World ID 4.0 app. Both our real ids get there, so the endpoint
+summary's "use `rp_id` when possible, `app_id` is still accepted" holds as
+written.
+
+The two rejections are worth telling apart, because they look alike and mean
+different things. `invalid_request` is a shape failure before any lookup;
+`app_not_migrated` is a well-formed id that resolved to nothing usable. The
+shape itself is undocumented and is exactly `rp_` followed by sixteen hex
+characters: `rp_d6ae9b4ff2018a1` (fifteen) and `rp_d6ae9b4ff2018a15aa`
+(eighteen) both fail the format check while `rp_0000000000000000` passes it and
+goes on to fail the lookup.
+
+Suggestion, and it is the whole point of this entry: say on the verify page that
+body validation precedes id resolution, and give the differential above as the
+smoke test. An integrator's instinct is to curl an empty body first, and that
+instinct produces a result that looks like a successful id check and is not one.
+Documenting the shape of `rp_id` would help too.
 
 ### `environment: "sandbox"` is accepted in the verify body, and the OpenAPI says it is not
 

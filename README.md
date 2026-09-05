@@ -346,7 +346,7 @@ Everything above runs from a clone with no containers, and that stays the
 shortest path. For the public deployment there are three OCI images and a
 compose file:
 
-    CREANCE_GIT_SHA="$(git rev-parse HEAD)" docker compose up -d --build
+    CREANCE_GIT_SHA="$(git rev-parse HEAD)" docker compose up -d --build --force-recreate
     curl -s http://127.0.0.1:3210/health
 
 `compose.yaml` runs Postgres, the API, the web app and the index oracle. The

@@ -1,6 +1,10 @@
 # The deploy compose: Postgres, the API, the web app and the index oracle.
 #
-#     CREANCE_GIT_SHA="$(git rev-parse HEAD)" podman compose up -d --build
+#     CREANCE_GIT_SHA="$(git rev-parse HEAD)" podman compose up -d --build --force-recreate
+#
+# --force-recreate because podman-compose skips the build entirely when the
+# containers already exist, so a second run without it keeps serving the old
+# image. deploy/deploy.sh passes it. See docs/harness-notes.md.
 #
 # Plain OCI images and no runtime-specific keys, so `docker compose` and
 # `podman compose` both run it. deploy/deploy.sh is the wrapper the public host

@@ -10,6 +10,7 @@
     "fixtures": "tsx scripts/render-fixtures.ts",
     "testnet:publish": "tsx --env-file-if-exists=../../.env scripts/testnet/publish.ts",
     "test": "vitest run",
+    "test:testnet": "pnpm run testnet:publish",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -19,6 +20,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.124.0",
+    "@creance/api": "workspace:*",
     "@creance/client": "workspace:*",
     "@creance/index-model": "workspace:*",
     "@hiero-ledger/sdk": "2.87.0",

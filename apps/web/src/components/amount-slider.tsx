@@ -2,6 +2,7 @@
 
 import { useId } from 'react';
 
+import { AMOUNT_DEFAULT, AMOUNT_MAX, AMOUNT_MIN, AMOUNT_STEP } from '../lib/cover-amount';
 import { formatAmount } from '../lib/format';
 
 /**
@@ -15,11 +16,7 @@ import { formatAmount } from '../lib/format';
  * reach the vendor pseudo-elements.
  */
 
-export const AMOUNT_MIN = 1000;
-export const AMOUNT_MAX = 10_000;
-export const AMOUNT_STEP = 500;
-/** Where the slider opens. DESIGN.md 3.4's demo limit. */
-export const AMOUNT_DEFAULT = 5_000;
+export { AMOUNT_DEFAULT, AMOUNT_MAX, AMOUNT_MIN, AMOUNT_STEP };
 
 export interface AmountSliderProps {
   value: number;

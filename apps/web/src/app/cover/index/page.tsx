@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
+import { reportUnreachable } from '../../../lib/api';
+
 import { findOccupation, occupationLabel } from '../../../lib/occupations';
 import { readPurchase } from '../../../lib/purchase-session';
 import { fetchIndex, fetchPolicy } from '../../../lib/worker-api';
@@ -68,7 +70,8 @@ export default async function CoverIndexPage({
         threshold={chartThreshold(index)}
       />
     );
-  } catch {
+  } catch (cause) {
+    reportUnreachable('the index tab', cause);
     return <WorkerUnavailable retryHref="/cover/index" />;
   }
 }

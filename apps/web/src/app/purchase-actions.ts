@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 
 import { ApiError } from '../lib/api';
 import { issueEligibilityFor } from '../lib/eligibility';
-import { AMOUNT_DEFAULT } from '../components/amount-slider';
+import { AMOUNT_DEFAULT } from '../lib/cover-amount';
 import { findOccupation, hasCover } from '../lib/occupations';
 import {
   readPurchase,

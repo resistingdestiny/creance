@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { AMOUNT_DEFAULT } from '../../components/amount-slider';
+import { reportUnreachable } from '../../lib/api';
+
+import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
 import { readPurchase } from '../../lib/purchase-session';
 import { occupationLabel } from '../../lib/occupations';
 import { DEMO_ACCOUNT } from '../../lib/wallet';
@@ -48,7 +50,8 @@ export default async function AmountPage() {
         occupation={occupationLabel(group)}
       />
     );
-  } catch {
+  } catch (cause) {
+    reportUnreachable('the cover amount screen', cause);
     return <WorkerUnavailable retryHref="/amount" />;
   }
 }

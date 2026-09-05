@@ -122,3 +122,15 @@ async function request<T>(
   if (!response.ok) throw await problemOf(url, response);
   return (await response.json()) as T;
 }
+
+/**
+ * What a screen does with a call it could not make.
+ *
+ * The screen renders its unavailable state, and the reason goes to the server
+ * log rather than nowhere: a judge who sees "we can't reach the index" needs
+ * the terminal to say which call failed and why.
+ */
+export function reportUnreachable(where: string, cause: unknown): void {
+  const detail = cause instanceof ApiError ? `${cause.url}: ${cause.message}` : String(cause);
+  console.error(`[web] ${where} could not read the API. ${detail}`);
+}

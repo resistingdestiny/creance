@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { AMOUNT_DEFAULT } from '../../components/amount-slider';
+import { reportUnreachable } from '../../lib/api';
+
+import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
 import { occupationLabel } from '../../lib/occupations';
 import { readPurchase, updatePurchase } from '../../lib/purchase-session';
 import { DEMO_ACCOUNT, DEMO_WALLET_LABEL } from '../../lib/wallet';
@@ -48,7 +50,8 @@ export default async function PayPage() {
         walletLabel={DEMO_WALLET_LABEL}
       />
     );
-  } catch {
+  } catch (cause) {
+    reportUnreachable('the pay sheet', cause);
     return <WorkerUnavailable retryHref="/pay" />;
   }
 }

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
+import { reportUnreachable } from '../../lib/api';
+
 import { formatDay } from '../../lib/format';
 import { occupationLabel } from '../../lib/occupations';
 import { readPurchase } from '../../lib/purchase-session';
@@ -49,7 +51,8 @@ export default async function HomePage({
         occupation={occupationLabel(policy.group)}
       />
     );
-  } catch {
+  } catch (cause) {
+    reportUnreachable('home', cause);
     return <WorkerUnavailable retryHref="/home" />;
   }
 }

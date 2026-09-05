@@ -2042,3 +2042,80 @@ stored, and pressing Approve again after the account was funded paid it, which
 is the retry path `POST /v1/admin/claims/:id/decide` is written for. Worth
 knowing twice over: the error names neither the account nor the shortfall, and
 a payout that refuses for an environmental reason is not a payout that failed.
+
+## T23, the clean clone run-through, 5 September 2026
+
+### The observation store cannot tell a clean clone what already settled
+
+`pnpm oracle:replay` guards against publishing a period twice by looking it up
+in the observation store, which is `var/oracle/observations.json` and is
+gitignored. A clone has no such file, so on a fresh machine every month of the
+demo window looks unpublished and the run would put a second message on the
+shared index topic for each one. Measured: the topic carried the demo series
+from 2025-01 to 2026-04, and a clean clone's replay walked all nineteen months
+reporting `skipped 0 already published`.
+
+docs/INDEX-SPEC.md says the first value published for a period settles it
+forever, so a second message for a settled month is the failure the whole
+specification is written against, and the on chain guard does not catch it: the
+contract refuses the duplicate submission, but HCS has already taken the
+message and an HCS message cannot be retracted.
+
+The pipeline's own header comment named this and deferred it to T26 as a job
+needing the runs table. It does not need the runs table. The commands now read
+the topic back through the mirror node before the walk starts and pass the group
+months they find into the pipeline, which skips them. Verified from the clean
+clone against topic 0.0.10366470: `published 0 messages, skipped 19 already
+published`, with the local store deleted first so nothing but the topic could
+have supplied the answer.
+
+Skipping the publish must not also skip the settlement. A month can reach the
+topic without its contract call, which is exactly the state a run interrupted
+between the two leaves behind, and the message on the topic carries the value
+and the sequence number the call needs. So a month found on the topic and not on
+chain gets its contract call from the topic's own message.
+
+### A blank line in the environment shadowed the deployment record
+
+The T21 finding, measured again from the judge's own path rather than from a
+deployment. `cp .env.example .env`, fill in the operator key and `DATABASE_URL`,
+`pnpm dev`, and the API exits with
+
+    Error: no deployment record at : run pnpm contracts:deploy first
+
+`??` falls back only on `undefined`, and a name present with nothing after it is
+the empty string. Twenty one reads in `loadApiConfig`, seven in the investor
+configuration and nine in the oracle's had the same shape, so a copied example
+also erased the settlement token, the four topic ids, both contract addresses
+and the submission gas limit, which `Number('')` turns into 0. All of them now
+go through a reader that treats blank as absent. The example environment says so
+in its header, and `apps/api/test/config.test.ts` loads the real `.env.example`
+with every line blank and asserts the configuration still resolves, so the file
+and the code cannot drift apart again.
+
+### Next.js dev refuses its own dev resources to an origin it was not opened on
+
+`pnpm dev` serves the web app on localhost. Opening it on `http://127.0.0.1:3001`
+instead loads every page and hydrates nothing: the search box does not filter,
+the occupation rows do not select, and the only console message is a failed
+websocket handshake to `/_next/hmr`. The reason is in `.next/dev/logs`, not in
+the browser:
+
+    Blocked cross-origin request to Next.js dev resource /_next/hmr from
+    "127.0.0.1". Cross-origin access to Next.js dev resources is blocked by
+    default for safety.
+
+127.0.0.1 and localhost are the same host and a different origin. Nothing in the
+page says so, and a half-hydrated screen looks like a product bug. Open the web
+app on the address the command prints, or add `allowedDevOrigins` to the Next
+configuration. Nothing in this repository needed changing; the run-through
+section of the README names localhost for this reason.
+
+### The demo replay window was three months short of the topic
+
+Reading the index topic back showed 2025-01 to 2026-04 for the demo series and
+then the fifteen groups of the live 2026-07 run, with 2026-05 and 2026-06
+missing. The demo narrative turns on May 2026 being an open month, so the gap
+mattered. The clean clone's replay published both, with `--no-submit`, so the
+topic now carries the whole window; their contract calls have not been made and
+the next submitting run will make them.

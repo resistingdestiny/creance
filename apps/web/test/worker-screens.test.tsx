@@ -205,7 +205,7 @@ describe('the pay sheet', () => {
 
   it('says what the press does before the press', () => {
     renderSheet();
-    expect(screen.getByText(/nothing leaves the wallet today/)).toBeTruthy();
+    expect(screen.getByText(/The first payment leaves the wallet above as soon as you press/)).toBeTruthy();
   });
 });
 

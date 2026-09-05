@@ -20,10 +20,11 @@ import { payAndBind } from '../purchase-actions';
  * the policy NFT and HashScan all say, and shortening it would invent a format
  * for a string that is already eleven characters. See docs/DECISIONS.md.
  *
- * The line above the button says what the press does today. The first premium
- * is recorded against the policy and settles when the x402 gate lands (T08), so
- * nothing moves from the wallet in this build, and the screen says so before
- * the press rather than after it.
+ * The line above the button says what the press does. The first month's premium
+ * is settled out of the wallet named in the "Pays from" row, over the x402 gate
+ * T08 put in front of the bind, and the cover is real from that moment. It is
+ * said before the press rather than after it, which is the same rule the
+ * subscribe screen follows.
  */
 
 export function PayScreen({
@@ -77,8 +78,7 @@ export function PayScreen({
             </SurfaceGroup>
 
             <p className="text-secondary text-ink-2">
-              Testnet only. The first payment is recorded against your cover and settles when the
-              payment gate lands, so nothing leaves the wallet today.
+              Testnet only. The first payment leaves the wallet above as soon as you press.
             </p>
 
             {error === null ? null : (

@@ -1,4 +1,11 @@
-import type { ChainReader, CouponEntitlement, HolderState, NoteState, VaultSeriesState } from '../src/investor/chain.js';
+import type {
+  ChainReader,
+  CouponEntitlement,
+  CoverPoolSeriesState,
+  HolderState,
+  NoteState,
+  VaultSeriesState,
+} from '../src/investor/chain.js';
 import type { InvestorConfig, SeriesConfig } from '../src/investor/config.js';
 
 /// The demo series as it stood on testnet after the first coupon settled, used
@@ -10,6 +17,7 @@ export const SERIES: SeriesConfig = {
   group: 'computer_math',
   maturityAt: 1820082162,
   vault: { address: '0xD0473d355ECB299F2ECc0d92124bc8CF63554e60', contractId: '0.0.10367194' },
+  coverPool: { address: '0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09', contractId: '0.0.10367199' },
   note: { address: '0xBB14C072d2861B944C18e5f873C5aEa71c2F1f36', contractId: '0.0.10368240' },
   settlementToken: {
     tokenId: '0.0.10366463',
@@ -95,6 +103,16 @@ export const VAULT_STATE: VaultSeriesState = {
   atsToken: '0x0000000000000000000000000000000000000000',
 };
 
+/// The demo series as the CoverPool holds it: registered at a 365 day term
+/// with nothing bound against it, which is what testnet reads today.
+export const COVER_POOL_STATE: CoverPoolSeriesState = {
+  registered: true,
+  activeExposure: 0n,
+  exposureCovered: 0n,
+  term: 31_536_000,
+  status: 1,
+};
+
 export const NOTE_STATE: NoteState = {
   name: 'Creance Displacement Bond Note ODI-COMP-2026-01',
   symbol: 'CDBN01',
@@ -118,6 +136,7 @@ export class FakeChainReader implements ChainReader {
     private readonly overrides: {
       vault?: Partial<VaultSeriesState>;
       note?: NoteState | null;
+      coverPool?: CoverPoolSeriesState | null;
       holder?: Partial<HolderState>;
       entitlement?: CouponEntitlement | null;
     } = {},
@@ -132,7 +151,17 @@ export class FakeChainReader implements ChainReader {
   }
 
   async holder(): Promise<HolderState> {
-    return { balance: 50_000_000n, frozen: 0n, subscription: 50_000_000_000n, ...this.overrides.holder };
+    return {
+      balance: 50_000_000n,
+      frozen: 0n,
+      subscription: 50_000_000_000n,
+      kycStatus: 1,
+      ...this.overrides.holder,
+    };
+  }
+
+  async coverPoolSeries(): Promise<CoverPoolSeriesState | null> {
+    return this.overrides.coverPool === undefined ? COVER_POOL_STATE : this.overrides.coverPool;
   }
 
   async couponFor(): Promise<CouponEntitlement | null> {

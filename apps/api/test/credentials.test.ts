@@ -152,10 +152,21 @@ describe('the eligibility credential', () => {
   it('refuses one whose signature has been tampered with', async () => {
     const token = await mint();
     const [header, payload, signature] = token.split('.') as [string, string, string];
-    // Flip one character of the signature, leaving a well formed JWT that does
-    // not verify. A shape check would pass this; only the signature catches it.
-    const flipped = signature.slice(0, -1) + (signature.endsWith('A') ? 'B' : 'A');
-    const error = await refusal(`${header}.${payload}.${flipped}`);
+
+    // Tamper a byte, not a character. An Ed25519 signature is 64 bytes and its
+    // base64url form is 86 characters, which encode 516 bits for 512 bits of
+    // signature, so the last character carries four significant bits and two
+    // the decoder throws away. Flipping that character lands in the discarded
+    // bits for sixteen of the sixty-four possible values and leaves a signature
+    // that still verifies, which made an earlier version of this test fail
+    // about one run in four. Decoding, flipping a byte and re-encoding cannot
+    // hit padding.
+    const bytes = Buffer.from(signature, 'base64url');
+    bytes[0] = bytes[0]! ^ 0xff;
+    const tampered = bytes.toString('base64url');
+    expect(tampered).not.toBe(signature);
+
+    const error = await refusal(`${header}.${payload}.${tampered}`);
     expect(error.status).toBe(401);
     expect(error.code).toBe('credential_invalid');
   });

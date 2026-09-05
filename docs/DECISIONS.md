@@ -3349,3 +3349,116 @@ is the free catalogue: the library makes a trailing wildcard optional. The
 pattern is now `GET /v1/index/:group`. It is a library behaviour rather than a
 decision, and it is in docs/harness-notes.md, but it is recorded here too
 because it is the one way the catalogue could silently stop being free.
+
+## T24, the demonstration seed and the shot list, 5 September 2026
+
+### "From a clean state" is a clean database, not a clean testnet
+
+The ticket asks `pnpm demo:seed` to build the demonstration "from a clean
+state", and the testnet resources are shared: the accounts, the two tokens, the
+four topics, the two contracts and the demo series are all created once and read
+by every command in the repository. Rebuilding them would mean new ids, and
+every transaction link already written into docs/HEDERA.md, docs/ATS.md and the
+prize evidence would point at a deployment that no longer exists.
+
+So a clean state is a fresh local database, `pnpm api:migrate`, plus the testnet
+resources that are already there. `pnpm hedera:setup` and `pnpm contracts:deploy`
+own the shared half and both already refuse to do anything twice. The seed owns
+the half that is per demonstration: the two claimable policies, the noteholder
+positions and the two staged packets. It composes the commands that already
+exist rather than reimplementing any of them, which is why a run that ends with
+"nothing bound" is the correct outcome and the one that matters on video day.
+
+### The seed stages the packets and never submits them
+
+Staging a packet could mean writing a submitted claim into the database, which
+is what `pnpm --filter @creance/adjuster testnet:seed` does. The seed does not do
+that, because both claims are submitted on camera in shots 6 and 7 and a policy
+that already carries a claim cannot carry another: one claim per nullifier per
+series.
+
+Staging here means proving that the claim will be accepted before anyone starts
+recording. The seed renders the letters if they are missing, fingerprints them
+against the committed hashes, checks the separation date against the waiting
+period and the term of the cover it bound, asks `CoverPool.isInLossWindow`
+whether the separation month qualifies, and prints the exact `testnet:claim`
+command for each. It fails loudly when any of that is wrong, which is the whole
+value: the failure a shot list cannot survive is the one discovered at 19:00 on
+the last evening.
+
+### The replay scenario is committed as data, not as a scenario file
+
+The ticket allows a file under `apps/oracle/scenarios`, and none is used. An
+oracle scenario is a synthetic trigger that writes neither the index topic nor
+the chain, which T12 already recorded, and nothing in a demonstration path may
+run against a mock. The window the demonstration uses opens on real published
+data anyway.
+
+The scenario is instead the sequence itself, committed as ordered data in
+`apps/api/scripts/testnet/demo-seed/scenario.ts`: nine beats with their timings,
+the surface each is shot on, what must already be true, the exact commands and
+what has to be legible on screen. `pnpm demo:seed scenario` prints it, docs/DEMO.md
+carries the same table, and the unit tests check that the beats are contiguous,
+that the cut stays inside the two to four minutes ETHGlobal enforces, and that
+the reserve, the approved claim, the declined claim and the reserve release are
+all in it.
+
+### The replay is run again for the screens and May 2026 is the live opening
+
+The proof run of 5 September settled 2025-01 to 2026-04 on the demo series, and
+`submitObservation` reverts `PeriodNotAfterLast` for any month at or before it,
+so April cannot be opened again. Two options were open: register a fresh series
+for the recording, which shows a reserve being taken from nothing but abandons
+every link already published against ODI-COMP-2026-01, or replay against the
+April state.
+
+The demonstration replays `--from 2026-01 --to 2026-05`. The months already on
+the index topic tick past the replay bar without being published twice, which is
+the oracle asking the topic what has settled rather than a local file, and May
+2026 has never been published or submitted. It opens on the level form and tops
+the reserve up on camera. So the screens are the real screens, the opening is a
+real opening on real published data, and no link in the repository is orphaned.
+May is spent the first time it is submitted, so `pnpm demo:seed status` reports
+whether it is still in hand and never spends it.
+
+### The reserve release is shown on a short window series, and said out loud
+
+`closeWindow` on ODI-COMP-2026-01 refuses until 5 October 2026, thirty days
+after the observation that opened the window, and the terms are frozen at
+registration with no setter. That is the contract behaving correctly: a claimant
+must not be cut off by the lag between a month ending and the statistics for it
+being published. It also means the last beat of DESIGN.md section 7 cannot
+happen on the demo series inside the event.
+
+`pnpm --filter @creance/contracts demo:release` opens a series carrying every
+term the demo series carries except that its claim window is measured in
+seconds, funds it, binds two policies, opens a month, pays one claim out of the
+reserve, waits for the window and closes it. The unclaimed half of the reserve
+goes back to the vault and the principal ends lower by exactly the claim that
+was paid. Everything in it is real and it is on testnet; what is compressed is
+the clock, and the shot list says so out loud. Maturity is already shown the
+same way, on the short dated series `pnpm coupons:mature` opens, and the
+alternative was faking a release, which nobody was going to do.
+
+The first run of it released nothing, because a single policy's reserve was
+consumed entirely by its own payout. Two policies are bound instead, only one of
+which claims, because "the unclaimed reserve returns to the noteholders" needs
+an unclaimed remainder to be a demonstration of anything.
+
+### The video is one artefact of 3:50, not a five minute cut and a showcase cut
+
+DESIGN.md section 7 asks for a main video of five minutes or less and a separate
+showcase cut of two to four minutes. ETHGlobal accepts only two to four minutes
+and rejects the rest before a judge sees it, and the partner tracks all say five
+minutes or less, which a shorter video also satisfies. So there is one take, cut
+to 3:50, and the showcase cut is that take with the harness beat dropped, which
+lands at 3:38 and stays inside the same gate. Building two videos would mean two
+rounds of voice over for no judge who reads either differently.
+
+### The demo states behind WEB_DEMO_STATES are for framing and never for a take
+
+`WEB_DEMO_STATES` renders Home from fixtures for each of the six states. It is
+useful for checking that a shot is framed correctly before the state it needs
+exists on chain. It is never used in a take: nothing in a demonstration path may
+run against a mock, and the screen prints a label saying nothing came from the
+API. docs/DEMO.md says both halves of that.

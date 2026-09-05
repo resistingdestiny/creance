@@ -24,7 +24,7 @@ USER node
 # lockfile. The filter is what keeps the image small: only the API and the two
 # libraries it depends on are installed, so the contracts Hardhat toolchain and
 # the web app's Next dependencies never reach this image.
-COPY --chown=node:node package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY --chown=node:node package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY --chown=node:node apps/adjuster/package.json apps/adjuster/
 COPY --chown=node:node apps/api/package.json apps/api/
 COPY --chown=node:node apps/oracle/package.json apps/oracle/

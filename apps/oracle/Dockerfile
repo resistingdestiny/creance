@@ -22,7 +22,7 @@ USER node
 # Every workspace manifest, because --frozen-lockfile compares the lockfile
 # against the projects pnpm can see and a missing project reads as a stale
 # lockfile. Only the oracle and the two libraries it depends on are installed.
-COPY --chown=node:node package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY --chown=node:node package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY --chown=node:node apps/adjuster/package.json apps/adjuster/
 COPY --chown=node:node apps/api/package.json apps/api/
 COPY --chown=node:node apps/oracle/package.json apps/oracle/

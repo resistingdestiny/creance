@@ -13,7 +13,7 @@
  * what `first:` and `last:` do here.
  *
  * The hatch is a repeating-linear-gradient in the global stylesheet, because a
- * gradient at a fixed angle and pitch is not a utility. There is no shadow:
+ * gradient at a fixed angle and pitch is not a utility. Nothing here is elevated:
  * depth in this design is hairline and grouping.
  */
 

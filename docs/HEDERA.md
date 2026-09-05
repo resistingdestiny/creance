@@ -597,12 +597,17 @@ sent `odi` 3000 and `ebar` -6000, the published values scaled by 1e4, with
 `hcsSequence` 16 and the source hash above. The contract decided the opening
 itself and emitted:
 
-| Event | Values |
-|---|---|
-| `ObservationSubmitted` | `open` true, `openReason` 2 (level) |
-| `SeriesStatusChanged` | Active to ClaimsOpen |
-| `ClaimsOpened` | `reserved` 3,000,000,000, `windowEndsAt` 1791191091 |
-| `WindowExtended` | 1791191091 |
+| # | Event | From | Values |
+|---|---|---|---|
+| 1 | `ObservationSubmitted` | CoverPool | period 202604, `odi` 3000, `ebar` -6000, `open` true, `openReason` 2 |
+| 2 | `WindowExtended` | CoverPool | `windowEndsAt` 1791191091 |
+| 3 | `Reserved` | CollateralVault | 3,000,000,000 reserved, 3,000,000,000 total |
+| 4 | `SeriesStatusChanged` | CoverPool | 1 to 2, Active to ClaimsOpen |
+| 5 | `ClaimsOpened` | CoverPool | `openReason` 2, `reserved` 3,000,000,000, `windowEndsAt` 1791191091 |
+
+The window is extended before the reserve is taken and `ClaimsOpened` is the
+last of the five, so a consumer watching for the opening should read
+`ClaimsOpened` and not race the earlier events.
 
 ### After the run
 

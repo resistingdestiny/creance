@@ -43,9 +43,23 @@ if [ ! -f .env ]; then
 	exit 1
 fi
 
+# A container runtime passes an environment file through verbatim: a value
+# followed by a comment arrives with the comment attached, so
+# `PUBLIC_SITE_URL=https://creance.co  # the origin` would make the API issue
+# credentials for an origin with a comment in it. See docs/harness-notes.md.
+# .env.example keeps every comment on its own line and a production file has to
+# do the same, so this refuses rather than quietly stripping.
+INLINE=$(grep -n '^[A-Z_][A-Z0-9_]*=.*[[:space:]]#' .env | cut -d: -f1 | tr '\n' ' ' || true)
+if [ -n "$INLINE" ]; then
+	echo "deploy: .env has a comment on the same line as a value, at line(s) $INLINE." >&2
+	echo "deploy: the runtime passes those through as part of the value." >&2
+	echo "deploy: move the comment onto its own line, as .env.example does." >&2
+	exit 1
+fi
+
 # One key from the file, last definition wins, exactly as a shell would read it.
 setting() {
-	grep "^$1=" .env | tail -n 1 | cut -d= -f2- | tr -d '\r'
+	grep "^$1=" .env | tail -n 1 | cut -d= -f2- | tr -d '\r' | sed 's/[[:space:]]*$//'
 }
 
 SITE=$(setting PUBLIC_SITE_URL)
@@ -53,6 +67,12 @@ PUBLIC_SITE=$(setting NEXT_PUBLIC_SITE_URL)
 
 if [ -z "$SITE" ]; then
 	echo "deploy: PUBLIC_SITE_URL is not set in .env. It is the canonical origin." >&2
+	exit 1
+fi
+
+if [ -z "$PUBLIC_SITE" ]; then
+	echo "deploy: NEXT_PUBLIC_SITE_URL is not set in .env. Set it to $SITE." >&2
+	echo "deploy: it is what the browser bundle is built with. See docs/DECISIONS.md." >&2
 	exit 1
 fi
 

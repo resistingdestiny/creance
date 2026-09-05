@@ -1057,3 +1057,92 @@ which is the retry path the decide endpoint is written for.
     pnpm adjuster:run
     # approve at /admin/claims, then publish the decision hash
     pnpm adjuster:run
+
+## The index feed, discovered and paid for cold, 5 September 2026
+
+The acceptance line for T28 is that an agent which has never seen this API can
+find it from the description file alone, pay for a reading over x402 on Hedera
+testnet, and get back a reading that is correct. This is that run. The full
+transcript is docs/demo/agentify.txt.
+
+`pnpm --filter @creance/api testnet:agentify` starts the real server with the
+gate on and hands a client two things: the URL of `GET /llms.txt` and a funded
+payer key. The client imports nothing from this repository's source and is given
+no group key, no price, no asset, no payee and no route. It reads them out of
+the description file.
+
+What it did, in order:
+
+1. Read `/llms.txt`, 5,565 bytes, and took from the prose that the paid route is
+   `/v1/index/{group}` at 0.01 TUSD, which is `10000` of `0.0.10366463` on
+   `hedera:testnet`, paid to `0.0.10366450` through
+   `https://api.testnet.blocky402.com`, and that `/v1/index` is free and should
+   be called first.
+2. Called the free catalogue. Fifteen occupations, fifteen with a reading
+   published, and it chose the first: `management_business_financial`. It had no
+   way to know which group the demo series trades on and did not need one.
+   The catalogue's price matched the file's on amount, asset and payee.
+3. Called `/v1/replay`: mode `live`, not running, so the reading is current and
+   not a replayed month.
+4. Called `GET /v1/index/management_business_financial` unpaid and was refused
+   with 402. The `PAYMENT-REQUIRED` header asked for `10000` of `0.0.10366463`
+   to `0.0.10366450` on `hedera:testnet` under scheme `exact`, and the body said
+   0.01, x402 version 2, facilitator `https://api.testnet.blocky402.com`. Both
+   matched what the file had promised, so it paid.
+5. Paid and read.
+
+| What | Value |
+|---|---|
+| Payer | steward [0.0.10366451](https://hashscan.io/testnet/account/0.0.10366451), holding 47.788332 TUSD before the call |
+| Amount | 10000, which is 0.01 TUSD `0.0.10366463` |
+| Settlement | [0.0.7162784-1788636717-287109241](https://hashscan.io/testnet/transaction/0.0.7162784-1788636717-287109241) |
+| Payments topic | [0.0.10366471](https://hashscan.io/testnet/topic/0.0.10366471) sequence 180 |
+| Reading | Management, business and financial operations, 2026-07 |
+
+The reading: `ebar` -1.87 against a level line of -0.98, `odi` 0.10 against a
+shock attachment of 1.50, claims closed, the level form nearer at 0.89
+percentage points.
+
+### Correct against the topic, not against itself
+
+"Correct" here means the paid reading agrees with the settled record, so the
+check is made against the index topic read from the mirror node and not against
+another call to the same API. The newest final message on
+[0.0.10366470](https://hashscan.io/testnet/topic/0.0.10366470) for that group is
+**sequence 17**, period 2026-07, `ebar` -1.87, `odi` 0.1, `open` false,
+`open_reason` `none`. The paid reading carries the same two values for the same
+month, the same frozen `attachment_shock` and `level_line`, and the same
+`open`. The one difference is a form difference the recipes already document:
+the topic carries JSON numbers and `"open_reason":"none"`, the API carries
+decimal strings and `null`.
+
+The settlement message the API wrote to the payments topic at sequence 180:
+
+    {"v":1,"kind":"settlement","endpoint":"GET /v1/index/:group","x402":2,
+     "scheme":"exact","network":"hedera:testnet","payer":"0.0.10366451",
+     "payTo":"0.0.10366450","amount":"10000","asset":"0.0.10366463","decimals":6,
+     "tx":"0.0.7162784@1788636717.287109241","facilitator":"api.testnet.blocky402.com",
+     "ref":"management_business_financial","at":"2026-09-05T19:32:05.240Z"}
+
+### What this run is and is not
+
+It is a real payment on Hedera testnet through the Blocky402 facilitator, a real
+reading, and a real check against consensus. Nothing is mocked.
+
+It is not an outside agent on the open internet, because the public host is Root
+pending: the description file names `https://creance.co` and the run points at a
+local instance of the same build, re-rooting the paths it found. Everything else
+the client uses comes from the file.
+
+The client is deterministic rather than a language model. That is deliberate: a
+proof that can be re-run by a judge and asserted on is worth more here than one
+that depends on a model's choices, and it holds the description file to a
+stricter standard, since every fact it needs has to be extractable from the
+prose rather than merely implied by it.
+
+### Reproducing it
+
+    pnpm --filter @creance/api testnet:agentify
+
+It needs `X402_ENABLED` on, `DATABASE_URL`, the operator key, and a steward
+account holding TUSD. It spends 0.01 TUSD a run.

@@ -1,0 +1,814 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Occupation Displacement Index",
+    "version": "0.1.0",
+    "description": "A monthly index of how far an occupation is losing ground against the labour\nmarket as a whole, published to a Hedera Consensus Service topic and served here\nper call over x402.\n\nWhat a reading is. For an occupation group g in month t, take the unemployment\nrate for that occupation and subtract the rate across all occupations. That\nexcess is smoothed over three months, and the index is the smoothed excess less\nits own value twelve months earlier. Subtracting the all-occupation rate removes\nthe business cycle and most of the seasonality, so a recession does not move\nevery occupation at once; what is left is the occupation against the market.\nEvery value is in percentage points and every value is a decimal string.\n\nThe two trigger forms. A reading is not only a number, it is a number against two\nfrozen lines, and either one opening is what puts an occupation in trouble.\nThe shock form opens when `odi >= attachment_shock`, which is an abrupt\ndislocation: the occupation has lost ground fast in the last twelve months.\nThe level form opens when `ebar >= level_line`, which is the slow grind that year\non year differencing removes: the occupation has settled at a worse level than\nits own history. A level line can be negative, and that is the reading most often\ngot wrong: for an occupation with structurally low unemployment the trigger is\ndeterioration against its own past, not high unemployment in absolute terms.\nBoth lines are set when a series is issued and never move.\n\nWhat it is not. This is not a forecast and not an unemployment rate. It says how\nan occupation is doing relative to all occupations, on data the US Bureau of\nLabor Statistics published, with the source series and a hash of the source rows\non every reading so anyone can recompute it.\n\nWhere it comes from. US Bureau of Labor Statistics, Current Population Survey,\nunemployment rate by occupation, monthly, not seasonally adjusted. Each monthly\nobservation is published as one message on the Hedera Consensus Service topic\n0.0.10366470, signed by the publishing account, and the first value published for\na period is the settlement value forever. A caller who does not want to trust\nthis API can read the same observations off that topic through the Hedera mirror\nnode and get the same numbers.\n\nStart here. `GET /v1/index` is free and lists the fifteen occupation groups, the\nfrozen trigger lines for each, and which of them have a reading published. Then\nbuy the reading for one group with `GET /v1/index/{group}`.\n\nPrice: 0.01 TUSD per call, which is `10000` in the smallest\nunit of the HTS token `0.0.10366463` at 6 decimals.\n\nFlow: x402 version 2, scheme `exact`, network `hedera:testnet`, settled through the\nBlocky402 testnet facilitator at https://api.testnet.blocky402.com. Call without paying and the\nanswer is 402 with the requirements in the `PAYMENT-REQUIRED` header and the same terms\nin readable fields in the body. Build a Hedera `TransferTransaction` against them, send\nit in `PAYMENT-SIGNATURE`, and the settlement receipt comes back in `PAYMENT-RESPONSE`.\n\nPay to 0.0.10366450. The facilitator adds its own signature and pays the Hedera fee,\nso the settlement transaction id begins with its fee payer 0.0.7162784 and not with\nthe paying account. That is the id to look up on HashScan.\n\nTestnet only. There are no real funds anywhere in this feed.",
+    "license": {
+      "name": "MIT"
+    },
+    "contact": {
+      "url": "https://creance.co"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://creance.co",
+      "description": "Creance, Hedera testnet only."
+    }
+  ],
+  "tags": [
+    {
+      "name": "index",
+      "description": "The Occupation Displacement Index."
+    }
+  ],
+  "paths": {
+    "/v1/index": {
+      "get": {
+        "tags": [
+          "index"
+        ],
+        "operationId": "getIndexCatalogue",
+        "summary": "The occupation groups, their trigger lines and the price of a reading",
+        "description": "Free, and the call to make first. It answers everything needed to make a paid\ncall correctly: the fifteen group keys with their labels and their source\nseries, the frozen `attachment_shock` and `level_line` for each, which groups\nhave a published reading at all, and the price and payment terms of the\nmetered route.\n\nIt carries no index value. Nothing sold by `GET /v1/index/{group}` is given\naway here.\n\n`latest_period` is null for a group nothing has been published for. A paid\ncall for such a group is refused with 503 after the payment, so read this\nfirst rather than guessing.",
+        "x-agent-hint": "Call this before paying for anything. It gives the valid group keys, the price and the two trigger lines, and it costs nothing.",
+        "responses": {
+          "200": {
+            "description": "The catalogue.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexCatalogue"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/index/{group}": {
+      "get": {
+        "tags": [
+          "index"
+        ],
+        "operationId": "getIndex",
+        "summary": "The metered index reading for one occupation group",
+        "description": "The latest published observation for the group, the twenty-four months before\nit, and whether claims are open on either trigger form. The source series and\na hash of the source rows come with it, so a reader can recompute the number\nfrom the rows it cites.\n\n`headline` names whichever of the two forms is nearer its line and how far\naway it is, decided here so that two readers cannot decide differently.\n\nPrice: 0.01 TUSD, smallest unit `10000`, asset `0.0.10366463`, decimals 6.\n\nThe payment gate runs before the handler, so an unknown group is refused with\n402 and not with 400: the 400 is what a paid call to an unknown group gets.\nTake the group from `GET /v1/index` and the question does not arise.",
+        "x-agent-hint": "This call costs money. Take the group key from GET /v1/index first, and check there that the group has a latest_period, or the payment buys a 503.",
+        "parameters": [
+          {
+            "name": "group",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "management_business_financial",
+                "professional_related",
+                "service",
+                "sales_related",
+                "office_admin_support",
+                "farming_fishing_forestry",
+                "construction_extraction",
+                "installation_maintenance_repair",
+                "production",
+                "transportation_material_moving",
+                "computer_math",
+                "legal",
+                "arts_design_ent_media",
+                "business_financial_ops",
+                "education_training_library"
+              ]
+            },
+            "example": "computer_math"
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "description": "x402 version 2 payment payload, network hedera:testnet, scheme exact. Required: an unpaid call is refused with 402.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The reading, its history and the trigger status.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "description": "x402 version 2 settlement receipt, base64 of a JSON object with `success`, `transaction`, `network` and `payer`. The transaction id starts with the facilitator fee payer account, not with the payer, because the facilitator pays the Hedera fee; that is the id to look up on HashScan.",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjAuMC43MTYyNzg0QDE3ODg2MTI3MDYuNTY3NjkyNjIzIn0="
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexReading"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`group_unknown`: not one of the fifteen groups.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Price 0.01 TUSD.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "x402 version 2 payment requirements for this resource, base64 of the JSON `{\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{...},\"accepts\":[{\"scheme\":\"exact\", \"network\":\"hedera:testnet\",\"amount\":\"10000\",\"asset\":\"0.0.10366463\",\"payTo\":\"0.0.10366450\", \"maxTimeoutSeconds\":60,\"extra\":{\"feePayer\":\"0.0.7162784\"}}]}`. The body carries the same terms in readable fields.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`index_unavailable`: no observation published yet.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/replay": {
+      "get": {
+        "tags": [
+          "index"
+        ],
+        "operationId": "getIndexClock",
+        "summary": "Whether the feed is on the real calendar or replaying history",
+        "description": "Free. The index has a demo clock: a mode that replays historical months at\none month every few seconds so a full lifecycle fits inside a short video.\nA reading taken while that clock is running is a real published observation\nfrom a real month, but it is not this month, and an agent that reports it as\ncurrent would be wrong.\n\n`mode` is `live` when the feed is on the real calendar, `replay` when it is\nwalking published history, and `scenario` when it is walking a labelled\nscenario file. `running` says whether the clock is moving right now.\n\nIt is outside the `/v1/index/` prefix, and so free, on purpose: the metered\nroute sits under that prefix and this is not a reading.",
+        "x-agent-hint": "Check this before reporting a reading as current. If mode is not live, say which month the reading is from and that the clock is replaying.",
+        "responses": {
+          "200": {
+            "description": "The clock.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedClock"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Money": {
+        "type": "object",
+        "required": [
+          "amount",
+          "asset",
+          "decimals",
+          "display"
+        ],
+        "properties": {
+          "amount": {
+            "type": "string",
+            "description": "An integer in the asset smallest unit. 28.00 TUSD is 28000000.",
+            "example": "28000000"
+          },
+          "asset": {
+            "type": "string",
+            "description": "The HTS token id.",
+            "example": "0.0.10366463"
+          },
+          "decimals": {
+            "type": "integer",
+            "example": 6
+          },
+          "display": {
+            "type": "string",
+            "description": "For a human reading the JSON. Never parsed.",
+            "example": "28.00"
+          }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "description": "RFC 9457 problem document. Every non-2xx response has this shape.",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "request_id",
+          "retryable"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "The machine-readable reason. Switch on this, never on detail.",
+            "example": "insufficient_capacity"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "description": "RFC 9457 problem document with the x402 terms repeated in readable fields.",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "retryable",
+          "price",
+          "x402_version",
+          "scheme",
+          "network",
+          "pay_to",
+          "facilitator"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "example": "payment_required"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "price": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "x402_version": {
+            "type": "integer",
+            "example": 2
+          },
+          "scheme": {
+            "type": "string",
+            "example": "exact"
+          },
+          "network": {
+            "type": "string",
+            "example": "hedera:testnet"
+          },
+          "pay_to": {
+            "type": "string",
+            "description": "The Hedera account the transfer has to credit.",
+            "example": "0.0.10366450"
+          },
+          "facilitator": {
+            "type": "string",
+            "description": "The x402 facilitator that settles the transfer.",
+            "example": "https://api.testnet.blocky402.com"
+          }
+        }
+      },
+      "IndexCatalogue": {
+        "type": "object",
+        "required": [
+          "index",
+          "reading",
+          "trigger_forms",
+          "groups"
+        ],
+        "properties": {
+          "index": {
+            "type": "object",
+            "description": "What the feed is and where its settled record lives.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "example": "Occupation Displacement Index"
+              },
+              "unit": {
+                "type": "string",
+                "example": "percentage points"
+              },
+              "cadence": {
+                "type": "string",
+                "example": "monthly"
+              },
+              "source": {
+                "type": "string"
+              },
+              "topic_id": {
+                "type": "string",
+                "nullable": true,
+                "description": "The Hedera Consensus Service topic every observation is published to.",
+                "example": "0.0.10366470"
+              },
+              "mirror_url": {
+                "type": "string",
+                "description": "The mirror node the same messages can be read from.",
+                "example": "https://testnet.mirrornode.hedera.com/api/v1"
+              }
+            }
+          },
+          "reading": {
+            "type": "object",
+            "description": "What the metered route returns, and what each field means.",
+            "properties": {
+              "path": {
+                "type": "string",
+                "example": "/v1/index/{group}"
+              },
+              "history_months": {
+                "type": "integer",
+                "example": 24
+              },
+              "describes": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "object",
+                "description": "One sentence per index field, keyed by the field name.",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "trigger_forms": {
+            "type": "array",
+            "description": "The two ways claims open. Either one is enough.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "form": {
+                  "type": "string",
+                  "enum": [
+                    "shock",
+                    "level"
+                  ]
+                },
+                "field": {
+                  "type": "string",
+                  "description": "The reading field this form compares.",
+                  "example": "odi"
+                },
+                "threshold": {
+                  "type": "string",
+                  "description": "The frozen line it is compared against.",
+                  "example": "attachment_shock"
+                },
+                "test": {
+                  "type": "string",
+                  "example": "odi >= attachment_shock"
+                },
+                "means": {
+                  "type": "string",
+                  "description": "What it means in plain words."
+                }
+              }
+            }
+          },
+          "price": {
+            "type": "object",
+            "nullable": true,
+            "description": "What a reading costs and how to pay for it. Null when a deployment serves the feed open, which a clone with no Hedera keys does.",
+            "properties": {
+              "amount": {
+                "type": "string",
+                "example": "10000"
+              },
+              "display": {
+                "type": "string",
+                "example": "0.01"
+              },
+              "asset": {
+                "type": "string",
+                "example": "0.0.10366463"
+              },
+              "decimals": {
+                "type": "integer",
+                "example": 6
+              },
+              "symbol": {
+                "type": "string",
+                "example": "TUSD"
+              },
+              "x402_version": {
+                "type": "integer",
+                "example": 2
+              },
+              "scheme": {
+                "type": "string",
+                "example": "exact"
+              },
+              "network": {
+                "type": "string",
+                "example": "hedera:testnet"
+              },
+              "pay_to": {
+                "type": "string",
+                "example": "0.0.10366450"
+              },
+              "facilitator": {
+                "type": "string",
+                "example": "https://api.testnet.blocky402.com"
+              }
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "group": {
+                  "type": "string",
+                  "enum": [
+                    "management_business_financial",
+                    "professional_related",
+                    "service",
+                    "sales_related",
+                    "office_admin_support",
+                    "farming_fishing_forestry",
+                    "construction_extraction",
+                    "installation_maintenance_repair",
+                    "production",
+                    "transportation_material_moving",
+                    "computer_math",
+                    "legal",
+                    "arts_design_ent_media",
+                    "business_financial_ops",
+                    "education_training_library"
+                  ]
+                },
+                "label": {
+                  "type": "string",
+                  "example": "Computer and mathematical"
+                },
+                "bls_series": {
+                  "type": "string",
+                  "description": "The source series id at the Bureau of Labor Statistics.",
+                  "example": "LNU04032215"
+                },
+                "series_id": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "The cover series bound to this occupation, when there is one.",
+                  "example": "ODI-COMP-2026-01"
+                },
+                "attachment_shock": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "The frozen shock line, in percentage points.",
+                  "example": "2.00"
+                },
+                "level_line": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "The frozen level line. It can be negative.",
+                  "example": "-0.68"
+                },
+                "latest_period": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "The newest published month, or null when there is none.",
+                  "example": "2026-07"
+                }
+              }
+            }
+          }
+        }
+      },
+      "FeedClock": {
+        "type": "object",
+        "required": [
+          "mode",
+          "running",
+          "updated_at"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "live",
+              "replay",
+              "scenario"
+            ]
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "series": {
+            "type": "string",
+            "nullable": true,
+            "example": "ODI-COMP-2026-01"
+          },
+          "from": {
+            "type": "string",
+            "nullable": true,
+            "example": "2025-08"
+          },
+          "to": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-07"
+          },
+          "current_period": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-04"
+          },
+          "latest_published": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-04"
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scenario_label": {
+            "type": "string",
+            "nullable": true,
+            "description": "Set only in scenario mode, and shown on screen when it is."
+          },
+          "badge": {
+            "type": "object",
+            "nullable": true,
+            "description": "What a screen shows while the clock runs. Null when it is not.",
+            "properties": {
+              "show": {
+                "type": "boolean"
+              },
+              "label": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "IndexReading": {
+        "type": "object",
+        "required": [
+          "group",
+          "as_of",
+          "reading",
+          "trigger",
+          "history"
+        ],
+        "properties": {
+          "group": {
+            "type": "string",
+            "enum": [
+              "management_business_financial",
+              "professional_related",
+              "service",
+              "sales_related",
+              "office_admin_support",
+              "farming_fishing_forestry",
+              "construction_extraction",
+              "installation_maintenance_repair",
+              "production",
+              "transportation_material_moving",
+              "computer_math",
+              "legal",
+              "arts_design_ent_media",
+              "business_financial_ops",
+              "education_training_library"
+            ]
+          },
+          "group_label": {
+            "type": "string",
+            "example": "Computer and mathematical"
+          },
+          "series_id": {
+            "type": "string",
+            "nullable": true,
+            "example": "ODI-COMP-2026-01"
+          },
+          "as_of": {
+            "type": "string",
+            "example": "2026-07"
+          },
+          "reading": {
+            "$ref": "#/components/schemas/Observation"
+          },
+          "trigger": {
+            "type": "object",
+            "properties": {
+              "attachment_shock": {
+                "type": "string",
+                "example": "2.00"
+              },
+              "level_line": {
+                "type": "string",
+                "example": "-0.68"
+              },
+              "open": {
+                "type": "boolean"
+              },
+              "open_reason": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  "shock",
+                  "level",
+                  "both",
+                  null
+                ]
+              },
+              "shock_margin": {
+                "type": "string",
+                "nullable": true,
+                "description": "The ODI less the shock attachment."
+              },
+              "level_margin": {
+                "type": "string",
+                "nullable": true,
+                "description": "The smoothed excess less the level line."
+              }
+            }
+          },
+          "headline": {
+            "type": "object",
+            "nullable": true,
+            "description": "Whichever form is nearer its line, chosen here so two screens cannot choose differently.",
+            "properties": {
+              "form": {
+                "type": "string",
+                "enum": [
+                  "shock",
+                  "level"
+                ]
+              },
+              "distance": {
+                "type": "string",
+                "example": "-0.08"
+              },
+              "on_the_line": {
+                "type": "boolean"
+              },
+              "open": {
+                "type": "boolean"
+              }
+            }
+          },
+          "history": {
+            "type": "array",
+            "description": "Up to twenty-four months, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/Observation"
+            }
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "series": {
+                "type": "string",
+                "nullable": true,
+                "example": "bls:LNU04032215"
+              },
+              "hash": {
+                "type": "string",
+                "nullable": true,
+                "description": "sha256 over the source rows the observation was computed from, in canonical JSON."
+              },
+              "model_version": {
+                "type": "string"
+              },
+              "replay": {
+                "type": "boolean"
+              }
+            }
+          },
+          "publication": {
+            "type": "object",
+            "description": "Where the observation was published. Null until the index oracle publishes it.",
+            "properties": {
+              "topic_id": {
+                "type": "string",
+                "nullable": true
+              },
+              "sequence_number": {
+                "type": "integer",
+                "nullable": true
+              },
+              "submit_transaction": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Observation": {
+        "type": "object",
+        "description": "One month. Every index value is a decimal string in percentage points, never a JSON number, because on chain they are int64 scaled by 1e4.",
+        "properties": {
+          "period": {
+            "type": "string",
+            "example": "2026-07"
+          },
+          "u_g": {
+            "type": "string",
+            "nullable": true,
+            "example": "4.10"
+          },
+          "u_all": {
+            "type": "string",
+            "nullable": true,
+            "example": "4.50"
+          },
+          "e": {
+            "type": "string",
+            "nullable": true,
+            "example": "-0.40"
+          },
+          "ebar": {
+            "type": "string",
+            "nullable": true,
+            "example": "-0.60"
+          },
+          "odi": {
+            "type": "string",
+            "nullable": true,
+            "example": "0.30"
+          },
+          "open": {
+            "type": "boolean"
+          },
+          "open_reason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "shock",
+              "level",
+              "both",
+              null
+            ]
+          }
+        }
+      }
+    }
+  }
+}

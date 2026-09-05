@@ -1,0 +1,56 @@
+One full run of the cold start proof against Hedera testnet, 5 September 2026,
+the API running locally with X402_ENABLED on. The client in
+apps/api/scripts/testnet/agentify.ts is handed one URL and one funded key and
+nothing else: no group key, no price, no asset, no route. Everything it calls it
+works out from the text of GET /llms.txt, and it checks the terms in the 402
+against the terms the file promised before it signs anything.
+
+The description file names https://creance.co, which is Root pending, so the run
+points at a local instance of the same build and re-roots the paths it found on
+that origin. The facilitator, the payment and the topics are the real ones.
+
+$ pnpm --filter @creance/api testnet:agentify
+
+payer 0.0.10366451 holds 47.788332 TUSD
+schema already up to date
+series synced from the chain: 1
+observations loaded from the archive: 0
+
+the agent has one URL and a key. Nothing else.
+  http://127.0.0.1:4103/llms.txt
+
+1. read the description, 5565 bytes
+   it sells /v1/index/{group}
+   for 0.01 (10000) of 0.0.10366463 on hedera:testnet
+   paid to 0.0.10366450 through https://api.testnet.blocky402.com
+   and says to call /v1/index first, which is free
+
+2. /v1/index: 15 occupations, 15 with a reading published
+   choosing management_business_financial (Management, business and financial operations), newest 2026-07
+
+3. /v1/replay: mode live, running false
+
+4. GET /v1/index/management_business_financial unpaid: 402
+   the header asks for 10000 of 0.0.10366463 to 0.0.10366450 on hedera:testnet, scheme exact
+   the body agrees: 0.01, x402 version 2, facilitator https://api.testnet.blocky402.com
+   which is exactly what the description file promised
+
+5. paid 0.01 and read it
+   settled 0.0.7162784@1788636717.287109241
+   https://hashscan.io/testnet/transaction/0.0.7162784-1788636717-287109241
+
+   Management, business and financial operations, 2026-07
+   ebar -1.87 against a level line of -0.98, odi 0.10 against a shock attachment of 1.50
+   claims closed, the level form is nearer at 0.89
+
+6. checking the answer against the index topic, not against the API
+   topic 0.0.10366470 sequence 17: 2026-07, ebar -1.87, odi 0.1, open false (none)
+   the paid reading agrees with sequence 17 on ebar, odi, both frozen lines and whether the month is open
+
+7. payments topic 0.0.10366471 sequence 180
+   {"v":1,"kind":"settlement","endpoint":"GET /v1/index/:group","x402":2,"scheme":"exact","network":"hedera:testnet","payer":"0.0.10366451","payTo":"0.0.10366450","amount":"10000","asset":"0.0.10366463","decimals":6,"tx":"0.0.7162784@1788636717.287109241","facilitator":"api.testnet.blocky402.com","ref":"management_business_financial","at":"2026-09-05T19:32:05.240Z"}
+
+links
+  settlement     https://hashscan.io/testnet/transaction/0.0.7162784-1788636717-287109241
+  index topic    https://hashscan.io/testnet/topic/0.0.10366470
+  payments topic https://hashscan.io/testnet/topic/0.0.10366471

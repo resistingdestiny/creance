@@ -31,3 +31,4 @@ contracts/types/
 # Scratch files a builder leaves inside a package while working something out.
 .scratch/
 
+docs/PRIZES.md

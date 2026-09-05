@@ -128,6 +128,30 @@ export function claimsOpenLine(policy: PolicyView): string {
   return `If you lost your job on or after ${formatDay(policy.claims_payable_from)}, you can claim ${coverAmount(policy.limit)}.`;
 }
 
+/**
+ * The Index row on Home, which has to agree with the pill above it.
+ *
+ * A series stays ClaimsOpen for the whole claim window, and the index can fall
+ * back under its line while it is open: on the demo series April 2026 opened
+ * claims and July 2026 reads 0.69 points short of the line, with the window
+ * running to October. So the reading is printed as it stands, because it is
+ * true, and the caption is the cover's own answer rather than the latest
+ * month's, because an amber "Claims open" pill over the words "Points from
+ * opening claims" is a screen contradicting itself. Recorded in
+ * docs/harness-notes.md.
+ */
+export function indexRow(
+  reading: { value: string; caption: string; open: boolean } | null,
+  claimsOpen: boolean,
+  occupation: string,
+): { value: string; caption: string } | null {
+  if (reading === null) return null;
+  if (claimsOpen && !reading.open) {
+    return { value: reading.value, caption: `Claims are open for ${occupation}.` };
+  }
+  return { value: reading.value, caption: reading.caption };
+}
+
 /** Everything Home renders, in one object, decided on the server. */
 export interface HomeView {
   readonly policyId: string;

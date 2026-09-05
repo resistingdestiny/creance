@@ -10,6 +10,7 @@ import {
   claimsOpenLine,
   homeStateOf,
   homeStatus,
+  indexRow,
   lapsedCopy,
   replayBadgeLabel,
   type HomeView,
@@ -71,15 +72,15 @@ export default async function HomePage({
     ]);
     const reading = headlineReading(index);
     const state = homeStateOf(policy, claim);
+    const occupation = occupationLabel(policy.group);
 
     const view: HomeView = {
       policyId: policy.policy_id,
-      occupation: occupationLabel(policy.group),
+      occupation,
       cover: Number(BigInt(policy.limit.amount) / 10n ** BigInt(policy.limit.decimals)),
       status: homeStatus(state),
       nextPayment: nextPaymentLine(policy, formatDay),
-      index:
-        reading === null ? null : { value: reading.value, caption: reading.caption },
+      index: indexRow(reading, policy.claims?.open === true, occupation),
       claimsOpen: state === 'claims_open' ? claimsOpenLine(policy) : null,
       paid: state === 'paid' ? await paidRow(policy, claim) : null,
       lapsed: state === 'lapsed' ? lapsedCopy(policy) : null,

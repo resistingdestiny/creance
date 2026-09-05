@@ -16,11 +16,13 @@ separately, with its own spec, its own price and its own description files,
 because the Occupation Displacement Index is a product a caller might want who
 will never buy a policy. Its README is `agentify/README.md`.
 
-The two spec files are generated, never hand edited. `pnpm api:openapi` writes
-both from `apps/api/src/openapi.ts`, and `apps/api/test/openapi.test.ts`
+The spec files in both directories are generated, never hand edited. One
+command, `pnpm api:openapi`, writes all of them: this gateway's two from
+`apps/api/src/openapi.ts`, and the index gateway's from
+`apps/api/src/openapi-index.ts` and `apps/api/src/agent-docs.ts`. The suite
 regenerates them, compares them to what is committed, validates the YAML against
 the OpenAPI 3.0 schema and checks that every documented operation routes on the
-running server. Change the generator, run the script, commit both files.
+running server. Change the generator, run the script, commit the files.
 
 ## What the gateway exposes
 
@@ -125,7 +127,7 @@ routing. Then paid: `GET /v1/index/computer_math`, which proves the 402, the
 settlement and the receipt. Keep the settlement transaction id; it belongs in
 the pull request and in `docs/HEDERA.md`.
 
-**8. Paste the two recipes**, however the console accepts them: a prompt, a
+**8. Paste this gateway's two recipes**, however the console accepts them: a prompt, a
 saved workflow, a skills file or a description field. The texts here are the
 recipes of record either way. If the console stores them in a form this
 repository does not have, add that form here.

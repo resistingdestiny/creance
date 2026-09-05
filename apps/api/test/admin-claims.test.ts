@@ -4,60 +4,24 @@ import { canonicalize, type JsonValue } from '@creance/index-model';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { openEvidence, sealEvidence, sealField } from '../src/claims/evidence.js';
+import { openEvidence, sealEvidence } from '../src/claims/evidence.js';
 import type { ClaimEvidenceRow, ClaimRow } from '../src/db/types.js';
 import {
   ADMIN_TOKENS,
   buildTestServer,
+  CLAIM_ID,
+  CLAIM_NULLIFIER,
+  CLAIM_POLICY_ID,
+  claimRow,
   POLICYHOLDER_1,
   TEST_EVIDENCE_KEYS,
 } from './policy-fixtures.js';
 
 /// The review queue, end to end against the memory repository.
 
-const CLAIM_ID = 'clm_01K4YBA1Q7F0M3X8T5W2D6C9E4';
-const POLICY_ID = 'pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E';
-const NULLIFIER = '308127544618763950125321744193216571892261741436541721317481123';
 const LETTER = Buffer.from('a synthetic redundancy letter, for the test store');
 
 type Harness = Awaited<ReturnType<typeof buildTestServer>>;
-
-function claimRow(patch: Partial<ClaimRow> = {}): ClaimRow {
-  return {
-    claimId: CLAIM_ID,
-    policyId: POLICY_ID,
-    seriesId: 'ODI-COMP-2026-01',
-    nullifier: NULLIFIER,
-    groupKey: 'computer_math',
-    status: 'submitted',
-    employerNameEnc: sealField(TEST_EVIDENCE_KEYS, 'Northgate Systems Ltd'),
-    claimantNameEnc: sealField(TEST_EVIDENCE_KEYS, 'Alex Mercer'),
-    jobTitle: 'Software Engineer',
-    separationDate: '2026-03-13',
-    separationType: 'redundancy',
-    attestationMethod: 'eip191',
-    attestationVerified: true,
-    statementAccepted: true,
-    verifiedAt: '2026-09-05T11:56:00Z',
-    packetHash: 'sha256:abc',
-    packetManifest: null,
-    decision: null,
-    reasons: [],
-    confidence: null,
-    reviewer: null,
-    decidedBy: null,
-    decisionHash: null,
-    decisionRecord: null,
-    amount: null,
-    qualifyingMonth: 202604,
-    claimDeadline: '2026-10-05T00:00:00Z',
-    hcsSubmittedSeq: 11,
-    hcsDecisionSeq: null,
-    submittedAt: '2026-09-05T11:58:00Z',
-    decidedAt: null,
-    ...patch,
-  };
-}
 
 async function seed(harness: Harness, patch: Partial<ClaimRow> = {}): Promise<ClaimEvidenceRow> {
   await harness.repository.upsertSeries({
@@ -84,10 +48,10 @@ async function seed(harness: Harness, patch: Partial<ClaimRow> = {}): Promise<Cl
     maturesAt: null,
   });
   harness.repository.putPolicy({
-    policyId: POLICY_ID,
+    policyId: CLAIM_POLICY_ID,
     seriesId: 'ODI-COMP-2026-01',
     groupKey: 'computer_math',
-    nullifier: NULLIFIER,
+    nullifier: CLAIM_NULLIFIER,
     wallet: POLICYHOLDER_1.accountId,
     walletEvm: POLICYHOLDER_1.address,
     coverLimit: '5000000000',
@@ -190,7 +154,7 @@ describe('the review queue', () => {
     });
     expect(response.body).not.toContain('Northgate');
     expect(response.body).not.toContain('Alex Mercer');
-    expect(response.body).not.toContain(NULLIFIER);
+    expect(response.body).not.toContain(CLAIM_NULLIFIER);
   });
 
   it('refuses a status the queue does not serve', async () => {
@@ -277,7 +241,7 @@ describe('deciding a claim', () => {
       v: 1,
       type: 'adjuster_decision',
       claim_id: CLAIM_ID,
-      policy_id: POLICY_ID,
+      policy_id: CLAIM_POLICY_ID,
       actor: 'adjuster',
       decision: 'approve',
       reasons: [],
@@ -318,7 +282,7 @@ describe('deciding a claim', () => {
     expect(stored?.decidedBy).toBe('adjuster');
     // The cover moves with the claim: an approved claim beside a policy that
     // still says claims_open is a state nobody downstream can act on.
-    expect((await harness.repository.policy(POLICY_ID))?.status).toBe('approved');
+    expect((await harness.repository.policy(CLAIM_POLICY_ID))?.status).toBe('approved');
   });
 
   it('refuses a hash that is not the hash of the record beside it', async () => {
@@ -476,7 +440,7 @@ describe('deciding a claim', () => {
     expect(response.statusCode).toBe(201);
     const stored = await harness.repository.claim(CLAIM_ID);
     expect(stored?.status).toBe('under_review');
-    expect((await harness.repository.policy(POLICY_ID))?.status).toBe('under_review');
+    expect((await harness.repository.policy(CLAIM_POLICY_ID))?.status).toBe('under_review');
   });
 });
 
@@ -509,7 +473,7 @@ describe('a decision waiting for the topic', () => {
     expect(response.json().claims).toEqual([
       {
         claim_id: CLAIM_ID,
-        policy_id: POLICY_ID,
+        policy_id: CLAIM_POLICY_ID,
         decision: 'decline',
         decision_hash: 'sha256:abcd',
       },

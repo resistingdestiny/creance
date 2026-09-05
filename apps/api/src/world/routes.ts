@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
 import { seriesForGroup } from '../config.js';
 import type { CredentialRow } from '../db/types.js';
@@ -6,16 +6,26 @@ import { AppError } from '../errors.js';
 import { requiredString } from '../routes/quote.js';
 import type { Services } from '../services.js';
 import { rfc3339 } from '../views.js';
-import { requestContext, WorldNotConfigured } from './rp-context.js';
+import { continuityHolds } from './config.js';
+import { requestContext, WorldNotConfigured, type WorldPurpose } from './rp-context.js';
 import { verifySelfieCheck, type IdKitResult } from './verify.js';
 
-/// The two World endpoints the purchase flow uses.
+/// The two World endpoints, in both of their variants.
 ///
 ///   POST /v1/world/rp-context   a fresh signed context for one IDKit request
 ///   POST /v1/world/verify       the completed result, checked, then a credential
 ///
 /// Neither is metered. A person confirming they are a person is not a paid
 /// call, and the x402 gate covers the index feed, the quote and the bind.
+///
+/// Each endpoint runs two ways, told apart by `purpose`. At purchase the signal
+/// is the wallet and no liveness check is asked for; at claim the signal is the
+/// policy id, `require_user_presence` is set, and what is earned is a claim
+/// credential in its own audience rather than an eligibility credential
+/// (DESIGN.md 3.6 and 3.9 item 1). One pair of endpoints rather than four,
+/// because the difference is three values and the checks are the same checks:
+/// two handlers would be two places for the signal comparison to be forgotten
+/// in, and forgetting it is the whole of the vulnerability.
 ///
 /// The credential the second endpoint mints is the one DESIGN.md 3.6 describes
 /// and apps/api/src/credentials.ts signs and verifies. This module owns only
@@ -37,8 +47,16 @@ export const worldRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
    */
   app.post<{ Body: Record<string, unknown> }>('/v1/world/rp-context', async (request, reply) => {
     const body = request.body ?? {};
-    const wallet = requiredString(body['wallet'], 'wallet');
-    const context = signed(services, wallet);
+    const purpose = purposeOf(body['purpose']);
+    // The signal is the wallet at purchase and the policy id at claim, and it
+    // is read from the body only so that the widget and the verify step agree
+    // about it. The verify step recomputes it from what it looked up, never
+    // from what it was told, which is what makes the check a check.
+    const signal =
+      purpose === 'claim'
+        ? requiredString(body['policy_id'], 'policy_id')
+        : requiredString(body['wallet'], 'wallet');
+    const context = signed(services, purpose, signal);
     request.log?.debug(
       { created_at: context.created_at, expires_at: context.expires_at, action: context.action },
       'issued an rp_context',
@@ -55,6 +73,7 @@ export const worldRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
    */
   app.post<{ Body: Record<string, unknown> }>('/v1/world/verify', async (request, reply) => {
     const body = request.body ?? {};
+    if (purposeOf(body['purpose']) === 'claim') return await verifyClaim(services, request, reply);
     const groupKey = requiredString(body['group'], 'group');
     const wallet = requiredString(body['wallet'], 'wallet');
     const walletEvm = requiredString(body['wallet_evm'], 'wallet_evm');
@@ -177,9 +196,140 @@ export const worldRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
   });
 };
 
-function signed(services: Services, wallet: string) {
+/**
+ * The claim's identity leg. DESIGN.md 3.9 item 1.
+ *
+ * A fresh Selfie Check with `require_user_presence`, on the claim action, with
+ * the policy id as the signal, "whose nullifier matches the purchase". The
+ * presence and the signal are checked inside `verifySelfieCheck`; the nullifier
+ * comparison is here, because only this module knows which policy was named.
+ *
+ * What "matches the purchase" can mean depends on how the deployment is
+ * configured, and both regimes are honest as long as the response says which
+ * one it is. With one registered action the nullifier is the same number and
+ * the comparison is exact. With two, it is a different number for the same
+ * person by definition, the comparison cannot be made, and what is left is
+ * "both were live people and the claimant controls the wallet": the wallet
+ * signs the attestation, and the claim's own nullifier still enforces one claim
+ * per person per series on its own key. See docs/DECISIONS.md, T11.
+ */
+async function verifyClaim(
+  services: Services,
+  request: FastifyRequest<{ Body: Record<string, unknown> }>,
+  reply: FastifyReply,
+): Promise<FastifyReply> {
+  const world = services.config.world;
+  const body = request.body ?? {};
+  const policyId = requiredString(body['policy_id'], 'policy_id');
+  const result = body['result'];
+  if (result === null || typeof result !== 'object' || Array.isArray(result)) {
+    throw new AppError(
+      400,
+      'validation_failed',
+      'Validation failed',
+      'The complete IDKit result goes in `result`, unchanged.',
+      [{ path: 'body.result', message: 'expected the IDKit result object' }],
+    );
+  }
+  const policy = await services.repository.policy(policyId);
+  if (policy === null) {
+    throw new AppError(404, 'policy_not_found', 'Policy not found', 'No cover with that id.');
+  }
+  if (!world.enabled) throw notConfigured();
+
+  const verification = await verifySelfieCheck({
+    world,
+    purpose: 'claim',
+    signal: policy.policyId,
+    result: result as IdKitResult,
+    onWorldError: (worldBody, status) =>
+      request.log?.warn(
+        { status, code: worldBody.code, detail: worldBody.detail, attribute: worldBody.attribute },
+        'World refused a proof',
+      ),
+  });
+
+  const continuity = continuityHolds(world);
+  if (continuity && verification.nullifier !== policy.nullifier) {
+    // A security event, not a user error: a valid proof from the wrong person.
+    request.log?.warn(
+      { policy_id: policy.policyId },
+      'a claim check returned a different person from the one who bought the cover',
+    );
+    throw new AppError(
+      403,
+      'world_nullifier_mismatch',
+      "This isn't the World ID that bought this cover",
+      'Sign in to World ID with the account you used when you bought it.',
+    );
+  }
+
+  const issued = await services.issuer.issueClaim({
+    nullifier: verification.nullifier,
+    policy_id: policy.policyId,
+    series_id: policy.seriesId,
+    group: policy.groupKey,
+    wallet: policy.wallet,
+    wallet_evm: policy.walletEvm,
+    scope: 'claim',
+    world: {
+      action: verification.action,
+      environment: verification.environment,
+      credential: verification.credential,
+      verified_at: verification.verifiedAt,
+      presence: verification.presence,
+    },
+  });
+  await services.repository.insertCredential({
+    jti: issued.jti,
+    kind: 'claim',
+    nullifier: policy.nullifier,
+    seriesId: policy.seriesId,
+    groupKey: policy.groupKey,
+    policyId: policy.policyId,
+    wallet: policy.wallet,
+    walletEvm: policy.walletEvm,
+    presence: verification.presence,
+    issuer: 'world',
+    issuedAt: issued.issuedAt.toISOString(),
+    expiresAt: issued.expiresAt.toISOString(),
+    consumedAt: null,
+  });
+
+  return reply.status(201).send({
+    claim_credential: issued.token,
+    jti: issued.jti,
+    policy_id: policy.policyId,
+    series_id: policy.seriesId,
+    group: policy.groupKey,
+    expires_at: rfc3339(issued.expiresAt),
+    issuer: 'world',
+    world: {
+      environment: verification.environment,
+      credential: verification.credential,
+      protocol_version: verification.protocolVersion,
+      presence: verification.presence,
+      action: verification.action,
+      continuity,
+    },
+  });
+}
+
+function purposeOf(value: unknown): WorldPurpose {
+  if (value === undefined || value === null || value === 'purchase') return 'purchase';
+  if (value === 'claim') return 'claim';
+  throw new AppError(
+    400,
+    'validation_failed',
+    'Validation failed',
+    'purpose is purchase or claim.',
+    [{ path: 'body.purpose', message: 'expected purchase or claim' }],
+  );
+}
+
+function signed(services: Services, purpose: WorldPurpose, signal: string) {
   try {
-    return requestContext(services.config.world, 'purchase', wallet);
+    return requestContext(services.config.world, purpose, signal);
   } catch (error) {
     if (error instanceof WorldNotConfigured) throw notConfigured();
     throw error;

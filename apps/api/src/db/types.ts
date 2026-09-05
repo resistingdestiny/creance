@@ -237,6 +237,16 @@ export interface ClaimRow {
   policyId: string;
   seriesId: string;
   nullifier: string;
+  /**
+   * The nullifier the claim's own check returned, when it is a different
+   * number from the policy's.
+   *
+   * Null when purchase and claim run one registered action, which is the
+   * regime docs/DECISIONS.md, T11 calls continuity: then the two are the same
+   * value and `nullifier` is the whole story. Non-null when they run two, and
+   * then it is the key "one claim per person per series, ever" is taken on.
+   */
+  claimNullifier: string | null;
   groupKey: string;
   status: ClaimStatus;
   /**
@@ -252,10 +262,24 @@ export interface ClaimRow {
   attestationVerified: boolean;
   statementAccepted: boolean;
   verifiedAt: string | null;
+  /** The action the live person check was scoped to, as the proof carried it. */
+  worldAction: string | null;
+  /** `user_presence_completed` off the proof itself, never what was asked for. */
+  worldPresence: boolean;
   packetHash: string | null;
   packetManifest: Record<string, unknown> | null;
   decision: 'approve' | 'refer' | 'decline' | null;
   reasons: string[];
+  /**
+   * The sentences a person reads, one per code, as the Adjuster composed them.
+   *
+   * Served from the admin payload and never from the free claim read: they
+   * carry dates and sometimes an employer name, and a claim id is public
+   * because the claims topic carries it.
+   */
+  reasonLines: { code: string; line: string }[];
+  /** Whether a corrected packet would be worth submitting, and why. */
+  resubmit: { allowed: boolean; why: string } | null;
   confidence: string | null;
   reviewer: string | null;
   decidedBy: string | null;
@@ -264,10 +288,43 @@ export interface ClaimRow {
   amount: string | null;
   qualifyingMonth: number | null;
   claimDeadline: string | null;
+  /** The CLAIMS role's signature, reusable until its deadline. */
+  authorisation: string | null;
+  authorisationDeadline: string | null;
   hcsSubmittedSeq: number | null;
   hcsDecisionSeq: number | null;
+  paidTx: string | null;
   submittedAt: string | null;
   decidedAt: string | null;
+  paidAt: string | null;
+}
+
+/**
+ * Everything the submission writes, applied in one transaction.
+ *
+ * The five fields beside the row are columns 001 created that the admin
+ * projection has no business carrying: the credential that was consumed, the
+ * two field hashes the packet manifest publishes instead of the values, and the
+ * signed message with its signature. They are written and never read back into
+ * `ClaimRow`, because the review screen shows the employer and the name in the
+ * clear from the sealed columns and has no use for a hash of them.
+ */
+export interface NewClaimInput {
+  claim: ClaimRow;
+  evidence: ClaimEvidenceRow[];
+  credentialJti: string | null;
+  employerHash: string | null;
+  nameHash: string | null;
+  attestationMessageHash: string | null;
+  attestationSignature: string | null;
+}
+
+/** What the pay step writes once `payClaim` has returned. */
+export interface ClaimPaidInput {
+  claimId: string;
+  amount: string;
+  paidTx: string;
+  paidAt: string;
 }
 
 /** Everything one decision writes, applied in one transaction. */
@@ -276,6 +333,8 @@ export interface RecordDecisionInput {
   status: ClaimStatus;
   decision: 'approve' | 'refer' | 'decline';
   reasons: string[];
+  reasonLines: { code: string; line: string }[];
+  resubmit: { allowed: boolean; why: string } | null;
   confidence: string | null;
   decisionHash: string | null;
   decisionRecord: Record<string, unknown> | null;
@@ -377,6 +436,35 @@ export interface Repository {
   claimsByStatus(status: ClaimStatus, limit: number): Promise<ClaimRow[]>;
   /** Other non-void claims for this person in this series, excluding one id. */
   priorClaimCount(nullifier: string, seriesId: string, exceptClaimId: string): Promise<number>;
+  /**
+   * Write a submitted claim and its evidence, and move the cover with it.
+   *
+   * One transaction, because the rule it takes is the one that stops a person
+   * collecting twice: the partial unique indexes on `(nullifier, series_id)`
+   * and `(claim_nullifier, series_id)` are the enforcement point, and a check
+   * followed by an insert is a race. Throws an AppError when a rule refuses.
+   */
+  insertClaim(input: NewClaimInput): Promise<ClaimRow>;
+  /**
+   * Submitted claims whose packet hash has not reached the claims topic.
+   *
+   * The same shape as the unpublished decisions and for the same reason: the
+   * claims topic's submit key is the adjuster account's, so the API writes the
+   * hash into the row and the Adjuster puts it on the topic.
+   */
+  claimsAwaitingPacket(limit: number): Promise<ClaimRow[]>;
+  /** Where a packet hash reached the claims topic. Touches no other column. */
+  recordPacketSequence(claimId: string, sequenceNumber: number): Promise<ClaimRow | null>;
+  /** The signature and its deadline, stored so a failed payout can be retried. */
+  recordAuthorisation(claimId: string, authorisation: string, deadline: string): Promise<void>;
+  /**
+   * The payout, once the money has moved.
+   *
+   * Idempotent on `paid_tx`: a claim that already carries one is returned
+   * unchanged, because `payClaim` succeeded and a second write would be a
+   * second story about one transfer.
+   */
+  markClaimPaid(input: ClaimPaidInput): Promise<ClaimRow | null>;
   /** The evidence rows of one claim, with their key material. */
   claimEvidence(claimId: string): Promise<ClaimEvidenceRow[]>;
   /** How many other claims carry a file with this hash. Rule R29. */

@@ -1,5 +1,6 @@
 import { money, type Money } from '@creance/client';
 
+import type { ClaimsReading } from './claims/openness.js';
 import type { PolicyRow, QuoteRow } from './db/types.js';
 
 /// The JSON the four endpoints return.
@@ -122,6 +123,21 @@ export interface PolicyView {
   hcs_receipt: { topic_id: string | null; sequence_number: number | null };
   chain: { cover_pool: string; bind_transaction: string | null; hashscan: string | null };
   premium_schedule: { status: string; href: string };
+  /**
+   * Whether a claim can be started, and the sentence to print when it cannot.
+   *
+   * Present only where the endpoint has read the chain for it. It is a block on
+   * the free view because "Claims aren't open." is a screen a person sees
+   * before they have identified themselves, and the reading behind it is the
+   * published index, which is public.
+   */
+  claims?: {
+    open: boolean;
+    code: string;
+    title: string;
+    reason_lines: string[];
+    reading: ClaimsReading | null;
+  };
 }
 
 /**
@@ -129,7 +145,11 @@ export interface PolicyView {
  * about a claim beyond its status. The endpoint is free, so the response is
  * what a stranger who guessed the id is allowed to know.
  */
-export function buildPolicyView(policy: PolicyRow, coverPoolAddress: string): PolicyView {
+export function buildPolicyView(
+  policy: PolicyRow,
+  coverPoolAddress: string,
+  claims?: PolicyView['claims'],
+): PolicyView {
   return {
     policy_id: policy.policyId,
     series_id: policy.seriesId,
@@ -145,6 +165,7 @@ export function buildPolicyView(policy: PolicyRow, coverPoolAddress: string): Po
     holder_account: policy.wallet,
     nft: { token_id: policy.nftTokenId, serial: policy.nftSerial },
     hcs_receipt: { topic_id: policy.hcsTopic, sequence_number: policy.hcsReceiptSeq },
+    ...(claims === undefined ? {} : { claims }),
     chain: {
       cover_pool: coverPoolAddress,
       bind_transaction: policy.bindTxId,

@@ -3,8 +3,10 @@ import {
   ACTIVE_POLICY_STATUSES,
   type ClaimAuditRow,
   type ClaimEvidenceRow,
+  type ClaimPaidInput,
   type ClaimRow,
   type ClaimStatus,
+  type NewClaimInput,
   type RecordDecisionInput,
   type CredentialRow,
   type GroupRow,
@@ -192,6 +194,75 @@ export class MemoryRepository implements Repository {
     ).length;
   }
 
+  /** The same two partial unique indexes the schema takes, taken here. */
+  async insertClaim(input: NewClaimInput): Promise<ClaimRow> {
+    const { claim } = input;
+    for (const existing of this.fullClaims.values()) {
+      if (existing.status === 'void' || existing.seriesId !== claim.seriesId) continue;
+      if (existing.nullifier === claim.nullifier) throw alreadyClaimed();
+      if (
+        claim.claimNullifier !== null &&
+        existing.claimNullifier === claim.claimNullifier
+      ) {
+        throw alreadyClaimed();
+      }
+    }
+    this.putClaim(claim, input.evidence);
+    const policy = this.policyRows.get(claim.policyId);
+    if (policy !== undefined) {
+      this.policyRows.set(policy.policyId, { ...policy, status: 'claimed' });
+    }
+    return claim;
+  }
+
+  async claimsAwaitingPacket(limit: number): Promise<ClaimRow[]> {
+    return [...this.fullClaims.values()]
+      .filter((row) => row.packetHash !== null && row.hcsSubmittedSeq === null)
+      .sort((a, b) => (a.submittedAt ?? '').localeCompare(b.submittedAt ?? ''))
+      .slice(0, limit);
+  }
+
+  async recordPacketSequence(claimId: string, sequenceNumber: number): Promise<ClaimRow | null> {
+    const existing = this.fullClaims.get(claimId);
+    if (existing === undefined || existing.packetHash === null) return null;
+    if (existing.hcsSubmittedSeq !== null) return null;
+    const updated = { ...existing, hcsSubmittedSeq: sequenceNumber };
+    this.putClaim(updated, this.evidenceRows.get(claimId) ?? []);
+    return updated;
+  }
+
+  async recordAuthorisation(
+    claimId: string,
+    authorisation: string,
+    deadline: string,
+  ): Promise<void> {
+    const existing = this.fullClaims.get(claimId);
+    if (existing === undefined) return;
+    this.putClaim(
+      { ...existing, authorisation, authorisationDeadline: deadline },
+      this.evidenceRows.get(claimId) ?? [],
+    );
+  }
+
+  async markClaimPaid(input: ClaimPaidInput): Promise<ClaimRow | null> {
+    const existing = this.fullClaims.get(input.claimId);
+    if (existing === undefined) return null;
+    if (existing.paidTx !== null) return existing;
+    const updated: ClaimRow = {
+      ...existing,
+      status: 'paid',
+      amount: input.amount,
+      paidTx: input.paidTx,
+      paidAt: input.paidAt,
+    };
+    this.putClaim(updated, this.evidenceRows.get(input.claimId) ?? []);
+    const policy = this.policyRows.get(existing.policyId);
+    if (policy !== undefined) {
+      this.policyRows.set(policy.policyId, { ...policy, status: 'paid' });
+    }
+    return updated;
+  }
+
   async claimEvidence(claimId: string): Promise<ClaimEvidenceRow[]> {
     return (this.evidenceRows.get(claimId) ?? []).slice();
   }
@@ -220,6 +291,8 @@ export class MemoryRepository implements Repository {
       status: input.status,
       decision: input.decision,
       reasons: input.reasons,
+      reasonLines: input.reasonLines,
+      resubmit: input.resubmit,
       confidence: input.confidence,
       decisionHash: input.decisionHash,
       decisionRecord: input.decisionRecord,
@@ -300,10 +373,10 @@ export class MemoryRepository implements Repository {
       amount: row.amount,
       hcsSubmittedSeq: row.hcsSubmittedSeq,
       hcsDecisionSeq: row.hcsDecisionSeq,
-      paidTx: null,
+      paidTx: row.paidTx,
       submittedAt: row.submittedAt,
       decidedAt: row.decidedAt,
-      paidAt: null,
+      paidAt: row.paidAt,
     });
   }
 
@@ -331,6 +404,22 @@ export function claimNotDecidable(): AppError {
     'claim_not_decidable',
     'Claim already decided',
     'That claim is not waiting for a decision. Somebody decided it first.',
+  );
+}
+
+/**
+ * One claim per person per series, ever. DESIGN.md 3.2.
+ *
+ * Three layers enforce it and each is a different failure mode: this index,
+ * rule R06 in the Adjuster, and `nullifierClaimed` inside `payClaim`. It is the
+ * rule that stops one person collecting twice, so three is right.
+ */
+export function alreadyClaimed(): AppError {
+  return new AppError(
+    409,
+    'already_claimed',
+    'You have already claimed on this cover',
+    'One claim per person per series, and this person has already made theirs.',
   );
 }
 

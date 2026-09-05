@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyBaseLogger, FastifyPluginAsync } from 'fastify';
 
 import { canonicalize, type JsonValue } from '@creance/index-model';
 
@@ -8,6 +8,7 @@ import { AppError } from '../errors.js';
 import type { ClaimRow, ClaimStatus } from '../db/types.js';
 import type { Services } from '../services.js';
 import { openEvidence } from './evidence.js';
+import { payApprovedClaim, type PayoutOutcome } from './payout.js';
 import { hashRecord, reviewerRecord } from './record.js';
 import { requireAdmin, type AdminActor } from './token.js';
 import { adminClaimSummary, adminClaimView } from './view.js';
@@ -137,7 +138,13 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
     async (request, reply) => {
       requireAdmin(request, services.adminTokens);
       const limit = Math.min(Math.max(Number(request.query.limit ?? '20') || 20, 1), 100);
-      const claims = await unpublishedDecisions(services, limit);
+      const [claims, waiting] = await Promise.all([
+        unpublishedDecisions(services, limit),
+        services.repository.claimsAwaitingPacket(limit),
+      ]);
+      const evidence = await Promise.all(
+        waiting.map((claim) => services.repository.claimEvidence(claim.claimId)),
+      );
       return reply.send({
         count: claims.length,
         claims: claims.map((claim) => ({
@@ -146,26 +153,55 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
           decision: claim.decision,
           decision_hash: claim.decisionHash,
         })),
+        // The packets whose hash has not reached the topic, in the same list
+        // and for the same reason: the API writes the hash into the row and
+        // cannot publish it, because the claims topic's submit key is the
+        // adjuster account's. The Adjuster sweeps this at the start of a pass,
+        // so the packet hash is public before the decision hash that answers
+        // it. See docs/DECISIONS.md.
+        packets: waiting.map((claim, index) => ({
+          claim_id: claim.claimId,
+          policy_id: claim.policyId,
+          packet_hash: claim.packetHash,
+          evidence: (evidence[index] ?? []).map((file) => file.sha256),
+        })),
       });
     },
   );
 
-  app.post<{ Params: { claimId: string }; Body: { hcs_decision_seq?: unknown } }>(
-    '/v1/admin/claims/:claimId/published',
-    async (request, reply) => {
-      requireAdmin(request, services.adminTokens);
-      const sequence = request.body?.hcs_decision_seq;
-      if (typeof sequence !== 'number' || !Number.isInteger(sequence) || sequence < 1) {
+  app.post<{
+    Params: { claimId: string };
+    Body: { hcs_decision_seq?: unknown; hcs_submitted_seq?: unknown };
+  }>('/v1/admin/claims/:claimId/published', async (request, reply) => {
+    requireAdmin(request, services.adminTokens);
+    const body = request.body ?? {};
+    const decisionSeq = sequenceOr(body.hcs_decision_seq, 'hcs_decision_seq');
+    const packetSeq = sequenceOr(body.hcs_submitted_seq, 'hcs_submitted_seq');
+    if (decisionSeq === null && packetSeq === null) {
+      throw new AppError(
+        400,
+        'bad_sequence',
+        'Bad sequence number',
+        'Send hcs_decision_seq or hcs_submitted_seq, whichever the topic receipt was for.',
+      );
+    }
+
+    let stored: ClaimRow | null = null;
+    if (packetSeq !== null) {
+      stored = await services.repository.recordPacketSequence(request.params.claimId, packetSeq);
+      if (stored === null) {
         throw new AppError(
-          400,
-          'bad_sequence',
-          'Bad sequence number',
-          'hcs_decision_seq is the whole number the topic receipt carried.',
+          409,
+          'packet_not_publishable',
+          'Nothing to record',
+          'That claim has no packet hash waiting for a sequence number.',
         );
       }
-      const stored = await services.repository.recordDecisionSequence(
+    }
+    if (decisionSeq !== null) {
+      stored = await services.repository.recordDecisionSequence(
         request.params.claimId,
-        sequence,
+        decisionSeq,
       );
       if (stored === null) {
         throw new AppError(
@@ -175,13 +211,15 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
           'That claim has no decision hash waiting for a sequence number.',
         );
       }
-      return reply.send({
-        claim_id: stored.claimId,
-        decision_hash: stored.decisionHash,
-        hcs_decision_seq: stored.hcsDecisionSeq,
-      });
-    },
-  );
+    }
+    return reply.send({
+      claim_id: stored?.claimId ?? request.params.claimId,
+      packet_hash: stored?.packetHash ?? null,
+      decision_hash: stored?.decisionHash ?? null,
+      hcs_submitted_seq: stored?.hcsSubmittedSeq ?? null,
+      hcs_decision_seq: stored?.hcsDecisionSeq ?? null,
+    });
+  });
 
   app.post<{ Params: { claimId: string }; Body: DecideBody }>(
     '/v1/admin/claims/:claimId/decide',
@@ -204,6 +242,16 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
       // claim, or one operator running the pass twice during a demo, produce
       // one decision rather than two topic messages and two records.
       if (claim.decision !== null && claim.status !== 'submitted' && claim.status !== 'under_review') {
+        // An approved claim that has not been paid is the retry path. The
+        // authorisation is stored and reusable until its deadline, and
+        // `payClaim` is permissionless, so a payout that failed for an
+        // environmental reason is one more call and not a new decision.
+        const retried =
+          claim.status === 'approved' && claim.paidTx === null
+            ? await pay(services, claim, request.log)
+            : claim.paidTx === null
+              ? undefined
+              : { paid: true, idempotent: true, transactionHash: claim.paidTx };
         return reply.send({
           claim_id: claim.claimId,
           status: claim.status,
@@ -211,6 +259,7 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
           decision_hash: claim.decisionHash,
           hcs_decision_seq: claim.hcsDecisionSeq,
           idempotent: true,
+          ...(retried === undefined ? {} : { payout: retried }),
         });
       }
 
@@ -264,6 +313,12 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
         status,
         decision,
         reasons: reasons.length > 0 ? reasons : reason === '' ? [] : ['reviewer_decision'],
+        // The sentences beside the codes. A reviewer posts one plain sentence
+        // and no codes, so it is stored as the line for the decision they made.
+        reasonLines:
+          asLines(body.reason_lines) ??
+          (reason === '' ? [] : [{ code: 'reviewer_decision', line: reason }]),
+        resubmit: asResubmit(body.resubmit),
         confidence: typeof body.confidence === 'string' ? body.confidence : null,
         decisionHash,
         decisionRecord: composed,
@@ -286,17 +341,51 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
         'a claim was decided',
       );
 
+      // The second key turns here. An approval is a decision with a hash the
+      // CLAIMS role can sign over, which is the whole of what `payClaim`
+      // checks, so the payout runs in the same request the decision arrives in
+      // and a clean claim is decided and paid in one session, as DESIGN.md 3.9
+      // says it should be.
+      const payout = decision === 'approve' ? await pay(services, stored, request.log) : undefined;
+      const paid = payout?.paid === true ? await services.repository.claim(stored.claimId) : null;
+
       return reply.status(201).send({
         claim_id: stored.claimId,
-        status: stored.status,
+        status: paid?.status ?? stored.status,
         decision: stored.decision,
         decision_hash: stored.decisionHash,
         hcs_decision_seq: stored.hcsDecisionSeq,
         idempotent: false,
+        ...(payout === undefined ? {} : { payout }),
       });
     },
   );
 };
+
+/**
+ * The payout, which can refuse but must never fail the decision.
+ *
+ * A decision is a record and a hash on a public topic; a payout is a
+ * transaction that can revert for reasons that have nothing to do with the
+ * claim being valid, the realistic one on Hedera being a wallet that has not
+ * associated the settlement token. So the decision stands, the authorisation is
+ * stored, and the payout is reported as what it was. Anyone can retry it.
+ */
+async function pay(
+  services: Services,
+  claim: ClaimRow,
+  log: FastifyBaseLogger,
+): Promise<PayoutOutcome> {
+  try {
+    return await payApprovedClaim(services, claim, log);
+  } catch (error) {
+    log.error(
+      { err: error, claim_id: claim.claimId },
+      'the payout failed after the claim was approved',
+    );
+    return { paid: false, reason: 'payout_failed' };
+  }
+}
 
 /**
  * The claims whose decision hash has not reached the topic yet.
@@ -311,7 +400,12 @@ export async function unpublishedDecisions(
   services: Services,
   limit: number,
 ): Promise<ClaimRow[]> {
-  const statuses: ClaimStatus[] = ['under_review', 'approved', 'declined'];
+  // `paid` is in the list because an approval is paid in the same request it
+  // arrives in, so an approved claim is usually already past `approved` by the
+  // time the sweep runs. Leaving it out made a reviewer's approval the one
+  // decision whose hash never reached the topic, which was found on the first
+  // testnet run and is recorded in docs/harness-notes.md.
+  const statuses: ClaimStatus[] = ['under_review', 'approved', 'declined', 'paid'];
   const found: ClaimRow[] = [];
   for (const status of statuses) {
     for (const claim of await services.repository.claimsByStatus(status, limit)) {
@@ -431,10 +525,44 @@ function verifyHash(record: Record<string, unknown> | null, claimed: unknown): s
   return digest;
 }
 
+/** A topic sequence number, or null when the caller sent none. */
+function sequenceOr(value: unknown, name: string): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw new AppError(
+      400,
+      'bad_sequence',
+      'Bad sequence number',
+      `${name} is the whole number the topic receipt carried.`,
+    );
+  }
+  return value;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function asLines(value: unknown): { code: string; line: string }[] | null {
+  if (!Array.isArray(value)) return null;
+  return value
+    .filter(
+      (entry): entry is { code: string; line: string } =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as { code?: unknown }).code === 'string' &&
+        typeof (entry as { line?: unknown }).line === 'string',
+    )
+    .map((entry) => ({ code: entry.code, line: entry.line }));
+}
+
+function asResubmit(value: unknown): { allowed: boolean; why: string } | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const entry = value as { allowed?: unknown; why?: unknown };
+  if (typeof entry.allowed !== 'boolean') return null;
+  return { allowed: entry.allowed, why: typeof entry.why === 'string' ? entry.why : '' };
 }
 
 function asStrings(value: unknown): string[] {

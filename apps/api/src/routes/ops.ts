@@ -162,4 +162,89 @@ export const opsRoutes: FastifyPluginAsync<{ services: Services }> = async (app,
         'Issued without a World Selfie Check. Demo only. The real issuer is POST /v1/world/verify.',
     });
   });
+
+  /**
+   * POST /v1/demo/claim-presence
+   *
+   * The interim claim-time presence check, and the same bargain as the issuer
+   * above. `POST /v1/world/verify` with `purpose: claim` is the real one: it
+   * runs a fresh Selfie Check with `require_user_presence` on the claim action
+   * with the policy id as the signal.
+   *
+   * It exists because a camera cannot be automated. docs/FEEDBACK-WORLD.md
+   * section 3 records that nobody has yet run `require_user_presence` on a
+   * phone and that the staging simulator has no Selfie Check, so a testnet run
+   * of the claim flow with no demo path is a run that cannot happen. It is
+   * behind the same flag as the eligibility issuer, it says what it is in its
+   * own response, and the credential it mints records `credential: demo-issuer`
+   * so a decision record can never claim a camera ran.
+   */
+  app.post<{ Body: Record<string, unknown> }>('/v1/demo/claim-presence', async (request, reply) => {
+    const body = request.body ?? {};
+    const policyId = requiredString(body['policy_id'], 'policy_id');
+    const policy = await services.repository.policy(policyId);
+    if (policy === null) {
+      throw new AppError(404, 'policy_not_found', 'Policy not found', 'No cover with that id.');
+    }
+    // The claim's own nullifier. It defaults to the policy's, which is what one
+    // registered action would produce; a run against a deployment with two
+    // actions passes the second number in, so the demo exercises the key the
+    // real flow would enforce rather than a simplification of it.
+    const nullifier = body['nullifier'] === undefined
+      ? policy.nullifier
+      : requiredString(body['nullifier'], 'nullifier');
+    if (!/^\d+$/.test(nullifier)) {
+      throw new AppError(
+        400,
+        'validation_failed',
+        'Validation failed',
+        'A nullifier is a decimal integer string, never hex.',
+        [{ path: 'body.nullifier', message: 'expected decimal digits' }],
+      );
+    }
+
+    const issued = await services.issuer.issueClaim({
+      nullifier,
+      policy_id: policy.policyId,
+      series_id: policy.seriesId,
+      group: policy.groupKey,
+      wallet: policy.wallet,
+      wallet_evm: policy.walletEvm,
+      scope: 'claim',
+      world: {
+        action: services.config.world.actionClaim,
+        environment: 'demo',
+        credential: 'demo-issuer',
+        verified_at: Math.floor(Date.now() / 1000),
+        presence: true,
+      },
+    });
+    await services.repository.insertCredential({
+      jti: issued.jti,
+      kind: 'claim',
+      nullifier: policy.nullifier,
+      seriesId: policy.seriesId,
+      groupKey: policy.groupKey,
+      policyId: policy.policyId,
+      wallet: policy.wallet,
+      walletEvm: policy.walletEvm,
+      presence: true,
+      issuer: 'demo',
+      issuedAt: issued.issuedAt.toISOString(),
+      expiresAt: issued.expiresAt.toISOString(),
+      consumedAt: null,
+    });
+
+    return reply.status(201).send({
+      claim_credential: issued.token,
+      jti: issued.jti,
+      policy_id: policy.policyId,
+      series_id: policy.seriesId,
+      group: policy.groupKey,
+      expires_at: rfc3339(issued.expiresAt),
+      issuer: 'demo',
+      warning:
+        'Issued without a World Selfie Check and without a camera. Demo only. The real check is POST /v1/world/verify with purpose claim.',
+    });
+  });
 };

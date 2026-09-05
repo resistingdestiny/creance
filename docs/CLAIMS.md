@@ -31,6 +31,8 @@ never calls `payClaim`.
 
 One pass:
 
+0. `GET /v1/admin/claims/unpublished`, and put every packet hash waiting for the
+   claims topic on it, before anything is decided
 1. `GET /v1/admin/claims?status=submitted`
 2. for each claim, oldest first, `GET /v1/admin/claims/{id}` for the whole packet
 3. run the rules that need no document; if one of them declines, stop there
@@ -581,6 +583,228 @@ The same helper seals the two attestation fields the schema keeps encrypted, the
 employer name and the claimant's name, under the key encryption key directly. A
 deployment with no key serves every read and refuses to hand back a document,
 which is the honest failure: a store with no key is not a store.
+
+## The submission
+
+`POST /v1/claims` is where a packet arrives. It stores the four parts, puts the
+claim in the queue and decides nothing.
+
+    POST /v1/claims
+    Authorization: Bearer <the claim credential>
+
+    {
+      "attestation": {
+        "full_name": "...", "employer_name": "...", "job_title": "...",
+        "group": "computer_math", "last_day_of_work": "2026-03-13",
+        "separation_type": "redundancy", "statement_accepted": true,
+        "method": "eip191", "signature": "0x..."
+      },
+      "evidence": [
+        { "kind": "termination_letter", "filename": "letter.pdf",
+          "content_base64": "..." }
+      ]
+    }
+
+The identity leg is a credential rather than a proof in the body. A fresh
+Selfie Check with `require_user_presence` on the claim action, with the policy
+id as the signal, is posted to `POST /v1/world/verify` with `purpose: claim`,
+and what comes back is a short lived credential in the `urn:creance:claim`
+audience naming the policy. That splits the camera step from the upload step,
+which is what screen C4 does anyway, and it means a packet that takes a minute
+to upload does not hold a verification open while it does.
+
+**Rules R01 to R06 are enforced here and nothing below them is.** A live person
+check was completed, the claim and the cover name the same person, the check was
+made for the claim action, the claim is waiting, the cover is open for claims,
+and no earlier claim exists. Everything from R07 down is adjudication, and
+adjudication produces a decision with a reason a person can act on rather than a
+validation error they cannot. So a resignation is accepted here and declined by
+the Adjuster a second later, with a record and a hash on a public topic.
+
+Three things are refused at the door because they are not adjudication: an
+occupation that is not the cover's, a packet with no document at all, and a file
+whose bytes are not a PDF or one of the four image types the model reads. Each
+is something a person can fix on the screen they are still looking at.
+
+The window is read from the chain and stored. `isInLossWindow` gives the
+qualifying month and `claimDeadline` gives the deadline; a deadline of zero means
+no month qualifies yet, which is stored as null and is a hold rather than a
+refusal.
+
+### The attestation, byte for byte
+
+The signature is worth exactly what the signed bytes say, so the bytes are
+written out once, in `packages/client/src/claim.ts`, and the API imports the
+builder rather than repeating it. Lines joined with a single newline and no
+trailing one, every value trimmed and its internal whitespace collapsed:
+
+    Creance claim attestation
+    Policy: pol_01M1S3EBDQR3W79A9E8MR6MPYB
+    Series: ODI-COMP-2026-01
+    Name: Alex Mercer
+    Employer: Northgate Systems Ltd
+    Job title: Software Engineer
+    Occupation: computer_math
+    Last day of work: 2026-03-13
+    How it ended: redundancy
+    Everything here is true. I understand that a false claim is fraud.
+
+The last line is the checkbox on screen C5, verbatim. The message is human
+readable rather than a hash because the person is signing it in a wallet that
+will show it to them, and a prompt reading `0x9f3c...` is a prompt nobody can
+refuse meaningfully.
+
+`eip191` is `personal_sign`, recovered against the policy's own EVM address,
+which is the address the cover was bound to and the address `payClaim` pays.
+`unsigned_accepted` is the honest name for a recorded click-through with no
+signature: it is stored as what it is, R10 refers it, and the confidence cap
+keeps it out of auto-approval. `hedera_sign_message` is refused with a 501 rather
+than stored unchecked, because nothing in this build produces one.
+
+`statement_accepted` and `signature_verified` are two different facts and both
+are stored. A signed message proves who sent it and not that they read what it
+said.
+
+### The packet manifest and the packet hash
+
+`payClaim` takes the packet hash and the claims topic carries it, so the hash
+needs a preimage that can be handed to somebody who asks for it. That preimage is
+the manifest, and it obeys the rule the decision record obeys: the employer, the
+claimant's name and the job title appear as `sha256(lower(trim(value)))` and
+never as themselves.
+
+```json
+{
+  "v": 1,
+  "type": "claim_packet",
+  "claim_id": "clm_...", "policy_id": "pol_...", "series_id": "ODI-COMP-2026-01",
+  "group": "computer_math",
+  "submitted_at": "2026-09-05T15:37:41.000Z",
+  "world": { "action": "occupation-cover-claim", "environment": "demo",
+             "credential": "demo-issuer", "presence": true,
+             "verified_at": "...", "continuity": false },
+  "attestation": { "employer_hash": "sha256:...", "name_hash": "sha256:...",
+                   "job_title_hash": "sha256:...",
+                   "last_day_of_work": "2026-03-13",
+                   "separation_type": "redundancy",
+                   "statement_accepted": true, "method": "eip191",
+                   "signature_verified": true, "message_hash": "sha256:..." },
+  "evidence": [ { "evidence_id": "evd_...", "kind": "termination_letter",
+                  "content_type": "application/pdf", "size": 1499,
+                  "sha256": "sha256:..." } ]
+}
+```
+
+Canonicalised with JCS (RFC 8785) and hashed with SHA-256, the same convention
+the decision record and the index observation use, so there is one canonical form
+in this build and not three. The manifest stays in the `claims` row; only its
+hash is published.
+
+### Files, caps and what a file may be
+
+Base64 inside the JSON body rather than multipart: every other route in this API
+takes JSON, the scripts build their requests with `fetch` and no form library,
+and a second body parser in front of the one endpoint where a mistake hands a
+stranger's document to the wrong claim is a dependency that has to earn its
+place. Base64 costs a third more bytes for files that are a page of A4.
+
+    at most 4 files per packet
+    at most 4 MB per file, once decoded
+    24 MB body limit on this route, and 64 KB everywhere else
+
+The content type is sniffed from the bytes and never taken from the caller: a
+file that says it is a PDF and is not would otherwise reach the model as a
+document and come back as a confident reading of nothing. The evidence id is
+minted by the API rather than accepted, so a caller cannot choose where its
+ciphertext lands in the store. The file name is kept because a person chose it
+and the review screen shows it, and it never touches a path.
+
+### What reaches the claims topic, and who writes it
+
+The API writes the packet hash into the row and cannot publish it: the claims
+topic's submit key is the adjuster account's. So `GET /v1/admin/claims/unpublished`
+lists the packets waiting beside the decisions waiting, and the Adjuster's pass
+publishes the packets first and the decisions last. `POST /v1/admin/claims/{id}/published`
+takes `hcs_submitted_seq` as well as `hcs_decision_seq`.
+
+Publishing the packet first is the ordering the whole trail depends on: a packet
+hash on the topic, then the decision hash that answers it, then a payout that
+references both.
+
+### The claimant's own read
+
+    GET /v1/claims/{claimId}
+
+Free, like `GET /v1/policy/{policyId}`, because a claim screen has to poll it and
+a claimant holds no admin token. A claim id is public: the claims topic carries
+it in every message. So it carries the status, the decision, the reason codes,
+the amount, the two hashes, the topic sequence numbers and the payout
+transaction, and none of the employer, the name, the separation date, the file
+names or the nullifier.
+
+`reason_lines` are the exception. They carry dates and sometimes an employer's
+name, so they are stored and served only from the admin payload.
+
+### Claims aren't open
+
+Both keys have to be held and only one of them is a packet. The index key is the
+series being ClaimsOpen, read from `CoverPool.seriesOf(...)` at every claim
+rather than from `policies.status`: on chain only the series changes status when
+a month opens, and a second source of truth for "are claims open" is how the
+screen and the contract end up disagreeing while somebody is watching. The same
+read refreshes the cached row.
+
+The refusal is the screen in docs/DESIGN-TOKENS-ADDENDUM.md, with the real
+reading filled in and in whichever form is nearer its line:
+
+    Claims aren't open.
+    Your occupation is 1.20 better than average. Claims open within 0.68 of
+    average. We'll tell you here if that changes.
+
+A level line is said as a distance from average and never as a signed number,
+which is the same rule the chart's band label follows. `GET /v1/policy/{id}`
+carries the same block, so the screen can show it before anybody has identified
+themselves.
+
+## The payout
+
+An approval is a decision with a hash the CLAIMS role can sign over, and that is
+the whole of what `payClaim` checks, so the payout runs inside the approve branch
+of `POST /v1/admin/claims/{id}/decide`. A clean claim is decided and paid in one
+session, which is what DESIGN.md 3.9 asks for.
+
+    1  the amount is asked of expectedPayout, never computed here
+    2  the authorisation is signed over the EIP-712 struct and stored with its deadline
+    3  payClaim runs, and the money moves inside it or not at all
+    4  the claim and the cover reach paid in one transaction
+    5  the payout is written as a payments row and published to the payments topic
+
+The decision stands whatever the payout does. A payout can revert for reasons
+that have nothing to do with the claim being valid, the realistic one on Hedera
+being a wallet that has not associated the settlement token, so a failure comes
+back as `payout: {paid: false, reason}` beside a decision that is already
+recorded and already public. The authorisation is stored before the call, which
+is what makes it recoverable: `payClaim` is permissionless and the signature is
+what makes it safe, so anybody can retry with the same signature until the
+deadline. The step is idempotent on `claims.paid_tx`.
+
+The amount is asked of the contract rather than computed twice. `payClaim`
+compares for equality, so a decided amount that disagrees with `expectedPayout`
+is refused before the call rather than sent to a revert.
+
+## The claim window closes
+
+    pnpm --filter @creance/api claims:close-windows
+
+Reads `seriesOf(...).windowEndsAt` for every registered series and calls
+`closeWindow` on the ones whose window has ended, so the unclaimed reserve
+returns to the vault. It refuses before the deadline and prints when it will
+work, rather than sending a transaction that reverts `WindowNotOver`.
+
+It is a command and not a loop inside the API. `closeWindow` is permissionless,
+is not blocked by a pause, and happens once per window; a cron entry or a person
+is the right shape for that, and a background timer inside a web process is a
+thing that fails silently.
 
 ## The two committed packets
 

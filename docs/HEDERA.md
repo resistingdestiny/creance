@@ -808,3 +808,157 @@ docs/DECISIONS.md records why neither is a flag.
 The oracle account went from 14.4093 to 12.5286 HBAR across the replay, the live
 run and the scenario: 31 topic messages, 13 contract calls and the reads, for
 1.8807 HBAR. It is funded to 15 and needs no top-up.
+
+## Claims on testnet: one payout and one decline, 5 September 2026
+
+Both claim paths of DESIGN.md 3.9 ran end to end against the deployed contracts
+and the two live topics. One packet was approved and paid out of the reserve;
+one was declined by the Adjuster on the statement alone, with no chain call at
+all, which is what a decline is.
+
+Both documents are the committed fixtures under `apps/adjuster/fixtures`, so
+every evidence fingerprint on the claims topic can be recomputed from this
+repository with `sha256sum`.
+
+### The two policies, and why they had to be bound with a backdated start
+
+No policy this build had bound could be paid. Every one of them started at the
+moment of binding, in September 2026, so its waiting period ends in November,
+and `payClaim` reverts `SeparationInWaitingPeriod` for any separation in the
+loss window the replayed history opened. The window closes on 5 October 2026,
+before any separation that a September start could qualify. So the demo needed
+cover that really did begin earlier, and `pnpm --filter @creance/api
+testnet:bind-backdated` binds one with the BINDER key and a start date in the
+past. `CoverPool.bind` does not validate `startAt`; the BINDER role is trusted
+to state when cover began. It is a demonstration artefact and it is recorded as
+one in docs/DECISIONS.md.
+
+| | Approved | Declined |
+|---|---|---|
+| policy | `pol_01M1S3EBDQR3W79A9E8MR6MPYB` | `pol_01M1S3F06NDHY3Z892TBKSG7N1` |
+| holder | policyholder-1 [0.0.10366453](https://hashscan.io/testnet/account/0.0.10366453) | policyholder-3 [0.0.10366458](https://hashscan.io/testnet/account/0.0.10366458) |
+| cover | 1,000 TUSD | 1,000 TUSD |
+| cover began | 2025-12-01 | 2025-12-01 |
+| claims payable from | 2026-01-30 | 2026-01-30 |
+| bind | [0xb5feda61…4d15](https://hashscan.io/testnet/transaction/0xb5feda618dfb25fa98afd9a3712a37501fa36c3014fba4b1784907dc2d9a4d15) | [0xb36c8892…e95e](https://hashscan.io/testnet/transaction/0xb36c88928bf9b766fe7d2fb899f656e7d3871b85031f25e5641e25c941d0e95e) |
+| policy receipt | [0.0.10366468 serial 14](https://hashscan.io/testnet/token/0.0.10366468/14) | [0.0.10366468 serial 15](https://hashscan.io/testnet/token/0.0.10366468/15) |
+| bind gas | 207,324 | 207,324 |
+
+### The approved claim
+
+`clm_01M1S3FSH2KYZE0GYFQ4X00CCR`, packet A, the clean redundancy. Separation
+2026-03-13, which is one month inside the lookback of the open month 2026-04.
+
+    packet hash    sha256:fec6d627a5704b3005ad92d95fec946119560a1b17e09ff6375f0769fc2e7be9
+    evidence       sha256:c92a84402195993a9472418ce9ed0ddb11435f6688e4acfaabe13d07422588f5
+    decision       approve, by reviewer:root
+    decision hash  sha256:a6ea7b3da276b564b2dfab3be9f6abe9e15ddaeb2b8e49a4ffe25e4170dae775
+    amount         1000000000, the cover limit exactly
+    separation     2026-03, qualifying 2026-04
+    deadline       2026-10-05T09:04:51Z, from CoverPool.claimDeadline
+
+The Adjuster referred it rather than approving it, because this deployment has
+no `ANTHROPIC_API_KEY` and a claim whose document cannot be read is referred and
+never declined. A reviewer approved it through
+`POST /v1/admin/claims/:id/decide`, which is the human half of the queue and the
+path the demo uses, and the payout ran inside that request.
+
+| What | Where |
+|---|---|
+| Packet hash on the claims topic | [sequence 10](https://hashscan.io/testnet/transaction/0.0.10366452-1788622680-013186104) |
+| Decision hash on the claims topic | [sequence 14](https://hashscan.io/testnet/transaction/0.0.10366452-1788622791-260884046) |
+| `payClaim` | [0x8fc85b62…7cea](https://hashscan.io/testnet/transaction/0x8fc85b6257247dd19fdeb1a22ae4fca02afdefd815ad99dfeaabbab802f47cea) |
+| The transfer inside it | [0.0.7314364-1788622687-466086807](https://hashscan.io/testnet/transaction/0.0.7314364-1788622687-466086807) |
+| Payout on the payments topic | [sequence 87](https://hashscan.io/testnet/transaction/0.0.10366450-1788622699-819796104) |
+| Binding receipt | sequence 83, outcome sequence 84 |
+
+The `ClaimPaid` event, decoded from the receipt:
+
+    policyId        pol_01M1S3EBDQR3W79A9E8MR6MPYB
+    claimId         clm_01M1S3FSH2KYZE0GYFQ4X00CCR
+    seriesId        ODI-COMP-2026-01
+    payee           0xCAD39730d48683B13e6077A70C6972AdD449B6F5
+    amount          1000000000
+    separationMonth 202603
+    qualifyingMonth 202604
+    packetHash      0xfec6d627a5704b3005ad92d95fec946119560a1b17e09ff6375f0769fc2e7be9
+    decisionHash    0xa6ea7b3da276b564b2dfab3be9f6abe9e15ddaeb2b8e49a4ffe25e4170dae775
+
+The token transfer in that transaction is 1,000 TUSD from the vault
+[0.0.10367194](https://hashscan.io/testnet/contract/0.0.10367194) to
+[0.0.10366453](https://hashscan.io/testnet/account/0.0.10366453). Nothing else
+moved.
+
+### The declined claim
+
+`clm_01M1S3G0RM90HXAXGJ7KZX9BS7`, packet B, the resignation. Rule R07 fails hard
+on the statement alone, so the document was never read and the decline was
+posted in well under a second. There is no chain call on this path at all: a
+decline is a hash on the claims topic and reasons in the claimant's own answer.
+
+    packet hash    sha256:9c3fc111d7b73b38396490c5e2ebc5544eab93fcdd9e6cb32150b85adc0210f7
+    evidence       sha256:ad1ef4663c8a1df95b6c230537b77ffb3c6d7534f4570731d76494961ff289fe
+    decision       decline, by adjuster
+    decision hash  sha256:e0025d15cacc1ec188eadce9dbfc0eaee561f292f3d9598016dac1254435a4ad
+    reasons        separation_type_not_covered, evidence_seen_before
+
+| What | Where |
+|---|---|
+| Packet hash on the claims topic | [sequence 11](https://hashscan.io/testnet/transaction/0.0.10366452-1788622682-132485104) |
+| Decision hash on the claims topic | [sequence 13](https://hashscan.io/testnet/transaction/0.0.10366452-1788622685-910872144) |
+
+`evidence_seen_before` is rule R29 working, not a fault: the same committed
+fixture document is already on the two claims the T25 seed wrote, so its
+fingerprint appears on more than one claim. It is a soft rule and it refers
+rather than declines; the hard failure is the resignation.
+
+### The reserve, before and after
+
+| | Before | After |
+|---|---|---|
+| `reservedOf` | 3,000,000,000 | 2,000,000,000 |
+| `activeExposure` | 15,000,000,000 | 14,000,000,000 |
+| `exposureCovered` | 3,000,000,000 | 2,000,000,000 |
+| series status | ClaimsOpen | ClaimsOpen |
+| policy status on chain | Active (1) | Paid (3) |
+
+Both policies were bound while the series was already ClaimsOpen, which raises
+`activeExposure` without raising the reserve: the reserve is taken and topped up
+by an observation, not by a bind. So the paid claim drew on a reserve that was
+taken for the three policies exposed when April opened. That is the contract's
+own accounting and it is written here because it is not obvious from the
+numbers. See docs/harness-notes.md.
+
+### Measured gas
+
+| Call | Gas used | Limit used |
+|---|---|---|
+| `bind` with a backdated start | 207,324 | 800,000 |
+| `payClaim` with the HTS transfer out | 189,772 | 1,500,000 |
+
+The earlier run through measured `payClaim` at 172,689 on a throwaway series.
+189,772 is the same call on the demo series with a longer open month list, and
+it is still a quarter of the explicit limit.
+
+### The claim window job
+
+`pnpm --filter @creance/api claims:close-windows` read the series and refused,
+which is the whole of what it can do before 5 October:
+
+    ODI-COMP-2026-01: the window is open until 2026-10-05T09:04:51.000Z
+
+`windowEndsAt` is after the event, so `closeWindow` cannot execute on the demo
+series inside it. The contract's own Hardhat tests cover the call and
+`apps/api/test/claim-payout.test.ts` covers the job either side of the deadline
+with a recorded chain.
+
+### Reproducing it
+
+    pnpm --filter @creance/api testnet:bind-backdated --holder policyholder-1 --start 2025-12-01
+    pnpm --filter @creance/api testnet:claim --policy pol_... --packet a --holder policyholder-1
+    pnpm adjuster:run
+
+Read the two topics back without asking us:
+
+    curl -s https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10366473/messages
+    curl -s https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10366471/messages

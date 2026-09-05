@@ -222,6 +222,12 @@ describe('the C4 copy', () => {
       button: 'Try again',
     });
   });
+
+  /** No second device to move to inside World App. docs/DECISIONS.md, T27. */
+  it('drops the second device inside World App', () => {
+    expect(claimCheckCopy('failed', 'world-app').line).toBe('Try again.');
+    expect(claimCheckCopy('idle', 'world-app')).toEqual(claimCheckCopy('idle'));
+  });
 });
 
 describe('the decline sentences of last resort', () => {

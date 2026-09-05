@@ -7,7 +7,9 @@ import { AppFrame } from '../../../components/app-frame';
 import { PillButton } from '../../../components/pill-button';
 import { TextLink } from '../../../components/text-link';
 import { claimCheckCopy, type ClaimCheckState } from '../../../lib/claim-model';
+import { useSurface } from '../../../lib/surface';
 import type { WorldRequestContextView } from '../../../lib/worker-api';
+import { waitingLine } from '../../../lib/worker-model';
 import {
   completeClaimCheck,
   continueToReview,
@@ -59,6 +61,7 @@ export function ConfirmScreen({
   const [context, setContext] = useState<WorldRequestContextView | null>(null);
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const surface = useSurface();
   /** Set when our own verification refused, so onError does not overwrite it. */
   const refused = useRef(false);
   /** One silent retry per attempt on an expired or malformed signature. */
@@ -116,7 +119,7 @@ export function ConfirmScreen({
     setState('failed');
   };
 
-  const copy = claimCheckCopy(state);
+  const copy = claimCheckCopy(state, surface);
 
   return (
     <AppFrame>
@@ -133,7 +136,7 @@ export function ConfirmScreen({
           ) : null}
           {state === 'waiting' ? (
             <p className="text-body-lg text-ink" data-testid="claim-check-state" role="status">
-              Waiting for the World app
+              {waitingLine(surface)}
             </p>
           ) : null}
           {demo || state === 'failed' ? (

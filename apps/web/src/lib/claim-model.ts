@@ -13,6 +13,7 @@
  */
 
 import { formatDay, formatDayWithYear, formatPeriodShort } from './format';
+import type { Surface } from './surface';
 import type { ClaimStatusView, ReplayView } from './claim-api';
 import type { PolicyView } from './worker-api';
 import type { StatusState } from '../components/status-pill';
@@ -254,12 +255,18 @@ export interface ClaimCheckCopy {
  * The failed state is the purchase Verify screen's, word for word, because the
  * addendum gives C4 the same two sentences for it. What changes between the two
  * screens is the reason a check is being asked for, which is the second line.
+ *
+ * It drops the offer of a second device inside World App for the reason
+ * src/lib/worker-model.ts gives: there is no second device to move to.
  */
-export function claimCheckCopy(state: ClaimCheckState): ClaimCheckCopy {
+export function claimCheckCopy(
+  state: ClaimCheckState,
+  surface: Surface = 'browser',
+): ClaimCheckCopy {
   if (state === 'failed') {
     return {
       heading: "We couldn't verify you.",
-      line: 'Try again, or use a different device.',
+      line: surface === 'world-app' ? 'Try again.' : 'Try again, or use a different device.',
       button: 'Try again',
     };
   }

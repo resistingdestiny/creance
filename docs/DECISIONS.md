@@ -3462,3 +3462,161 @@ useful for checking that a shot is framed correctly before the state it needs
 exists on chain. It is never used in a take: nothing in a demonstration path may
 run against a mock, and the screen prints a label saying nothing came from the
 API. docs/DEMO.md says both halves of that.
+
+## T27, the World App Mini App surface, 5 September 2026
+
+### No MiniKit command that touches World Chain is called anywhere
+
+The Mini Apps documentation is direct about the chain: a mini app is developed
+against live World Chain and there is no test network for it, and its own advice
+is to deploy your test contracts to the live chain. MISSION rule 1 forbids
+production endpoints, production keys and real funds without qualification.
+
+The two are not in conflict here, because this product never asks World App to
+move value. `sendTransaction`, `pay`, `signMessage`, `signTypedData` and
+`walletAuth` are not called; the settlement asset, the note, the reserve and
+every payout are on Hedera testnet. World App is the device that holds the
+person's World ID and runs the Selfie Check, and the Selfie Check is IDKit, not
+a MiniKit command.
+
+So `@worldcoin/minikit-js` is in `apps/web/package.json` for two things only:
+installing the SDK so the app can tell which surface it is on, and being present
+inside World App so that IDKit uses the native transport. It is provable in one
+line, and a reviewer should run it:
+
+    grep -rn "sendTransaction\|MiniKit.pay\|walletAuth\|signTypedData" apps/
+
+The Portal's "Permissions, Permit2 tokens and contract entrypoints" list stays
+empty for the same reason: nothing here calls a World Chain contract.
+
+### MiniKitProvider is mounted without an app id, and T11's rule is not bent
+
+T11 decided that the web app holds no World configuration of its own, and that
+no `NEXT_PUBLIC_` World variable exists. The provider takes an optional app id at
+mount, which is before any request to the API, so this ticket had to choose
+between three ways of getting one there.
+
+It is mounted with none. The only reason to pass an app id is a MiniKit command,
+and no MiniKit command runs here, so the value would be configuration carried
+for its own sake. The cost is one console line inside World App, "App ID not
+provided during install", and nothing else: install still succeeds, the surface
+still reads correctly, and IDKit takes the World ID app id, which is a different
+value and still arrives with the signed request context.
+
+The Mini App id does exist in configuration, as `WORLD_MINI_APP_ID`, but it lives
+where the rest of the World configuration lives, in the API, and it is read
+through `GET /v1/world/mini-app`. That keeps one owner for World values and it is
+also the answer a notification sender would need later, since `mini_app_path`
+carries the same id.
+
+### No route is taken client only for MiniKit
+
+The migration guide's headline hazard is that MiniKit depends on
+`window.WorldApp`, that server rendering causes hydration mismatches, and that
+the symptom is clicks doing nothing. Its fix is `dynamic(..., { ssr: false })` on
+the route tree that touches MiniKit.
+
+Nothing here needs that, because nothing reads `window.WorldApp` while
+rendering. The surface is read from the provider's own post-install state, so the
+server and the first client render agree on `browser` and the value changes once,
+after hydration. Taking the flow routes client only would have cost the
+canonical index page its server rendering for no gain.
+
+### The surface helper asks `isInWorldApp` first and `isInstalled` second
+
+`MiniKit.isInstalled()` is the accessor the getting started page names, and it is
+the honest test for whether a command could be sent: it is true only once install
+has run. It also logs a console warning every time it returns false, which in a
+browser is every render, and those warnings would be in every screenshot.
+
+`MiniKit.isInWorldApp()` is pure, needs no install and reads the same injected
+object, so it goes first and the browser path never reaches `isInstalled()` at
+all. One helper, `src/lib/surface.ts`, and one import site per screen that
+branches.
+
+The provider's own flag is used as the trigger to ask again rather than as the
+answer, because it is false for an out of date World App, which is still World
+App and still runs the native IDKit transport.
+
+### Three strings change inside World App, and the rest of the deck does not
+
+The copy deck was written for a browser and a second device to scan from. Two of
+its strings are wrong inside World App and both are on the check screens:
+
+- "Waiting for the World app" becomes "Confirming with World ID". The person is
+  in the World app, the sheet is open in front of them, and nothing is away
+  anywhere.
+- "Try again, or use a different device." becomes "Try again." There is no second
+  device to move to.
+
+"Verify with World ID", "Confirm you're a real person." and every other string on
+those screens are correct on both surfaces and are untouched. The new strings are
+plain, sentence case, and say what is happening, which is what the deck's voice
+rules ask for.
+
+### The occupation index deep link is a path, not a path with a query
+
+The Index tab reads its occupation from `?group=`, which is right for a tab
+someone is already inside. A deep link is not: World App takes the path to open
+as one url encoded value, and no page states whether a query string survives
+inside it. So the entry a link uses is `/cover/index/<group>`, which carries the
+occupation in the path itself and redirects to the tab. It works with no session,
+which is the point of a link for somebody who has bought nothing yet.
+
+The published link encodes the path once, which is what the quick actions page
+asks for. `MiniKit.getMiniAppUrl` encodes it twice, once itself and once through
+the query serialiser it appends with, so the SDK's helper and the documented
+schema do not agree. The documented form is what the API publishes and a test
+pins what the helper does, so a release that changes either one fails.
+
+### The notification spike is cut, and the gate it is cut on is named
+
+The send path is not built. The permission model has three grants from three
+parties, and the first one is not ours to give: "Request permission in the
+Developer Portal Advanced settings, for your mini app". No mini app of ours is
+registered yet, the Portal request has no published turnaround, and nothing in
+the documentation states whether a draft app can obtain that permission at all.
+The second grant is a one shot prompt per user, and the third is a World App
+setting the user has to have on.
+
+Two more things sit behind that gate even if it opened. The send endpoint
+addresses recipients by World Chain wallet address, and this database keys people
+on a nullifier and stores a Hedera account; neither value can be derived from the
+other, so notifying anybody would need a new nullable column holding a World App
+wallet address. That column would link a World App wallet to a nullifier and a
+policy, which is part of what World ID's design exists to prevent, so it is an
+opt-in with a consent line and not a quiet capture. And a sender belongs beside
+the oracle's existing alert path, which is another ticket's scope this week.
+
+So the spike stops at a plan: register the mini app, request the Advanced
+settings permission on the day it is registered because the wait is unbounded,
+and only then decide whether the column and the sender are worth the two hours.
+The gate itself is written up in the feedback for World, which is worth more to
+that prize than a sent notification would have been.
+
+### Outbound links inside the webview are documented and not yet changed
+
+The webview specification says opening new browser windows is prohibited and all
+navigation stays in the current instance, so every `target="_blank"` in the flow
+is a dead tap inside World App. The receipt screen has three of them, all
+HashScan.
+
+They are left as they are in this ticket. The fix is a component change, not a
+copy change, and which of the three shapes is right, navigating in place, showing
+a copyable value, or handing the URL to the native share sheet, depends on
+whether an in place navigation to HashScan can come back, which needs a phone to
+answer. The receipt's transaction ids are already copyable next to the links, so
+nothing on that screen is unreachable in the meantime. The constraint and the
+named fix are in the feedback for World.
+
+### The surface ships tested as far as a headless session reaches, and says so
+
+There is no phone and no World App in these sessions, so nothing here claims a
+device run. What is tested: the surface branch in both directions with
+`window.WorldApp` set and unset, the provider publishing it, the widget being
+handed identical props on both surfaces, the entry route against the running web
+app, and the entry links against the running API. What is not tested and is
+stated as untested everywhere it is mentioned: the native sheet, the absence of
+the QR code, `debugReport.transport` reading `mini_app`, whether the two
+transports produce the same nullifier for the same person, and the file upload in
+the claim flow on a real device.

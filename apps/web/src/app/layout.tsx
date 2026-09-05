@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { fontClassName } from 'creance-active-font';
 
 import './globals.css';
+import { Providers } from './providers';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
@@ -44,13 +45,19 @@ export const viewport: Viewport = {
  *
  * Option A is the shipped choice. Both families resolve in next/font/google at
  * every weight the scale uses.
+ *
+ * `Providers` installs MiniKit, so the same pages are a Mini App inside World
+ * App and a website everywhere else. It is a client component because MiniKit
+ * only exists in a browser; this layout stays a server component.
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html className={fontClassName} lang="en-GB">
       <body className="flex min-h-dvh flex-col bg-canvas text-ink">
-        <div className="flex-1">{children}</div>
-        <Disclosure />
+        <Providers>
+          <div className="flex-1">{children}</div>
+          <Disclosure />
+        </Providers>
       </body>
     </html>
   );

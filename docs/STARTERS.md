@@ -118,6 +118,28 @@ around them are ours, as is the trick the test needs to run at all, which is
 stubbing `Date.now` and `crypto.getRandomValues` because the shipped
 `signRequest` takes neither as a parameter.
 
+## The World MiniKit package
+
+https://github.com/worldcoin/minikit-js
+
+`@worldcoin/minikit-js` 2.0.3 in `apps/web`, pinned exactly for the same reason
+IDKit is. A dependency, not copied source. MIT licensed.
+
+Two things are used from it and nothing else: `MiniKitProvider` from
+`@worldcoin/minikit-js/minikit-provider`, which installs the SDK so the app is a
+Mini App inside World App and IDKit uses the native transport, and the accessors
+`MiniKit.isInWorldApp()` and `MiniKit.isInstalled()`, which answer which surface a
+screen is on. No MiniKit command is called anywhere, so nothing in this build
+touches World Chain.
+
+`apps/web/src/app/providers.tsx` follows the four line provider snippet on
+https://docs.world.org/mini-apps/quick-start/installing, which is the whole of
+what was taken. The surface context around it, the reason the provider's own flag
+is read as a trigger rather than an answer, and every copy branch are this
+build's. `MiniKit.getMiniAppUrl` is deliberately not used; the entry links are
+built in `apps/api/src/world/mini-app.ts` from the schema the quick actions page
+publishes, because the helper and the schema disagree about encoding.
+
 ## Blocky402
 
 https://blocky402.com/docs/testnet/

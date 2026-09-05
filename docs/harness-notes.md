@@ -2274,3 +2274,28 @@ environment actually arrived before believing a run that does nothing.
 through two layers of pnpm without any argument escaping. This is written down
 because the surrounding commands are all single word scripts and it was not
 obvious that a positional stage survives the hop; it does.
+
+## T27, the World App Mini App surface, 5 September 2026
+
+Everything this ticket met where World's documentation and its SDK disagree is in
+the feedback document kept with the event record, which is where World friction
+belongs. What follows is the one discrepancy that is not World's.
+
+### `pnpm --filter <workspace> add` leaves every other workspace without dependencies
+
+Adding one dependency to one workspace,
+
+    pnpm --filter @creance/web add @worldcoin/minikit-js@2.0.3 --save-exact
+
+resolved and linked that workspace and left the other eight projects with no
+`node_modules` at all. Measured immediately afterwards: `apps/web/node_modules`
+had 14 entries and `apps/api`, `packages/client`, `packages/index-model` and
+`contracts` had none. The first thing that noticed was `tsc`, which failed in the
+web app with `TS2307: Cannot find module 'ethers'` pointing at
+`packages/client/src/claim.ts`, an error with nothing to do with the change and
+no obvious link to the install.
+
+A plain `pnpm install` afterwards restored all nine projects in seven seconds and
+reported the lockfile already up to date, so nothing about the resolution was
+wrong and only the linking was partial. Run `pnpm install` after any filtered
+`add` in this repository before believing a typecheck or a test run.

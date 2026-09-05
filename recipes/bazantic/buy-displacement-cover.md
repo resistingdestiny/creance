@@ -177,6 +177,12 @@ settled over x402 like the other two. Answers 201 with the policy id, the policy
 NFT token and serial, the payments topic sequence number of the receipt, and the
 bind transaction.
 
+There is no static price for this operation, so an unpaid bind is how an agent
+finds out what it costs: the 402 carries the amount in `PAYMENT-REQUIRED` and in
+the body. A quote that cannot be priced, because it does not exist, has expired
+or has already been bound, is refused before the 402 rather than after it, so a
+payer never signs a transaction against a quote that was never going to bind.
+
 **7. Confirm by reading it back, free.**
 
     GET https://creance.co/v1/policy/{policyId}

@@ -107,6 +107,16 @@ function readJson<T>(path: string): T | undefined {
 const HOLDER_ROLES = ['investor-1', 'investor-2'];
 
 /**
+ * A variable set to nothing is not set. The same reader as apps/api/src/config.ts,
+ * for the same reason: a copied example environment arrives with every line it
+ * documents present and blank, and `??` reads a blank as a value.
+ */
+function fromEnv(name: string): string | undefined {
+  const raw = process.env[name];
+  return raw === undefined || raw.trim() === '' ? undefined : raw.trim();
+}
+
+/**
  * Build the configuration from the deployment record and the day 0 resources.
  *
  * Both paths can be overridden, which is what the tests use, and every field
@@ -115,11 +125,11 @@ const HOLDER_ROLES = ['investor-1', 'investor-2'];
 export function loadInvestorConfig(options: { recordPath?: string; resourcesPath?: string } = {}): InvestorConfig {
   const recordPath =
     options.recordPath ??
-    process.env.CREANCE_DEPLOYMENT_RECORD ??
+    fromEnv('CREANCE_DEPLOYMENT_RECORD') ??
     fileURLToPath(new URL(DEFAULT_RECORD, import.meta.url));
   const resourcesPath =
     options.resourcesPath ??
-    process.env.CREANCE_HEDERA_RESOURCES ??
+    fromEnv('CREANCE_HEDERA_RESOURCES') ??
     fileURLToPath(new URL(DEFAULT_RESOURCES, import.meta.url));
 
   const record = readJson<DeploymentFile>(recordPath);
@@ -133,7 +143,7 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
     throw new Error(`refusing to serve ${network}: this build is testnet only`);
   }
 
-  const vaultAddress = process.env.HEDERA_VAULT_ADDRESS ?? record.collateralVault?.address;
+  const vaultAddress = fromEnv('HEDERA_VAULT_ADDRESS') ?? record.collateralVault?.address;
   if (vaultAddress === undefined) {
     throw new Error('no CollateralVault address in the deployment record or the environment');
   }
@@ -147,7 +157,13 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
   // The pool is optional. Its two fields, active exposure and the term, are the
   // only things on the investor view that degrade to null without it, so a
   // deployment record written before the pool existed still serves.
-  const coverPoolAddress = process.env.HEDERA_COVER_POOL_ADDRESS ?? record.coverPool?.address;
+  // `HEDERA_COVERPOOL_ADDRESS` is the documented name and the one
+  // apps/api/src/config.ts reads, so setting it has to repoint both halves of
+  // the same process. The older spelling is still accepted.
+  const coverPoolAddress =
+    fromEnv('HEDERA_COVERPOOL_ADDRESS') ??
+    fromEnv('HEDERA_COVER_POOL_ADDRESS') ??
+    record.coverPool?.address;
   const coverPool =
     coverPoolAddress === undefined
       ? undefined
@@ -175,7 +191,7 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
 
   const series: SeriesConfig[] = [];
   if (record.series !== undefined) {
-    const noteAddress = process.env.ATS_NOTE_ADDRESS ?? record.series.ats?.note?.address;
+    const noteAddress = fromEnv('ATS_NOTE_ADDRESS') ?? record.series.ats?.note?.address;
     series.push({
       label: record.series.label,
       seriesId: record.series.id,
@@ -221,10 +237,13 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
 
   return {
     network,
-    rpcUrl: process.env.HEDERA_RPC_URL ?? process.env.HEDERA_JSON_RPC ?? 'https://testnet.hashio.io/api',
+    rpcUrl:
+      fromEnv('HEDERA_RPC_URL') ??
+      fromEnv('HEDERA_JSON_RPC') ??
+      'https://testnet.hashio.io/api',
     mirrorUrl:
-      process.env.HEDERA_MIRROR_URL ??
-      process.env.HEDERA_MIRROR ??
+      fromEnv('HEDERA_MIRROR_URL') ??
+      fromEnv('HEDERA_MIRROR') ??
       'https://testnet.mirrornode.hedera.com/api/v1',
     series,
   };

@@ -17,9 +17,10 @@ import {
 import { seriesForGroup, type OracleConfig } from './config.js';
 import { assertUnderCap, buildMessage, signMessage, type ObservationMessage } from './message.js';
 import { mirrorMessageUrl, topicMessageUrl, type Publisher } from './publisher.js';
+import type { TopicObservation } from './published.js';
 import { formatReport, runQaGates, type QaReport } from './qa.js';
 import type { OracleMode, StateFile } from './state.js';
-import type { ObservationRecord, ObservationWriter } from './store.js';
+import { recordKey, type ObservationRecord, type ObservationWriter } from './store.js';
 import { toMonthIndex, transactionUrl, type SubmitResult, type Submitter } from './submitter.js';
 
 /**
@@ -41,11 +42,11 @@ import { toMonthIndex, transactionUrl, type SubmitResult, type Submitter } from 
  * `submit_tx` null, and the next run over the same window republishes nothing
  * and does the contract call alone: see `resumeSubmit`.
  *
- * One window is left and it cannot be closed from here: a process killed
- * between the topic receipt and the row write leaves a message with no row. The
- * fix for that is to read the topic back through the mirror node before
- * republishing a period, which is a T26 job because it needs the runs table to
- * know which periods a previous run was in the middle of.
+ * The store alone is not enough to know what settled. It is a file under
+ * `var/`, so a clone has none, and a process killed between the topic receipt
+ * and the row write leaves a message with no row. Both cases are covered by
+ * `publishedOnTopic`, which the commands read back through the mirror node
+ * before the walk starts and pass in here.
  *
  * Nothing is retried by rollback. An HCS message cannot be retracted and the
  * contract reverts on a duplicate, so idempotence is a read before each write:
@@ -175,6 +176,21 @@ export interface PipelineOptions {
   /** Null switches the chain call off entirely, which is what a backfill wants. */
   submitter: Submitter | null;
   writer: ObservationWriter;
+  /**
+   * The group and period keys already on the index topic, from the mirror node.
+   *
+   * The store below remembers what this machine published, and it is a file
+   * under `var/` that a clone does not carry. The topic is what actually
+   * settled, and docs/INDEX-SPEC.md says the first value published for a period
+   * settles it forever, so a clean clone running the demo replay against the
+   * shared testnet topic has to be told what is already there or it publishes a
+   * second message for every month it walks. Keys are `recordKey` keys.
+   *
+   * A month here still gets its contract call if the chain has not observed it,
+   * because the message carries everything the call needs and the entry carries
+   * the sequence number.
+   */
+  publishedOnTopic?: ReadonlyMap<string, TopicObservation>;
   keyHex: string;
   state?: StateFile;
   /** Milliseconds between the start of one tick and the start of the next. */
@@ -255,6 +271,22 @@ export async function runPipeline(options: PipelineOptions): Promise<RunSummary>
           submittedCount += 1;
         } else {
           log(`${period}  ${groupKey.padEnd(32)} already published in ${existing.mode} mode`);
+        }
+        continue;
+      }
+
+      // Nothing local says this was published, but the topic might. A clone has
+      // no store, so without this the demo replay writes a second message for
+      // every month the shared topic already carries.
+      const topicKey = recordKey({ group_key: groupKey, period, mode: options.mode });
+      const onTopic = options.publishedOnTopic?.get(topicKey);
+      if (onTopic !== undefined) {
+        skippedCount += 1;
+        const resumed = await submitFromTopic(options, groupKey, period, onTopic, now(), log);
+        if (resumed !== null) {
+          submittedCount += 1;
+        } else {
+          log(`${period}  ${groupKey.padEnd(32)} already on the index topic`);
         }
         continue;
       }
@@ -505,6 +537,56 @@ async function maybeSubmit(
  * Everything sent comes from the stored record, so the resubmission carries the
  * sequence number and the source hash of the message actually on the topic.
  */
+/**
+ * The contract call for a month that reached the topic but not the chain, on a
+ * machine that has no store row for it.
+ *
+ * The message on the topic is the settled value, so the call is made from it
+ * rather than from anything recomputed here. Nothing is written to the store:
+ * the topic is the record, and the chain guards in `maybeSubmit` make a second
+ * attempt harmless.
+ */
+async function submitFromTopic(
+  options: PipelineOptions,
+  groupKey: string,
+  period: Period,
+  onTopic: TopicObservation,
+  now: Date,
+  log: (line: string) => void,
+): Promise<SubmitResult | null> {
+  if (options.submitter === null) return null;
+  const series = seriesForGroup(options.config, groupKey);
+  if (series === undefined) return null;
+
+  const submission = await maybeSubmit(
+    options,
+    {
+      groupKey,
+      period,
+      status: onTopic.message.status,
+      odi: onTopic.message.odi,
+      ebar: onTopic.message.ebar,
+      sourceHash: onTopic.message.source_hash,
+      hcsSequence: onTopic.sequenceNumber,
+    },
+    series.seriesId,
+    now,
+  );
+  if (submission.result === null) {
+    log(
+      `${period}  ${groupKey.padEnd(32)} already on the index topic, ` +
+        `no chain call: ${submission.skipped}`,
+    );
+    return null;
+  }
+  log(
+    `${period}  ${groupKey.padEnd(32)} already on the topic at sequence ` +
+      `${onTopic.sequenceNumber}, submitted ${submission.result.hash} ` +
+      `gas ${submission.result.gasUsed}`,
+  );
+  return submission.result;
+}
+
 async function resumeSubmit(
   options: PipelineOptions,
   existing: ObservationRecord,

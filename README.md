@@ -6,27 +6,100 @@ Everything runs on Hedera testnet. There is no mainnet path and no real money an
 
 ## Status
 
-Being built. The contracts, the note series, the coupon and maturity runs, the index model, the API, the investor screens, the index oracle, the Steward agent and the Adjuster are live on Hedera testnet; the API's three metered endpoints are gated with x402 and settle through Blocky402, and the Adjuster's first decision hash is on the claims topic. The scheduler and the demo seed still print what they will do instead of doing it, and later tickets fill them in one at a time.
+Being built. The contracts, the note series, the coupon and maturity runs, the index model, the API, the worker and investor screens, the index oracle, the Steward agent, the Adjuster, the claim flow and the review queue are live on Hedera testnet; the API's three metered endpoints are gated with x402 and settle through Blocky402, one payout and one decline are on the claims topic, and the images and compose file for a public deployment are built. The scheduler and the demo seed still print what they will do instead of doing it, and later tickets fill them in one at a time.
 
 ## Requirements
 
 - Node 22 or later
 - pnpm 11.25.0, which is pinned by the `packageManager` field in [package.json](package.json). Run `corepack enable` and pnpm will match it.
 - PostgreSQL 14 or later, for the API. Only the API needs it, and only when it runs: `pnpm test` has no database.
+- Ports 3000 and 3210 free. The API refuses to start if 3210 is taken; the web app takes the next free port and prints which one, so read the address it prints rather than assuming 3000.
 
 ## Setup
 
     pnpm install
     cp .env.example .env
 
-Then fill in the blanks in `.env`. Every variable is listed with a one line comment in [.env.example](.env.example). Nothing in the scaffold needs credentials, so `pnpm test` works before you fill anything in. `.env` is ignored by git and must never be committed.
+Three lines in `.env` are enough for everything below: `HEDERA_OPERATOR_ID`,
+`HEDERA_OPERATOR_KEY` and `DATABASE_URL`. Leave every other line exactly as the
+example has it. A blank line is read as unset rather than as an empty value, so
+the contract addresses, the token, the topics and the account ids all come from
+the two data files this repository already carries,
+[contracts/deployments/testnet.json](contracts/deployments/testnet.json) and
+[docs/hedera.testnet.json](docs/hedera.testnet.json). The oracle, API, Steward,
+adjuster, policyholder and investor accounts each derive their key from the
+operator key with HKDF, so the operator key is the only Hedera secret a clone
+needs. Every variable is listed with a one line comment in
+[.env.example](.env.example). `.env` is ignored by git and must never be
+committed.
 
-For the API, point `DATABASE_URL` at a PostgreSQL database you can write to and create the schema:
+`pnpm test` needs none of it: the unit suite touches no chain and no database.
+
+For the API, create the database and point `DATABASE_URL` at it:
 
     createdb creance
     pnpm api:migrate
 
+`DATABASE_URL` is `postgresql://user:password@localhost:5432/creance` where the
+server wants a password, or `postgresql:///creance?host=/var/run/postgresql`
+where a unix socket and peer authentication are enough.
+
 `pnpm api:migrate` applies the migrations under `apps/api/migrations` and seeds the fifteen occupation groups. It is idempotent: running it again prints `nothing to do`. The API also runs it at boot, so a first `pnpm dev` after `createdb` is enough.
+
+## Fifteen minutes from a clean clone
+
+The three flows, in the order to run them, with what each one should print. The
+timings are a measured run on 5 September 2026 from a fresh clone of this
+repository: node 22.23.1, pnpm 11.25.0, PostgreSQL on localhost, the operator
+key and `DATABASE_URL` filled in and nothing else.
+
+| Step | Command | Time |
+| --- | --- | --- |
+| Install | `pnpm install` | 8 seconds against a warm pnpm store, a few minutes on a cold one |
+| Database | `createdb creance` then `pnpm api:migrate` | 3 seconds, prints `applied 001_init, 002_adjuster, 003_claims` |
+| Unit tests, optional | `pnpm test` | 83 seconds |
+| Boot | `pnpm dev` | the API answers `GET /health` after 10 seconds, the web app is ready in 2 |
+| Worker flow | a browser at http://localhost:3000 | under two minutes to a bound policy, most of it waiting on testnet |
+| Steward flow | `pnpm steward:run --as-of 2025-05 --cadence demo` | 38 seconds to a bound policy and three premium schedules |
+| Oracle replay | `pnpm oracle:preflight` then `pnpm oracle:replay --dry-run --interval-ms 250` | 6 seconds, then 12 |
+
+Under four minutes of wall clock from `git clone` to all three flows done,
+skipping the optional unit suite. The two things that stretch it are a
+cold pnpm store and the demo clock at its real cadence, which is ten seconds a
+month by design and is what the video shows.
+
+**The worker flow.** Open http://localhost:3000, press "Get a quote", choose
+Computer and mathematical, which is the one occupation with a cover series
+behind it, set the slider and press Continue. The price on screen is a real
+quote from the API and every move of the slider is a paid call. The verify
+screen runs the World Selfie Check when the three `WORLD_` variables are filled
+in and otherwise runs the API's labelled interim issuer, which says on screen
+that it is not a World check; a judge needs no World Developer Portal account
+to finish the flow. Press Pay and the first premium settles over x402 from the
+demo worker's testnet account, the policy binds, the receipt NFT is minted and
+the receipt goes to the payments topic. Every settlement is printed in the
+terminal `pnpm dev` runs in, with its HashScan link.
+
+Binding writes to testnet and commits permanent exposure against the demo
+series, so bind at the smallest amount the slider offers when repeating the run.
+
+**The Steward flow.** `pnpm steward:run` needs `pnpm dev` running and pays every
+metered call from the agent's own account. On live data the rule usually decides
+hold, which is a complete cycle: it pays for the index, prints the three months
+it read and writes the decision to the agent journal. `--as-of 2025-05` puts the
+vantage on a month whose three month trend is rising, which is what makes the
+rule buy, and the run then quotes, binds over x402, creates the premium
+schedules and journals all of it. See [The Steward agent](#the-steward-agent).
+
+**The oracle replay.** `pnpm oracle:preflight` reads every precondition and
+sends nothing. The replay itself walks January 2025 to the newest month the
+archive carries, all of it computed from the committed BLS snapshot with no
+network and no key. `--dry-run` computes, gates, signs and encodes the whole
+window and sends nothing, which is the right thing to run against the shared
+testnet resources: the index topic already carries this window, and the first
+value published for a period settles it forever. Without `--dry-run` the command
+reads the topic back through the mirror node first and publishes only the months
+that are missing from it. See [Which replay windows run](#which-replay-windows-run).
 
 ## Commands
 
@@ -85,6 +158,27 @@ windows are known to complete:
 add `--to 2020-03`. The gates are not overridable: a month that fails one is not
 published, because the first value published for a period settles it forever.
 Add `--dry-run` to test any window without sending anything.
+
+### Replaying against the shared testnet resources
+
+The index topic in [docs/HEDERA.md](docs/HEDERA.md) is one topic and everybody
+running this repository writes to the same one. Because the first value
+published for a period settles it forever, a run reads the topic back through
+the mirror node before it walks and publishes only the months that are not on
+it. A clean clone that runs the demo window therefore publishes nothing and says
+so: `skipped N already published`. Only a month the topic does not carry is
+published, and a month the topic carries without its contract call still gets
+that call, from the message on the topic.
+
+That is the safety net rather than the plan. For a first look, run the window
+with `--dry-run`, which computes, gates, signs and encodes every month and sends
+nothing, and add `--interval-ms 250` so a nineteen month window takes ten
+seconds instead of three minutes. Keep the real cadence for the demo.
+
+A dry run reaches no network at all, so it does not read the topic either and
+reports the whole window as published. That is the run saying what it would have
+done, not a claim about the topic. The real command is the one that reports
+`skipped 19 already published`.
 
 A single workspace can be run on its own, for example `pnpm --filter @creance/index-model test`.
 
@@ -244,9 +338,15 @@ from. The default is
 [apps/steward/profiles/policyholder-2.json](apps/steward/profiles/policyholder-2.json);
 `STEWARD_PROFILE` points at another. The agent never performs the Selfie Check.
 It binds by presenting a credential issued to its principal, and the policy NFT
-is minted to the principal's wallet, not to the agent's. Until T11 wires IDKit
-the credential comes from the API's interim issuer, which the run labels in
-plain words as not being a World check.
+is minted to the principal's wallet, not to the agent's.
+
+The credential has two sources and the profile names which one this principal
+uses. A credential the principal earned at `POST /v1/world/verify` is a real
+Selfie Check, done on a phone by a person; the agent only carries it. The
+default demo profile instead asks the API's interim issuer at
+`POST /v1/demo/eligibility`, because an agent has no camera and a headless run
+cannot produce a proof of personhood. The run prints which one it used in plain
+words, and the interim one says on its own line that it is not a World check.
 
 The rule, written down. Buy when there is no cover in force and the three month
 ODI trend is rising, or when the term is inside its last 30 days. The trend is
@@ -257,6 +357,18 @@ gives an earlier one, which is the same labelled replay the demo clock uses. The
 rule is one pure function, its inputs and its result are printed in the run and
 published in the journal entry, and a cycle that decides to hold still journals
 and still exits 0.
+
+That is what a run on live data usually does. The three month trend at the
+newest published month has not been rising in recent readings, so `pnpm
+steward:run` on its own pays for the index, prints the three months it read,
+journals a hold and stops before the quote. Nothing is wrong with that run: it
+is the rule working. To watch the buy path, put the vantage on a month whose
+trend does rise, which is the same labelled replay the demo clock uses:
+
+    pnpm steward:run --as-of 2025-05 --cadence demo
+
+The journal entry records `replay: true` for such a cycle, so a reader can tell
+a labelled vantage from a live one.
 
 Months two onwards are not x402. The Hedera exact scheme requires a bare
 `TransferTransaction` and forbids one wrapped in a `ScheduleCreateTransaction`,
@@ -270,6 +382,53 @@ the due dates seconds apart, so a whole chain is visible inside one run.
 
 A full run against testnet, with every link, is in
 [docs/demo/steward.txt](docs/demo/steward.txt).
+
+## Tokenization
+
+The premiums are funded by investors who buy the series as a security. The
+Displacement Bond Note is issued through the [Asset Tokenization
+Studio](https://github.com/hashgraph/asset-tokenization-studio) release 8.0.0 as
+a Bond with the ERC-3643 configuration: an identity registry, a KYC list of
+investor accounts, transfer restrictions, and pause and freeze roles. The demo
+note is contract
+[0.0.10368240](https://hashscan.io/testnet/contract/0.0.10368240) and every
+transaction behind the steps below is linked in [docs/ATS.md](docs/ATS.md).
+
+Three commands, in this order. Each one is idempotent: run it again and it reads
+the chain, finds the work done and does nothing, so a judge repeating a step
+sees `nothing to do` rather than a second issuance.
+
+    pnpm ats:issue        issuance, roles, the credential issuer, KYC, mints,
+                          a blocked then an allowed transfer, pause, freeze
+                          and the first declared coupon
+    pnpm coupons:pay      the declared coupon settled to each holder by a
+                          Scheduled Transaction, then published to the
+                          payments topic
+    pnpm coupons:mature   a maturity redemption, on a short dated series
+                          opened for it because the demo series matures in 2027
+
+Each command takes a stage name to run one step on its own, which is what to use
+when watching a single operation rather than the whole sequence.
+`pnpm ats:issue status` prints where the series has got to and sends nothing;
+the stage lists are in [Commands](#commands) above.
+
+What each step proves, and where the evidence is:
+
+| Step | What it demonstrates | Links |
+| --- | --- | --- |
+| `issue` | The security exists on testnet with its coupon schedule configured | [docs/ATS.md](docs/ATS.md), "The run through" step 2 |
+| `kyc1`, `mint1`, `kyc2`, `mint2` | The identity registry gates who may hold the note | [docs/HEDERA.md](docs/HEDERA.md), "The compliance demonstration" |
+| `blocked` then `allowed` | The same transfer fails compliance and then succeeds after a KYC grant | [docs/HEDERA.md](docs/HEDERA.md), "The compliance demonstration" |
+| `controls` | Pause and freeze, the two roles a regulated issuer needs | [docs/HEDERA.md](docs/HEDERA.md), "The compliance demonstration" |
+| `coupon`, then `pnpm coupons:pay` | A coupon distribution paid by Scheduled Transaction, with the settlement on the payments topic | [docs/HEDERA.md](docs/HEDERA.md), "The first coupon" |
+| `pnpm coupons:mature` | Redemption at maturity: the holding is burned through ATS and the principal returns from the vault | [docs/HEDERA.md](docs/HEDERA.md), "The maturity demonstration" |
+
+The principal at risk logic is ours, not ATS's: the CollateralVault holds the
+subscribed principal and the CoverPool reserves against it when a month opens,
+pays approved claims out of the reserve and returns the remainder when the claim
+window closes. That is why a paid claim lowers noteholder principal. Both
+contracts are verified on HashScan and their addresses are in
+[docs/HEDERA.md](docs/HEDERA.md).
 
 ## Claims
 

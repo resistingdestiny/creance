@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { findSeries, loadOracleConfig, seriesForGroup } from '../src/config.js';
@@ -61,6 +63,24 @@ describe('oracle configuration', () => {
     expect(() =>
       loadOracleConfig({ recordPath: RECORD, resourcesPath: '/nope.json', environment: {} }),
     ).toThrow(/HEDERA_TOPIC_INDEX/);
+  });
+
+  it('reads a copied example environment, where every line it documents is blank', () => {
+    // README Setup says to copy the example and fill in the few lines it names.
+    // Every other line then arrives as `NAME=`, which is the empty string and
+    // not absence, and it must not erase the resources file or a default.
+    const example = new URL('../../../.env.example', import.meta.url).pathname;
+    const environment: Record<string, string> = {};
+    for (const line of readFileSync(example, 'utf8').split('\n')) {
+      const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line);
+      if (match !== null) environment[match[1]!] = match[2]!;
+    }
+    const config = loadOracleConfig({ recordPath: RECORD, resourcesPath: RESOURCES, environment });
+    expect(config.topicId).toBe('0.0.10366470');
+    expect(config.accountId).toBe('0.0.10366447');
+    expect(config.coverPoolAddress).toBe('0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09');
+    expect(config.submitGasLimit).toBe(1_000_000);
+    expect(config.statePath).toMatch(/replay-state\.json$/);
   });
 
   it('refuses a record for any network but testnet', () => {

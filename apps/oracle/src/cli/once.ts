@@ -2,6 +2,7 @@ import { resolveDataset, type Period } from '@creance/index-model';
 
 import { findSeries, loadOracleConfig } from '../config.js';
 import { oracleKeyHex } from '../keys.js';
+import { publishedOnTopic, type TopicObservation } from '../published.js';
 import { QaFailed, runPipeline } from '../run.js';
 import { StateFile } from '../state.js';
 import { readPeriod, readSource, readString, type SourcePreference } from './args.js';
@@ -111,6 +112,17 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
       });
   state?.start();
 
+  // The topic is the record of what settled; the store under var/ is only this
+  // machine's memory of it, and a clone has none.
+  const alreadyPublished =
+    wiring.topicId === null
+      ? new Map<string, TopicObservation>()
+      : await publishedOnTopic({
+          mirrorUrl: config.mirrorUrl,
+          topicId: wiring.topicId,
+          mode: 'live',
+        });
+
   try {
     const summary = await runPipeline({
       mode: 'live',
@@ -121,6 +133,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
       publisher: wiring.publisher,
       submitter: wiring.submitter,
       writer: wiring.writer,
+      publishedOnTopic: alreadyPublished,
       topicId: wiring.topicId,
       keyHex,
       ...(state === undefined ? {} : { state }),

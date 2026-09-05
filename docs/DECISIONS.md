@@ -3214,3 +3214,54 @@ The operation's `security` block went with it. `[{}, { eligibilityCredential:
 [] }]` reads as "no auth, or a credential", which describes an authorisation
 choice this operation does not offer. The bind keeps its
 `[{ eligibilityCredential: [] }]`, where it is true.
+
+## T23, the clean clone run-through, 5 September 2026
+
+### A blank environment variable means unset
+
+DESIGN.md does not say what a blank line in the environment means, and the code
+and `.env.example` disagreed about it: the file documents defaults that a name
+present with an empty value silently erased, because `??` falls back only on
+`undefined`. Two readings were available. Treat blank as a value, and tell the
+judge to delete every line they do not fill in, which turns "copy the example
+and fill in the blanks" into "copy the example and then edit ninety lines out of
+it". Or treat blank as unset, which is what every comment in the file already
+promises.
+
+Blank is unset. It is the only reading that makes the documented setup work, it
+is what the World, steward and adjuster configurations already did with their
+own readers, and the alternative asks a judge to do careful editing under a
+fifteen minute clock. The exception is `GIT_SHA`, which is deliberately not in
+the example at all: it is baked into an image and a line for it in a deployment
+file would override the one fact the health endpoint exists to report.
+
+### The oracle asks the topic, not the local file, what has settled
+
+The guard against publishing a period twice was the observation store, a file
+under `var/` that a clone does not carry, so a clean clone would republish a
+settled month. Three options were open: leave it and tell judges in the README
+to use `--dry-run`; leave it and point the judge at `--scenario`, which writes
+no index message at all; or make the command read the topic.
+
+The command reads the topic. A document that says "do not run the real command"
+is a workaround for a defect rather than a fix, `--scenario` shows synthetic
+data where the point of the exercise is real data, and docs/INDEX-SPEC.md
+already says the topic is what settles a period. The mirror node read is free,
+public and takes about a second. `--dry-run` stays the recommendation in the
+README for a first look, but it is now a convenience rather than the thing
+standing between a judge and a duplicated settlement.
+
+The pipeline's header comment had named this and deferred it to T26 as needing
+the runs table. It does not need the runs table for this: the question is "is
+this group and period on the topic", and the topic answers it.
+
+### The Steward run in the README uses a labelled vantage month
+
+`pnpm steward:run` on live data decides hold, because the three month ODI trend
+at the newest published month is not rising. That is the rule working, and a
+judge following the README would see a paid index read, a journal entry and no
+purchase, which does not demonstrate the agentic payment the flow exists to
+show. The README now says both: that a hold is a complete cycle, and that
+`--as-of 2025-05` puts the vantage on a rising month so the same run quotes,
+binds and schedules. The journal records `replay: true` for a labelled vantage,
+so nothing about it is hidden from a reader of the topic.

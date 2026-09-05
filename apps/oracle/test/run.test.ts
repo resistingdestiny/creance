@@ -16,7 +16,7 @@ import { loadOracleConfig } from '../src/config.js';
 import { addressOfKey, verifyMessage } from '../src/message.js';
 import { DryRunPublisher } from '../src/publisher.js';
 import { QaFailed, periodsUsed, precheckWindow, runPipeline } from '../src/run.js';
-import { MemoryObservationWriter } from '../src/store.js';
+import { MemoryObservationWriter, recordKey } from '../src/store.js';
 import { DryRunSubmitter, NULL_ODI } from '../src/submitter.js';
 
 /// The pipeline is exercised against the committed archive with the chain
@@ -49,6 +49,19 @@ function base(overrides: Record<string, unknown> = {}) {
     now: () => new Date('2026-09-05T12:00:00Z'),
     ...overrides,
   };
+}
+
+/// The demo group months a topic already carries, as the pipeline takes them.
+function onTopic(periods: readonly string[]) {
+  return new Map(
+    periods.map((period, index) => [
+      recordKey({ group_key: 'computer_math', period: period as Period, mode: 'replay' }),
+      {
+        sequenceNumber: index + 1,
+        message: { status: 'final', odi: 0.3, ebar: -0.6, source_hash: 'ab'.repeat(32) },
+      },
+    ]),
+  );
 }
 
 describe('the source hash window', () => {
@@ -154,6 +167,52 @@ describe('the replay of real history for the demo series', () => {
     expect(second.publishedCount).toBe(0);
     expect(second.skippedCount).toBe(19);
     expect(submitter.calls).toHaveLength(0);
+  });
+
+  it('publishes nothing the topic already carries, even with an empty store', async () => {
+    // The clean clone case. The store is a file under var/ that a clone does
+    // not have, so on a fresh machine every month of the demo window looks
+    // unpublished and the replay would put a second message on the shared
+    // index topic for each one. What settled is what the topic says.
+    const publisher = new DryRunPublisher();
+    const submitter = new DryRunSubmitter();
+    const summary = await runPipeline(
+      base({
+        writer: new MemoryObservationWriter(),
+        publisher,
+        submitter,
+        publishedOnTopic: onTopic(['2026-05', '2026-06', '2026-07']),
+        periods: ['2026-05', '2026-06', '2026-07'] as Period[],
+      }),
+    );
+    expect(summary.publishedCount).toBe(0);
+    expect(summary.skippedCount).toBe(3);
+    expect(publisher.published).toHaveLength(0);
+
+    // The contract call still happens, from the message the topic carries. A
+    // month can reach the topic and not the chain, and skipping the publish
+    // must not also skip the settlement.
+    expect(summary.submittedCount).toBe(3);
+    expect(submitter.calls.map((call) => call.period)).toEqual([202605, 202606, 202607]);
+    expect(submitter.calls.map((call) => call.hcsSequence)).toEqual([1n, 2n, 3n]);
+  });
+
+  it('still publishes the months the topic does not carry', async () => {
+    const publisher = new DryRunPublisher();
+    const summary = await runPipeline(
+      base({
+        writer: new MemoryObservationWriter(),
+        publisher,
+        publishedOnTopic: onTopic(['2026-05']),
+        periods: ['2026-05', '2026-06'] as Period[],
+      }),
+    );
+    expect(summary.publishedCount).toBe(1);
+    expect(summary.skippedCount).toBe(1);
+    const periods = publisher.published.map(
+      (bytes) => (JSON.parse(bytes.toString('utf8')) as { period: string }).period,
+    );
+    expect(periods).toEqual(['2026-06']);
   });
 
   it('does not publish a month again in live mode that the replay already put on the topic', async () => {

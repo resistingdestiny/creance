@@ -91,10 +91,20 @@ export interface LoadOptions {
   environment?: NodeJS.ProcessEnv;
 }
 
+/**
+ * A variable set to nothing is not set. A copied example environment arrives
+ * with every line it documents present and blank, so `??` would read a blank
+ * over the deployment record, the resources file or a default.
+ */
+function fromEnv(vars: NodeJS.ProcessEnv, name: string): string | undefined {
+  const raw = vars[name];
+  return raw === undefined || raw.trim() === '' ? undefined : raw.trim();
+}
+
 export function loadOracleConfig(options: LoadOptions = {}): OracleConfig {
   const vars = options.environment ?? process.env;
   const recordPath =
-    options.recordPath ?? vars.CREANCE_DEPLOYMENT_RECORD ?? fromHere(DEFAULT_RECORD);
+    options.recordPath ?? fromEnv(vars, 'CREANCE_DEPLOYMENT_RECORD') ?? fromHere(DEFAULT_RECORD);
   const record = readJson<DeploymentFile>(recordPath);
   if (record === undefined) {
     throw new Error(`no deployment record at ${recordPath}: run pnpm contracts:deploy first`);
@@ -105,10 +115,12 @@ export function loadOracleConfig(options: LoadOptions = {}): OracleConfig {
   // because the oracle key derives from the operator key. The environment still
   // wins, so a judge can point the worker somewhere else.
   const resourcesPath =
-    options.resourcesPath ?? vars.CREANCE_HEDERA_RESOURCES ?? fromHere(DEFAULT_RESOURCES);
+    options.resourcesPath ??
+    fromEnv(vars, 'CREANCE_HEDERA_RESOURCES') ??
+    fromHere(DEFAULT_RESOURCES);
   const resources = readJson<ResourcesFile>(resourcesPath);
 
-  const network = record.network ?? vars.HEDERA_NETWORK ?? 'testnet';
+  const network = record.network ?? fromEnv(vars, 'HEDERA_NETWORK') ?? 'testnet';
   if (network !== 'testnet') {
     throw new Error(`refusing to run against ${network}: this build is testnet only`);
   }
@@ -117,35 +129,35 @@ export function loadOracleConfig(options: LoadOptions = {}): OracleConfig {
   if (record.series !== undefined) {
     series.push({
       label: record.series.label,
-      seriesId: vars.HEDERA_SERIES_ID?.trim() || record.series.id,
+      seriesId: fromEnv(vars, 'HEDERA_SERIES_ID') ?? record.series.id,
       groupKey: record.series.group,
     });
   }
 
   return {
     network,
-    rpcUrl: vars.HEDERA_RPC_URL?.trim() || 'https://testnet.hashio.io/api',
-    mirrorUrl: vars.HEDERA_MIRROR_URL?.trim() || 'https://testnet.mirrornode.hedera.com/api/v1',
+    rpcUrl: fromEnv(vars, 'HEDERA_RPC_URL') ?? 'https://testnet.hashio.io/api',
+    mirrorUrl: fromEnv(vars, 'HEDERA_MIRROR_URL') ?? 'https://testnet.mirrornode.hedera.com/api/v1',
     topicId: required(
-      vars.HEDERA_TOPIC_INDEX ?? resources?.topics?.index?.topicId,
+      fromEnv(vars, 'HEDERA_TOPIC_INDEX') ?? resources?.topics?.index?.topicId,
       'HEDERA_TOPIC_INDEX',
     ),
     accountId: required(
-      vars.HEDERA_ORACLE_ID ?? resources?.accounts?.oracle?.accountId,
+      fromEnv(vars, 'HEDERA_ORACLE_ID') ?? resources?.accounts?.oracle?.accountId,
       'HEDERA_ORACLE_ID',
     ),
     coverPoolAddress: required(
-      vars.HEDERA_COVERPOOL_ADDRESS ?? record.coverPool?.address,
+      fromEnv(vars, 'HEDERA_COVERPOOL_ADDRESS') ?? record.coverPool?.address,
       'HEDERA_COVERPOOL_ADDRESS',
     ),
     vaultAddress: required(
-      vars.HEDERA_VAULT_ADDRESS ?? record.collateralVault?.address,
+      fromEnv(vars, 'HEDERA_VAULT_ADDRESS') ?? record.collateralVault?.address,
       'HEDERA_VAULT_ADDRESS',
     ),
-    submitGasLimit: Number(vars.ORACLE_SUBMIT_GAS_LIMIT ?? 1_000_000),
-    statePath: resolve(vars.ORACLE_STATE_PATH?.trim() || fromHere(DEFAULT_STATE)),
+    submitGasLimit: Number(fromEnv(vars, 'ORACLE_SUBMIT_GAS_LIMIT') ?? 1_000_000),
+    statePath: resolve(fromEnv(vars, 'ORACLE_STATE_PATH') ?? fromHere(DEFAULT_STATE)),
     observationsPath: resolve(
-      vars.ORACLE_OBSERVATIONS_PATH?.trim() || fromHere(DEFAULT_OBSERVATIONS),
+      fromEnv(vars, 'ORACLE_OBSERVATIONS_PATH') ?? fromHere(DEFAULT_OBSERVATIONS),
     ),
     series,
   };

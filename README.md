@@ -6,7 +6,7 @@ Everything runs on Hedera testnet. There is no mainnet path and no real money an
 
 ## Status
 
-Being built. The contracts, the note series, the coupon and maturity runs, the index model, the API, the investor screens, the index oracle and the Steward agent are live on Hedera testnet; the API's three metered endpoints are gated with x402 and settle through Blocky402. The scheduler, the Adjuster and the demo seed still print what they will do instead of doing it, and later tickets fill them in one at a time.
+Being built. The contracts, the note series, the coupon and maturity runs, the index model, the API, the investor screens, the index oracle, the Steward agent and the Adjuster are live on Hedera testnet; the API's three metered endpoints are gated with x402 and settle through Blocky402, and the Adjuster's first decision hash is on the claims topic. The scheduler and the demo seed still print what they will do instead of doing it, and later tickets fill them in one at a time.
 
 ## Requirements
 
@@ -47,7 +47,7 @@ Run all of these from the repository root.
 | `pnpm oracle:backfill` | Computes the whole index history, settles nothing, and regenerates [docs/INDEX.md](docs/INDEX.md) from it. `pnpm oracle:backfill --from 2000-01` builds the full history. Options: `--from YYYY-MM`, `--source archive\|cache\|api`, `--out PATH`, and `--check` to regenerate and compare without writing. Deterministic: two runs over the same source produce a byte identical file. |
 | `pnpm oracle:schedule` | Runs the daily index check and pipeline with QA gates and alerts. |
 | `pnpm steward:run` | Runs one Steward cycle for the configured principal against Hedera testnet: reads the profile, pays for the index feed, applies the written decision rule, and if the rule says buy, quotes, binds with the first premium over x402, creates the next premiums as Scheduled Transactions and writes a journal entry to the agent-journal topic. Needs the API running with the x402 gate on. Options: `--profile PATH`, `--as-of YYYY-MM`, `--cadence monthly\|demo`, `--interval SECONDS`, `--premiums N`, `--wait`. See [The Steward agent](#the-steward-agent). |
-| `pnpm adjuster:run` | Decides the pending claims once. |
+| `pnpm adjuster:run` | One pass over the claims waiting for a decision: reads the review queue over the admin API, extracts the employer, the name, the job title and the end date from each evidence document with a vision-capable model, evaluates every rule in [docs/CLAIMS.md](docs/CLAIMS.md), publishes the decision record's fingerprint to the claims topic with the adjuster account's own key, and posts the decision back. A pass ends; nothing loops back over what it decided. Options: `--limit N`, `--watch`, `--interval SECONDS`, `--dry-run`. Needs the API running and `ADMIN_TOKEN` set. Without `ANTHROPIC_API_KEY` it still runs, and every claim that needs a document read is referred to the queue. See [The review queue](#the-review-queue). |
 | `pnpm contracts:deploy` | Deploys CoverPool and CollateralVault to Hedera testnet and verifies them. |
 | `pnpm hedera:setup` | Creates the day 0 Hedera testnet accounts, tokens and topics, and writes [docs/HEDERA.md](docs/HEDERA.md). Idempotent: run it again and it creates nothing. Needs the operator credentials in the local environment file. Add `--plan` to print what it would do and stop. |
 | `pnpm hedera:schedule` | Runs the Scheduled Transactions spike against testnet: measures the expiry window, executes a scheduled premium transfer and chains the next month. Writes to testnet and costs fees. Stages: `bisect past immediate future chain`. |
@@ -255,6 +255,58 @@ the due dates seconds apart, so a whole chain is visible inside one run.
 
 A full run against testnet, with every link, is in
 [docs/demo/steward.txt](docs/demo/steward.txt).
+
+## The review queue
+
+A claim needs two keys: the index has to be open for the occupation, and the
+person has to show they lost their job. The second key is adjudicated. The
+Adjuster reads the packet, checks it against the cover and the index, and either
+decides the claim or hands it to a person, and the whole of it is in
+[docs/CLAIMS.md](docs/CLAIMS.md).
+
+The model extracts and the code decides. A vision-capable model reads one
+document at a time and returns a closed record of what that document says. It
+never sees the statement the person signed, it has no field in which to express
+an opinion about the claim, and every rule outcome, the amount and the confidence
+are computed afterwards in TypeScript from the cover, the frozen series terms and
+the open months read off CoverPool. That is what makes an adjudication
+reproducible from a fixture with no network, and explicable line by line when
+somebody asks why a claim was declined.
+
+A claim auto-approves only when every rule passes, the confidence reaches the
+series threshold and the amount is within the series auto-approval limit.
+Otherwise it refers, and a person works it from the queue:
+
+    GET  /v1/admin/claims?status=under_review     the queue, with no personal data on it
+    GET  /v1/admin/claims/{id}                    the review screen in one request
+    GET  /v1/admin/claims/{id}/evidence/{id}      one decrypted document
+    POST /v1/admin/claims/{id}/decide             approve or decline, with one sentence
+
+All four are behind `ADMIN_TOKEN`, compared in constant time. Nothing decides a
+claim by running out of time: an overdue claim is flagged and sorted to the top,
+and that is all. A reviewer is not bound by the confidence threshold, because a
+person reading the document is a better signal than a number computed about it,
+and is bound by the hard rules: nobody approves a resignation, and the API
+refuses it as well as the screen.
+
+The reasons a person reads are written for them. "Resigning isn't covered. This
+cover pays when your employer ends your job." A decline always says either what
+would change the answer or why nothing would.
+
+The decision record carries the decision, the reasons as codes, the confidence
+with every component of it, the evidence fingerprints and the result of every
+rule. It carries no name, no employer, no job title and no file name, which is a
+design rule rather than an accident: its SHA-256 goes on a public topic forever,
+so the answer to "show me the thing behind the hash" should be "here it is".
+Only the hash, the two ids and the decision word are published. The first one is
+on the claims topic at sequence 1; the links are in
+[docs/HEDERA.md](docs/HEDERA.md).
+
+Two synthetic packets are committed under `apps/adjuster/fixtures`, with invented
+employers and documents rendered by a script. One is a clean redundancy that
+auto-approves at a confidence of 0.940; one is a resignation that is declined in
+under a second, without the document ever being read. Both are asserted by
+`pnpm test`.
 
 ## Audit trail
 

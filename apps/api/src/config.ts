@@ -62,6 +62,8 @@ export interface ApiConfig {
   quoteTtlSeconds: number;
   /** The World ID app this deployment runs its Selfie Check against. */
   world: WorldConfig;
+  /** The defaults a new series row takes for the Adjuster's auto-approval gate. */
+  autoApproval: { limit: string; confidence: number };
   /** Serve the labelled demo eligibility issuer. Replaced by T11's World path. */
   demoIssuer: boolean;
   databaseUrl: string | undefined;
@@ -210,6 +212,10 @@ export function loadApiConfig(
     credentialTtlSeconds: seconds('CREDENTIAL_TTL_SECONDS', 1800),
     world: loadWorldConfig(),
     quoteTtlSeconds: seconds('QUOTE_TTL_SECONDS', 900),
+    autoApproval: {
+      limit: process.env.AUTO_APPROVAL_LIMIT ?? '5000000000',
+      confidence: Number(process.env.AUTO_APPROVAL_CONFIDENCE ?? '0.9'),
+    },
     demoIssuer: (process.env.DEMO_ELIGIBILITY_ISSUER ?? 'true') !== 'false',
     databaseUrl: process.env.DATABASE_URL,
   };

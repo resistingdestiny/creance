@@ -3,6 +3,7 @@ import pg from 'pg';
 import { AppError } from '../errors.js';
 import {
   alreadyCovered,
+  claimNotDecidable,
   credentialConsumed,
   credentialUnknown,
   insufficientCapacity,
@@ -10,10 +11,14 @@ import {
 } from './memory.js';
 import { ACTIVE_POLICY_STATUSES } from './types.js';
 import type {
+  ClaimEvidenceRow,
+  ClaimRow,
+  ClaimStatus,
   CredentialRow,
   GroupRow,
   ObservationRow,
   ClaimAuditRow,
+  RecordDecisionInput,
   PaymentRow,
   PolicyRow,
   QuoteRow,
@@ -63,14 +68,19 @@ export class PostgresRepository implements Repository {
                            attachment_shock, level_line, exhaustion_shock, payout_mode,
                            term_months, waiting_period_days, grace_period_days,
                            claim_window_obs_days, claim_window_sep_days, lookback_months,
-                           cover_pool, collateral_vault, matures_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+                           cover_pool, collateral_vault, matures_at,
+                           auto_approval_limit, auto_approval_confidence)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
        ON CONFLICT (series_id) DO UPDATE
          SET status = EXCLUDED.status,
              principal = EXCLUDED.principal,
              cover_pool = EXCLUDED.cover_pool,
              collateral_vault = EXCLUDED.collateral_vault,
              matures_at = EXCLUDED.matures_at`,
+      // auto_approval_limit and auto_approval_confidence are not in the DO
+      // UPDATE list on purpose. The frozen terms come from the chain and are
+      // re-synced at every boot; the auto-approval gate is ours and an
+      // operator's change to it must survive the next sync.
       [
         row.seriesId,
         row.seriesKey,
@@ -91,6 +101,8 @@ export class PostgresRepository implements Repository {
         row.coverPool,
         row.collateralVault,
         row.maturesAt,
+        row.autoApprovalLimit,
+        row.autoApprovalConfidence,
       ],
     );
   }
@@ -409,6 +421,117 @@ export class PostgresRepository implements Repository {
     return rows.map(toClaimAudit);
   }
 
+  async claim(claimId: string): Promise<ClaimRow | null> {
+    const { rows } = await this.pool.query('SELECT * FROM claims WHERE claim_id = $1', [claimId]);
+    return rows[0] === undefined ? null : toClaim(rows[0]);
+  }
+
+  async claimsByStatus(status: ClaimStatus, limit: number): Promise<ClaimRow[]> {
+    // Oldest first, which is the order a queue is worked and the order the
+    // Adjuster reads: a claim that has been waiting longest is decided first.
+    const { rows } = await this.pool.query(
+      `SELECT * FROM claims WHERE status = $1
+        ORDER BY submitted_at ASC NULLS LAST, created_at ASC LIMIT $2`,
+      [status, limit],
+    );
+    return rows.map(toClaim);
+  }
+
+  async priorClaimCount(
+    nullifier: string,
+    seriesId: string,
+    exceptClaimId: string,
+  ): Promise<number> {
+    const { rows } = await this.pool.query(
+      `SELECT count(*)::int AS n FROM claims
+        WHERE nullifier = $1 AND series_id = $2 AND claim_id <> $3 AND status <> 'void'`,
+      [nullifier, seriesId, exceptClaimId],
+    );
+    return Number(rows[0]?.['n'] ?? 0);
+  }
+
+  async claimEvidence(claimId: string): Promise<ClaimEvidenceRow[]> {
+    const { rows } = await this.pool.query(
+      'SELECT * FROM claim_evidence WHERE claim_id = $1 ORDER BY uploaded_at ASC',
+      [claimId],
+    );
+    return rows.map(toEvidence);
+  }
+
+  async evidenceSeenElsewhere(claimId: string, hashes: string[]): Promise<Set<string>> {
+    if (hashes.length === 0) return new Set();
+    const { rows } = await this.pool.query(
+      'SELECT DISTINCT sha256 FROM claim_evidence WHERE claim_id <> $1 AND sha256 = ANY($2)',
+      [claimId, hashes],
+    );
+    return new Set(rows.map((row) => text(row, 'sha256')));
+  }
+
+  /**
+   * The decision, written once.
+   *
+   * The WHERE clause is the lock. There is no `claimed_by` column and no lease:
+   * a claim that is no longer `submitted` or `under_review` has been decided by
+   * somebody, and the update simply matches nothing, so the second writer is
+   * told rather than overwriting the first. The policy moves with the claim in
+   * the same transaction, because a claim that says approved beside a policy
+   * that says claims_open is a state nobody can act on.
+   */
+  async recordDecision(input: RecordDecisionInput): Promise<ClaimRow> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `UPDATE claims
+            SET status = $2, decision = $3, reasons = $4, confidence = $5,
+                decision_hash = $6, decision_record = $7, hcs_decision_seq = $8,
+                amount = $9, decided_by = $10, reviewer = $11, decided_at = $12
+          WHERE claim_id = $1 AND status IN ('submitted','under_review')
+        RETURNING *`,
+        [
+          input.claimId,
+          input.status,
+          input.decision,
+          input.reasons,
+          input.confidence,
+          input.decisionHash,
+          input.decisionRecord === null ? null : JSON.stringify(input.decisionRecord),
+          input.hcsDecisionSeq,
+          input.amount,
+          input.decidedBy,
+          input.reviewer,
+          input.decidedAt,
+        ],
+      );
+      const row = rows[0];
+      if (row === undefined) {
+        await client.query('ROLLBACK');
+        throw claimNotDecidable();
+      }
+      await client.query('UPDATE policies SET status = $2, updated_at = now() WHERE policy_id = $1', [
+        text(row, 'policy_id'),
+        POLICY_STATUS_FOR[input.status] ?? 'under_review',
+      ]);
+      await client.query('COMMIT');
+      return toClaim(row);
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async recordDecisionSequence(claimId: string, sequenceNumber: number): Promise<ClaimRow | null> {
+    const { rows } = await this.pool.query(
+      `UPDATE claims SET hcs_decision_seq = $2
+        WHERE claim_id = $1 AND decision_hash IS NOT NULL AND hcs_decision_seq IS NULL
+      RETURNING *`,
+      [claimId, sequenceNumber],
+    );
+    return rows[0] === undefined ? null : toClaim(rows[0]);
+  }
+
   async updatePayment(paymentId: string, patch: Partial<PaymentRow>): Promise<void> {
     const columns: Record<string, unknown> = {};
     if (patch.status !== undefined) columns['status'] = patch.status;
@@ -551,6 +674,8 @@ function toSeries(row: Row): SeriesRow {
     claimWindowObsDays: Number(row['claim_window_obs_days']),
     claimWindowSepDays: Number(row['claim_window_sep_days']),
     lookbackMonths: Number(row['lookback_months']),
+    autoApprovalLimit: text(row, 'auto_approval_limit'),
+    autoApprovalConfidence: Number(row['auto_approval_confidence']),
     coverPool: maybeText(row, 'cover_pool'),
     collateralVault: maybeText(row, 'collateral_vault'),
     maturesAt: maybeInstant(row, 'matures_at'),
@@ -685,3 +810,77 @@ function toObservation(row: Row): ObservationRow {
     replay: row['replay'] === true,
   };
 }
+
+/** The claim as the review queue reads it. The sealed fields stay sealed. */
+function toClaim(row: Row): ClaimRow {
+  return {
+    claimId: text(row, 'claim_id'),
+    policyId: text(row, 'policy_id'),
+    seriesId: text(row, 'series_id'),
+    nullifier: text(row, 'nullifier'),
+    groupKey: text(row, 'group_key'),
+    status: text(row, 'status') as ClaimStatus,
+    employerNameEnc: bytes(row, 'employer_name_enc'),
+    claimantNameEnc: bytes(row, 'claimant_name_enc'),
+    jobTitle: maybeText(row, 'job_title'),
+    separationDate: calendarDate(row, 'separation_date'),
+    separationType: text(row, 'separation_type'),
+    attestationMethod: maybeText(row, 'attestation_method') as ClaimRow['attestationMethod'],
+    attestationVerified: row['attestation_verified'] === true,
+    statementAccepted: row['statement_accepted'] === true,
+    verifiedAt: maybeInstant(row, 'verified_at'),
+    packetHash: maybeText(row, 'packet_hash'),
+    packetManifest: (row['packet_manifest'] as Record<string, unknown> | null) ?? null,
+    decision: maybeText(row, 'decision') as ClaimRow['decision'],
+    reasons: Array.isArray(row['reasons']) ? (row['reasons'] as string[]) : [],
+    confidence: maybeText(row, 'confidence'),
+    reviewer: maybeText(row, 'reviewer'),
+    decidedBy: maybeText(row, 'decided_by'),
+    decisionHash: maybeText(row, 'decision_hash'),
+    decisionRecord: (row['decision_record'] as Record<string, unknown> | null) ?? null,
+    amount: maybeText(row, 'amount'),
+    qualifyingMonth: row['qualifying_month'] === null ? null : Number(row['qualifying_month']),
+    claimDeadline: maybeInstant(row, 'claim_deadline'),
+    hcsSubmittedSeq: row['hcs_submitted_seq'] === null ? null : Number(row['hcs_submitted_seq']),
+    hcsDecisionSeq: row['hcs_decision_seq'] === null ? null : Number(row['hcs_decision_seq']),
+    submittedAt: maybeInstant(row, 'submitted_at'),
+    decidedAt: maybeInstant(row, 'decided_at'),
+  };
+}
+
+function toEvidence(row: Row): ClaimEvidenceRow {
+  return {
+    evidenceId: text(row, 'evidence_id'),
+    claimId: text(row, 'claim_id'),
+    kind: text(row, 'kind'),
+    filename: text(row, 'filename'),
+    contentType: text(row, 'content_type'),
+    sizeBytes: Number(row['size_bytes']),
+    sha256: text(row, 'sha256'),
+    objectKey: text(row, 'object_key'),
+    encIv: bytes(row, 'enc_iv') ?? Buffer.alloc(0),
+    encTag: bytes(row, 'enc_tag') ?? Buffer.alloc(0),
+    encDek: bytes(row, 'enc_dek') ?? Buffer.alloc(0),
+    encKekId: text(row, 'enc_kek_id'),
+    uploadedAt: instant(row, 'uploaded_at'),
+  };
+}
+
+/** A `bytea` column, which `pg` already hands back as a Buffer. */
+function bytes(row: Row, name: string): Buffer | null {
+  const value = row[name];
+  return Buffer.isBuffer(value) ? value : null;
+}
+
+/**
+ * The policy status a decided claim leaves behind.
+ *
+ * A claim that says approved beside a policy that still says claims_open is a
+ * state nobody downstream can act on, so the two move together. `paid` is not
+ * here: the payout is T13's write, after the authorisation is signed.
+ */
+const POLICY_STATUS_FOR: Record<string, string> = {
+  approved: 'approved',
+  declined: 'declined',
+  under_review: 'under_review',
+};

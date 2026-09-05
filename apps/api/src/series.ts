@@ -42,6 +42,12 @@ export function seriesRowFrom(
     claimWindowObsDays: days(state.claimWindowObsSeconds),
     claimWindowSepDays: days(state.claimWindowSepSeconds),
     lookbackMonths: state.lookbackMonths,
+    // The auto-approval gate is not on chain and is not derived from the
+    // terms: how much of the adjudication we automate is ours to set, per
+    // series. The row keeps whatever an operator set, so these are the values a
+    // first insert takes and never what a later sync writes back.
+    autoApprovalLimit: config.autoApproval.limit,
+    autoApprovalConfidence: config.autoApproval.confidence,
     coverPool: config.coverPoolAddress,
     collateralVault: config.vaultAddress,
     maturesAt: new Date(series.maturityAt * 1000).toISOString(),

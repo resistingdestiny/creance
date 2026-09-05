@@ -1646,3 +1646,62 @@ for the acceptance transcript needs an explicit `--as-of` vantage into a month
 where the same published series was rising (July 2024, 0.27, 0.40, 0.60), which
 is why the option exists and why the run labels it as a replay rather than
 silently picking a favourable month.
+
+## T25, the Adjuster, 5 September 2026
+
+### The claims topic accepted its first message on the first attempt
+
+`pnpm --filter @creance/adjuster testnet:publish` wrote sequence 1 to topic
+0.0.10366473 with the adjuster account 0.0.10366452's key, derived from the
+operator key with the label `creance/testnet/adjuster` and never stored. No
+discrepancy: the submit key recorded in docs/HEDERA.md is the key that opens the
+topic, the receipt carried the sequence number, and the mirror node returned the
+message five seconds later. The version 1 `claim_decision` message comes to 258
+bytes, comfortably inside the roughly 1 KB an HCS message carries.
+
+### `output_config.effort` accepts five levels, not the three the docs list
+
+The Claude structured outputs and models documentation describes `effort` as low,
+medium and high, with high as the default. `@anthropic-ai/sdk` 0.124.0's
+`OutputConfig` type declares `'low' | 'medium' | 'high' | 'xhigh' | 'max' | null`.
+Nothing breaks: medium is what this build sends and it is in both lists. It is
+recorded because a reader comparing the SDK's types against the prose page will
+find two answers, and the SDK is the one the compiler enforces.
+
+`effort` also sits inside `output_config`, beside `format`, rather than at the
+top level of the request. That is easy to get wrong from memory and the type
+catches it, which is the argument for `messages.parse` with `zodOutputFormat`
+over a hand-built request body.
+
+### `zodOutputFormat` renders a nullable string in a form the API accepts
+
+The structured outputs schema subset forbids a good deal, so the open question
+before writing the extraction schema was whether `z.string().nullable()` survives
+the round trip. It does: every one of the schema's twelve nullable fields is
+declared that way and the live extraction against the committed packet A letter
+returned a record that parsed. No empty-string sentinel is needed and none is
+used.
+
+The subset does not support `minimum` or `maximum`, which the documentation says
+plainly, so every confidence the model returns is clamped in code at the
+boundary rather than assumed to be in range. That is one function and it is worth
+having: a schema that cannot express a range is a schema whose ranges have to be
+enforced somewhere else.
+
+### A PDF with no `/Type` on the trailer is still read as a PDF
+
+The fixture documents are rendered by a hand-written eighty line PDF writer
+rather than a library, which produces a minimal PDF 1.4: a catalog, a pages node,
+one page, a flate-compressed content stream and two Type1 font objects. It reads
+correctly in `pdftotext` and the model read every field off it. The only thing
+worth recording is that the magic-byte check the Adjuster does before sending a
+file is on `%PDF-` and nothing more, because a stricter structural check would
+reject documents that ordinary tools accept.
+
+### The mirror node has no read-back gap worth waiting out on a topic message
+
+The message published at consensus timestamp 1788617265.386050104 was returned by
+`GET /topics/0.0.10366473/messages` about five seconds later. Earlier tickets have
+recorded longer waits for contract state; a topic submit's receipt already carries
+the sequence number, so nothing in this flow has to poll the mirror node at all,
+and the read-back here was a check rather than a dependency.

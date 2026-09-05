@@ -2,7 +2,7 @@ import { Contract, JsonRpcProvider, Wallet, type InterfaceAbi } from 'ethers';
 
 import { AppError } from '../errors.js';
 import { fromBytes32 } from '../ids.js';
-import { COVER_POOL_ABI, SERIES_STATUS, VAULT_PRINCIPAL_ABI } from './abi.js';
+import { COVER_POOL_ABI, periodFromMonthIndex, SERIES_STATUS, VAULT_PRINCIPAL_ABI } from './abi.js';
 
 /// The chain half of the policy endpoints, behind one interface.
 ///
@@ -29,6 +29,17 @@ export interface SeriesChainState {
   activeExposure: bigint;
   principalRemaining: bigint;
   freeCapacity: bigint;
+  /** YYYYMM, or 0 when the series has never opened or never been observed. */
+  firstOpenMonth: number;
+  lastOpenMonth: number;
+  lastObservedMonth: number;
+}
+
+/** What the window rules read, all of it off the chain rather than re-derived. */
+export interface LossWindow {
+  /** Every month this series has ever opened, YYYYMM, oldest first. */
+  openMonths: number[];
+  lastObservedMonth: number;
 }
 
 export interface BindCall {
@@ -53,6 +64,21 @@ export interface ChainGateway {
   activePolicyOf(seriesKey: string, nullifierHash: string): Promise<string>;
   bind(call: BindCall): Promise<ChainWrite>;
   recordPremium(policyId: string, period: number): Promise<ChainWrite>;
+  /**
+   * The open months and the newest observed one, from the contract.
+   *
+   * The adjudication's loss window is read here rather than recomputed from the
+   * observations table, because CoverPool is what `payClaim` checks against:
+   * two implementations of "the separation month or one of the lookback months
+   * is open" is how the review screen and the chain end up disagreeing while a
+   * judge is watching.
+   */
+  lossWindow(seriesKey: string): Promise<LossWindow>;
+  /**
+   * `claimDeadline(seriesId, separationAt)`, as seconds since the epoch, or 0
+   * when no month qualifies yet. Stored on the claim and never recomputed.
+   */
+  claimDeadline(seriesKey: string, separationAt: number): Promise<number>;
 }
 
 /// Measured on testnet, from docs/HEDERA.md "Measured gas". `eth_estimateGas`
@@ -114,6 +140,26 @@ export class EthersChainGateway implements ChainGateway {
 
   async activePolicyOf(seriesKey: string, nullifierHash: string): Promise<string> {
     return (await this.pool().getFunction('activePolicyOf')(seriesKey, nullifierHash)) as string;
+  }
+
+  async lossWindow(seriesKey: string): Promise<LossWindow> {
+    const pool = this.pool();
+    const [months, terms] = await Promise.all([
+      pool.getFunction('openMonths')(seriesKey) as Promise<bigint[]>,
+      pool.getFunction('seriesOf')(seriesKey) as Promise<Record<string, bigint | string>>,
+    ]);
+    return {
+      openMonths: months.map((month) => Number(month)).sort((a, b) => a - b),
+      lastObservedMonth: periodFromMonthIndex(Number(terms['lastObservedMonth'])),
+    };
+  }
+
+  async claimDeadline(seriesKey: string, separationAt: number): Promise<number> {
+    const value = (await this.pool().getFunction('claimDeadline')(
+      seriesKey,
+      separationAt,
+    )) as bigint;
+    return Number(value);
   }
 
   async bind(call: BindCall): Promise<ChainWrite> {
@@ -179,6 +225,9 @@ export function toSeriesState(
     activeExposure: BigInt(String(terms['activeExposure'])),
     principalRemaining,
     freeCapacity,
+    firstOpenMonth: periodFromMonthIndex(Number(terms['firstOpenMonth'])),
+    lastOpenMonth: periodFromMonthIndex(Number(terms['lastOpenMonth'])),
+    lastObservedMonth: periodFromMonthIndex(Number(terms['lastObservedMonth'])),
   };
 }
 

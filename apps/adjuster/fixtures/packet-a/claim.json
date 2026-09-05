@@ -1,0 +1,69 @@
+{
+  "claim_id": "clm_01K4YBA1Q7F0M3X8T5W2D6C9E4",
+  "policy_id": "pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E",
+  "series_id": "ODI-COMP-2026-01",
+  "status": "submitted",
+  "submitted_at": "2026-09-05T11:58:00Z",
+  "packet_hash": "sha256:9c1185a5c5e9fc54612808977ee8f548b2258d31f1a1f9a9b2c3d4e5f60718293",
+  "nullifier": "3081275446187639501253217441932165718922617414365417213174811230",
+  "attestation": {
+    "full_name": "Alex Mercer",
+    "employer_name": "Northgate Systems Ltd",
+    "job_title": "Software Engineer",
+    "group": "computer_math",
+    "last_day_of_work": "2026-03-13",
+    "separation_type": "redundancy",
+    "statement_accepted": true,
+    "method": "eip191",
+    "signature_verified": true
+  },
+  "world": {
+    "presence": true,
+    "verified_at": "2026-09-05T11:56:00Z",
+    "action": "occupation-cover-claim"
+  },
+  "evidence": [
+    {
+      "evidence_id": "evd_01K4YBA1Q7F0M3X8T5W2D6C9E5",
+      "kind": "termination_letter",
+      "filename": "letter.pdf",
+      "content_type": "application/pdf",
+      "size": 1499,
+      "sha256": "sha256:c92a84402195993a9472418ce9ed0ddb11435f6688e4acfaabe13d07422588f5",
+      "sha256_seen_in_other_claims": false,
+      "href": "/v1/admin/claims/clm_01K4YBA1Q7F0M3X8T5W2D6C9E4/evidence/evd_01K4YBA1Q7F0M3X8T5W2D6C9E5"
+    }
+  ],
+  "policy": {
+    "policy_id": "pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E",
+    "series_id": "ODI-COMP-2026-01",
+    "group": "computer_math",
+    "limit": "5000000000",
+    "asset": "0.0.10366463",
+    "asset_decimals": 6,
+    "starts_at": "2025-11-01T00:00:00Z",
+    "ends_at": "2026-11-01T00:00:00Z",
+    "claims_payable_from": "2025-12-31",
+    "status": "claims_open",
+    "nullifier": "3081275446187639501253217441932165718922617414365417213174811230"
+  },
+  "series": {
+    "series_id": "ODI-COMP-2026-01",
+    "payout_mode": "full",
+    "lookback_months": 2,
+    "waiting_period_days": 60,
+    "claim_window_obs_days": 30,
+    "claim_window_sep_days": 60,
+    "auto_approval_limit": "5000000000",
+    "auto_approval_confidence": 0.9
+  },
+  "window": {
+    "open_months": ["2026-04", "2026-05"],
+    "last_observed_month": "2026-07",
+    "qualifying_month": "2026-04",
+    "claim_deadline": "2026-10-05T00:00:00Z"
+  },
+  "prior_claims": 0,
+  "decision": null,
+  "decision_record": null
+}

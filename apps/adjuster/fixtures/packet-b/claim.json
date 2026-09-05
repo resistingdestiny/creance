@@ -1,0 +1,69 @@
+{
+  "claim_id": "clm_01K4YBB6TR20N5Y1Q8Z3F7D2A6",
+  "policy_id": "pol_01K4YB9Z8P4H2S6W0X5MJ3B7T1",
+  "series_id": "ODI-COMP-2026-01",
+  "status": "submitted",
+  "submitted_at": "2026-09-05T12:04:00Z",
+  "packet_hash": "sha256:5f0f0b7e2a1c8d4e6f9a3b2c1d0e5f6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3c4",
+  "nullifier": "1774320958812446307771120945338817744027741153388270941108833265",
+  "attestation": {
+    "full_name": "Robin Vale",
+    "employer_name": "Calder & Finch LLP",
+    "job_title": "Data Analyst",
+    "group": "computer_math",
+    "last_day_of_work": "2026-03-06",
+    "separation_type": "resignation",
+    "statement_accepted": true,
+    "method": "eip191",
+    "signature_verified": true
+  },
+  "world": {
+    "presence": true,
+    "verified_at": "2026-09-05T12:02:00Z",
+    "action": "occupation-cover-claim"
+  },
+  "evidence": [
+    {
+      "evidence_id": "evd_01K4YBB6TR20N5Y1Q8Z3F7D2A7",
+      "kind": "other",
+      "filename": "letter.pdf",
+      "content_type": "application/pdf",
+      "size": 1247,
+      "sha256": "sha256:ad1ef4663c8a1df95b6c230537b77ffb3c6d7534f4570731d76494961ff289fe",
+      "sha256_seen_in_other_claims": false,
+      "href": "/v1/admin/claims/clm_01K4YBB6TR20N5Y1Q8Z3F7D2A6/evidence/evd_01K4YBB6TR20N5Y1Q8Z3F7D2A7"
+    }
+  ],
+  "policy": {
+    "policy_id": "pol_01K4YB9Z8P4H2S6W0X5MJ3B7T1",
+    "series_id": "ODI-COMP-2026-01",
+    "group": "computer_math",
+    "limit": "5000000000",
+    "asset": "0.0.10366463",
+    "asset_decimals": 6,
+    "starts_at": "2025-11-01T00:00:00Z",
+    "ends_at": "2026-11-01T00:00:00Z",
+    "claims_payable_from": "2025-12-31",
+    "status": "claims_open",
+    "nullifier": "1774320958812446307771120945338817744027741153388270941108833265"
+  },
+  "series": {
+    "series_id": "ODI-COMP-2026-01",
+    "payout_mode": "full",
+    "lookback_months": 2,
+    "waiting_period_days": 60,
+    "claim_window_obs_days": 30,
+    "claim_window_sep_days": 60,
+    "auto_approval_limit": "5000000000",
+    "auto_approval_confidence": 0.9
+  },
+  "window": {
+    "open_months": ["2026-04", "2026-05"],
+    "last_observed_month": "2026-07",
+    "qualifying_month": "2026-04",
+    "claim_deadline": "2026-10-05T00:00:00Z"
+  },
+  "prior_claims": 0,
+  "decision": null,
+  "decision_record": null
+}

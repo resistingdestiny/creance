@@ -45,6 +45,60 @@ where a unix socket and peer authentication are enough.
 
 `pnpm api:migrate` applies the migrations under `apps/api/migrations` and seeds the fifteen occupation groups. It is idempotent: running it again prints `nothing to do`. The API also runs it at boot, so a first `pnpm dev` after `createdb` is enough.
 
+## Fifteen minutes from a clean clone
+
+The three flows, in the order to run them, with what each one should print. The
+timings are a measured run on 5 September 2026 from a fresh clone of this
+repository: node 22.23.1, pnpm 11.25.0, PostgreSQL on localhost, the operator
+key and `DATABASE_URL` filled in and nothing else.
+
+| Step | Command | Time |
+| --- | --- | --- |
+| Install | `pnpm install` | 8 seconds against a warm pnpm store, a few minutes on a cold one |
+| Database | `createdb creance` then `pnpm api:migrate` | 3 seconds, prints `applied 001_init, 002_adjuster, 003_claims` |
+| Unit tests, optional | `pnpm test` | 83 seconds |
+| Boot | `pnpm dev` | the API answers `GET /health` after 13 seconds, the web app is ready in 2 |
+| Worker flow | a browser at http://localhost:3000 | 96 seconds to a bound policy |
+| Steward flow | `pnpm steward:run --as-of 2025-05 --cadence demo` | 43 seconds to a bound policy and three premium schedules |
+| Oracle replay | `pnpm oracle:preflight` then `pnpm oracle:replay --dry-run --interval-ms 250` | 6 seconds, then 10 |
+
+Under four minutes of commands. The two things that stretch it are a cold pnpm
+store and the demo clock at its real cadence, which is ten seconds a month by
+design and is what the video shows.
+
+**The worker flow.** Open http://localhost:3000, press "Get a quote", choose
+Computer and mathematical, which is the one occupation with a cover series
+behind it, set the slider and press Continue. The price on screen is a real
+quote from the API and every move of the slider is a paid call. The verify
+screen runs the World Selfie Check when the three `WORLD_` variables are filled
+in and otherwise runs the API's labelled interim issuer, which says on screen
+that it is not a World check; a judge needs no World Developer Portal account
+to finish the flow. Press Pay and the first premium settles over x402 from the
+demo worker's testnet account, the policy binds, the receipt NFT is minted and
+the receipt goes to the payments topic. Every settlement is printed in the
+terminal `pnpm dev` runs in, with its HashScan link.
+
+Binding writes to testnet and commits permanent exposure against the demo
+series, so bind at the smallest amount the slider offers when repeating the run.
+
+**The Steward flow.** `pnpm steward:run` needs `pnpm dev` running and pays every
+metered call from the agent's own account. On live data the rule usually decides
+hold, which is a complete cycle: it pays for the index, prints the three months
+it read and writes the decision to the agent journal. `--as-of 2025-05` puts the
+vantage on a month whose three month trend is rising, which is what makes the
+rule buy, and the run then quotes, binds over x402, creates the premium
+schedules and journals all of it. See [The Steward agent](#the-steward-agent).
+
+**The oracle replay.** `pnpm oracle:preflight` reads every precondition and
+sends nothing. The replay itself walks January 2025 to the newest month the
+archive carries, all of it computed from the committed BLS snapshot with no
+network and no key. `--dry-run` computes, gates, signs and encodes the whole
+window and sends nothing, which is the right thing to run against the shared
+testnet resources: the index topic already carries this window, and the first
+value published for a period settles it forever. Without `--dry-run` the command
+reads the topic back through the mirror node first and publishes only the months
+that are missing from it. See [Which replay windows run](#which-replay-windows-run).
+
 ## Commands
 
 Run all of these from the repository root.

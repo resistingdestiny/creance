@@ -249,6 +249,26 @@ describe('the x402 gate', () => {
       expect((required(response.headers).accepts[0] as PaymentRequirements).amount).toBe('50000');
     });
 
+    it('refuses a quote at the same price when the caller carries a credential', async () => {
+      const built = await harness();
+      const credential = await issueCredential(built);
+
+      const response = await built.app.inject({
+        method: 'POST',
+        url: '/v1/quote',
+        headers: { authorization: `Bearer ${credential}` },
+        payload: { group: 'computer_math', limit: '5000000000', wallet: POLICYHOLDER_1.accountId },
+      });
+
+      // A quote is a plain paid call, DESIGN.md 3.7. The gate is an onRequest
+      // hook over a route map of prices and it never reads `authorization`, so
+      // an eligibility credential buys nothing here. The OpenAPI document said
+      // otherwise until T19, and this is what holds the two together.
+      expect(response.statusCode).toBe(402);
+      expect((required(response.headers).accepts[0] as PaymentRequirements).amount).toBe('50000');
+      expect(response.json().price.amount).toBe('50000');
+    });
+
     it('leaves the free endpoints alone', async () => {
       const built = await harness();
       expect((await built.app.inject({ method: 'GET', url: '/healthz' })).statusCode).toBe(200);

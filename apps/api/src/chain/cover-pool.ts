@@ -2,6 +2,11 @@ import { Contract, JsonRpcProvider, Wallet, type InterfaceAbi } from 'ethers';
 
 import { AppError } from '../errors.js';
 import { fromBytes32 } from '../ids.js';
+import {
+  claimAuthorisationDomain,
+  CLAIM_AUTHORISATION_TYPES,
+  type ClaimAuthorisation,
+} from './authorisation.js';
 import { COVER_POOL_ABI, periodFromMonthIndex, SERIES_STATUS, VAULT_PRINCIPAL_ABI } from './abi.js';
 
 /// The chain half of the policy endpoints, behind one interface.
@@ -33,6 +38,12 @@ export interface SeriesChainState {
   firstOpenMonth: number;
   lastOpenMonth: number;
   lastObservedMonth: number;
+  /**
+   * When the current claim window closes, in seconds since the epoch, or 0 when
+   * no window is open. `closeWindow` refuses before it and the reserve stays
+   * with the exposed policies until it passes.
+   */
+  windowEndsAt: number;
 }
 
 /** What the window rules read, all of it off the chain rather than re-derived. */
@@ -51,6 +62,25 @@ export interface BindCall {
   premium: bigint;
   startAt: number;
   hcsReceiptSeq: number;
+}
+
+/** `CoverPool.ClaimParams`, in the order the struct declares its fields. */
+export interface ClaimCall {
+  policyId: string;
+  claimId: string;
+  separationAt: number;
+  packetHash: string;
+  decisionHash: string;
+  amount: bigint;
+  payee: string;
+  authDeadline: number;
+}
+
+/** The index key, as `isInLossWindow` answers it. Periods are YYYYMM. */
+export interface LossWindowAnswer {
+  inWindow: boolean;
+  /** The earliest open month that qualifies the separation, or 0 when none. */
+  qualifyingPeriod: number;
 }
 
 export interface ChainWrite {
@@ -79,6 +109,36 @@ export interface ChainGateway {
    * when no month qualifies yet. Stored on the claim and never recomputed.
    */
   claimDeadline(seriesKey: string, separationAt: number): Promise<number>;
+  /**
+   * `isInLossWindow(seriesId, separationPeriod)`, which is the index key.
+   *
+   * Read from the contract rather than derived from `openMonths` in
+   * TypeScript, for the reason docs/CLAIMS.md gives about the whole window:
+   * `payClaim` checks its own answer, and two implementations of "the
+   * separation month or one of the lookback months is open" is how the claim
+   * screen and the chain end up disagreeing while somebody is watching.
+   */
+  isInLossWindow(seriesKey: string, separationPeriod: number): Promise<LossWindowAnswer>;
+  /**
+   * `expectedPayout(policyId, separationAt)`, in minor units.
+   *
+   * The amount is compared for equality inside `payClaim`, so it is asked for
+   * rather than computed: a claim that would pay less than the contract
+   * computes is a bug and not a discount to accept quietly.
+   */
+  expectedPayout(policyId: string, separationAt: number): Promise<bigint>;
+  /**
+   * The CLAIMS role's signature over one authorisation.
+   *
+   * The role grants no call rights at all. It is the set of addresses whose
+   * EIP-712 signature `payClaim` accepts, so this is the whole of what holding
+   * it means for this process.
+   */
+  signAuthorisation(authorisation: ClaimAuthorisation): Promise<string>;
+  /** Pay an approved claim. Permissionless: the signature is what makes it safe. */
+  payClaim(call: ClaimCall, authorisation: string): Promise<ChainWrite>;
+  /** Return the unclaimed reserve to the vault once the window is over. */
+  closeWindow(seriesKey: string): Promise<ChainWrite>;
 }
 
 /// Measured on testnet, from docs/HEDERA.md "Measured gas". `eth_estimateGas`
@@ -86,6 +146,9 @@ export interface ChainGateway {
 /// generous explicit limit is free and an estimate is a coin toss.
 export const BIND_GAS_LIMIT = 800_000n;
 export const RECORD_PREMIUM_GAS_LIMIT = 200_000n;
+/// `payClaim` measured 172,689 with the HTS transfer out through the vault.
+export const PAY_CLAIM_GAS_LIMIT = 1_500_000n;
+export const CLOSE_WINDOW_GAS_LIMIT = 1_500_000n;
 
 /** Index values cross the ABI as int64 percentage points scaled by 1e4. */
 export function fromScaled(value: bigint): number {
@@ -100,7 +163,7 @@ export class EthersChainGateway implements ChainGateway {
     private readonly coverPoolAddress: string,
     private readonly vaultAddress: string,
     rpcUrl: string,
-    chainId = 296,
+    private readonly chainId = 296,
     binderKey?: string,
   ) {
     this.provider = new JsonRpcProvider(rpcUrl, chainId, { staticNetwork: true });
@@ -185,6 +248,63 @@ export class EthersChainGateway implements ChainGateway {
     });
     return await settled(response);
   }
+
+  async isInLossWindow(seriesKey: string, separationPeriod: number): Promise<LossWindowAnswer> {
+    const [inWindow, qualifyingPeriod] = (await this.pool().getFunction('isInLossWindow')(
+      seriesKey,
+      separationPeriod,
+    )) as [boolean, bigint];
+    return { inWindow, qualifyingPeriod: Number(qualifyingPeriod) };
+  }
+
+  async expectedPayout(policyId: string, separationAt: number): Promise<bigint> {
+    return (await this.pool().getFunction('expectedPayout')(policyId, separationAt)) as bigint;
+  }
+
+  async signAuthorisation(authorisation: ClaimAuthorisation): Promise<string> {
+    const signer = this.signer;
+    if (signer === null) {
+      throw new AppError(
+        503,
+        'claims_key_missing',
+        'Paying is not configured',
+        'This API has no key for the account that holds CLAIMS_ROLE, so it cannot authorise a payout.',
+      );
+    }
+    return await signer.signTypedData(
+      claimAuthorisationDomain(this.chainId, this.coverPoolAddress),
+      CLAIM_AUTHORISATION_TYPES as unknown as Record<string, { name: string; type: string }[]>,
+      authorisation,
+    );
+  }
+
+  async payClaim(call: ClaimCall, authorisation: string): Promise<ChainWrite> {
+    // Signed rather than sent from anywhere: `payClaim` is permissionless, and
+    // this account is simply the one this process has a key for. A retry after
+    // an environmental failure can come from any account at all.
+    const response = await this.pool(true).getFunction('payClaim')(
+      [
+        call.policyId,
+        call.claimId,
+        call.separationAt,
+        call.packetHash,
+        call.decisionHash,
+        call.amount,
+        call.payee,
+        call.authDeadline,
+      ],
+      authorisation,
+      { gasLimit: PAY_CLAIM_GAS_LIMIT },
+    );
+    return await settled(response);
+  }
+
+  async closeWindow(seriesKey: string): Promise<ChainWrite> {
+    const response = await this.pool(true).getFunction('closeWindow')(seriesKey, {
+      gasLimit: CLOSE_WINDOW_GAS_LIMIT,
+    });
+    return await settled(response);
+  }
 }
 
 interface TransactionResponse {
@@ -228,6 +348,7 @@ export function toSeriesState(
     firstOpenMonth: periodFromMonthIndex(Number(terms['firstOpenMonth'])),
     lastOpenMonth: periodFromMonthIndex(Number(terms['lastOpenMonth'])),
     lastObservedMonth: periodFromMonthIndex(Number(terms['lastObservedMonth'])),
+    windowEndsAt: Number(terms['windowEndsAt']),
   };
 }
 
@@ -279,6 +400,108 @@ const REVERT_CODES: Record<string, { status: number; code: string; title: string
       code: 'bad_holder',
       title: 'Bad holder',
       detail: 'The holder address is empty.',
+    },
+    PolicyNotActive: {
+      status: 409,
+      code: 'policy_not_claimable',
+      title: 'Cover not claimable',
+      detail: 'That cover is not active, so nothing can be paid on it.',
+    },
+    PolicyAlreadyPaid: {
+      status: 409,
+      code: 'already_paid',
+      title: 'Already paid',
+      detail: 'A claim on that cover has already been paid.',
+    },
+    ClaimIdUsed: {
+      status: 409,
+      code: 'already_paid',
+      title: 'Already paid',
+      detail: 'That claim has already been paid.',
+    },
+    NullifierAlreadyClaimed: {
+      status: 409,
+      code: 'already_claimed',
+      title: 'Already claimed',
+      detail: 'This person has already claimed once in this series, and one claim is all there is.',
+    },
+    SeparationInWaitingPeriod: {
+      status: 409,
+      code: 'separation_in_waiting_period',
+      title: 'Too early',
+      detail: 'The last day of work falls inside the first 60 days of cover, which is not covered.',
+    },
+    SeparationAfterTerm: {
+      status: 409,
+      code: 'separation_after_term',
+      title: 'After the cover ended',
+      detail: 'The last day of work falls after this cover ended.',
+    },
+    SeparationOutsideLossWindow: {
+      status: 409,
+      code: 'outside_loss_window',
+      title: 'Claims not open for that month',
+      detail: 'The index did not open for the month of the separation or the two months after it.',
+    },
+    ClaimWindowClosed: {
+      status: 409,
+      code: 'claim_window_closed',
+      title: 'The claim window has closed',
+      detail: 'The time to file a claim for that separation has passed.',
+    },
+    AmountMismatch: {
+      status: 409,
+      code: 'amount_mismatch',
+      title: 'Amount mismatch',
+      detail: 'The authorised amount is not the amount the cover computes for this claim.',
+    },
+    ZeroPayout: {
+      status: 409,
+      code: 'zero_payout',
+      title: 'Nothing to pay',
+      detail: 'This claim computes a payout of zero.',
+    },
+    PayeeIsNotHolder: {
+      status: 409,
+      code: 'payee_is_not_holder',
+      title: 'Wrong wallet',
+      detail: 'A payout goes to the wallet that holds the cover and to no other.',
+    },
+    AuthorisationExpired: {
+      status: 409,
+      code: 'authorisation_expired',
+      title: 'Authorisation expired',
+      detail: 'The authorisation for this payout has expired. A fresh one can be signed.',
+    },
+    BadSignature: {
+      status: 502,
+      code: 'authorisation_rejected',
+      title: 'Authorisation rejected',
+      detail: 'The cover pool could not read the authorisation for this payout.',
+    },
+    SignerLacksClaimsRole: {
+      status: 502,
+      code: 'authorisation_rejected',
+      title: 'Authorisation rejected',
+      detail: 'The account that signed this payout does not hold the claims role.',
+    },
+    IndexedModeNeedsShockOpening: {
+      status: 409,
+      code: 'payout_mode_not_supported',
+      title: 'Amount not computable',
+      detail: 'This series pays on the index and the qualifying month opened on the level form.',
+    },
+    WindowNotOver: {
+      status: 409,
+      code: 'window_not_over',
+      title: 'The window is still open',
+      detail: 'The claim window has not ended yet, so the reserve stays where it is.',
+    },
+    NoOpenWindow: {
+      status: 409,
+      code: 'no_open_window',
+      title: 'No window to close',
+      detail: 'That series has no claim window open.',
     },
   };
 

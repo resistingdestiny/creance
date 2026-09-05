@@ -1,4 +1,8 @@
-import { claimDecisionMessage, encodeTopicMessage } from '@creance/api/src/audit/messages.js';
+import {
+  claimDecisionMessage,
+  claimPacketMessage,
+  encodeTopicMessage,
+} from '@creance/api/src/audit/messages.js';
 
 import { toRuleInput } from './adapt.js';
 import { AdjusterApi, ApiError, type AdminClaim } from './api.js';
@@ -9,13 +13,21 @@ import type { ExtractionResult } from './extraction.js';
 
 /// One pass over the pending claims.
 ///
-///     1  list the claims waiting
-///     2  for each, in submission order, fetch the whole packet
-///     3  run the cheap rules; if one of them declines, skip extraction
-///     4  otherwise read each document, one model call per file
-///     5  run the full rule set, score the confidence, build the record
-///     6  publish the record's hash to the claims topic with the adjuster key
-///     7  post the decision, the record and the sequence number to the API
+///     1  publish the packet hash of every packet that has not reached the topic
+///     2  list the claims waiting
+///     3  for each, in submission order, fetch the whole packet
+///     4  run the cheap rules; if one of them declines, skip extraction
+///     5  otherwise read each document, one model call per file
+///     6  run the full rule set, score the confidence, build the record
+///     7  publish the record's hash to the claims topic with the adjuster key
+///     8  post the decision, the record and the sequence number to the API
+///
+/// Step 1 is first and not last. `POST /v1/claims` writes the packet hash into
+/// the claim row and cannot publish it, because this account holds the topic's
+/// submit key and the API does not. Publishing it before anything is decided
+/// keeps the ordering the whole trail depends on: a packet hash on the topic,
+/// then the decision hash that answers it, then the payout that references
+/// both.
 ///
 /// Four properties this shape buys, and each is a rule rather than a taste.
 ///
@@ -65,6 +77,8 @@ export async function runPass(options: PassOptions): Promise<PassResult[]> {
   const now = options.now ?? (() => new Date());
   const results: PassResult[] = [];
 
+  results.push(...(await publishPackets(options, now(), log)));
+
   const waiting = await options.api.queue('submitted', options.limit ?? 20);
   log(`${waiting.length} claim${waiting.length === 1 ? '' : 's'} waiting`);
 
@@ -79,6 +93,50 @@ export async function runPass(options: PassOptions): Promise<PassResult[]> {
   }
 
   results.push(...(await publishPending(options, now(), log)));
+  return results;
+}
+
+/**
+ * The packets that have not reached the topic, put on it.
+ *
+ * DESIGN.md 3.9: "Only the SHA-256 of each file goes to the claims topic." The
+ * message is the fixed version 1 `claim_packet` shape, so it carries the packet
+ * hash, one hash per file and two ids, and never a file name, an employer or a
+ * date.
+ */
+export async function publishPackets(
+  options: PassOptions,
+  at: Date,
+  log: (line: string) => void = () => undefined,
+): Promise<PassResult[]> {
+  const pending = await options.api.unpublishedPackets(options.limit ?? 20);
+  const results: PassResult[] = [];
+  for (const packet of pending) {
+    const receipt = await options.publisher.publish(
+      encodeTopicMessage(
+        claimPacketMessage({
+          policyId: packet.policy_id,
+          claimId: packet.claim_id,
+          packetHash: packet.packet_hash,
+          evidence: packet.evidence,
+          at,
+        }),
+      ),
+    );
+    if (receipt === null) continue;
+    await options.api.publishedPacket(packet.claim_id, receipt.sequenceNumber);
+    log(`  published the packet hash of ${packet.claim_id} as sequence ${receipt.sequenceNumber}`);
+    results.push({
+      claimId: packet.claim_id,
+      decision: 'skipped',
+      reasons: [],
+      confidence: null,
+      decisionHash: null,
+      hcsSequenceNumber: receipt.sequenceNumber,
+      documentsRead: 0,
+      note: 'a packet hash that was waiting for the topic',
+    });
+  }
   return results;
 }
 

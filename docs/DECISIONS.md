@@ -2638,6 +2638,218 @@ workspace whose job is adjudication. A one page text-only PDF is what the model
 reads best: it converts each page to an image and extracts the text alongside it,
 so a text page gives it both layers.
 
+## T13, the two-key claim flow, 5 September 2026
+
+### The API enforces the identity leg and the Adjuster enforces everything else
+
+docs/CLAIMS.md draws the line and this ticket follows it exactly. Rules R01 to
+R06 are the identity and eligibility leg and `POST /v1/claims` refuses on them:
+a live person check was completed, the claim and the cover name the same person,
+the check was made for the claim action, the claim is waiting, the cover is open
+for claims, and no earlier claim exists. Everything from R07 down is
+adjudication and the endpoint accepts it.
+
+That is why a resignation is accepted by the endpoint and declined by the
+Adjuster a second later. A validation error is a form telling somebody their
+input is wrong; a decline is a decision with a reason they can act on, a record,
+a hash on a public topic and a resubmission path. The second is what a claimant
+is owed, and refusing at the door would replace it with the first.
+
+The three exceptions are refused at the door because they are not adjudication:
+an occupation that is not the cover's, a packet with no document at all, and a
+file whose bytes are not something the model can read. Each of those is a person
+who can fix it in ten seconds on the screen they are still looking at.
+
+### The claim's Selfie Check earns a credential in its own audience
+
+`POST /v1/world/verify` and `POST /v1/world/rp-context` both grew a `purpose`.
+At purchase the signal is the wallet and no liveness check is asked for; at
+claim the signal is the policy id, `require_user_presence` is set, and what is
+earned is a claim credential rather than an eligibility credential. One pair of
+endpoints rather than four, because the difference is three values and the
+checks are the same checks, and two handlers would be two places for the signal
+comparison to be forgotten in.
+
+The credential carries `urn:creance:claim` as its audience, which `credentials.ts`
+had already named and nothing had used. A bind credential presented at a claim
+fails the audience check and a claim credential cannot buy cover.
+
+### The claim nullifier is its own column, because this deployment runs two actions
+
+T11 left this to be decided by configuration: with one registered action the
+claim's check returns the policy's own nullifier and there is nothing to store;
+with two it returns a different number for the same person. `GET /healthz`
+reports `world.continuity`, and it is false here, so migration 003 adds
+`claims.claim_nullifier` and a partial unique index on
+`(claim_nullifier, series_id)`.
+
+What that costs is stated rather than hidden. With two actions the continuity
+claim weakens from "the same live person bought the cover and collects it" to
+"both were live people, the claimant controls the wallet that holds the cover,
+and one person claims once". The wallet leg is real: the attestation is signed
+by the policy's own EVM address and the API recovers it. The README and
+docs/FEEDBACK-WORLD.md say exactly this. Setting `WORLD_ACTION_ELIGIBILITY` and
+`WORLD_ACTION_CLAIM` to one registered action restores the stronger sentence
+with no code change, and `claim_nullifier` then stays null.
+
+### "Claims aren't open" is read from the chain at every claim
+
+On chain only the series changes status when a month opens; the policies stay
+Active until one is paid. So `policies.status` and `series.status` are a cache,
+and the question "are claims open for this cover" is asked of
+`CoverPool.seriesOf(...).status` at `POST /v1/claims` and at
+`GET /v1/policy/:id`, with the same read refreshing the cached row. A second
+source of truth for that fact is how the claim screen and the contract end up
+disagreeing while somebody is watching.
+
+The refusal copy is verbatim from docs/DESIGN-TOKENS-ADDENDUM.md with the real
+reading filled in, and which figure it quotes follows the before kick-off
+decision "The headline index figure is whichever form is nearer its line". The
+demo series trades on the level form, so the sentence is said as a distance from
+average rather than as a signed number, exactly as T15 said the chart's band
+label must be: "Your occupation is 1.20 better than average. Claims open within
+0.68 of average. We'll tell you here if that changes."
+
+### The packet hash reaches the topic through the Adjuster, not the API
+
+The acceptance says the evidence SHA-256 is written to the claims topic. That
+topic's submit key is the adjuster account's and T18 fixed that the API never
+writes it, so the API writes the packet hash into the claim row and the Adjuster
+publishes it. `GET /v1/admin/claims/unpublished` gained a `packets` list beside
+its `claims` list, `POST /v1/admin/claims/:id/published` takes
+`hcs_submitted_seq` as well as `hcs_decision_seq`, and the Adjuster's pass
+publishes the packets first and the decisions last.
+
+The alternative was to give the API the adjuster key, which is a role change and
+a second holder of a submit key, to save one list. Publishing first is also what
+keeps the ordering the whole trail depends on: a packet hash on the topic, then
+the decision hash that answers it, then a payout that references both.
+
+### The payout runs inside the approval, and never fails it
+
+DESIGN.md 3.9 says clean claims are "decided in minutes and paid in the same
+session", so the approve branch of `POST /v1/admin/claims/:id/decide` signs the
+authorisation and calls `payClaim` in the same request. The decision stands
+whatever the payout does. A payout can revert for reasons that have nothing to
+do with the claim being valid, the realistic one on Hedera being a wallet that
+has not associated the settlement token, so a failure is reported as
+`payout: {paid: false, reason}` beside a decision that is already recorded and
+already public.
+
+The authorisation is stored with its deadline before the call, which is what
+makes the failure recoverable: `payClaim` is permissionless and the signature is
+what makes it safe, so anybody can retry it with the same signature until the
+deadline. Posting the same approval again retries it, and the whole step is
+idempotent on `claims.paid_tx`.
+
+### The amount is asked of the contract and never computed twice
+
+`payClaim` compares the amount for equality. So the pay step calls
+`expectedPayout(policyId, separationAt)` and signs whatever it answers, and
+refuses to call `payClaim` at all when the Adjuster's decided amount disagrees
+with it. A claim that would pay less than the contract computes is a bug in the
+Adjuster and not a discount to accept quietly, and finding it in a dry run is
+better than finding it in a revert on the money path.
+
+### A policy is bound with a backdated start for the demonstration, and it is said out loud
+
+No policy this build had bound could ever be paid. `POST /v1/bind` sets
+`startAt` to the moment of binding, every policy on the demo series was bound on
+4 or 5 September 2026, so every waiting period ends in November, and the claim
+window closes on 5 October. `payClaim` reverts `SeparationInWaitingPeriod` for
+every separation the replayed April 2026 opening qualifies.
+
+`CoverPool.bind` does not validate `startAt`: the BINDER role is trusted to
+state when cover began, which is the right design for an issuer that sometimes
+records cover after the fact. So the demonstration binds one policy whose cover
+really did begin earlier, with `pnpm --filter @creance/api
+testnet:bind-backdated`, and says here and in docs/HEDERA.md that the start date
+is an artefact of a replayed history and not something a person's purchase can
+choose. The route a person uses is untouched.
+
+### The claim window job is a command, not a loop inside the API
+
+`closeWindow` is permissionless, not blocked by a pause, and happens once per
+window. A cron entry or a person running
+`pnpm --filter @creance/api claims:close-windows` is the right shape for that; a
+background timer inside a web process is a thing that fails silently. It reads
+`seriesOf(...).windowEndsAt` and refuses before it rather than sending a
+transaction that reverts `WindowNotOver`, so it prints when it will work.
+
+It is not in `GET /health` and not in any deploy file, because those are being
+edited in another lane. Wiring it into a schedule belongs with whoever owns the
+deployment.
+
+### `POST /v1/claims` is not in the Bazantic document
+
+Recommended by the ticket and taken. `recipes/bazantic/openapi.yaml` describes
+what an agent may buy over x402. A claim is a person's flow behind a camera
+check, it is not metered, and an agent cannot perform it: the credential it needs
+comes from a live person holding a phone. It stays out for the same reason the
+review queue does.
+
+### The canonical attestation message lives in packages/client
+
+A signature is worth exactly what the signed bytes say, so the bytes are written
+out once. They are in `@creance/client` and not in the API, because the web app,
+the testnet script and the demo seed all build them and none of them may import
+from `apps/api`. The API imports the builder from the client and owns the other
+half: whether the policy's own wallet produced the signature.
+
+The message is human readable rather than a hash, because the person is signing
+it in a wallet that will show it to them and a prompt reading `0x9f3c...` is a
+prompt nobody can refuse meaningfully.
+
+### `unsigned_accepted` is accepted and `hedera_sign_message` is refused
+
+The schema names three attestation methods. `eip191` is `personal_sign` and is
+recovered against the policy's EVM address. `unsigned_accepted` is the honest
+name for a recorded click-through with no signature behind it: it is stored as
+what it is, and rule R10 refers the claim rather than declining it, because
+weaker evidence is not a broken flow. `hedera_sign_message` is refused with a
+501 rather than stored unchecked, because nothing in this build produces one, the
+web app's wallet mode is the demo account, and an unverified signature stored as
+verified is worse than no signature at all.
+
+### Evidence arrives as base64 in the JSON body, capped at four files of 4 MB
+
+Multipart would mean `@fastify/multipart` and a second body parser in front of
+the one endpoint where a mistake hands a stranger's document to the wrong claim.
+Every other route in this API takes JSON, the scripts build their requests with
+`fetch` and no form library, and base64 costs a third more bytes for files that
+are a page of A4. The route raises its own body limit to 24 MB and the server's
+default of 64 KB is untouched everywhere else.
+
+The content type is sniffed from the bytes and never taken from the caller, and
+the evidence id is minted by the API rather than accepted, so a caller cannot
+choose where its ciphertext lands in the store.
+
+### The packet hash is the JCS hash of a manifest that names no employer
+
+`payClaim` takes the packet hash and the claims topic carries it, so it needs a
+preimage that can be shown to somebody who asks. The manifest is that preimage:
+the shape of the packet, the fingerprints of its files, what the identity check
+returned, and the employer, the name and the job title as
+`sha256(lower(trim(value)))` rather than as themselves. Canonicalised with JCS,
+the same convention the decision record and the index observation use, so there
+is one canonical form in this build and not three. The manifest stays in the
+`claims` row; only its hash is published.
+
+### The reason codes are free and the reason sentences are not
+
+`GET /v1/claims/:id` is free, like `GET /v1/policy/:id`, because a claim screen
+has to poll it and a claimant holds no admin token. A claim id is public: the
+claims topic carries it in every `claim_packet` and `claim_decision` message. So
+the response carries the status, the decision, the reason codes, the amount and
+the two hashes, and none of the employer, the name, the separation date, the
+file names or the nullifier.
+
+`reason_lines` are the exception and they are stored, in a new column, and served
+only from the admin payload. docs/CLAIMS.md says they "carry dates and sometimes
+an employer name", which is exactly what must not be reachable from a public id.
+The claim screen in T16 gets the codes from the free endpoint and the sentences
+with the decision.
+
 ## T21, the public deployment, 5 September 2026
 
 ### The public host is a fresh VPS behind Caddy, not Fly.io

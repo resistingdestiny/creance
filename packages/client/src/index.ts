@@ -8,6 +8,7 @@ export function describeWorkspace(): string {
 }
 
 export * from './audit.js';
+export * from './claim.js';
 export * from './hedera/keys.js';
 export * from './hedera/mirror.js';
 export * from './hedera/schedule.js';

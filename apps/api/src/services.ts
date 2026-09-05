@@ -18,6 +18,7 @@ import { SdkHederaGateway, type HederaGateway } from './chain/hedera.js';
 import { seriesRowFrom } from './series.js';
 import { loadX402Config } from './x402/config.js';
 import { X402Gate } from './x402/gate.js';
+import { TopicOutbox } from './x402/settlement.js';
 import {
   allObservationRows,
   frozenThresholds,
@@ -46,6 +47,14 @@ export interface Services {
   thresholds: Map<string, Thresholds>;
   /** The x402 gate, or null when this deployment serves the routes open. */
   x402: X402Gate | null;
+  /**
+   * The topic publisher with retries, shared.
+   *
+   * One retry policy in this API and not two: the settlement hook hands its
+   * message to this and so does the payout, which is the whole reason the
+   * outbox takes the writer as an argument rather than holding one.
+   */
+  outbox: TopicOutbox;
   /** The bearer tokens the review queue is behind. */
   adminTokens: AdminTokens;
   /** The key encryption keys, or null when this deployment stores no evidence. */
@@ -65,6 +74,7 @@ export interface BuildServicesOptions {
   indexData?: IndexData | null;
   thresholds?: Map<string, Thresholds>;
   x402?: X402Gate | null;
+  outbox?: TopicOutbox;
   adminTokens?: AdminTokens;
   evidenceKeys?: EvidenceKeys | null;
   evidenceStore?: ObjectStore;
@@ -118,6 +128,7 @@ export async function buildServices(options: BuildServicesOptions = {}): Promise
         ? null
         : loadIndexData();
 
+  const outbox = options.outbox ?? new TopicOutbox();
   const x402Config = loadX402Config(config);
   const x402 =
     options.x402 !== undefined
@@ -129,6 +140,7 @@ export async function buildServices(options: BuildServicesOptions = {}): Promise
             repository,
             hedera,
             paymentsTopicId: config.paymentsTopicId,
+            outbox,
           });
 
   return {
@@ -140,6 +152,7 @@ export async function buildServices(options: BuildServicesOptions = {}): Promise
     issuer,
     indexData,
     x402,
+    outbox,
     adminTokens: options.adminTokens ?? loadAdminTokens(),
     evidenceKeys: options.evidenceKeys !== undefined ? options.evidenceKeys : loadEvidenceKeys(),
     evidenceStore: options.evidenceStore ?? new FileObjectStore(),

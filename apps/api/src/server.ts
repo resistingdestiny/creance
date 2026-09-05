@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 
 import { adminClaimRoutes } from './claims/index.js';
+import { claimReadRoutes, claimRoutes } from './claims/submit.js';
 import { registerErrorHandling } from './errors.js';
 import { investorRoutes } from './investor/index.js';
 import { replayRoutes } from './replay/index.js';
@@ -40,11 +41,14 @@ export async function buildServer(
         'req.headers["payment-signature"]',
         'req.headers.cookie',
         'req.body.eligibility',
+        'req.body.claim_credential',
+        'req.body.evidence',
         'nullifier',
       ],
     },
     // A JSON API has no business accepting a megabyte, which is Fastify's
-    // default. The claim evidence route in T13 raises it for itself.
+    // default. POST /v1/claims raises it for itself, because a page of A4 in
+    // base64 is the one thing this API takes that is not a few fields.
     bodyLimit: 64 * 1024,
   });
 
@@ -63,6 +67,8 @@ export async function buildServer(
   await app.register(policyRoutes, { services });
   await app.register(auditRoutes, { services });
   await app.register(worldRoutes, { services });
+  await app.register(claimRoutes, { services });
+  await app.register(claimReadRoutes, { services });
   await app.register(adminClaimRoutes, { services });
 
   return Object.assign(app, { services }) as FastifyInstance & { services: Services };

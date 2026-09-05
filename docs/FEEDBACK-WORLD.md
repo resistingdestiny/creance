@@ -362,6 +362,59 @@ Also worth timing on the device: how long a cold funnel takes against the five
 minute `rp_context` default, and how long a fresh sandbox account takes from
 install to first proof, because that is the real cost of a demo retake.
 
+### The claim path runs against a labelled demo credential, because a camera cannot be automated
+
+Date: 5 September 2026. What was tried: the claim leg of the four part packet in
+our own design, which is a fresh Selfie Check with `require_user_presence` on the
+claim action with the policy id as the signal.
+
+The endpoint and the checks are real and shipped:
+`POST /v1/world/verify` with `purpose: claim` forwards the untouched IDKit result
+to World, requires HTTP 200 and `success`, compares the action, compares the
+environment, compares `signal_hash` against `hashSignal(policyId)`, requires the
+credential identifier to be one the configured preset can return, and requires
+`user_presence_completed === true` on the proof itself rather than trusting that
+the flag we asked for was honoured. It then compares the nullifier with the one
+stored at purchase and issues a claim credential.
+
+What could not be exercised is the proof. The staging simulator has no Selfie
+Check option, as recorded above, and `require_user_presence` needs a phone and a
+face. So the claim flow ships with a second, clearly labelled path,
+`POST /v1/demo/claim-presence`, behind the same flag as the interim eligibility
+issuer, which mints the same credential with `credential: demo-issuer` and
+`environment: demo` on it. A decision record can therefore never claim a camera
+ran when one did not, and the testnet proof of the payout path is honest about
+which leg was simulated.
+
+This is the fourth item in "What is left for the device run" above, and it is
+the one that matters most to us: everything else in the claim flow is checked
+code, and this is the only fact we are taking on trust.
+
+### Two registered actions cost the continuity sentence, and we say the weaker one
+
+Date: 5 September 2026.
+
+Our deployment runs `occupation-cover-eligibility` at purchase and
+`occupation-cover-claim` at claim, which is what our own brief asked for and
+what the Developer Portal has registered. A nullifier is scoped to the app and
+the action, so the two legs return two different numbers for one person and the
+claim's check cannot be compared with the purchase's.
+
+The consequence is written into the product rather than glossed. The claim's
+nullifier is stored in its own column and "one claim per person per series,
+ever" is enforced on it; `GET /healthz` reports `world.continuity` as false; and
+the sentence we are allowed to say weakens from "the same live person bought the
+cover and collects it" to "both were live people, the claimant controls the
+wallet that holds the cover, and one person claims once". The wallet leg is
+real: the claim's attestation is signed by the policy's own EVM address.
+
+Setting both variables to one registered action restores the stronger sentence
+with no code change, and the column then stays null. We would rather have been
+told this on the actions page than have worked it out from the concepts page:
+"one action per uniqueness constraint" is the design rule, and an app that
+verifies the same person twice for two purposes has to choose between two
+uniqueness constraints and one continuity claim.
+
 ## 4. What was confusing, missing, broken or hard to test
 
 ### The verify endpoint returns two different error envelopes and only one is documented

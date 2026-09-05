@@ -1,9 +1,13 @@
 import type { FastifyPluginAsync } from 'fastify';
 
+import { claimsOpenness } from '../claims/openness.js';
+import { findSeries } from '../config.js';
+import type { PolicyRow } from '../db/types.js';
 import { AppError } from '../errors.js';
 import { hasPrefix } from '../ids.js';
+import { seriesRowFrom } from '../series.js';
 import type { Services } from '../services.js';
-import { buildPolicyView } from '../views.js';
+import { buildPolicyView, type PolicyView } from '../views.js';
 
 /// GET /v1/policy/:id
 ///
@@ -32,6 +36,34 @@ export const policyRoutes: FastifyPluginAsync<{ services: Services }> = async (a
     if (policy === null) {
       throw new AppError(404, 'policy_not_found', 'Policy not found', 'No policy with that id.');
     }
-    return reply.send(buildPolicyView(policy, services.config.coverPoolAddress));
+    return reply.send(
+      buildPolicyView(policy, services.config.coverPoolAddress, await claims(services, policy)),
+    );
   });
 };
+
+async function claims(services: Services, policy: PolicyRow): Promise<PolicyView['claims']> {
+  const config = findSeries(services.config, policy.seriesId);
+  if (config === undefined) return undefined;
+  try {
+    const state = await services.chain.seriesState(config.seriesId);
+    const row = seriesRowFrom(config, state, services.config);
+    await services.repository.upsertSeries(row);
+    const observations = await services.repository.observations(policy.groupKey, 1);
+    const openness = claimsOpenness({
+      policy,
+      series: row,
+      state,
+      observation: observations[0] ?? null,
+    });
+    return {
+      open: openness.open,
+      code: openness.code,
+      title: openness.title,
+      reason_lines: openness.reason_lines,
+      reading: openness.reading,
+    };
+  } catch {
+    return undefined;
+  }
+}

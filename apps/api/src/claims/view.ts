@@ -51,6 +51,10 @@ export interface AdminClaimView {
   };
   prior_claims: number;
   decision: string | null;
+  reasons: string[];
+  /** The sentences the person will read. Here and in no free response. */
+  reason_lines: { code: string; line: string }[];
+  resubmit: { allowed: boolean; why: string } | null;
   decision_record: Record<string, unknown> | null;
 }
 
@@ -90,10 +94,14 @@ export function adminClaimView(input: AdminClaimInput): AdminClaimView {
       method: claim.attestationMethod,
       signature_verified: claim.attestationVerified,
     },
+    // What the proof carried, not what was asked for. Rules R01 and R03 read
+    // these, and requesting a liveness check and receiving one are two
+    // different facts. A claim written before 003 has neither, so the constant
+    // and the verified-at fallback stay behind them.
     world: {
-      presence: claim.verifiedAt !== null,
+      presence: claim.worldPresence || claim.verifiedAt !== null,
       verified_at: claim.verifiedAt,
-      action: input.claimAction ?? CLAIM_ACTION,
+      action: claim.worldAction ?? input.claimAction ?? CLAIM_ACTION,
     },
     evidence: input.evidence.map((file) => ({
       evidence_id: file.evidenceId,
@@ -140,6 +148,9 @@ export function adminClaimView(input: AdminClaimInput): AdminClaimView {
     },
     prior_claims: input.priorClaims,
     decision: claim.decision,
+    reasons: claim.reasons,
+    reason_lines: claim.reasonLines,
+    resubmit: claim.resubmit,
     decision_record: claim.decisionRecord,
   };
 }

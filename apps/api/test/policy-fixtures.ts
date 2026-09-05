@@ -1,3 +1,5 @@
+import { Wallet } from 'ethers';
+
 import { MirrorClient } from '@creance/client';
 
 import type { ApiConfig } from '../src/config.js';
@@ -5,19 +7,28 @@ import type {
   BindCall,
   ChainGateway,
   ChainWrite,
+  ClaimCall,
   LossWindow,
+  LossWindowAnswer,
   SeriesChainState,
 } from '../src/chain/cover-pool.js';
+import {
+  claimAuthorisationDomain,
+  CLAIM_AUTHORISATION_TYPES,
+  type ClaimAuthorisation,
+} from '../src/chain/authorisation.js';
 import type { HederaGateway, MintedPolicyNft, TopicReceipt } from '../src/chain/hedera.js';
 import {
   MemoryObjectStore,
   loadEvidenceKeys,
+  sealField,
   type EvidenceKeys,
 } from '../src/claims/evidence.js';
 import type { AdminTokens } from '../src/claims/token.js';
+import { TopicOutbox } from '../src/x402/settlement.js';
 import { CredentialIssuer } from '../src/credentials.js';
 import { MemoryRepository } from '../src/db/memory.js';
-import type { GroupRow, ObservationRow } from '../src/db/types.js';
+import type { ClaimRow, GroupRow, ObservationRow } from '../src/db/types.js';
 import { buildServer } from '../src/server.js';
 import type { Services } from '../src/services.js';
 
@@ -127,6 +138,7 @@ export const SERIES_STATE: SeriesChainState = {
   firstOpenMonth: 202604,
   lastOpenMonth: 202605,
   lastObservedMonth: 202607,
+  windowEndsAt: Math.floor(Date.parse('2026-10-05T09:04:51Z') / 1000),
 };
 
 export class FakeChain implements ChainGateway {
@@ -174,6 +186,61 @@ export class FakeChain implements ChainGateway {
       transactionHash: `0x${'cd'.repeat(32)}`,
       hashscan: `https://hashscan.io/testnet/transaction/0x${'cd'.repeat(32)}`,
       gasUsed: '66627',
+    };
+  }
+
+  /// The claim half. `payClaim` is recorded rather than sent, and the
+  /// authorisation is a real EIP-712 signature from a throwaway key, so a test
+  /// can recover the signer and check every field the contract checks.
+  readonly claims: { call: ClaimCall; authorisation: string }[] = [];
+  readonly authorised: ClaimAuthorisation[] = [];
+  readonly closed: string[] = [];
+  payClaimError: Error | null = null;
+  closeWindowError: Error | null = null;
+  /** What `expectedPayout` reports. The demo series pays the cover limit. */
+  payout = 1_000_000_000n;
+  /** What `isInLossWindow` reports for any month, so a test can move the key. */
+  window: LossWindowAnswer = { inWindow: true, qualifyingPeriod: 202604 };
+  readonly claimsSigner = new Wallet(`0x${'11'.repeat(32)}`);
+
+  async isInLossWindow(): Promise<LossWindowAnswer> {
+    return this.window;
+  }
+
+  async expectedPayout(): Promise<bigint> {
+    return this.payout;
+  }
+
+  async signAuthorisation(authorisation: ClaimAuthorisation): Promise<string> {
+    this.authorised.push(authorisation);
+    return await this.claimsSigner.signTypedData(
+      claimAuthorisationDomain(CONFIG.chainId, CONFIG.coverPoolAddress),
+      CLAIM_AUTHORISATION_TYPES as unknown as Record<string, { name: string; type: string }[]>,
+      authorisation,
+    );
+  }
+
+  async payClaim(call: ClaimCall, authorisation: string): Promise<ChainWrite> {
+    if (this.payClaimError !== null) throw this.payClaimError;
+    this.claims.push({ call, authorisation });
+    return {
+      transactionHash: `0x${'ef'.repeat(32)}`,
+      hashscan: `https://hashscan.io/testnet/transaction/0x${'ef'.repeat(32)}`,
+      gasUsed: '172689',
+    };
+  }
+
+  async closeWindow(seriesKey: string): Promise<ChainWrite> {
+    if (this.closeWindowError !== null) throw this.closeWindowError;
+    this.closed.push(seriesKey);
+    // The contract puts the series back where it was and clears the window, so
+    // the recording does too: a job that reads the state back afterwards has to
+    // see what the chain would have shown it.
+    this.set({ status: 'active', windowEndsAt: 0 });
+    return {
+      transactionHash: `0x${'ba'.repeat(32)}`,
+      hashscan: `https://hashscan.io/testnet/transaction/0x${'ba'.repeat(32)}`,
+      gasUsed: '96000',
     };
   }
 }
@@ -243,6 +310,61 @@ export function observation(overrides: Partial<ObservationRow> = {}): Observatio
     submitTx: null,
     replay: false,
     ...overrides,
+  };
+}
+
+/// The committed packet A, as a claim row.
+///
+/// One builder, so the review queue's tests and the submission's tests agree
+/// about what a submitted claim looks like and a new column is filled in once.
+
+export const CLAIM_ID = 'clm_01K4YBA1Q7F0M3X8T5W2D6C9E4';
+export const CLAIM_POLICY_ID = 'pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E';
+export const CLAIM_NULLIFIER = '308127544618763950125321744193216571892261741436541721317481123';
+
+export function claimRow(patch: Partial<ClaimRow> = {}): ClaimRow {
+  return {
+    claimId: CLAIM_ID,
+    policyId: CLAIM_POLICY_ID,
+    seriesId: 'ODI-COMP-2026-01',
+    nullifier: CLAIM_NULLIFIER,
+    claimNullifier: null,
+    groupKey: 'computer_math',
+    status: 'submitted',
+    employerNameEnc: sealField(TEST_EVIDENCE_KEYS, 'Northgate Systems Ltd'),
+    claimantNameEnc: sealField(TEST_EVIDENCE_KEYS, 'Alex Mercer'),
+    jobTitle: 'Software Engineer',
+    separationDate: '2026-03-13',
+    separationType: 'redundancy',
+    attestationMethod: 'eip191',
+    attestationVerified: true,
+    statementAccepted: true,
+    verifiedAt: '2026-09-05T11:56:00Z',
+    worldAction: 'occupation-cover-claim',
+    worldPresence: true,
+    packetHash: 'sha256:abc',
+    packetManifest: null,
+    decision: null,
+    reasons: [],
+    reasonLines: [],
+    resubmit: null,
+    confidence: null,
+    reviewer: null,
+    decidedBy: null,
+    decisionHash: null,
+    decisionRecord: null,
+    amount: null,
+    qualifyingMonth: 202604,
+    claimDeadline: '2026-10-05T00:00:00Z',
+    authorisation: null,
+    authorisationDeadline: null,
+    hcsSubmittedSeq: 11,
+    hcsDecisionSeq: null,
+    paidTx: null,
+    submittedAt: '2026-09-05T11:58:00Z',
+    decidedAt: null,
+    paidAt: null,
+    ...patch,
   };
 }
 
@@ -336,6 +458,7 @@ export async function buildTestServices(
     adminTokens?: AdminTokens;
     evidenceKeys?: EvidenceKeys | null;
     evidenceStore?: MemoryObjectStore;
+    outbox?: TopicOutbox;
   } = {},
 ): Promise<TestHarness> {
   const repository = new MemoryRepository(GROUPS);
@@ -357,6 +480,7 @@ export async function buildTestServices(
     indexData: null,
     // No gate: the paid path has its own file and its own testnet command.
     x402: null,
+    outbox: options.outbox ?? new TopicOutbox({ attempts: 1 }),
     adminTokens: options.adminTokens ?? ADMIN_TOKENS,
     evidenceKeys: options.evidenceKeys === undefined ? TEST_EVIDENCE_KEYS : options.evidenceKeys,
     evidenceStore: options.evidenceStore ?? new MemoryObjectStore(),

@@ -12,7 +12,7 @@
  * "parametric" or "nullifier" anywhere a worker can read them.
  */
 
-import { formatDay, formatPeriodShort } from './format';
+import { formatDay, formatDayWithYear, formatPeriodShort } from './format';
 import type { ClaimStatusView, ReplayView } from './claim-api';
 import type { PolicyView } from './worker-api';
 import type { StatusState } from '../components/status-pill';
@@ -239,6 +239,18 @@ export function claimScreenOf(claim: ClaimStatusView): ClaimScreen {
 /** A decision has arrived, so the screen stops polling. */
 export function claimIsDecided(claim: ClaimStatusView): boolean {
   return claim.status !== 'submitted';
+}
+
+/**
+ * A timestamp as a day, en-GB and in UTC.
+ *
+ * The claim endpoints answer in RFC 3339 and src/lib/format.ts takes calendar
+ * dates, deliberately: a date built from a local timezone is how a screen ends
+ * up a day out from the contract. The day is the part of a timestamp a claim
+ * screen ever shows, so it is taken off the front rather than parsed.
+ */
+export function claimDay(timestamp: string): string {
+  return formatDayWithYear(timestamp.slice(0, 10));
 }
 
 /** The short reference C8 shows. A claim id is public; its tail is enough to say. */

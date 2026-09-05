@@ -105,11 +105,10 @@ export function HomeScreen({
             )}
           </SurfaceGroup>
 
+          {/* The status pill already carries "Payment due", so the state adds
+              the one line that says by when, and the button says what to do. */}
           {view.lapsed === null ? null : (
-            <div className="flex flex-col gap-2">
-              <p className="text-body-lg font-medium text-ink">{view.lapsed.heading}</p>
-              <p className="text-body text-ink-2">{view.lapsed.line}</p>
-            </div>
+            <p className="text-body text-ink-2">{view.lapsed.line}</p>
           )}
 
           <OfflineNotice />

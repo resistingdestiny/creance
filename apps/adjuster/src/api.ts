@@ -218,16 +218,26 @@ export class AdjusterApi {
    * as the machine half.
    */
   async unpublished(limit = 20): Promise<UnpublishedDecision[]> {
+    return (await this.pending(limit)).claims;
+  }
+
+  /** The packets whose hash has not reached the topic. Published first in a pass. */
+  async unpublishedPackets(limit = 20): Promise<UnpublishedPacket[]> {
+    return (await this.pending(limit)).packets;
+  }
+
+  private async pending(
+    limit: number,
+  ): Promise<{ claims: UnpublishedDecision[]; packets: UnpublishedPacket[] }> {
     const response = await this.fetchImpl(
       `${this.baseUrl}/v1/admin/claims/unpublished?limit=${limit}`,
       { headers: this.headers() },
     );
-    const body = await readBody<{ claims: UnpublishedDecision[] }>(
-      response,
-      'the unpublished decisions',
-      [200],
-    );
-    return body.claims;
+    const body = await readBody<{
+      claims: UnpublishedDecision[];
+      packets?: UnpublishedPacket[];
+    }>(response, 'the unpublished decisions', [200]);
+    return { claims: body.claims, packets: body.packets ?? [] };
   }
 
   /** Where a decision reached the topic. Touches no other column. */
@@ -239,6 +249,16 @@ export class AdjusterApi {
     });
     await readBody(response, `the sequence number for ${claimId}`, [200]);
   }
+
+  /** Where a packet hash reached the topic. The same endpoint, the other column. */
+  async publishedPacket(claimId: string, sequenceNumber: number): Promise<void> {
+    const response = await this.fetchImpl(`${this.baseUrl}/v1/admin/claims/${claimId}/published`, {
+      method: 'POST',
+      headers: this.headers({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ hcs_submitted_seq: sequenceNumber }),
+    });
+    await readBody(response, `the packet sequence number for ${claimId}`, [200]);
+  }
 }
 
 /** One decision waiting for a sequence number. */
@@ -247,6 +267,22 @@ export interface UnpublishedDecision {
   policy_id: string;
   decision: 'approve' | 'refer' | 'decline';
   decision_hash: string;
+}
+
+/**
+ * One packet waiting for the topic.
+ *
+ * The API writes the packet hash into the claim row when the packet arrives and
+ * cannot publish it: the claims topic's submit key is this account's. So the
+ * pass publishes it, at the start rather than the end, which is what keeps the
+ * packet hash public before the decision hash that answers it.
+ */
+export interface UnpublishedPacket {
+  claim_id: string;
+  policy_id: string;
+  packet_hash: string;
+  /** One SHA-256 per evidence file, in the order the packet lists them. */
+  evidence: string[];
 }
 
 /** The recorded extractions a fixture or a dry run replays. */

@@ -7,6 +7,7 @@ import {
   type AdminClaim,
   type DecisionPost,
   type UnpublishedDecision,
+  type UnpublishedPacket,
 } from '../src/api.js';
 import type { DecisionPublisher, TopicReceipt } from '../src/chain.js';
 import { decide, expectedPayout, formatDate } from '../src/decide.js';
@@ -111,7 +112,9 @@ describe('the prompt', () => {
 class FakeApi extends AdjusterApi {
   readonly posted: { claimId: string; post: DecisionPost }[] = [];
   readonly sequences: { claimId: string; sequenceNumber: number }[] = [];
+  readonly packetSequences: { claimId: string; sequenceNumber: number }[] = [];
   waiting: UnpublishedDecision[] = [];
+  packets: UnpublishedPacket[] = [];
 
   constructor(private readonly claims: AdminClaim[]) {
     super('http://api.invalid', 'token');
@@ -124,8 +127,18 @@ class FakeApi extends AdjusterApi {
     return pending;
   }
 
+  override async unpublishedPackets(): Promise<UnpublishedPacket[]> {
+    const pending = this.packets;
+    this.packets = [];
+    return pending;
+  }
+
   override async published(claimId: string, sequenceNumber: number): Promise<void> {
     this.sequences.push({ claimId, sequenceNumber });
+  }
+
+  override async publishedPacket(claimId: string, sequenceNumber: number): Promise<void> {
+    this.packetSequences.push({ claimId, sequenceNumber });
   }
 
   override async queue(): Promise<never[] | never> {
@@ -197,6 +210,43 @@ class FixedExtractor implements Extractor {
 }
 
 describe('one pass', () => {
+  it('puts a packet hash on the topic before it decides anything', async () => {
+    const packet = packetA();
+    const api = new FakeApi([]);
+    api.packets = [
+      {
+        claim_id: packet.claim.claim_id,
+        policy_id: packet.claim.policy_id,
+        packet_hash: packet.claim.packet_hash as string,
+        evidence: packet.claim.evidence.map((file) => file.sha256),
+      },
+    ];
+    const publisher = new RecordingPublisher();
+    await runPass({
+      api,
+      extractor: new FixedExtractor({}),
+      publisher,
+      asset: ASSET,
+      now: () => new Date(FIXTURE_NOW),
+    });
+
+    expect(publisher.published).toHaveLength(1);
+    const message = JSON.parse(publisher.published[0] as string);
+    expect(message).toMatchObject({
+      v: 1,
+      kind: 'claim_packet',
+      policy: packet.claim.policy_id,
+      claimId: packet.claim.claim_id,
+      packetHash: packet.claim.packet_hash,
+      evidence: packet.claim.evidence.map((file) => file.sha256),
+    });
+    // A hash, two ids and the fingerprints. Never a file name, an employer or
+    // a date of separation.
+    expect(JSON.stringify(message)).not.toContain('letter.pdf');
+    expect(JSON.stringify(message)).not.toContain('Northgate');
+    expect(api.packetSequences).toEqual([{ claimId: packet.claim.claim_id, sequenceNumber: 1 }]);
+  });
+
   it('publishes the hash before it posts the decision', async () => {
     const packet = packetA();
     const api = new FakeApi([packet.claim]);

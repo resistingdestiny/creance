@@ -4,12 +4,15 @@ import {
   asTimestamp,
   buildCouponsView,
   buildSeriesView,
+  capacityUsedPercent,
   consensusToTimestamp,
+  termMonths,
   entitlementKey,
   wholeUnits,
 } from '../src/investor/view.js';
 import {
   CONFIG,
+  COVER_POOL_STATE,
   ENTITLEMENT,
   NOTE_STATE,
   SERIES,
@@ -19,7 +22,7 @@ import {
 
 const holders = SERIES.holders.map((config) => ({
   config,
-  state: { balance: 50_000_000n, frozen: 0n, subscription: 50_000_000_000n },
+  state: { balance: 50_000_000n, frozen: 0n, subscription: 50_000_000_000n, kycStatus: 1 },
 }));
 
 function seriesView(overrides: Partial<typeof VAULT_STATE> = {}) {
@@ -29,6 +32,7 @@ function seriesView(overrides: Partial<typeof VAULT_STATE> = {}) {
     vault: { ...VAULT_STATE, ...overrides },
     note: NOTE_STATE,
     holders,
+    coverPool: COVER_POOL_STATE,
   });
 }
 
@@ -68,9 +72,15 @@ describe('the series view', () => {
       holders: [
         {
           config: SERIES.holders[0]!,
-          state: { balance: 5_000_000n, frozen: 45_000_000n, subscription: 50_000_000_000n },
+          state: {
+            balance: 5_000_000n,
+            frozen: 45_000_000n,
+            subscription: 50_000_000_000n,
+            kycStatus: 1,
+          },
         },
       ],
+      coverPool: COVER_POOL_STATE,
     });
     const holder = view.holders[0]!;
     expect(holder.note_balance).toBe('5000000');
@@ -91,13 +101,129 @@ describe('the series view', () => {
       vault: VAULT_STATE,
       note: null,
       holders,
+      coverPool: COVER_POOL_STATE,
     });
     expect(view.note).toBeNull();
     expect(view.holders[0]?.note_position).toBe('50000000');
   });
 
-  it('counts the coupons and the ones that settled', () => {
-    expect(seriesView().coupons).toEqual({ count: 1, settled: 1, latest_coupon_id: '1' });
+  it('counts the coupons and the ones that settled, and names the latest rate', () => {
+    expect(seriesView().coupons).toEqual({
+      count: 1,
+      settled: 1,
+      latest_coupon_id: '1',
+      rate_percent: '8',
+    });
+  });
+});
+
+describe('the KYC status a holder is shown by', () => {
+  it('reports a granted holder as granted, from the note register', () => {
+    const holder = seriesView().holders[0]!;
+    expect(holder.kyc).toEqual({ status: 1, granted: true });
+  });
+
+  it('does not treat NOT_GRANTED as granted', () => {
+    const view = buildSeriesView({
+      series: SERIES,
+      network: CONFIG.network,
+      vault: VAULT_STATE,
+      note: NOTE_STATE,
+      holders: [
+        {
+          config: SERIES.holders[0]!,
+          state: { balance: 0n, frozen: 0n, subscription: 0n, kycStatus: 0 },
+        },
+      ],
+      coverPool: COVER_POOL_STATE,
+    });
+    expect(view.holders[0]!.kyc).toEqual({ status: 0, granted: false });
+  });
+
+  it('does not claim a holder is approved when there is no note to ask', () => {
+    const view = buildSeriesView({
+      series: seriesWithoutNote(),
+      network: CONFIG.network,
+      vault: VAULT_STATE,
+      note: null,
+      holders: [
+        {
+          config: SERIES.holders[0]!,
+          state: { balance: 0n, frozen: 0n, subscription: 0n, kycStatus: null },
+        },
+      ],
+      coverPool: COVER_POOL_STATE,
+    });
+    expect(view.holders[0]!.kyc).toEqual({ status: null, granted: false });
+  });
+});
+
+describe('the CoverPool block, which carries capacity and the term', () => {
+  it('says the term in months and links the pool as a contract', () => {
+    const pool = seriesView().cover_pool!;
+    expect(pool.term_seconds).toBe(31_536_000);
+    expect(pool.term_months).toBe(12);
+    expect(pool.hashscan).toBe('https://hashscan.io/testnet/contract/0.0.10367199');
+  });
+
+  it('reads no capacity used while no policy is bound', () => {
+    const pool = seriesView().cover_pool!;
+    expect(pool.active_exposure.amount).toBe('0');
+    expect(pool.capacity_used_percent).toBe(0);
+  });
+
+  it('measures capacity as active cover limits over principal', () => {
+    const view = buildSeriesView({
+      series: SERIES,
+      network: CONFIG.network,
+      vault: VAULT_STATE,
+      note: NOTE_STATE,
+      holders,
+      coverPool: { ...COVER_POOL_STATE, activeExposure: 45_000_000_000n },
+    });
+    expect(view.cover_pool!.capacity_used_percent).toBe(45);
+  });
+
+  it('reports an unregistered series as unregistered rather than as empty terms', () => {
+    const view = buildSeriesView({
+      series: SERIES,
+      network: CONFIG.network,
+      vault: VAULT_STATE,
+      note: NOTE_STATE,
+      holders,
+      coverPool: { registered: false, activeExposure: 0n, exposureCovered: 0n, term: 0, status: 0 },
+    });
+    expect(view.cover_pool!.registered).toBe(false);
+    expect(view.cover_pool!.term_months).toBeNull();
+  });
+
+  it('is null when the API has no pool to read', () => {
+    const view = buildSeriesView({
+      series: SERIES,
+      network: CONFIG.network,
+      vault: VAULT_STATE,
+      note: NOTE_STATE,
+      holders,
+      coverPool: null,
+    });
+    expect(view.cover_pool).toBeNull();
+  });
+});
+
+describe('capacity arithmetic', () => {
+  it('rounds to whole percent rather than truncating', () => {
+    expect(capacityUsedPercent(455n, 1000n)).toBe(46);
+    expect(capacityUsedPercent(454n, 1000n)).toBe(45);
+  });
+
+  it('reads zero for a series with no principal funded', () => {
+    expect(capacityUsedPercent(0n, 0n)).toBe(0);
+  });
+});
+
+describe('the term, said in months', () => {
+  it('reads 365 days as 12 months', () => {
+    expect(termMonths(31_536_000)).toBe(12);
   });
 });
 

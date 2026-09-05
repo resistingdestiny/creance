@@ -138,6 +138,7 @@ describe('the policy receipt', () => {
       seriesLabel: 'ODI-COMP-2026-01',
       policyId: binding.policy,
       receiptSeq: 41,
+      status: 'bound',
       bindTx: `0x${'ab'.repeat(32)}`,
       nftTokenId: '0.0.10366468',
       serial: 3,
@@ -148,10 +149,28 @@ describe('the policy receipt', () => {
       seriesLabel: 'ODI-COMP-2026-01',
       policyId: binding.policy,
       receiptSeq: 41,
+      status: 'failed',
       reason: 'insufficient_capacity',
     });
     expect(failed.status).toBe('failed');
     expect(failed.reason).toBe('insufficient_capacity');
+  });
+
+  it('says bound with a reason when the cover is real and only the receipt failed', () => {
+    // The status is stated rather than read off the presence of a reason: a
+    // policy CoverPool accepted is bound even when its NFT did not mint, and
+    // publishing it as failed would say the cover does not exist.
+    const message = policyBoundMessage({
+      seriesLabel: 'ODI-COMP-2026-01',
+      policyId: binding.policy,
+      receiptSeq: 41,
+      status: 'bound',
+      bindTx: `0x${'ab'.repeat(32)}`,
+      reason: 'nft_mint_failed',
+    });
+    expect(message.status).toBe('bound');
+    expect(message.reason).toBe('nft_mint_failed');
+    expect(message.serial).toBeUndefined();
   });
 
   it('refuses a message that would have to be chunked', () => {

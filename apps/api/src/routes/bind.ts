@@ -5,6 +5,7 @@ import type { PaymentRow, PolicyRow } from '../db/types.js';
 import { AppError } from '../errors.js';
 import { newId, nullifierToBytes32, toBytes32 } from '../ids.js';
 import { mapRevert } from '../chain/cover-pool.js';
+import type { MintedPolicyNft } from '../chain/hedera.js';
 import {
   encodeTopicMessage,
   policyBindingMessage,
@@ -32,12 +33,22 @@ import { requiredString } from './quote.js';
 ///      sequence number as an input and so it has to exist first
 ///   4  `CoverPool.bind` runs; a revert maps to a caller-facing code and the
 ///      policy goes to `void` with a second receipt saying so
-///   5  the policy NFT is minted to the holder, transferred and frozen
-///   6  the policy reaches `bound` and a second receipt records the outcome
+///   5  the policy reaches `bound`
+///   6  the policy NFT is minted to the holder, transferred and frozen
+///   7  a second receipt records the outcome
 ///
 /// Step 3 before step 4 is forced by the contract. It means a receipt can be
 /// orphaned by a revert, which is why there is a second message rather than
 /// one: a reader takes the second as the outcome. See docs/DECISIONS.md.
+///
+/// Step 5 before step 6 is the line between the cover and its receipt. Once
+/// `CoverPool.bind` has returned, the person has cover and the exposure is
+/// committed on chain, so nothing after that point may turn the request into a
+/// failure or leave the policy in a state that says it did not happen. A mint
+/// that fails leaves the policy at `bound` with a null serial, still publishes
+/// the outcome message so the binding receipt is resolved, and carries the
+/// reason on it. The web app already polls this policy until the serial
+/// appears, and `GET /v1/policy/:id` is the endpoint it polls.
 ///
 /// There is no payment gate here yet. T08 adds it, and the payments row this
 /// writes at `uncollected` with a null facilitator transaction is the row it
@@ -60,7 +71,7 @@ export const bindRoutes: FastifyPluginAsync<{ services: Services }> = async (app
 export async function bind(
   services: Services,
   body: BindBody,
-  request: Pick<FastifyRequest, 'headers' | 'id'>,
+  request: Pick<FastifyRequest, 'headers' | 'id'> & { log?: FastifyRequest['log'] },
 ): Promise<PolicyView> {
   const quoteId = requiredString(body.quote_id, 'quote_id');
   const token = credentialToken(body, request);
@@ -258,6 +269,7 @@ export async function bind(
           seriesLabel: quote.seriesId,
           policyId,
           receiptSeq: receipt.sequenceNumber,
+          status: 'failed',
           reason: mapped.code,
         }),
       ),
@@ -269,30 +281,55 @@ export async function bind(
     bindTxId: bindTx.transactionHash,
   });
 
-  // The receipt is minted after the chain write, not before: an NFT in a
-  // stranger's wallet for cover the pool refused is worse than a slow receipt.
-  const nft = await hedera.mintPolicyNft(
-    credential.wallet,
-    nftMetadata(policyId, quote.seriesId),
-  );
-  await services.repository.updatePolicy(policyId, {
-    nftTokenId: nft.tokenId,
-    nftSerial: nft.serial,
-  });
+  // From here the cover is real: CoverPool holds the policy and the exposure is
+  // committed. The NFT is a receipt for it, so a mint that fails must not be
+  // reported as a bind that failed, and must not leave the binding message
+  // above unresolved. It is minted after the chain write rather than before,
+  // because an NFT in a stranger's wallet for cover the pool refused would be
+  // worse than a missing receipt.
+  let nft: MintedPolicyNft | null = null;
+  let mintFailure: string | undefined;
+  try {
+    nft = await hedera.mintPolicyNft(credential.wallet, nftMetadata(policyId, quote.seriesId));
+    await services.repository.updatePolicy(policyId, {
+      nftTokenId: nft.tokenId,
+      nftSerial: nft.serial,
+    });
+  } catch (error) {
+    mintFailure = 'nft_mint_failed';
+    request.log?.error(
+      { err: error, policy_id: policyId, request_id: request.id },
+      'the policy is bound but its receipt did not mint',
+    );
+  }
 
-  await hedera.publish(
-    services.config.paymentsTopicId,
-    encodeTopicMessage(
-      policyBoundMessage({
-        seriesLabel: quote.seriesId,
-        policyId,
-        receiptSeq: receipt.sequenceNumber,
-        bindTx: bindTx.transactionHash,
-        nftTokenId: nft.tokenId,
-        serial: nft.serial,
-      }),
-    ),
-  );
+  // Resolving the binding message is the last thing and it cannot be allowed to
+  // fail the request either: the caller has cover, and a 500 here would send
+  // them to retry a bind that would be refused as already_covered. The policy
+  // row and the bind transaction are the durable record; an outbox that retries
+  // this publish is the T07 note's answer and belongs with the x402 settlement
+  // hook in T08.
+  try {
+    await hedera.publish(
+      services.config.paymentsTopicId,
+      encodeTopicMessage(
+        policyBoundMessage({
+          seriesLabel: quote.seriesId,
+          policyId,
+          receiptSeq: receipt.sequenceNumber,
+          status: 'bound',
+          bindTx: bindTx.transactionHash,
+          ...(nft === null ? {} : { nftTokenId: nft.tokenId, serial: nft.serial }),
+          ...(mintFailure === undefined ? {} : { reason: mintFailure }),
+        }),
+      ),
+    );
+  } catch (error) {
+    request.log?.error(
+      { err: error, policy_id: policyId, receipt_seq: receipt.sequenceNumber },
+      'the policy is bound but its receipt message was not resolved on the topic',
+    );
+  }
 
   const bound = await services.repository.policy(policyId);
   if (bound === null) throw new Error(`the policy ${policyId} vanished between writes`);

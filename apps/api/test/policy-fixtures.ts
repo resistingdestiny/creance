@@ -133,9 +133,17 @@ export class FakeChain implements ChainGateway {
 export class FakeHedera implements HederaGateway {
   readonly published: { topicId: string; message: string }[] = [];
   readonly minted: { holder: string; metadata: string }[] = [];
+  /// Set to make the mint throw, which is the path that leaves a policy bound
+  /// on chain with no receipt in the holder's wallet.
+  mintError: Error | null = null;
+  /// Set to make the nth publish throw. 2 is the outcome message.
+  failPublishAt: number | null = null;
   private sequence = 40;
 
   async publish(topicId: string, message: string): Promise<TopicReceipt> {
+    if (this.failPublishAt !== null && this.published.length + 1 === this.failPublishAt) {
+      throw new Error('the topic refused the message');
+    }
     this.sequence += 1;
     this.published.push({ topicId, message });
     return {
@@ -147,6 +155,7 @@ export class FakeHedera implements HederaGateway {
   }
 
   async mintPolicyNft(holder: string, metadata: string): Promise<MintedPolicyNft> {
+    if (this.mintError !== null) throw this.mintError;
     this.minted.push({ holder, metadata });
     return {
       tokenId: '0.0.10366468',

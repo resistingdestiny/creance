@@ -283,6 +283,65 @@ describe('the policy endpoints', () => {
       expect(messages[1]).toMatchObject({ status: 'failed', reason: 'insufficient_capacity' });
     });
 
+    it('keeps the cover when the receipt fails to mint, and resolves the message', async () => {
+      const built = await harness();
+      const quote = (await quoted(built)).json();
+      const token = await issueCredential(built);
+      built.hedera.mintError = new Error('TOKEN_WAS_DELETED');
+
+      const response = await built.app.inject({
+        method: 'POST',
+        url: '/v1/bind',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { quote_id: quote.quote_id },
+      });
+
+      // CoverPool holds the policy and the exposure is committed, so this is a
+      // bind that worked with a receipt that did not, never a failed bind.
+      expect(response.statusCode).toBe(201);
+      const body = response.json();
+      expect(body.status).toBe('bound');
+      expect(body.nft.serial).toBeNull();
+      expect(body.chain.bind_transaction).toMatch(/^0x/);
+
+      // The binding message is still resolved, so nothing on the topic is left
+      // claiming a policy whose outcome nobody wrote.
+      const messages = built.hedera.published.map((entry) => JSON.parse(entry.message));
+      expect(messages).toHaveLength(2);
+      expect(messages[1]).toMatchObject({
+        status: 'bound',
+        receiptSeq: 41,
+        reason: 'nft_mint_failed',
+      });
+      expect(messages[1].serial).toBeUndefined();
+
+      // The stored policy agrees with what was returned, so the poll the web
+      // app makes sees the same thing.
+      const stored = await built.repository.policy(body.policy_id);
+      expect(stored?.status).toBe('bound');
+      expect(stored?.nftSerial).toBeNull();
+    });
+
+    it('keeps the cover when the outcome message fails to publish', async () => {
+      const built = await harness();
+      const quote = (await quoted(built)).json();
+      const token = await issueCredential(built);
+      // The second publish is the outcome message. A 500 here would send a
+      // person who already has cover back to a bind that answers already_covered.
+      built.hedera.failPublishAt = 2;
+
+      const response = await built.app.inject({
+        method: 'POST',
+        url: '/v1/bind',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { quote_id: quote.quote_id },
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json().status).toBe('bound');
+      expect(response.json().nft.serial).toBe(1);
+    });
+
     it('refuses an expired quote', async () => {
       const built = await harness();
       const quote = (await quoted(built)).json();

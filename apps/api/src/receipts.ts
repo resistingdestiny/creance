@@ -42,6 +42,10 @@ export interface PolicyBindingMessage {
 export interface PolicyBoundMessage {
   v: number;
   kind: 'policy';
+  /**
+   * `bound` means CoverPool holds the policy. `failed` means it does not and
+   * the binding message above it describes nothing.
+   */
   status: 'bound' | 'failed';
   series: string;
   policy: string;
@@ -50,6 +54,11 @@ export interface PolicyBoundMessage {
   bindTx?: string;
   nft?: string;
   serial?: number;
+  /**
+   * Why, when something went wrong. It appears on a `failed` message and also
+   * on a `bound` one whose policy receipt did not mint, because the cover is
+   * real either way and only the receipt is missing.
+   */
   reason?: string;
   at: string;
 }
@@ -91,6 +100,15 @@ export interface PolicyOutcomeInput {
   seriesLabel: string;
   policyId: string;
   receiptSeq: number;
+  /**
+   * `bound` when CoverPool accepted the policy, `failed` when it did not.
+   *
+   * Stated rather than inferred from `reason`, because the two are
+   * independent: a bind whose NFT mint failed afterwards is `bound` with a
+   * reason, and reading the status off the presence of a reason would publish
+   * it as a policy that does not exist.
+   */
+  status: 'bound' | 'failed';
   bindTx?: string;
   nftTokenId?: string;
   serial?: number;
@@ -102,7 +120,7 @@ export function policyBoundMessage(input: PolicyOutcomeInput): PolicyBoundMessag
   return {
     v: POLICY_MESSAGE_VERSION,
     kind: 'policy',
-    status: input.reason === undefined ? 'bound' : 'failed',
+    status: input.status,
     series: input.seriesLabel,
     policy: input.policyId,
     receiptSeq: input.receiptSeq,

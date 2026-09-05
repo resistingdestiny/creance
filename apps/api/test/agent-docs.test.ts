@@ -60,6 +60,7 @@ describe('the agent description files', () => {
     expect(document.info.title).toBe('Occupation Displacement Index');
     expect(Object.keys(document.paths).sort()).toEqual([
       '/v1/index',
+      '/v1/index/health',
       '/v1/index/{group}',
       '/v1/replay',
     ]);

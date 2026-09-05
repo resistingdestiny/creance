@@ -26,17 +26,19 @@ import {
 /// price, rather than as three of the seven operations in a cover gateway.
 /// DESIGN.md section 4 draws it as the second gateway on the same API.
 ///
-/// The three operations here are the whole public index surface. Two are free
+/// The four operations here are the whole public index surface. Three are free
 /// and one is metered, and the free ones exist so the metered one can be called
-/// correctly the first time:
+/// correctly the first time and read correctly afterwards:
 ///
 ///     GET /v1/index          the catalogue: group keys, trigger lines, price
 ///     GET /v1/index/{group}  the reading, 0.01 TUSD over x402
+///     GET /v1/index/health   whether the index is still being published
 ///     GET /v1/replay         whether the clock is live or replaying
 ///
-/// `GET /v1/index/health` is deliberately absent. That route is index
-/// operations and it belongs to its own ticket; documenting it here before it
-/// exists would put an operation in somebody else's gateway that answers 404.
+/// `GET /v1/index/health` sits under the metered prefix and is free, which the
+/// x402 gate carves out by name. An agent that is about to pay for a reading
+/// should be able to find out for nothing whether the feed is stale, and an
+/// operations endpoint that answers 402 is not an operations endpoint.
 ///
 /// Every operation carries `x-agent-hint`, which is the extension Bazantic's
 /// own provider example puts on an operation to tell an agent when to call it.
@@ -50,6 +52,7 @@ import {
 export const INDEX_OPERATIONS = [
   'GET /v1/index',
   'GET /v1/index/{group}',
+  'GET /v1/index/health',
   'GET /v1/replay',
 ] as const;
 
@@ -220,6 +223,37 @@ export function buildIndexOpenApiDocument(options: DocumentOptions): Record<stri
             '400': problemResponse('`group_unknown`: not one of the fifteen groups.'),
             '402': paymentRequired(`${PRICE.display} ${PRICE.symbol}`),
             '503': problemResponse('`index_unavailable`: no observation published yet.'),
+          },
+        },
+      },
+      '/v1/index/health': {
+        get: {
+          tags: ['index'],
+          operationId: 'getIndexHealth',
+          summary: 'Whether the index is still being published, and how fresh it is',
+          description: [
+            'Free. The operations view of the feed: the last run and the state it reached,',
+            'whether the QA gates passed and which failed if they did not, the newest',
+            'published month for every group, and how many days old the newest month at',
+            'the source is.',
+            '',
+            '`source.stale` is true when the newest reference month is more than 45 days',
+            'old. It is measured from the end of that month and never from the last',
+            'successful run, because a run that succeeds every day while the source has',
+            'published nothing new is not a healthy index.',
+            '',
+            'It is under the metered prefix and it is free. Nothing here is an index',
+            'value: it says whether the numbers are current, not what they are.',
+          ].join('\n'),
+          'x-agent-hint':
+            'Call this before relying on a reading you paid for. If status is stale or the last run failed, the newest month may be older than it looks and the reading should be reported with its period, not as current.',
+          responses: {
+            '200': {
+              description: 'The health of the index feed.',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/IndexHealth' } },
+              },
+            },
           },
         },
       },
@@ -405,6 +439,83 @@ export function buildIndexOpenApiDocument(options: DocumentOptions): Record<stri
               description: 'What a screen shows while the clock runs. Null when it is not.',
               properties: { show: { type: 'boolean' }, label: { type: 'string' } },
             },
+          },
+        },
+        IndexHealth: {
+          type: 'object',
+          required: ['status', 'mode', 'time', 'qa', 'source', 'model_version'],
+          properties: {
+            status: {
+              type: 'string',
+              enum: ['ok', 'stale', 'failed', 'never_run'],
+              description:
+                'One word for the whole feed. `failed` when the last run failed, `stale` when the source has not published for more than 45 days, `never_run` on a deployment whose oracle has not run yet.',
+            },
+            mode: {
+              type: 'string',
+              enum: ['live', 'replay', 'scenario'],
+              description: 'Which calendar the feed is on, the same value GET /v1/replay serves.',
+            },
+            time: { type: 'string', format: 'date-time' },
+            last_run: {
+              type: 'object',
+              nullable: true,
+              description: 'The newest row of the runs table. Null when nothing has run here.',
+              properties: {
+                id: { type: 'integer', example: 12 },
+                mode: { type: 'string', enum: ['live', 'replay', 'backfill', 'scenario'] },
+                state: {
+                  type: 'string',
+                  enum: [
+                    'fetch',
+                    'verify',
+                    'compute',
+                    'qa',
+                    'publish',
+                    'submit',
+                    'done',
+                    'failed',
+                  ],
+                },
+                started_at: { type: 'string', nullable: true, format: 'date-time' },
+                finished_at: { type: 'string', nullable: true, format: 'date-time' },
+                target_period: { type: 'string', nullable: true, example: '2026-07' },
+                notes: { type: 'string', nullable: true },
+                qa_passed: { type: 'boolean', nullable: true },
+              },
+            },
+            qa: {
+              type: 'object',
+              description: 'The gate results of the last run.',
+              properties: {
+                status: { type: 'string', enum: ['pass', 'fail', 'unknown'] },
+                period: { type: 'string', nullable: true, example: '2026-07' },
+                failed_gates: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: { gate: { type: 'string' }, detail: { type: 'string' } },
+                  },
+                },
+              },
+            },
+            last_period_by_group: {
+              type: 'object',
+              description: 'The newest published month for each group, keyed by group key.',
+              additionalProperties: { type: 'string', example: '2026-07' },
+            },
+            source: {
+              type: 'object',
+              description: 'How fresh the published index is.',
+              properties: {
+                newest_period: { type: 'string', nullable: true, example: '2026-07' },
+                stale_days: { type: 'integer', nullable: true, example: 35 },
+                stale: { type: 'boolean' },
+                stale_after_days: { type: 'integer', example: 45 },
+              },
+            },
+            replay: { $ref: '#/components/schemas/FeedClock' },
+            model_version: { type: 'string', example: 'odi-1.0.0' },
           },
         },
         ...INDEX_SCHEMAS,

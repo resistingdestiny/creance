@@ -1958,3 +1958,87 @@ do, would have given the API a `PUBLIC_SITE_URL` with a comment in it, and that
 origin goes into every issued credential and every x402 resource URL.
 `.env.example` keeps comments on their own lines and `deploy/deploy.sh` refuses
 to deploy a file that does not.
+
+## T16, the claim screens, 5 September 2026
+
+Four disagreements between what a document says and what the running system
+does, all four found by building the screens that read them and all four
+reproduced on this host against the local API and Hedera testnet.
+
+### `testnet:bind-backdated` printed the waiting period and stored the start date
+
+`pnpm --filter @creance/api testnet:bind-backdated` computes
+`payableFrom = startAt + waitingPeriodSeconds`, prints it as "claims payable
+from 2026-01-30", and then wrote `startAt` into the `claims_payable_from`
+column. `POST /v1/bind` writes the computed value, so the two paths disagreed
+about the same field.
+
+Measured on the first policy this ticket bound:
+
+    script output      claims payable from 2026-01-30
+    GET /v1/policy/:id "claims_payable_from": "2025-12-01"
+
+Nothing on chain was wrong: `payClaim` reads the waiting period from
+`CoverPool` and would still have reverted for a separation inside it. What was
+wrong was the screen. Home's Claims open state prints "If you lost your job on
+or after {claims_payable_from}, you can claim {limit}", so the app invited a
+claim from a date on which no claim could have been paid, and C1's "in the
+first {n} days of cover" read 0 days. Fixed in the script, and the two policies
+this ticket bound afterwards read 2026-01-30.
+
+### A series stays open for claims after its index falls back under the line
+
+The demo series opened in April 2026 and the claim window runs to 5 October
+2026. The latest published month is July 2026, which reads 0.69 points short of
+the level line. So `GET /v1/policy/:id` answers `claims.open: true` and
+`claims.reading.open: false` at the same time, and both are correct: the chain's
+`seriesOf` status is the index key and the reading is the latest month.
+
+That is not a bug in either, but a screen that prints the amber "Claims open"
+pill over the words "Points from opening claims" contradicts itself. Home now
+prints the reading as it stands and takes the caption from the cover's own
+answer. Anything else that pairs a pill with a reading has the same choice to
+make.
+
+### `GET /v1/replay` labels a replay REPLAY, and the copy deck says "Replay: Jul 2026"
+
+The endpoint's `badge.label` is the single word `REPLAY`; `badgeFor` in
+apps/api/src/replay/state.ts composes it and carries no month.
+docs/DESIGN-TOKENS.md section 8 fixes the string as "Replay: Jul 2026". The
+month is in the same payload as `current_period`, so the web app composes the
+deck's label from the two rather than printing the endpoint's. Measured:
+
+    GET /v1/replay -> {"mode":"replay","current_period":"2026-07",
+                       "badge":{"show":true,"label":"REPLAY"}}
+    screen         -> Replay: Jul 2026
+
+In scenario mode the label is the scenario's own name and is printed as it
+stands, which is what the endpoint already intends.
+
+### A soft rule's sentence reads as a referral on a screen that says no
+
+The Adjuster composes one sentence per reason code, and the sentence for a soft
+rule is "Someone will look at your claim." Packet B declines on
+`separation_type_not_covered` and also carries `evidence_seen_before`, because
+the committed fixture had been submitted before, so the decline arrives with
+two sentences:
+
+    Resigning isn't covered. This cover pays when your employer ends your job.
+    Someone will look at your claim.
+
+The second is true of the rule and false of the decision. The web app prints
+`reason_lines` verbatim, as docs/CLAIMS.md requires, so this was not fixed on
+the screen: the composition belongs to the Adjuster, and a decided claim should
+not compose the referral sentence for a rule that did not decide it.
+
+### The api account ran out of HBAR for `payClaim` and the failure is a decode of the raw transaction
+
+The approval's payout refused with `insufficient funds for intrinsic
+transaction cost` and a 500 byte hex transaction in the message. The account
+held 2.14 HBAR and the call carries an explicit 1,500,000 gas limit, which at
+the relay's quoted price is about 3.3 HBAR reserved before execution, so the
+check fails before any gas is spent. The decision stood, the authorisation was
+stored, and pressing Approve again after the account was funded paid it, which
+is the retry path `POST /v1/admin/claims/:id/decide` is written for. Worth
+knowing twice over: the error names neither the account nor the shortfall, and
+a payout that refuses for an environmental reason is not a payout that failed.

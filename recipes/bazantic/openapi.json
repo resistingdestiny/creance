@@ -195,7 +195,7 @@
             }
           },
           "400": {
-            "description": "`validation_failed` for a missing field, `group_unknown` or `limit_out_of_range`.",
+            "description": "`validation_failed` for a missing field, `group_unknown`, `limit_out_of_range`, or `body_required` and `body_malformed` for a body that is not JSON. Like the 400 on the index feed, these are refusals a paid call gets: the gate answers 402 first.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -310,7 +310,7 @@
             }
           },
           "400": {
-            "description": "`validation_failed` for a missing `quote_id`, or `credential_ambiguous` when the header and the body carry different credentials.",
+            "description": "`validation_failed` for a missing `quote_id`, `body_required` or `body_malformed` for a body that is not JSON, or `credential_ambiguous` when the header and the body carry different credentials. Unlike the other two metered operations, these are refused before the payment: the price comes from the quote, so the body is read first.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -358,7 +358,7 @@
             }
           },
           "404": {
-            "description": "`quote_not_found` or `series_not_found`.",
+            "description": "`quote_not_found` or `series_not_found`. A quote that cannot be priced is refused before the 402, so the payer never signs anything.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -398,7 +398,7 @@
             }
           },
           "503": {
-            "description": "`hedera_not_configured`: the API has no Hedera keys, so it can neither publish a receipt nor mint one.",
+            "description": "`hedera_not_configured`, the API has no Hedera keys and can neither publish a receipt nor mint one, or `upstream_unavailable`, the payment facilitator did not answer.",
             "content": {
               "application/problem+json": {
                 "schema": {

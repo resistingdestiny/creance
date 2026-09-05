@@ -297,7 +297,7 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
               content: { 'application/json': { schema: { $ref: '#/components/schemas/Quote' } } },
             },
             '400': problemResponse(
-              '`validation_failed` for a missing field, `group_unknown` or `limit_out_of_range`.',
+              '`validation_failed` for a missing field, `group_unknown`, `limit_out_of_range`, or `body_required` and `body_malformed` for a body that is not JSON. Like the 400 on the index feed, these are refusals a paid call gets: the gate answers 402 first.',
             ),
             '402': paymentRequired('0.05 TUSD'),
             '404': problemResponse(
@@ -353,21 +353,23 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
               content: { 'application/json': { schema: { $ref: '#/components/schemas/Policy' } } },
             },
             '400': problemResponse(
-              '`validation_failed` for a missing `quote_id`, or `credential_ambiguous` when the header and the body carry different credentials.',
+              '`validation_failed` for a missing `quote_id`, `body_required` or `body_malformed` for a body that is not JSON, or `credential_ambiguous` when the header and the body carry different credentials. Unlike the other two metered operations, these are refused before the payment: the price comes from the quote, so the body is read first.',
             ),
             '401': problemResponse(
               '`credential_missing`, `credential_invalid` or `credential_unknown`, which is a well-formed credential this API did not issue.',
             ),
             '402': paymentRequired('the first month premium from the quote'),
             '403': problemResponse('`credential_expired`. They last thirty minutes.'),
-            '404': problemResponse('`quote_not_found` or `series_not_found`.'),
+            '404': problemResponse(
+              '`quote_not_found` or `series_not_found`. A quote that cannot be priced is refused before the 402, so the payer never signs anything.',
+            ),
             '409': problemResponse(
               '`already_covered`, `credential_consumed`, `quote_consumed`, `wallet_mismatch`, `group_mismatch`, `series_mismatch`, `series_not_open_for_binding` or `insufficient_capacity`.',
             ),
             '410': problemResponse('`quote_expired`.'),
             '502': problemResponse('`chain_write_failed`: the pool refused the write.'),
             '503': problemResponse(
-              '`hedera_not_configured`: the API has no Hedera keys, so it can neither publish a receipt nor mint one.',
+              '`hedera_not_configured`, the API has no Hedera keys and can neither publish a receipt nor mint one, or `upstream_unavailable`, the payment facilitator did not answer.',
             ),
           },
         },

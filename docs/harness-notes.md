@@ -2043,6 +2043,87 @@ is the retry path `POST /v1/admin/claims/:id/decide` is written for. Worth
 knowing twice over: the error names neither the account nor the shortfall, and
 a payout that refuses for an environmental reason is not a payout that failed.
 
+## T19, the Bazantic gateway and the index topic, 5 September 2026
+
+Read while writing the two recipes, which consume the index topic through the
+mirror node and the same months again through the paid feed. Every measurement
+below is from the live testnet topic 0.0.10366470 and the running API on
+5 September 2026.
+
+### A published observation can carry a status the specification does not list
+
+docs/INDEX-SPEC.md section 7 gives `status` as `final | insufficient_history |
+revision`. The topic also carries `no_source`:
+
+    sequence 10, computer_math 2025-10
+    {"status":"no_source","u_g":null,"u_all":null,"e":null,"ebar":null,"odi":null,...}
+
+October 2025 was never collected by the source, so the month is published with
+nulls and a status that says why, which is the right behaviour and the right
+message to publish. The specification is what is out of date, not the oracle. A
+consumer written from section 7 alone would treat `no_source` as an unknown
+status or, worse, read the nulls as zeroes.
+
+Both recipes therefore check `status === 'final'` rather than checking that the
+message is present, and say what the other statuses mean.
+
+### The newest message on the topic is not the newest month
+
+The mirror node returns topic messages ordered by consensus timestamp, which is
+what its documentation says it does
+(https://docs.hedera.com/hedera/sdks-and-apis/rest-api). The trap is on our
+side: the oracle publishes a backfill in the order it computes months, so
+consensus order and period order are different orders on the same topic.
+
+    sequence 27  computer_math  2026-07
+    sequence 33  computer_math  2026-06     published six messages later
+
+An agent that filters by group and takes the first message of an `order=desc`
+page gets 2026-06 and believes it is current. Both recipes sort the group's
+messages by the decoded `period` and take the last one, and say why in the step
+rather than in a footnote.
+
+### One topic carries all fifteen groups, so a page is about six months deep
+
+There is no server-side filter on message content. `limit` is capped at 100, so
+one page holds roughly six months of any single group once every group is
+publishing monthly. `links.next` pages backwards with a `timestamp=lt:` filter,
+and `sequencenumber=lt:{n}` also works on this collection and is easier to
+reason about when the caller is walking one group backwards. Both were measured:
+
+    GET /api/v1/topics/0.0.10366470/messages?limit=5&order=desc
+      -> links.next = ...&timestamp=lt:1788599782.975896253
+    GET /api/v1/topics/0.0.10366470/messages?limit=3&order=desc&sequencenumber=lt:20
+      -> sequence 19, 18, 17
+    GET /api/v1/topics/0.0.10366470/messages/27
+      -> 200, the single message
+
+### The same reading is a number on the topic and a decimal string on the API
+
+The observation on the topic carries JSON numbers (`"ebar":-1.37`). The API
+carries decimal strings (`"ebar":"-1.37"`), deliberately, because the thresholds
+are int64 scaled by 1e4 on chain and a float round trip through JSON is how a
+build publishes a number the contract did not compare against.
+
+A month with claims closed also differs: `open_reason` is `"none"` on the topic
+and `null` from the API, which is the column's own convention
+(`open_reason text CHECK (open_reason IN ('shock','level','both'))`, null when
+closed, in apps/api/migrations/001_init.sql).
+
+Neither is a fault, and both are exactly the sort of difference that makes a
+naive cross-check between two surfaces fail on a correct pair of answers. The
+recipes compare numerically and treat `"none"` and `null` as the same answer.
+
+### The x402 gate runs before the route, so a bad group is refused with 402
+
+    GET /v1/index/nonsense   ->  402, PAYMENT-REQUIRED, not 400 group_unknown
+
+The gate is an `onRequest` hook and the handler validates the group, so an
+unknown group is a paid mistake rather than a free one. That is the right order,
+because a free validity oracle in front of a metered feed is a way to avoid
+paying for it, but it is not what a reader of the OpenAPI document would assume
+from a documented 400. The document now says so on the operation.
+
 ## T23, the clean clone run-through, 5 September 2026
 
 ### The observation store cannot tell a clean clone what already settled

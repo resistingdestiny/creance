@@ -78,12 +78,22 @@ Nothing is duplicated here.
 
 ## Bazantic
 
-- Username on bazantic.com: Root pending, then T19 records it here.
+- Username on bazantic.com: `BAZANTIC_USERNAME` (Root pending). Root replaces
+  that placeholder with the account's username the moment the account exists.
+  Access is requested at https://bazantic.com/become-a-provider#apply, which
+  asks for a project name, a work email and a spec or docs URL.
 - Gateway and MCP server: Root pending, browser work on bazantic.com. The spec
-  to import is recipes/bazantic/openapi.yaml; the browser steps for Root are
-  recipes/bazantic/README.md, T19.
-- Recipe text under recipes/bazantic/: T19. The directory holds the OpenAPI spec
-  today, in both openapi.yaml and openapi.json.
+  to import is recipes/bazantic/openapi.yaml, or openapi.json if the importer
+  prefers it; the base URL is https://creance.co, which needs the host under
+  "Live app" first. The browser steps for Root are recipes/bazantic/README.md,
+  which also says what to do when the public host is not up yet. The MCP server
+  endpoint goes here beside the username.
+- Recipe text under recipes/bazantic/: recipes/bazantic/buy-displacement-cover.md
+  and recipes/bazantic/should-my-principal-renew.md. Both use two services, the
+  Hedera mirror node on the index topic 0.0.10366470 and this project's own
+  gateway, and both stop rather than guess when the two disagree.
+- Recording: Root pending, the beats are listed at the end of
+  recipes/bazantic/README.md.
 
 ## Harness
 

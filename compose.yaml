@@ -1,0 +1,139 @@
+# The deploy compose: Postgres, the API, the web app and the index oracle.
+#
+#     GIT_SHA="$(git rev-parse HEAD)" podman compose up -d --build
+#
+# Plain OCI images and no runtime-specific keys, so `docker compose` and
+# `podman compose` both run it. deploy/deploy.sh is the wrapper the public host
+# uses; deploy/Caddyfile is the TLS terminator in front of it.
+#
+# Nothing is published beyond the loopback interface. Caddy runs on the host and
+# proxies to 127.0.0.1, so the only thing the internet can reach is Caddy, on 443.
+#
+# Every service reads the repository's own `.env`, the same file `pnpm dev`
+# reads, and then the `environment:` block below overrides the handful of values
+# that have to differ inside a container. Compose applies `environment:` after
+# `env_file:`, so those overrides win whatever `.env` holds. That is what keeps
+# `HOST=127.0.0.1` in `.env`, which is right on a laptop, from making the API
+# answer nobody here.
+
+name: creance
+
+services:
+  db:
+    image: docker.io/library/postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: creance
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-creance}
+      POSTGRES_DB: creance
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U creance -d creance']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        # The commit the image was built from, baked in so GET /health can
+        # report it. deploy/deploy.sh exports it from `git rev-parse HEAD`.
+        GIT_SHA: ${GIT_SHA:-unknown}
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3210
+      # The database is a service on this network, not the one on the operator's
+      # laptop that `.env` names.
+      DATABASE_URL: postgres://creance:${POSTGRES_PASSWORD:-creance}@db:5432/creance
+      # The same file the oracle writes, on the volume both containers mount at
+      # the same path. GET /health reads it. Set explicitly in both services so
+      # neither depends on the other's idea of the default.
+      ORACLE_STATE_PATH: /repo/var/oracle/replay-state.json
+      # env_file would otherwise import the blank GIT_SHA from `.env` and erase
+      # what the build arg baked into the image.
+      GIT_SHA: ${GIT_SHA:-unknown}
+    volumes:
+      - oracle-state:/repo/var
+    ports:
+      # Loopback only. The port is a knob because a host may already have
+      # something on 3210; Caddy proxies to whatever it is set to.
+      - '127.0.0.1:${API_PORT:-3210}:3210'
+    healthcheck:
+      # Node 22 has fetch, so this needs nothing installed in the image.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3210/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Framework public variables are inlined when the build runs, so these
+        # are build arguments and cannot be changed by restarting the container.
+        # See docs/DECISIONS.md, "The public origin is carried by a second,
+        # public variable".
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+        NEXT_PUBLIC_DEMO_INVESTOR: ${NEXT_PUBLIC_DEMO_INVESTOR:-investor-1}
+        NEXT_PUBLIC_FONT_OPTION: ${NEXT_PUBLIC_FONT_OPTION:-A}
+        NEXT_PUBLIC_WALLET_MODE: ${NEXT_PUBLIC_WALLET_MODE:-demo}
+    restart: always
+    depends_on:
+      api:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      PORT: 3000
+      # Every screen fetches on the server, so this is the address of the api
+      # service on this network and it never reaches a browser. There is no CORS
+      # plugin and no proxy anywhere in the app.
+      CREANCE_API_URL: http://api:3210
+    ports:
+      - '127.0.0.1:${WEB_PORT:-3000}:3000'
+
+  oracle:
+    build:
+      context: .
+      dockerfile: apps/oracle/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+    # Schedule mode, restart always: docs/INDEX-SPEC.md section 9. The image's
+    # command runs `pnpm run oracle:schedule` once a day. Until T26 replaces the
+    # body of that script it prints what it will do and the loop waits, so the
+    # command T26 changes is the npm script and this compose file stays as it is.
+    restart: always
+    env_file:
+      - .env
+    environment:
+      # The three paths a run writes, all of them on the shared volume so the
+      # API reads the run state this container writes.
+      ORACLE_STATE_PATH: /repo/var/oracle/replay-state.json
+      ORACLE_OBSERVATIONS_PATH: /repo/var/oracle/observations.json
+      BLS_CACHE_DIR: /repo/var/cache/bls
+      GIT_SHA: ${GIT_SHA:-unknown}
+    volumes:
+      - oracle-state:/repo/var
+
+volumes:
+  db-data:
+  # The oracle writes, the API reads. One volume mounted at the same path in
+  # both containers is what makes ORACLE_STATE_PATH name the same file to both.
+  oracle-state:

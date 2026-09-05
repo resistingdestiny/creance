@@ -37,5 +37,11 @@ export default async function ClaimStatusPage() {
   const lines =
     decision.lines.length > 0 ? decision.lines : fallbackReasonLines(claim.reasons);
 
-  return <ClaimStatusScreen claim={claim} reasonLines={lines} why={decision.why} />;
+  // A decline that cannot be resubmitted carries the blocking sentence as its
+  // reason for saying so, and that sentence is already one of the lines above.
+  // Printing it twice under "What you can do" tells the person nothing they did
+  // not just read, so the screen falls back to its own line instead.
+  const why = decision.why === null || lines.includes(decision.why) ? null : decision.why;
+
+  return <ClaimStatusScreen claim={claim} reasonLines={lines} why={why} />;
 }

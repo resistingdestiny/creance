@@ -57,13 +57,7 @@ function tokenise(value: string | null): string[] {
 
 export type MatchKind = 'match' | 'near_match' | 'mismatch' | 'absent';
 
-/**
- * The token set ratio: how much of the two token sets is shared.
- *
- * 0.90 and above is a near match, which refers. "Northgate Systems (UK) Ltd"
- * against "Northgate Systems Ltd" is a real person's real uncertainty about
- * their own employer's legal name, and it is not fraud.
- */
+/** How much of the two token sets is shared, as the Sorensen-Dice coefficient. */
 export const NEAR_MATCH_RATIO = 0.9;
 
 export function tokenSetRatio(left: string, right: string): number {
@@ -75,13 +69,36 @@ export function tokenSetRatio(left: string, right: string): number {
   return (2 * shared) / (a.size + b.size);
 }
 
+/** True when every token of the shorter name also appears in the longer one. */
+export function oneContainsTheOther(left: string, right: string): boolean {
+  const a = new Set(left.split(' ').filter((token) => token !== ''));
+  const b = new Set(right.split(' ').filter((token) => token !== ''));
+  const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+  // One shared word is a coincidence. Two is a name with a qualifier on it.
+  if (small.size < 2) return false;
+  for (const token of small) if (!large.has(token)) return false;
+  return true;
+}
+
+/**
+ * Two employer names, compared.
+ *
+ * A near match refers, it does not decline. "Northgate Systems (UK) Ltd"
+ * against "Northgate Systems Ltd" is a real person's real uncertainty about
+ * their own employer's legal name, and it is not fraud. The Dice coefficient
+ * alone puts that pair at 0.80, because one extra token in a short name moves
+ * it a long way, so a containment test sits beside it: a name that is the other
+ * name plus a qualifier is a near match whatever the ratio says.
+ */
 export function compareEmployer(documentValue: string | null, attested: string): MatchKind {
   if (documentValue === null) return 'absent';
   const left = normaliseEmployer(documentValue);
   const right = normaliseEmployer(attested);
   if (left === '' || right === '') return 'absent';
   if (left === right) return 'match';
-  return tokenSetRatio(left, right) >= NEAR_MATCH_RATIO ? 'near_match' : 'mismatch';
+  return tokenSetRatio(left, right) >= NEAR_MATCH_RATIO || oneContainsTheOther(left, right)
+    ? 'near_match'
+    : 'mismatch';
 }
 
 /**

@@ -1,0 +1,21 @@
+# The build context is the repository root for all three images, so everything a
+# run writes locally is excluded here rather than in each Dockerfile. The images
+# install from the lockfile, so a local node_modules would only be dead weight
+# and, being a tree of absolute symlinks, would not work if it were copied.
+node_modules
+.git
+.env
+.env.*
+!.env.example
+.next
+dist
+coverage
+artifacts
+cache
+var
+typechain-types
+contracts/types
+*.tsbuildinfo
+*.log
+.playwright-mcp
+.scratch

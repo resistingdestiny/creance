@@ -1,11 +1,18 @@
 import type { Period } from '@creance/index-model';
 
+import type { ObservationMessage } from './message.js';
 import type { OracleMode } from './state.js';
 import { recordKey } from './store.js';
 import { decodeMirrorMessage, readTopicMessages } from './verify.js';
 
+/** One observation the topic already carries, and where it sits on the topic. */
+export interface TopicObservation {
+  sequenceNumber: number;
+  message: ObservationMessage;
+}
+
 /**
- * What the index topic already carries.
+ * What the index topic already carries, keyed by `recordKey`.
  *
  * The observation store is the run's memory of what it published, and it is a
  * file under `var/` that no clone carries. The topic is what actually settled.
@@ -20,6 +27,11 @@ import { decodeMirrorMessage, readTopicMessages } from './verify.js';
  * store write leaves a message with no row, and the next run would republish
  * the period.
  *
+ * The sequence number comes back with each message because the on chain call
+ * carries it. A month that reached the topic and not the contract still needs
+ * its contract call, and this is what lets a machine that did not publish it
+ * make one.
+ *
  * Public data, read through the mirror node, no key and no cost.
  */
 export async function publishedOnTopic(options: {
@@ -27,21 +39,27 @@ export async function publishedOnTopic(options: {
   topicId: string;
   /** The mode the run publishes in, which picks the key namespace. */
   mode: OracleMode;
-}): Promise<Set<string>> {
-  const keys = new Set<string>();
-  for (const message of await readTopicMessages(options.mirrorUrl, options.topicId)) {
-    let parsed: { group?: unknown; period?: unknown };
+}): Promise<Map<string, TopicObservation>> {
+  const found = new Map<string, TopicObservation>();
+  for (const entry of await readTopicMessages(options.mirrorUrl, options.topicId)) {
+    let message: ObservationMessage;
     try {
-      parsed = JSON.parse(decodeMirrorMessage(message)) as { group?: unknown; period?: unknown };
+      message = JSON.parse(decodeMirrorMessage(entry)) as ObservationMessage;
     } catch {
       // A message this oracle did not write, or one that will not parse. It is
       // not a claim that a period is settled, so it is not counted as one.
       continue;
     }
-    if (typeof parsed.group !== 'string' || typeof parsed.period !== 'string') continue;
-    keys.add(
-      recordKey({ group_key: parsed.group, period: parsed.period as Period, mode: options.mode }),
-    );
+    if (typeof message.group !== 'string' || typeof message.period !== 'string') continue;
+    const key = recordKey({
+      group_key: message.group,
+      period: message.period as Period,
+      mode: options.mode,
+    });
+    // First writer wins, which is the same rule the topic itself settles by.
+    if (!found.has(key)) {
+      found.set(key, { sequenceNumber: entry.sequence_number, message });
+    }
   }
-  return keys;
+  return found;
 }

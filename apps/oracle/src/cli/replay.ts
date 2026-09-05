@@ -3,7 +3,7 @@ import { periodRange, resolveDataset, type Period } from '@creance/index-model';
 import { findSeries, loadOracleConfig, type OracleConfig, type OracleSeries } from '../config.js';
 import { oracleKeyHex } from '../keys.js';
 import { DryRunPublisher, HcsPublisher, type Publisher } from '../publisher.js';
-import { publishedOnTopic } from '../published.js';
+import { publishedOnTopic, type TopicObservation } from '../published.js';
 import { QaFailed, runPipeline } from '../run.js';
 import { applyScenario, loadScenario } from '../scenario.js';
 import { StateFile, type OracleMode } from '../state.js';
@@ -237,7 +237,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   // every month of the window the shared topic already settled.
   const alreadyPublished =
     wiring.topicId === null
-      ? new Set<string>()
+      ? new Map<string, TopicObservation>()
       : await publishedOnTopic({ mirrorUrl: config.mirrorUrl, topicId: wiring.topicId, mode });
   if (alreadyPublished.size > 0) {
     log(

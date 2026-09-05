@@ -2,7 +2,7 @@ import { resolveDataset, type Period } from '@creance/index-model';
 
 import { findSeries, loadOracleConfig } from '../config.js';
 import { oracleKeyHex } from '../keys.js';
-import { publishedOnTopic } from '../published.js';
+import { publishedOnTopic, type TopicObservation } from '../published.js';
 import { QaFailed, runPipeline } from '../run.js';
 import { StateFile } from '../state.js';
 import { readPeriod, readSource, readString, type SourcePreference } from './args.js';
@@ -116,7 +116,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   // machine's memory of it, and a clone has none.
   const alreadyPublished =
     wiring.topicId === null
-      ? new Set<string>()
+      ? new Map<string, TopicObservation>()
       : await publishedOnTopic({
           mirrorUrl: config.mirrorUrl,
           topicId: wiring.topicId,

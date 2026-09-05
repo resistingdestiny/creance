@@ -51,6 +51,19 @@ function base(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/// The demo group months a topic already carries, as the pipeline takes them.
+function onTopic(periods: readonly string[]) {
+  return new Map(
+    periods.map((period, index) => [
+      recordKey({ group_key: 'computer_math', period: period as Period, mode: 'replay' }),
+      {
+        sequenceNumber: index + 1,
+        message: { status: 'final', odi: 0.3, ebar: -0.6, source_hash: 'ab'.repeat(32) },
+      },
+    ]),
+  );
+}
+
 describe('the source hash window', () => {
   it('commits to the six calendar months a period is computed from', () => {
     expect(periodsUsed('2026-04')).toEqual([
@@ -163,36 +176,34 @@ describe('the replay of real history for the demo series', () => {
     // index topic for each one. What settled is what the topic says.
     const publisher = new DryRunPublisher();
     const submitter = new DryRunSubmitter();
-    const onTopic = new Set(
-      ['2026-05', '2026-06', '2026-07'].map((period) =>
-        recordKey({ group_key: 'computer_math', period: period as Period, mode: 'replay' }),
-      ),
-    );
     const summary = await runPipeline(
       base({
         writer: new MemoryObservationWriter(),
         publisher,
         submitter,
-        publishedOnTopic: onTopic,
+        publishedOnTopic: onTopic(['2026-05', '2026-06', '2026-07']),
         periods: ['2026-05', '2026-06', '2026-07'] as Period[],
       }),
     );
     expect(summary.publishedCount).toBe(0);
     expect(summary.skippedCount).toBe(3);
     expect(publisher.published).toHaveLength(0);
-    expect(submitter.calls).toHaveLength(0);
+
+    // The contract call still happens, from the message the topic carries. A
+    // month can reach the topic and not the chain, and skipping the publish
+    // must not also skip the settlement.
+    expect(summary.submittedCount).toBe(3);
+    expect(submitter.calls.map((call) => call.period)).toEqual([202605, 202606, 202607]);
+    expect(submitter.calls.map((call) => call.hcsSequence)).toEqual([1n, 2n, 3n]);
   });
 
   it('still publishes the months the topic does not carry', async () => {
     const publisher = new DryRunPublisher();
-    const onTopic = new Set([
-      recordKey({ group_key: 'computer_math', period: '2026-05' as Period, mode: 'replay' }),
-    ]);
     const summary = await runPipeline(
       base({
         writer: new MemoryObservationWriter(),
         publisher,
-        publishedOnTopic: onTopic,
+        publishedOnTopic: onTopic(['2026-05']),
         periods: ['2026-05', '2026-06'] as Period[],
       }),
     );

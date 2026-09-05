@@ -17,6 +17,7 @@ import {
 import { seriesForGroup, type OracleConfig } from './config.js';
 import { assertUnderCap, buildMessage, signMessage, type ObservationMessage } from './message.js';
 import { mirrorMessageUrl, topicMessageUrl, type Publisher } from './publisher.js';
+import type { TopicObservation } from './published.js';
 import { formatReport, runQaGates, type QaReport } from './qa.js';
 import type { OracleMode, StateFile } from './state.js';
 import { recordKey, type ObservationRecord, type ObservationWriter } from './store.js';
@@ -184,8 +185,12 @@ export interface PipelineOptions {
    * settles it forever, so a clean clone running the demo replay against the
    * shared testnet topic has to be told what is already there or it publishes a
    * second message for every month it walks. Keys are `recordKey` keys.
+   *
+   * A month here still gets its contract call if the chain has not observed it,
+   * because the message carries everything the call needs and the entry carries
+   * the sequence number.
    */
-  publishedOnTopic?: ReadonlySet<string>;
+  publishedOnTopic?: ReadonlyMap<string, TopicObservation>;
   keyHex: string;
   state?: StateFile;
   /** Milliseconds between the start of one tick and the start of the next. */
@@ -274,9 +279,15 @@ export async function runPipeline(options: PipelineOptions): Promise<RunSummary>
       // no store, so without this the demo replay writes a second message for
       // every month the shared topic already carries.
       const topicKey = recordKey({ group_key: groupKey, period, mode: options.mode });
-      if (options.publishedOnTopic?.has(topicKey) === true) {
+      const onTopic = options.publishedOnTopic?.get(topicKey);
+      if (onTopic !== undefined) {
         skippedCount += 1;
-        log(`${period}  ${groupKey.padEnd(32)} already on the index topic`);
+        const resumed = await submitFromTopic(options, groupKey, period, onTopic, now(), log);
+        if (resumed !== null) {
+          submittedCount += 1;
+        } else {
+          log(`${period}  ${groupKey.padEnd(32)} already on the index topic`);
+        }
         continue;
       }
 
@@ -526,6 +537,56 @@ async function maybeSubmit(
  * Everything sent comes from the stored record, so the resubmission carries the
  * sequence number and the source hash of the message actually on the topic.
  */
+/**
+ * The contract call for a month that reached the topic but not the chain, on a
+ * machine that has no store row for it.
+ *
+ * The message on the topic is the settled value, so the call is made from it
+ * rather than from anything recomputed here. Nothing is written to the store:
+ * the topic is the record, and the chain guards in `maybeSubmit` make a second
+ * attempt harmless.
+ */
+async function submitFromTopic(
+  options: PipelineOptions,
+  groupKey: string,
+  period: Period,
+  onTopic: TopicObservation,
+  now: Date,
+  log: (line: string) => void,
+): Promise<SubmitResult | null> {
+  if (options.submitter === null) return null;
+  const series = seriesForGroup(options.config, groupKey);
+  if (series === undefined) return null;
+
+  const submission = await maybeSubmit(
+    options,
+    {
+      groupKey,
+      period,
+      status: onTopic.message.status,
+      odi: onTopic.message.odi,
+      ebar: onTopic.message.ebar,
+      sourceHash: onTopic.message.source_hash,
+      hcsSequence: onTopic.sequenceNumber,
+    },
+    series.seriesId,
+    now,
+  );
+  if (submission.result === null) {
+    log(
+      `${period}  ${groupKey.padEnd(32)} already on the index topic, ` +
+        `no chain call: ${submission.skipped}`,
+    );
+    return null;
+  }
+  log(
+    `${period}  ${groupKey.padEnd(32)} already on the topic at sequence ` +
+      `${onTopic.sequenceNumber}, submitted ${submission.result.hash} ` +
+      `gas ${submission.result.gasUsed}`,
+  );
+  return submission.result;
+}
+
 async function resumeSubmit(
   options: PipelineOptions,
   existing: ObservationRecord,

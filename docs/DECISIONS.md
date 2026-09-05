@@ -1159,3 +1159,217 @@ short dated maturity demonstration is read through the same screen. It is not
 linked from anywhere: the endpoint has no series list to build a link from, and
 the demonstration is a demonstration. The label on the screen is always the
 series' own, so the two can never be confused.
+## T12, the oracle worker, 5 September 2026
+
+### The replay publishes to the index topic, not to a second replay topic
+
+The demo clock replays real published BLS months for real periods. The messages
+it produces are byte for byte the messages the live path would produce for those
+periods: the same source rows, the same source hash, the same numbers, the same
+signature. There is nothing about them to quarantine.
+
+A second topic was considered and rejected. The index topic is the settlement
+record and it had zero messages before this run; publishing the real history
+somewhere else would have left the settlement topic empty while the settled
+months sat on a topic labelled as a rehearsal, which is the wrong way round. The
+replay is also the only path that will ever publish the months before the event,
+because the live path starts from the newest month the source carries, so a
+separate topic would mean the settlement record could never carry its own
+history.
+
+The mode is not lost. Every stored observation carries `mode` and a `replay`
+boolean, which is the column T07's schema adds, and the run state the API serves
+carries it too. What is deliberately not in the message is a replay flag: the
+message is a statement about a month, and that statement is identical whichever
+command made it.
+
+Scenario mode is the opposite case and is treated as such: see below.
+
+### A scenario never writes the index topic and never calls the contract
+
+A scenario carries synthetic rates. Two rules follow, and neither is a flag a
+hurried operator can pass by accident.
+
+It never calls `submitObservation`. A synthetic observation on the demo series
+would move `lastObservedMonth`, could open a month, could take a reserve, and
+would sit in the settlement history of a real series permanently. There is no
+argument that turns this on; the code path does not exist.
+
+It never writes the index topic. A first published value settles forever, and a
+synthetic message on the settlement topic could not be told from a real one by a
+reader who has only the topic. A scenario publishes to `HEDERA_TOPIC_SCENARIO`
+when one is configured and otherwise to the local observation store alone, which
+is enough for the screen: the run state carries the scenario label and the web
+app shows it in place of the REPLAY badge.
+
+A scenario is an overlay on the real archive rather than a file of invented
+rows: it names one group and replaces that group's published rate in a few
+months, and every other series, the all-occupation rate and every other month
+stay the real source. docs/INDEX-SPEC.md section 5 says replay and scenario
+bypass fetch and still pass qa, and a one-group file could not: the completeness
+gate needs all sixteen series and the consistency gate needs the aggregate. An
+overlay passes or fails the same gates a live month does. Overriding a month the
+source never published is refused, because a fabricated row would sail through
+the completeness gate that exists to catch exactly that. The source hash is
+taken over the rows the computation used, so a scenario's hash never matches the
+archive's and no reader can mistake one for the other.
+
+The committed scenario is `apps/oracle/scenarios/comp-shock-2026.json`, which
+raises the computer and mathematical rate for February to April 2026 so those
+months open on the shock form instead of the level form. It is not needed for
+the demo: DESIGN.md 3.4's window opens on real data.
+
+### The message carries `source` and `source_hash`, not `source_files`
+
+docs/INDEX-SPEC.md section 7 offers an array of source file objects; DESIGN.md
+3.3 offers a single `source` string with a `source_hash`. This build publishes
+the compact pair. The archive path uses seven source files, and the array form
+with a url, a sha256 and a row count for each pushes the message past the 1 KB
+cap that keeps an HCS message a single chunk. The published messages are 553 to
+571 bytes with the compact form.
+
+Nothing is lost. The full file list, with a sha256 and a byte count for each, is
+stored beside the message in the observation store, and it is what the
+provenance QA gate reads. `source_hash` is not the hash of a response body: it
+is the sha256 of the JCS form of the extracted source rows for the six calendar
+months the computation used, t to t-2 and t-12 to t-14, so two runs over the
+same published data produce the same hash even though the two response bodies
+differ in a timestamp.
+
+### The signature is secp256k1 over sha256 of the canonical JSON, without a prefix
+
+Stated exactly, because T07's API and a judge both have to reproduce it.
+
+    1. take the message bytes off the topic and parse them as JSON
+    2. remove the "sig" member
+    3. canonicalise what is left with JCS, RFC 8785
+    4. sha256 those bytes; that 32 byte digest is what was signed
+    5. recover the secp256k1 address from "sig", which is 65 bytes, r then s then v,
+       hex with an 0x prefix
+    6. it must equal the oracle account's EVM address,
+       0x8aaf5b093842dc2e32f56bad9534d12a83861301
+
+There is no EIP-191 personal message prefix and no EIP-712 domain: the digest is
+the plain hash of the canonical bytes. A prefix would have been the more
+conventional choice, and it was rejected because it makes the digest depend on a
+convention a non-JavaScript verifier has to know about, where the plain hash
+depends only on RFC 8785 and sha256. The address form was chosen over a raw
+public key because the oracle's EVM address is already published in
+docs/HEDERA.md and is the same identity the ORACLE role holds on CoverPool, so
+one value verifies both halves of an observation.
+
+`pnpm oracle:verify` is that procedure as runnable code. It also checks that the
+bytes on the topic are their own canonical form, so a reader cannot be shown one
+key ordering and a signature over another.
+
+### A month with no evaluable ODI is submitted as the smallest int64
+
+docs/INDEX-SPEC.md section 4 publishes `"odi":null` when the months t-12 to t-14
+are missing, and the contract's `odi` is an `int64` with no null. The value sent
+is `-9223372036854775808`, the smallest int64.
+
+It cannot satisfy `odi >= attachmentShock` for any attachment the calibration
+produces, the smallest being 1.5 points or 15000, so a null ODI can never open
+the shock form. It is not a value the index can produce: the archive's extremes
+since 2000 are inside ten points. It is unmistakable in an event log, which a
+sentinel like zero would not be, and zero would additionally be a plausible
+reading. The only arithmetic the contract does on `odi` is the indexed payout
+formula, and that runs only on a shock opening, which this value can never
+produce; it is widened to `int256` there in any case.
+
+The published message still carries `"odi":null`. The sentinel exists only at
+the contract boundary.
+
+### `no_source` is a fourth published status
+
+docs/INDEX-SPEC.md section 7 lists three statuses: final, insufficient_history
+and revision. This build publishes a fourth, `no_source`, for a month the source
+never collected.
+
+October 2025 is that month for every LN series: value `-`, footnote code 9, the
+2025 lapse in appropriations. A month with no source value at all is a different
+fact from a month whose smoothing window happens to be incomplete, and flattening
+the two into one word would tell a reader the November 2025 story about October.
+Both are published, neither is submitted on chain, and the index page can say
+which is which. The status appears in the published run as sequence 10 on the
+index topic.
+
+### The jump gate keeps a 24 month calendar window and a minimum of 12 values
+
+docs/INDEX-SPEC.md section 8 sets the jump gate at five standard deviations of
+the trailing 24 months. The collection gap means no group has 24 smoothed values
+in that window for any target month from October 2025 to September 2026:
+`ebar` is undefined for 2025-10, 2025-11 and 2025-12.
+
+Demanding all 24 would have switched the gate off for fifteen consecutive
+months, including the two the demo settles on, and a gate that abstains exactly
+when the data are most disturbed is worse than no gate. The window therefore
+stays 24 calendar months and the gate runs on whatever those months collected,
+provided at least twelve values exist. Below twelve it abstains and says so in
+the gate's detail line, because a standard deviation over a short window is not
+a tighter test, it is a noisier one.
+
+### The mapping gate hashes the canonical form of the mapping, not the file bytes
+
+The gate compares sha256 of the JCS form of `series-map.json` against a constant
+frozen in `apps/oracle/src/qa.ts`. Hashing the canonical form rather than the
+file means reformatting the file is not a settlement event while changing a
+series id is. The gate also checks that the mapping and the frozen calibration
+name the same catalogue file and the same series id for every group, which is
+the drift that would actually matter: a calibration computed against one mapping
+and applied to another.
+
+Changing `FROZEN_SERIES_MAP_SHA256` means the trigger universe moved, which
+docs/INDEX-SPEC.md section 3 forbids once anything has settled, so a change to
+it needs its own entry here.
+
+### The run state is a JSON file, and the API reads it rather than importing the oracle
+
+T07's Postgres schema is not merged. The oracle writes
+`var/oracle/replay-state.json` and the API reads it, both through
+`ORACLE_STATE_PATH`, and the observations go to `var/oracle/observations.json`
+behind an `ObservationWriter` interface that a Postgres writer replaces without
+the pipeline noticing. Both paths are gitignored.
+
+The reader is duplicated in `apps/api/src/replay/state.ts` rather than imported
+from `apps/oracle`: an API that imports a worker in order to render a badge has
+the dependency the wrong way round, and the file is a contract between them
+thirty lines wide. Every field is coerced on read, so a half written or hand
+edited file cannot make a request throw; the badge is decoration and the topic
+is the record.
+
+`readReplayState` is exported separately from the route, because T21's
+`GET /health` and T26's `GET /v1/index/health` both have to include this state
+and neither should have to call an endpoint to get it. The endpoint itself is
+`GET /v1/index/replay`, a standalone Fastify plugin in its own directory
+registered from `server.ts` with one line, exactly as `investorRoutes` is.
+
+### The HKDF key derivation is copied into apps/oracle rather than imported
+
+`contracts/scripts/hedera/derive.ts` holds the same loop. Importing it would
+drag Hardhat and its plugins into the dependency graph of a worker that makes
+one contract call. The oracle reads `HEDERA_ORACLE_KEY` first and derives from
+`HEDERA_OPERATOR_KEY` only as a fallback, so the copy is on the path a clone
+with one key takes, not the normal one. T07 moves the same code to
+`packages/client`; when that lands, `apps/oracle/src/keys.ts` should import it
+and the copy should go.
+
+### The replay proof run stopped at April 2026, and the demo needs a fresh series
+
+The run recorded in docs/HEDERA.md walked January 2025 to April 2026 for
+ODI-COMP-2026-01. That series now has `lastObservedMonth` 24315, status
+ClaimsOpen and a reserve of 3,000 TUSD taken.
+
+Those months can never be replayed on that series again. `submitObservation`
+reverts `PeriodNotAfterLast` for any month at or before the last observed one,
+which is the rule that stops a backfilled month moving a loss window a claim was
+already judged against. The run stopped at April rather than running on to July
+so that May 2026, which also opens on the level form, is still available as a
+second opening if one is wanted on camera.
+
+T24's demo replay therefore needs one of two things, and the choice is the
+demo's, not the oracle's: either the admin registers a fresh series for the
+recording, or the replay runs publish-only with `--no-submit` against a chain
+state that already holds the April opening. The second is the cheaper take and
+shows the same screens; the first is the one that shows the reserve being taken
+live.

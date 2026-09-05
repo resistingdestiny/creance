@@ -36,7 +36,11 @@ export const API_LIMITS: Record<ApiVersion, ApiLimits> = {
   v2: { seriesPerRequest: 50, yearsPerRequest: 20, requestsPerDay: 500 },
 };
 
-/** The trailing slash is required. Without it the API returns a 404 page. */
+/**
+ * The trailing slash is required on v1: without it the endpoint answers HTTP 404
+ * with an HTML error page rather than JSON. v2 tolerates its absence. Both are
+ * written with the slash so the two paths cannot diverge.
+ */
 export const ENDPOINTS: Record<ApiVersion, string> = {
   v1: 'https://api.bls.gov/publicAPI/v1/timeseries/data/',
   v2: 'https://api.bls.gov/publicAPI/v2/timeseries/data/',
@@ -258,8 +262,10 @@ function readMeta(path: string): CacheMeta | null {
 
 /**
  * Why a request failed, or null when it succeeded. The body's status field is
- * authoritative: a 200 can still carry REQUEST_FAILED, which is what a missing
- * trailing slash produces.
+ * authoritative, because a 200 can still carry a failure: a spent daily quota
+ * comes back as HTTP 200 with status REQUEST_NOT_PROCESSED. A missing trailing
+ * slash is the other shape, and it is not a JSON body at all on v1, so both the
+ * status code and the parse are checked before the status field is read.
  */
 export function describeFailure(httpStatus: number, body: string): string | null {
   if (httpStatus < 200 || httpStatus >= 300) {

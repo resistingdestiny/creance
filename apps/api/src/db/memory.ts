@@ -298,6 +298,11 @@ export class MemoryRepository implements Repository {
     });
   }
 
+  /** Test reach-in: a bound policy, without going through the bind path. */
+  putPolicy(row: PolicyRow): void {
+    this.policyRows.set(row.policyId, row);
+  }
+
   /** Test reach-in: the payment written beside a policy. */
   paymentsFor(ref: string): PaymentRow[] {
     return [...this.paymentRows.values()].filter((row) => row.ref === ref);

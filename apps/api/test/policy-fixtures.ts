@@ -1,8 +1,20 @@
 import { MirrorClient } from '@creance/client';
 
 import type { ApiConfig } from '../src/config.js';
-import type { BindCall, ChainGateway, ChainWrite, SeriesChainState } from '../src/chain/cover-pool.js';
+import type {
+  BindCall,
+  ChainGateway,
+  ChainWrite,
+  LossWindow,
+  SeriesChainState,
+} from '../src/chain/cover-pool.js';
 import type { HederaGateway, MintedPolicyNft, TopicReceipt } from '../src/chain/hedera.js';
+import {
+  MemoryObjectStore,
+  loadEvidenceKeys,
+  type EvidenceKeys,
+} from '../src/claims/evidence.js';
+import type { AdminTokens } from '../src/claims/token.js';
 import { CredentialIssuer } from '../src/credentials.js';
 import { MemoryRepository } from '../src/db/memory.js';
 import type { GroupRow, ObservationRow } from '../src/db/types.js';
@@ -112,11 +124,18 @@ export const SERIES_STATE: SeriesChainState = {
   activeExposure: 0n,
   principalRemaining: 100_000_000_000n,
   freeCapacity: 100_000_000_000n,
+  firstOpenMonth: 202604,
+  lastOpenMonth: 202605,
+  lastObservedMonth: 202607,
 };
 
 export class FakeChain implements ChainGateway {
   readonly binds: BindCall[] = [];
   bindError: Error | null = null;
+  /** What `openMonths` reports. The window rules read the chain, never a table. */
+  openMonths: number[] = [202604, 202605];
+  /** What `claimDeadline` reports, in seconds. Deliberately not recomputed. */
+  deadlineAt = Math.floor(Date.parse('2026-10-05T00:00:00Z') / 1000);
 
   constructor(private state: SeriesChainState = SERIES_STATE) {}
 
@@ -130,6 +149,14 @@ export class FakeChain implements ChainGateway {
 
   async activePolicyOf(): Promise<string> {
     return `0x${'0'.repeat(64)}`;
+  }
+
+  async lossWindow(): Promise<LossWindow> {
+    return { openMonths: this.openMonths, lastObservedMonth: this.state.lastObservedMonth };
+  }
+
+  async claimDeadline(): Promise<number> {
+    return this.deadlineAt;
   }
 
   async bind(call: BindCall): Promise<ChainWrite> {
@@ -278,12 +305,27 @@ export class MirrorStub {
   }
 }
 
+/// The review queue's two actors, so a test can prove they are told apart.
+export const ADMIN_TOKENS: AdminTokens = {
+  admin: 'test-admin-token',
+  adjuster: 'test-adjuster-token',
+  reviewerName: 'root',
+};
+
+/// A throwaway key encryption key. Thirty-two bytes of a fixed pattern: the
+/// tests need a key that opens what they sealed and nothing else.
+export const TEST_EVIDENCE_KEYS = loadEvidenceKeys({
+  EVIDENCE_KEK: Buffer.alloc(32, 7).toString('base64'),
+  EVIDENCE_KEK_ID: 'test-kek',
+}) as EvidenceKeys;
+
 export interface TestHarness {
   services: Services;
   repository: MemoryRepository;
   chain: FakeChain;
   hedera: FakeHedera;
   mirror: MirrorStub;
+  evidenceStore: MemoryObjectStore;
 }
 
 export async function buildTestServices(
@@ -291,6 +333,9 @@ export async function buildTestServices(
     observations?: ObservationRow[];
     hedera?: FakeHedera | null;
     mirror?: MirrorStub;
+    adminTokens?: AdminTokens;
+    evidenceKeys?: EvidenceKeys | null;
+    evidenceStore?: MemoryObjectStore;
   } = {},
 ): Promise<TestHarness> {
   const repository = new MemoryRepository(GROUPS);
@@ -312,11 +357,21 @@ export async function buildTestServices(
     indexData: null,
     // No gate: the paid path has its own file and its own testnet command.
     x402: null,
+    adminTokens: options.adminTokens ?? ADMIN_TOKENS,
+    evidenceKeys: options.evidenceKeys === undefined ? TEST_EVIDENCE_KEYS : options.evidenceKeys,
+    evidenceStore: options.evidenceStore ?? new MemoryObjectStore(),
     thresholds: new Map([['computer_math', { attachmentShock: 2, levelLine: -0.68 }]]),
     gitSha: 'testsha',
     startedAt: new Date('2026-09-05T00:00:00Z'),
   };
-  return { services, repository, chain, hedera: hedera ?? new FakeHedera(), mirror };
+  return {
+    services,
+    repository,
+    chain,
+    hedera: hedera ?? new FakeHedera(),
+    mirror,
+    evidenceStore: services.evidenceStore as MemoryObjectStore,
+  };
 }
 
 export async function buildTestServer(
@@ -324,6 +379,8 @@ export async function buildTestServer(
     observations?: ObservationRow[];
     hedera?: FakeHedera | null;
     mirror?: MirrorStub;
+    adminTokens?: AdminTokens;
+    evidenceKeys?: EvidenceKeys | null;
   } = {},
 ) {
   const harness = await buildTestServices(options);

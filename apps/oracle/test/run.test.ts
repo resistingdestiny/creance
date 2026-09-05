@@ -65,7 +65,10 @@ describe('the source hash window', () => {
 });
 
 describe('the replay of real history for the demo series', () => {
-  it('walks nineteen months, publishes sixteen and opens in April and May 2026', async () => {
+  // "publishes sixteen" until the count was checked against the body of the
+  // test: nineteen months are published, sixteen of them with a final status.
+  // Sixteen and thirteen are the testnet proof run's numbers, not this test's.
+  it('walks nineteen months, publishes all nineteen and opens in April and May 2026', async () => {
     const summary = await runPipeline(base());
     expect(summary.periods).toHaveLength(19);
     expect(summary.publishedCount).toBe(19);

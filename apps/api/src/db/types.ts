@@ -235,6 +235,12 @@ export interface Repository {
   quote(quoteId: string): Promise<QuoteRow | null>;
   policy(policyId: string): Promise<PolicyRow | null>;
   /**
+   * The policy the one-active-policy rule would refuse a second purchase
+   * against, or null. Read only: the rule itself is taken inside
+   * `reservePolicy`, and this is how a screen can say it before a payment.
+   */
+  activePolicy(nullifier: string, seriesId: string): Promise<PolicyRow | null>;
+  /**
    * Check the one-active-policy rule and the capacity, consume the credential
    * and the quote, and write the policy and its first premium, all atomically.
    * Throws an AppError when a rule refuses.

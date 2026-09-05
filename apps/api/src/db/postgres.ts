@@ -8,6 +8,7 @@ import {
   insufficientCapacity,
   quoteConsumed,
 } from './memory.js';
+import { ACTIVE_POLICY_STATUSES } from './types.js';
 import type {
   CredentialRow,
   GroupRow,
@@ -177,6 +178,22 @@ export class PostgresRepository implements Repository {
     const { rows } = await this.pool.query('SELECT * FROM policies WHERE policy_id = $1', [
       policyId,
     ]);
+    return rows[0] === undefined ? null : toPolicy(rows[0]);
+  }
+
+  /**
+   * The same predicate as `policies_one_active_per_nullifier`, read outside a
+   * transaction so a screen can tell someone they already hold cover before
+   * they are asked to pay for a second one.
+   */
+  async activePolicy(nullifier: string, seriesId: string): Promise<PolicyRow | null> {
+    const { rows } = await this.pool.query(
+      `SELECT * FROM policies
+        WHERE nullifier = $1 AND series_id = $2 AND status = ANY($3::text[])
+        ORDER BY starts_at DESC
+        LIMIT 1`,
+      [nullifier, seriesId, [...ACTIVE_POLICY_STATUSES]],
+    );
     return rows[0] === undefined ? null : toPolicy(rows[0]);
   }
 

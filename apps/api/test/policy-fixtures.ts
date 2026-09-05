@@ -58,6 +58,23 @@ export const CONFIG: ApiConfig = {
   },
   credentialTtlSeconds: 1800,
   quoteTtlSeconds: 900,
+  world: {
+    appId: 'app_8569aa8d1bbfb24b1243e86d4fc34adc',
+    rpId: 'rp_d6ae9b4ff2018a15',
+    verifyId: 'rp_d6ae9b4ff2018a15',
+    verifyUrl: 'https://developer.world.org/api/v4/verify',
+    // The vector key from the World signatures page, never a real one. The
+    // tests that sign anything stub the clock and the random source with it.
+    signingKey: `0x${'ab'.repeat(32)}`,
+    signerAddress: '0xe239cdc5fbe977a8a141b72194d3cf8c41bc5bc6',
+    actionEligibility: 'occupation-cover-eligibility',
+    actionClaim: 'occupation-cover-claim',
+    environment: 'staging',
+    preset: 'selfieCheckLegacy',
+    identifiers: ['selfie', 'face'],
+    rpContextTtlSeconds: 300,
+    enabled: true,
+  },
   demoIssuer: true,
   databaseUrl: undefined,
 };

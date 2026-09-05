@@ -79,6 +79,17 @@ export class MemoryRepository implements Repository {
     return this.policyRows.get(policyId) ?? null;
   }
 
+  async activePolicy(nullifier: string, seriesId: string): Promise<PolicyRow | null> {
+    return (
+      [...this.policyRows.values()].find(
+        (row) =>
+          row.nullifier === nullifier &&
+          row.seriesId === seriesId &&
+          ACTIVE_POLICY_STATUSES.includes(row.status),
+      ) ?? null
+    );
+  }
+
   async reservePolicy(input: ReservePolicyInput): Promise<void> {
     const { policy } = input;
     const active = [...this.policyRows.values()].some(

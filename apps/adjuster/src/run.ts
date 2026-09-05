@@ -78,6 +78,51 @@ export async function runPass(options: PassOptions): Promise<PassResult[]> {
     results.push(await decideOne(claim, options, now(), log));
   }
 
+  results.push(...(await publishPending(options, now(), log)));
+  return results;
+}
+
+/**
+ * The decisions a human made, put on the topic.
+ *
+ * A reviewer's decision is stored with its record and its hash, and the API
+ * cannot publish it because the claims topic's submit key is the adjuster
+ * account's. So the pass sweeps them at the end. It is the same publisher and
+ * the same message; only the actor behind the record differs.
+ */
+export async function publishPending(
+  options: PassOptions,
+  at: Date,
+  log: (line: string) => void = () => undefined,
+): Promise<PassResult[]> {
+  const pending = await options.api.unpublished(options.limit ?? 20);
+  const results: PassResult[] = [];
+  for (const decision of pending) {
+    const receipt = await options.publisher.publish(
+      encodeTopicMessage(
+        claimDecisionMessage({
+          policyId: decision.policy_id,
+          claimId: decision.claim_id,
+          decisionHash: decision.decision_hash,
+          decision: decision.decision,
+          at,
+        }),
+      ),
+    );
+    if (receipt === null) continue;
+    await options.api.published(decision.claim_id, receipt.sequenceNumber);
+    log(`  published a reviewer's ${decision.decision} as sequence ${receipt.sequenceNumber}`);
+    results.push({
+      claimId: decision.claim_id,
+      decision: decision.decision,
+      reasons: [],
+      confidence: null,
+      decisionHash: decision.decision_hash,
+      hcsSequenceNumber: receipt.sequenceNumber,
+      documentsRead: 0,
+      note: 'a decision that was waiting for the topic',
+    });
+  }
   return results;
 }
 

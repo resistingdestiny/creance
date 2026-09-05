@@ -207,6 +207,46 @@ export class AdjusterApi {
     });
     return await readBody<DecisionAccepted>(response, `the decision on ${claimId}`, [200, 201]);
   }
+
+  /**
+   * The decisions whose hash has not reached the claims topic yet.
+   *
+   * A reviewer's decision is stored with its record and its hash, and the API
+   * cannot publish it because the topic's submit key is the adjuster account's.
+   * So the Adjuster sweeps this at the end of a pass, which keeps "every
+   * decision is on a public topic" true for the human half of the queue as well
+   * as the machine half.
+   */
+  async unpublished(limit = 20): Promise<UnpublishedDecision[]> {
+    const response = await this.fetchImpl(
+      `${this.baseUrl}/v1/admin/claims/unpublished?limit=${limit}`,
+      { headers: this.headers() },
+    );
+    const body = await readBody<{ claims: UnpublishedDecision[] }>(
+      response,
+      'the unpublished decisions',
+      [200],
+    );
+    return body.claims;
+  }
+
+  /** Where a decision reached the topic. Touches no other column. */
+  async published(claimId: string, sequenceNumber: number): Promise<void> {
+    const response = await this.fetchImpl(`${this.baseUrl}/v1/admin/claims/${claimId}/published`, {
+      method: 'POST',
+      headers: this.headers({ 'content-type': 'application/json' }),
+      body: JSON.stringify({ hcs_decision_seq: sequenceNumber }),
+    });
+    await readBody(response, `the sequence number for ${claimId}`, [200]);
+  }
+}
+
+/** One decision waiting for a sequence number. */
+export interface UnpublishedDecision {
+  claim_id: string;
+  policy_id: string;
+  decision: 'approve' | 'refer' | 'decline';
+  decision_hash: string;
 }
 
 /** The recorded extractions a fixture or a dry run replays. */

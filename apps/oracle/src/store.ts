@@ -70,13 +70,27 @@ export function publicationScope(mode: OracleMode): 'index' | 'scenario' {
   return mode === 'scenario' ? 'scenario' : 'index';
 }
 
-/** The natural key: one row per group and period within a publication scope. */
+/**
+ * The natural key: one row per group, period and status within a publication
+ * scope.
+ *
+ * The status only enters the key when it is a revision, and that is the unique
+ * key of docs/INDEX-SPEC.md section 10 read the way section 6 means it: a
+ * revision record is stored beside the value that settled, never over it, and
+ * everything that asks "was this period published" asks about the settlement
+ * and passes no status at all. Two revisions of one period collapse to one row,
+ * which is what `unique (group_key, period, status)` says and what stops a
+ * fetch that is run twice recording the same restatement twice.
+ */
 export function recordKey(record: {
   group_key: string;
   period: Period;
   mode: OracleMode;
+  status?: string;
 }): string {
-  return `${publicationScope(record.mode)}/${record.group_key}/${record.period}`;
+  const revision =
+    record.status === 'revision' || record.status === 'revised' ? '/revised' : '';
+  return `${publicationScope(record.mode)}/${record.group_key}/${record.period}${revision}`;
 }
 
 export interface ObservationWriter {

@@ -11,7 +11,6 @@ const commands = {
   'oracle:backtest': 'print the backtest table per occupation group from 2010',
   'oracle:backfill': 'load the full index history from the archived BLS files',
   'oracle:schedule': 'run the daily index check and pipeline with QA gates and alerts',
-  'steward:run': 'run one Steward cycle for the configured principal',
   'adjuster:run': 'decide the pending claims once',
   'contracts:deploy': 'deploy CoverPool and CollateralVault to Hedera testnet and verify them',
   'ats:issue': 'issue the demo Displacement Bond Note series through the ATS SDK',

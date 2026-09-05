@@ -22,7 +22,7 @@
     "oracle:backtest": "pnpm --filter @creance/index-model backtest",
     "oracle:backfill": "pnpm --filter @creance/index-model backfill",
     "oracle:schedule": "node scripts/stub.mjs oracle:schedule",
-    "steward:run": "node scripts/stub.mjs steward:run",
+    "steward:run": "pnpm --filter @creance/steward run start",
     "adjuster:run": "node scripts/stub.mjs adjuster:run",
     "contracts:deploy": "pnpm --filter @creance/contracts run deploy",
     "hedera:setup": "pnpm --filter @creance/contracts run hedera:setup",

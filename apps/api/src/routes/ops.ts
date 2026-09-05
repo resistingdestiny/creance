@@ -3,7 +3,10 @@ import type { FastifyPluginAsync, RouteHandlerMethod } from 'fastify';
 import { seriesForGroup } from '../config.js';
 import type { CredentialRow } from '../db/types.js';
 import { AppError } from '../errors.js';
+import { indexHealthSummary } from '../oracle/health.js';
+import { readLastRun, type OracleRun } from '../oracle/runs.js';
 import { readReplayState, type ReplayState } from '../replay/state.js';
+import { indexHealth } from './index-health.js';
 import type { Services } from '../services.js';
 import { rfc3339 } from '../views.js';
 import { continuityHolds } from '../world/config.js';
@@ -28,17 +31,30 @@ import { requiredString } from './quote.js';
 /// The replay state is read with `readReplayState`, the reader
 /// apps/api/src/replay/state.ts exports for exactly this. Health never calls
 /// `GET /v1/replay`: a process that reaches itself over HTTP to answer a health
-/// check reports the proxy's health, not its own.
+/// check reports the proxy's health, not its own. The same rule applies to the
+/// `index` block, which is the summary of `GET /v1/index/health` built from the
+/// same code rather than fetched from it.
+///
+/// The `index` block is what docs/INDEX-SPEC.md section 9 means by "the deploy
+/// health check includes it": a container that is up while the index has
+/// stopped being published is not healthy in any sense an operator cares
+/// about, and the deploy script and the compose health check both read this
+/// path. It does not change the status code. A stale source is a fact about the
+/// world, and restarting this container would not fix it.
 
 export interface OpsPluginOptions {
   services: Services;
   /** Injected in tests, so a route test needs no state file on disk. */
   readReplay?: () => ReplayState;
+  /** Injected in tests, so a route test needs no runs file on disk. */
+  readRun?: () => OracleRun | null;
+  now?: () => Date;
 }
 
 export const opsRoutes: FastifyPluginAsync<OpsPluginOptions> = async (app, options) => {
   const { services } = options;
   const readReplay = options.readReplay ?? ((): ReplayState => readReplayState());
+  const readRun = options.readRun ?? ((): OracleRun | null => readLastRun());
 
   const health: RouteHandlerMethod = async (_request, reply) => {
     let database = 'ok';
@@ -63,6 +79,18 @@ export const opsRoutes: FastifyPluginAsync<OpsPluginOptions> = async (app, optio
       // badge, which is a screen's business and not an operator's. A clone that
       // has never run the oracle reads as live and idle rather than as an error.
       replay: readReplay(),
+      // The index, as GET /v1/index/health answers it, compacted: the last run
+      // and its state, whether the gates passed, and how old the newest period
+      // is. Which commit is deployed, whether the clock is walking and whether
+      // the index is still being published, in one call.
+      index: indexHealthSummary(
+        await indexHealth({
+          services,
+          readRun,
+          readReplay,
+          ...(options.now === undefined ? {} : { now: options.now }),
+        }),
+      ),
       // Which credential this deployment asks for and in which environment.
       // The preset is configuration because the Selfie Check feature flag is
       // granted per app by a human, so a rung change is a `.env` edit, and a

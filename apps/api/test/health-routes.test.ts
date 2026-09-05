@@ -1,10 +1,11 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import type { OracleRun } from '../src/oracle/runs.js';
 import { idleReplayState, type ReplayState } from '../src/replay/state.js';
 import { opsRoutes } from '../src/routes/ops.js';
 import { buildServices } from '../src/services.js';
-import { buildTestServer, buildTestServices } from './policy-fixtures.js';
+import { buildTestServer, buildTestServices, observation } from './policy-fixtures.js';
 
 /// GET /health is the deployment's own answer to "which commit is live and is
 /// the demo clock walking", which is the definition of done in MISSION.md and
@@ -27,10 +28,30 @@ const REPLAYING: ReplayState = {
   scenario_label: null,
 };
 
-async function serverWith(state: ReplayState): Promise<FastifyInstance> {
-  const { services } = await buildTestServices();
+const LAST_RUN: OracleRun = {
+  id: 12,
+  mode: 'live',
+  state: 'done',
+  started_at: '2026-09-05T14:10:00Z',
+  finished_at: '2026-09-05T14:10:26Z',
+  target_period: '2026-07',
+  notes: 'published 15, submitted 1, skipped 0',
+  qa_passed: true,
+  failed_gates: [],
+};
+
+async function serverWith(
+  state: ReplayState,
+  run: OracleRun | null = LAST_RUN,
+): Promise<FastifyInstance> {
+  const { services } = await buildTestServices({ observations: [observation()] });
   const app = Fastify();
-  await app.register(opsRoutes, { services, readReplay: () => state });
+  await app.register(opsRoutes, {
+    services,
+    readReplay: () => state,
+    readRun: () => run,
+    now: () => new Date('2026-09-05T14:10:00Z'),
+  });
   await app.ready();
   return app;
 }
@@ -106,6 +127,70 @@ describe('GET /health', () => {
       }
     } finally {
       await built.app.close();
+    }
+  });
+});
+
+describe('the index block on GET /health', () => {
+  let app: FastifyInstance | null = null;
+
+  afterEach(async () => {
+    await app?.close();
+    app = null;
+  });
+
+  it('says whether the index is still being published, not only whether the process is up', async () => {
+    app = await serverWith(idleReplayState());
+    const body = (await app.inject({ method: 'GET', url: '/health' })).json();
+    expect(body.index).toEqual({
+      status: 'ok',
+      mode: 'live',
+      last_run: {
+        id: 12,
+        state: 'done',
+        target_period: '2026-07',
+        finished_at: '2026-09-05T14:10:26Z',
+      },
+      qa: 'pass',
+      newest_period: '2026-07',
+      stale_days: 35,
+      stale: false,
+    });
+  });
+
+  it('keeps the sha and the replay block the deploy script already reads', async () => {
+    app = await serverWith(REPLAYING);
+    const body = (await app.inject({ method: 'GET', url: '/health' })).json();
+    expect(body.sha).toBe('testsha');
+    expect(body.replay).toEqual(REPLAYING);
+    expect(body.status).toBe('ok');
+  });
+
+  it('reads a deployment whose oracle has never run as never_run, and still answers 200', async () => {
+    app = await serverWith(idleReplayState(), null);
+    const response = await app.inject({ method: 'GET', url: '/health' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().index).toMatchObject({ status: 'never_run', last_run: null, qa: 'unknown' });
+  });
+
+  it('does not turn a stale source into a failing container', async () => {
+    // Restarting this container would not make the Bureau of Labor Statistics
+    // publish, so staleness is reported and the status code stays 200.
+    const { services } = await buildTestServices({ observations: [observation()] });
+    const stale = Fastify();
+    await stale.register(opsRoutes, {
+      services,
+      readReplay: () => idleReplayState(),
+      readRun: () => LAST_RUN,
+      now: () => new Date('2026-11-01T00:00:00Z'),
+    });
+    await stale.ready();
+    try {
+      const response = await stale.inject({ method: 'GET', url: '/health' });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().index).toMatchObject({ status: 'stale', stale: true });
+    } finally {
+      await stale.close();
     }
   });
 });

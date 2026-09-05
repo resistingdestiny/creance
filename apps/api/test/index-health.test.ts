@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { sourceHealth } from '../src/oracle/health.js';
+import { sourceHealth, type IndexHealth } from '../src/oracle/health.js';
 import { readLastRun, type OracleRun } from '../src/oracle/runs.js';
 import { idleReplayState, type ReplayState } from '../src/replay/state.js';
 import { indexHealthRoutes } from '../src/routes/index-health.js';
@@ -77,7 +77,7 @@ describe('GET /v1/index/health', () => {
     app = await serverWith(options);
     const response = await app.inject({ method: 'GET', url: '/v1/index/health' });
     expect(response.statusCode).toBe(200);
-    return response.json() as Record<string, never>;
+    return response.json() as IndexHealth;
   }
 
   it('answers with the last run, the last period per group, qa, staleness and mode', async () => {

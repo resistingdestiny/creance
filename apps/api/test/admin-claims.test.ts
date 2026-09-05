@@ -4,7 +4,7 @@ import { canonicalize, type JsonValue } from '@creance/index-model';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { openEvidence, sealEvidence, sealField } from '../src/claims/evidence.js';
+import { openEvidence, sealEvidence } from '../src/claims/evidence.js';
 import type { ClaimEvidenceRow, ClaimRow } from '../src/db/types.js';
 import {
   ADMIN_TOKENS,

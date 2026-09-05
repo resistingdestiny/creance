@@ -1796,8 +1796,33 @@ is the record.
 `readReplayState` is exported separately from the route, because T21's
 `GET /health` and T26's `GET /v1/index/health` both have to include this state
 and neither should have to call an endpoint to get it. The endpoint itself is
-`GET /v1/index/replay`, a standalone Fastify plugin in its own directory
-registered from `server.ts` with one line, exactly as `investorRoutes` is.
+`GET /v1/replay`, a standalone Fastify plugin in its own directory registered
+from `server.ts` with one line, exactly as `investorRoutes` is.
+
+### The run state is served from /v1/replay, outside the metered prefix
+
+It was `GET /v1/index/replay` while this branch was written against a main that
+had no payment gate. T08 landed one, and its index route is metered on the glob
+`GET /v1/index/*` with a `matches` test of `path.startsWith('/v1/index/')`, so
+the badge answered 402 the moment payments were configured. Measured on the
+merged branch before the move: 402 with a `PAYMENT-REQUIRED` header quoting
+10000 units of TUSD, for a thirty line JSON file that reads no chain and no
+database.
+
+The endpoint moved out from under the prefix rather than being carved out of it.
+A carve-out would have had to hold in two places that cannot be kept in step by
+the type system, the `matches` predicate and the glob handed to the x402
+middleware, and every later free route under `/v1/index/` would have had to
+remember both. The path a payer meters is now exactly the prefix, with no
+exceptions to read.
+
+Nothing consumed the old path. The web app reads the `replay` boolean on the
+index view, not this endpoint.
+
+T26's `GET /v1/index/health` has the same problem and needs the same answer: a
+health reading is not an index reading and must not sit under the metered
+prefix. `GET /v1/health` or a carve-out proved by a test, and the first is
+smaller.
 
 ### The HKDF key derivation is copied into apps/oracle rather than imported
 

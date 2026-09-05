@@ -760,7 +760,7 @@ opened four months, April on both forms, against synthetic rates overlaid on the
 real archive. After it ran, the index topic still held thirty-one messages and
 the series still held `lastObservedMonth` 24315. The four rows went to the local
 observation store with `mode` scenario, no `submit_tx` and the scenario label,
-and `GET /v1/index/replay` reported the label in place of the REPLAY badge.
+and `GET /v1/replay` reported the label in place of the REPLAY badge.
 docs/DECISIONS.md records why neither is a flag.
 
 ### Cost of the whole day

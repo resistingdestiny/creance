@@ -41,6 +41,11 @@ export interface ApiConfig {
   policyNftTokenId: string;
   paymentsTopicId: string;
   indexTopicId: string;
+  /**
+   * The claims topic. The API reads it for the audit trail and never writes
+   * it: its submit key is the adjuster's (docs/HEDERA.md, Topics).
+   */
+  claimsTopicId: string;
   series: SeriesConfig[];
   /** The account holding BINDER_ROLE and the payments topic submit key. */
   api: AccountConfig & { key: string | undefined };
@@ -186,6 +191,7 @@ export function loadApiConfig(
     paymentsTopicId:
       process.env.HEDERA_TOPIC_PAYMENTS ?? resources?.topics?.payments?.topicId ?? '',
     indexTopicId: process.env.HEDERA_TOPIC_INDEX ?? resources?.topics?.index?.topicId ?? '',
+    claimsTopicId: process.env.HEDERA_TOPIC_CLAIMS ?? resources?.topics?.claims?.topicId ?? '',
     series,
     api: {
       accountId: process.env.HEDERA_API_ID ?? apiAccount?.accountId ?? '',

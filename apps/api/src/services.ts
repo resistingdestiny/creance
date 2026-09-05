@@ -1,3 +1,5 @@
+import { MirrorClient } from '@creance/client';
+
 import { loadApiConfig, type ApiConfig } from './config.js';
 import { CredentialIssuer } from './credentials.js';
 import { MemoryRepository } from './db/memory.js';
@@ -29,6 +31,8 @@ export interface Services {
   repository: Repository;
   chain: ChainGateway;
   hedera: HederaGateway | null;
+  /** Mirror node reads, so the audit trail answers from the topic, not the row. */
+  mirror: MirrorClient;
   issuer: CredentialIssuer;
   indexData: IndexData | null;
   /** The frozen A and L per group, which are not columns on observations. */
@@ -44,6 +48,7 @@ export interface BuildServicesOptions {
   repository?: Repository;
   chain?: ChainGateway;
   hedera?: HederaGateway | null;
+  mirror?: MirrorClient;
   issuer?: CredentialIssuer;
   indexData?: IndexData | null;
   thresholds?: Map<string, Thresholds>;
@@ -116,6 +121,7 @@ export async function buildServices(options: BuildServicesOptions = {}): Promise
     repository,
     chain,
     hedera,
+    mirror: options.mirror ?? new MirrorClient({ baseUrl: config.mirrorUrl }),
     issuer,
     indexData,
     x402,

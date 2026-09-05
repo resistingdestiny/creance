@@ -1,3 +1,5 @@
+import { MirrorClient } from '@creance/client';
+
 import type { ApiConfig } from '../src/config.js';
 import type { BindCall, ChainGateway, ChainWrite, SeriesChainState } from '../src/chain/cover-pool.js';
 import type { HederaGateway, MintedPolicyNft, TopicReceipt } from '../src/chain/hedera.js';
@@ -35,6 +37,7 @@ export const CONFIG: ApiConfig = {
   policyNftTokenId: '0.0.10366468',
   paymentsTopicId: '0.0.10366471',
   indexTopicId: '0.0.10366470',
+  claimsTopicId: '0.0.10366473',
   series: [
     {
       label: 'ODI-COMP-2026-01',
@@ -198,20 +201,85 @@ export function observation(overrides: Partial<ObservationRow> = {}): Observatio
   };
 }
 
+/**
+ * The mirror node, recorded rather than reached.
+ *
+ * `pnpm test` is chain free, and the audit endpoint's whole point is that it
+ * answers from the topic. So the topic is a list of messages here and the
+ * client is the real `MirrorClient` over a stub fetch, which means the query
+ * building, the base64 decoding and the 404 handling are all the real ones.
+ */
+export class MirrorStub {
+  private readonly messages = new Map<string, { seq: number; at: string; body: string }[]>();
+  /** Set to make every read throw, which is the mirror being unreachable. */
+  unreachable = false;
+
+  add(topicId: string, sequenceNumber: number, body: unknown, consensusTimestamp: string): this {
+    const list = this.messages.get(topicId) ?? [];
+    list.push({
+      seq: sequenceNumber,
+      at: consensusTimestamp,
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    });
+    list.sort((a, b) => a.seq - b.seq);
+    this.messages.set(topicId, list);
+    return this;
+  }
+
+  client(): MirrorClient {
+    return new MirrorClient({
+      baseUrl: 'https://testnet.mirrornode.hedera.com/api/v1',
+      fetchImpl: (async (input: string) => {
+        if (this.unreachable) throw new TypeError('fetch failed');
+        const url = new URL(String(input));
+        const topicId = /\/topics\/([^/]+)\/messages/.exec(url.pathname)?.[1] ?? '';
+        const filter = url.searchParams.get('sequencenumber');
+        const limit = Number(url.searchParams.get('limit') ?? '25');
+        const all = this.messages.get(topicId) ?? [];
+        const wanted = all.filter((message) => {
+          if (filter === null) return true;
+          const [operator, value] = filter.split(':');
+          const sequence = Number(value);
+          return operator === 'eq' ? message.seq === sequence : message.seq >= sequence;
+        });
+        return new Response(
+          JSON.stringify({
+            messages: wanted.slice(0, limit).map((message) => ({
+              consensus_timestamp: message.at,
+              topic_id: topicId,
+              sequence_number: message.seq,
+              message: Buffer.from(message.body, 'utf8').toString('base64'),
+              running_hash: '0x00',
+              payer_account_id: '0.0.10366450',
+            })),
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }) as unknown as typeof fetch,
+    });
+  }
+}
+
 export interface TestHarness {
   services: Services;
   repository: MemoryRepository;
   chain: FakeChain;
   hedera: FakeHedera;
+  mirror: MirrorStub;
 }
 
 export async function buildTestServices(
-  options: { observations?: ObservationRow[]; hedera?: FakeHedera | null } = {},
+  options: {
+    observations?: ObservationRow[];
+    hedera?: FakeHedera | null;
+    mirror?: MirrorStub;
+  } = {},
 ): Promise<TestHarness> {
   const repository = new MemoryRepository(GROUPS);
   await repository.upsertObservations(options.observations ?? [observation()]);
   const chain = new FakeChain();
   const hedera = options.hedera === undefined ? new FakeHedera() : options.hedera;
+  const mirror = options.mirror ?? new MirrorStub();
   const issuer = await CredentialIssuer.create({
     issuer: `${CONFIG.publicBaseUrl}/`,
     ttlSeconds: CONFIG.credentialTtlSeconds,
@@ -221,6 +289,7 @@ export async function buildTestServices(
     repository,
     chain,
     hedera,
+    mirror: mirror.client(),
     issuer,
     indexData: null,
     // No gate: the paid path has its own file and its own testnet command.
@@ -229,11 +298,15 @@ export async function buildTestServices(
     gitSha: 'testsha',
     startedAt: new Date('2026-09-05T00:00:00Z'),
   };
-  return { services, repository, chain, hedera: hedera ?? new FakeHedera() };
+  return { services, repository, chain, hedera: hedera ?? new FakeHedera(), mirror };
 }
 
 export async function buildTestServer(
-  options: { observations?: ObservationRow[]; hedera?: FakeHedera | null } = {},
+  options: {
+    observations?: ObservationRow[];
+    hedera?: FakeHedera | null;
+    mirror?: MirrorStub;
+  } = {},
 ) {
   const harness = await buildTestServices(options);
   const app = await buildServer({ services: harness.services });

@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 
 import { registerErrorHandling } from './errors.js';
 import { investorRoutes } from './investor/index.js';
+import { auditRoutes } from './routes/audit.js';
 import { bindRoutes } from './routes/bind.js';
 import { indexRoutes } from './routes/index-feed.js';
 import { opsRoutes } from './routes/ops.js';
@@ -56,6 +57,7 @@ export async function buildServer(
   await app.register(quoteRoutes, { services });
   await app.register(bindRoutes, { services });
   await app.register(policyRoutes, { services });
+  await app.register(auditRoutes, { services });
 
   return Object.assign(app, { services }) as FastifyInstance & { services: Services };
 }

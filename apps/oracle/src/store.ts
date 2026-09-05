@@ -49,17 +49,42 @@ export interface ObservationRecord {
   written_at: string;
 }
 
-/** The natural key: one row per group, period and mode. */
+/**
+ * Which set of rows a mode shares a namespace with.
+ *
+ * Live and replay both publish to the index topic, so they share one. The
+ * question the guard asks is "has this group and period already reached the
+ * index topic", and the answer cannot depend on which command put it there: a
+ * replay walks up to the newest month the source carries and `oracle:once`
+ * defaults to that same month, so keying the guard by mode would let the demo
+ * clock and the live path each publish their own message for it. They can also
+ * read different rows, `--source archive` against `--source api`, so after a
+ * BLS revision the two messages would not even agree, with nothing linking
+ * them. A scenario publishes no index message at all, so its rows are kept
+ * apart and never block a real run.
+ *
+ * `mode` stays on the record. It is what a public query filters the demo clock
+ * out by, and it is now also the answer to which command published a row.
+ */
+export function publicationScope(mode: OracleMode): 'index' | 'scenario' {
+  return mode === 'scenario' ? 'scenario' : 'index';
+}
+
+/** The natural key: one row per group and period within a publication scope. */
 export function recordKey(record: {
   group_key: string;
   period: Period;
   mode: OracleMode;
 }): string {
-  return `${record.mode}/${record.group_key}/${record.period}`;
+  return `${publicationScope(record.mode)}/${record.group_key}/${record.period}`;
 }
 
 export interface ObservationWriter {
-  /** True when this group, period and mode already reached the topic. */
+  /**
+   * True when this group and period already reached the topic. The mode picks
+   * the namespace of `publicationScope`, not an exact row: a period a replay
+   * published is already published as far as a live run is concerned.
+   */
   has(groupKey: string, period: Period, mode: OracleMode): Promise<boolean>;
   get(groupKey: string, period: Period, mode: OracleMode): Promise<ObservationRecord | undefined>;
   write(record: ObservationRecord): Promise<void>;

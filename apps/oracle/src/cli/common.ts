@@ -100,7 +100,10 @@ export function printSummary(summary: RunSummary, log: (line: string) => void): 
   log('');
   log(`published  ${summary.publishedCount} messages`);
   log(`submitted  ${summary.submittedCount} observations on chain`);
-  log(`skipped    ${summary.skippedCount} already published in ${summary.mode} mode`);
+  // Not "in ${summary.mode} mode": a skipped period may have been published by
+  // the other mode that writes the index topic, and the per period line above
+  // names which one.
+  log(`skipped    ${summary.skippedCount} already published`);
 
   const rows = summary.periods.flatMap((period) => period.published);
   const opened = rows.filter((row) => row.open);

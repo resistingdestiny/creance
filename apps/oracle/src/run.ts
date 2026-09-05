@@ -243,6 +243,10 @@ export async function runPipeline(options: PipelineOptions): Promise<RunSummary>
       // be published again. It does not mean the period is finished: a run that
       // died between the publish and the contract call leaves the row with
       // submit_tx null, and this is where that period gets its chain call.
+      //
+      // The lookup crosses modes: live and replay write the same topic, so a
+      // month the demo clock published is published, and this run reports which
+      // mode put it there rather than assuming its own.
       const existing = await options.writer.get(groupKey, period, options.mode);
       if (existing !== undefined) {
         skippedCount += 1;
@@ -250,7 +254,7 @@ export async function runPipeline(options: PipelineOptions): Promise<RunSummary>
         if (resumed !== null) {
           submittedCount += 1;
         } else {
-          log(`${period}  ${groupKey.padEnd(32)} already published in ${options.mode} mode`);
+          log(`${period}  ${groupKey.padEnd(32)} already published in ${existing.mode} mode`);
         }
         continue;
       }

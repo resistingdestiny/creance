@@ -575,12 +575,52 @@ and `claim_decision`. All are `{v, kind, ...}` JSON with amounts as integer
 strings in minor units. The shapes are in docs/DECISIONS.md under T18, the
 writers are in `apps/api/src/audit`, `apps/api/src/receipts.ts`,
 `apps/api/src/x402` and `contracts/coupons`, and the one reader is
-`packages/client/src/audit.ts`. `premium`, `payout` and the two claim kinds
-have publishers and tests but no live entries yet: those arrive with T09's
-premium watcher, T13's claim payout and T25's Adjuster.
+`packages/client/src/audit.ts`. `premium` and `payout` have publishers and tests
+but no live entries yet: those arrive with T09's premium watcher and T13's claim
+payout.
 
 The claims topic's submit key is the adjuster account's, so the API reads that
-topic and never writes it.
+topic and never writes it. The Adjuster builds its own client with its own key,
+which is what put the first message on it.
+
+## The claims topic: the first decision, 5 September 2026
+
+`pnpm --filter @creance/adjuster testnet:publish` decided the committed packet A
+and wrote its decision hash to the claims topic. The rule engine ran against the
+recorded extraction, so the decision is the same one `pnpm test` asserts; the
+publish is real.
+
+    decision      approve
+    confidence    0.940
+    decision hash sha256:facdd8bc0a05685eb325ca10fcb1473d357ca751bccdb8fe08300b76aea2deed
+    message       258 bytes
+    topic         0.0.10366473
+    sequence      1
+    transaction   0.0.10366452@1788617260.601026725
+
+The message, exactly as the mirror node returns it:
+
+    {"v":1,"kind":"claim_decision","policy":"pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E",
+     "claimId":"clm_01K4YBA1Q7F0M3X8T5W2D6C9E4",
+     "decisionHash":"sha256:facdd8bc0a05685eb325ca10fcb1473d357ca751bccdb8fe08300b76aea2deed",
+     "decision":"approve","at":"2026-09-05T14:07:44.827Z"}
+
+A hash, two ids and one word. No reason, no employer, no date, no file name and
+no nullifier: the reasons and the rule results live in the decision record, which
+stays in the API's store, because a declined claim's reasons are about a person.
+The record itself carries nothing identifying either, so the preimage behind that
+hash can be handed to anyone who asks. docs/CLAIMS.md has the shape and the
+canonical form.
+
+| What | Link |
+| --- | --- |
+| Claims topic | [0.0.10366473](https://hashscan.io/testnet/topic/0.0.10366473) |
+| The first decision, sequence 1 | [0.0.10366452-1788617260-601026725](https://hashscan.io/testnet/transaction/0.0.10366452-1788617260-601026725) |
+| Adjuster account | [0.0.10366452](https://hashscan.io/testnet/account/0.0.10366452) |
+
+Read it back without asking us:
+
+    curl -s https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10366473/messages
 
 ## The index topic: the first replay, 5 September 2026
 

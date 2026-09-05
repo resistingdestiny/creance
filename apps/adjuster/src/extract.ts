@@ -106,6 +106,23 @@ export interface Extractor {
   extract(file: EvidenceFile): Promise<ExtractionResult>;
 }
 
+/**
+ * The extractor a deployment with no model key gets.
+ *
+ * It reports the model as unavailable rather than the document as unreadable,
+ * which matters: both refer, but "we could not read that document, send a
+ * clearer photo" blames the claimant for a key we did not set.
+ */
+export class UnavailableExtractor implements Extractor {
+  async extract(): Promise<ExtractionResult> {
+    return {
+      failed: true,
+      reason: 'adjuster_unavailable',
+      detail: 'this deployment has no model key, so no document can be read',
+    };
+  }
+}
+
 /** An extractor that replays a recorded extraction, keyed by evidence id. */
 export class RecordedExtractor implements Extractor {
   constructor(private readonly recorded: Record<string, ExtractionResult>) {}

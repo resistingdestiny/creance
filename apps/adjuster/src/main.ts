@@ -3,7 +3,7 @@ import { parseArgs } from 'node:util';
 import { AdjusterApi } from './api.js';
 import { adjusterClient, NoPublisher, TopicDecisionPublisher } from './chain.js';
 import { loadAdjusterConfig, requireAdminToken } from './config.js';
-import { ModelExtractor, RecordedExtractor } from './extract.js';
+import { ModelExtractor, UnavailableExtractor } from './extract.js';
 import { runPass, type PassResult } from './run.js';
 
 /// `pnpm adjuster:run`, one pass over the claims waiting for a decision.
@@ -56,7 +56,7 @@ const api = new AdjusterApi(config.apiUrl, requireAdminToken(config));
 // is said on the way in rather than discovered on a claim.
 const extractor =
   config.model.apiKey === undefined
-    ? new RecordedExtractor({})
+    ? new UnavailableExtractor()
     : new ModelExtractor({
         apiKey: config.model.apiKey,
         model: config.model.id,

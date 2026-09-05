@@ -1705,3 +1705,70 @@ The message published at consensus timestamp 1788617265.386050104 was returned b
 recorded longer waits for contract state; a topic submit's receipt already carries
 the sequence number, so nothing in this flow has to poll the mirror node at all,
 and the read-back here was a check rather than a dependency.
+
+## T13, the two-key claim flow, 5 September 2026
+
+### No policy this build had bound could ever have been paid
+
+`CoverPool.bind` takes `startAt` from the caller and does not validate it, and
+`POST /v1/bind` sets it to the moment of binding. Every policy on the demo
+series was bound on 4 or 5 September 2026, so every waiting period ends around
+4 November. The loss window the replayed history opened is separations in
+2026-02 to 2026-04, and the claim window closes 2026-10-05T09:04:51Z. Those two
+facts cannot both be satisfied by any policy this build had: `payClaim` reverts
+`SeparationInWaitingPeriod` for any separation inside the window, and no
+separation after the waiting period can be inside the window before it closes.
+
+This is not a contract fault. It is what happens when a replayed history meets
+policies bound today, and it is the sort of thing a demo discovers late. The
+answer was a testnet script that binds one policy with a start date in the past
+and says so, recorded in docs/DECISIONS.md.
+
+### A policy bound during ClaimsOpen raises the exposure but not the reserve
+
+The reserve is taken and topped up inside `_openMonth`, which runs on an
+observation. `bind` raises `activeExposure` and touches neither
+`exposureCovered` nor the vault's reserve. So the two policies bound for this
+run took `activeExposure` from 13,000,000,000 to 15,000,000,000 while
+`reservedOf` stayed at 3,000,000,000, and the claim that was paid drew on a
+reserve that had been taken for the three policies exposed when April opened.
+
+The invariants hold and nothing is at risk: `exposureCovered` is decremented by
+the paid policy's limit and stays non-negative, and the vault checks the reserve
+covers the amount. It is written down because the numbers do not read as
+obviously consistent and the next person to look at them will wonder.
+
+### `eth_getTransactionReceipt` gas for `payClaim` is higher on a series with history
+
+The measured figure in docs/HEDERA.md was 172,689, taken on a throwaway series
+with one open month. The same call on the demo series used 189,772. The
+difference is the loss window walk and the longer open month list. Both are far
+under the explicit 1,500,000 limit, which is the reason to set an explicit limit
+rather than trusting an estimate.
+
+### The relay reports a contract call's transfers under a different transaction
+
+`payClaim` moves an HTS token through the vault. The EVM transaction hash
+`0x8fc85b62...` resolves through `/api/v1/contracts/results/{hash}`, but the
+token transfer itself is a child `CRYPTOTRANSFER` under the relay's own
+`ETHEREUMTRANSACTION`, `0.0.7314364-1788622687-466086807`. A reader looking for
+the transfer on the EVM hash alone finds nothing. Both ids are recorded in
+docs/HEDERA.md for that reason.
+
+### A claim that is paid is no longer a claim that is waiting to be published
+
+Found on the first testnet run and fixed in the same session. The Adjuster's
+sweep listed the decisions whose hash had not reached the topic by looking at
+`under_review`, `approved` and `declined`. An approval is paid inside the same
+request it arrives in, so by the time the sweep ran the claim was `paid` and its
+decision hash was invisible to it: the one decision that moved money was the one
+whose hash never became public. `paid` is in the list now, and the ordering the
+whole trail depends on survives the payout happening quickly.
+
+### An open Hiero SDK client keeps a command alive after its work is done
+
+`pnpm --filter @creance/api claims:close-windows` reads the chain, prints and
+ends, and it hung. `buildServices` constructs a `SdkHederaGateway` whenever the
+keys are present, and its gRPC connections hold the event loop open. The job
+writes no topic message, so it passes `hedera: null` and exits. Any command
+built on `buildServices` that does not publish should do the same.

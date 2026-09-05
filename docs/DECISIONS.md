@@ -2919,3 +2919,142 @@ and reads as broken. The image's command is therefore the schedule itself: run
 `pnpm run oracle:schedule`, sleep a day, repeat. The container stays up, the
 restart policy means what it says, and T26 changes the body of that one npm
 script without touching the image or the compose file.
+
+## T16, the claim screens, 5 September 2026
+
+### The web server reads the decision sentences for a claim its own session holds
+
+Affects T16 and T13.
+
+Screen C9 prints plain sentences from the decision record, and T13 put those
+sentences in the admin payload alone because they carry dates and sometimes an
+employer's name (docs/CLAIMS.md, "The claimant's own read"). A claimant holds no
+admin token, so on the face of it C9 could only print reason codes.
+
+The web server already holds the API origin as a private variable and makes
+every call from the server, so it holds `ADMIN_TOKEN` the same way and reads
+`GET /v1/admin/claims/:id` for one claim id: the one in this browser's own
+server side session, which is the session that submitted it. Nothing but
+`reason_lines` and the resubmission sentence crosses to the client, and a
+browser that did not submit a claim cannot name one, because the id is not
+taken from the address.
+
+The alternative was to widen the free endpoint, which would put an employer's
+name behind a public id, or to template the sentences in the app, which would
+put half a sentence in the Adjuster and half in the web app. Both are worse.
+A deployment with no admin token falls back to the same sentences with every
+date left out, composed from the codes on the free read, so nobody ever reads a
+code.
+
+The token is a private server variable and never a NEXT_PUBLIC one. The web
+image inlines public variables at build time, so a token there would be in the
+bundle a judge can read.
+
+### The five choices on C2 collapse eight separation types onto five labels
+
+docs/DESIGN-TOKENS-ADDENDUM.md fixes five labels for "How did it end?" and
+packages/client carries eight separation types. "Laid off or made redundant" is
+stored as `redundancy` and "Position eliminated or workplace closed" as
+`position_eliminated`, so `layoff` and `site_closure` are never sent by the web
+app.
+
+Every rule in docs/CLAIMS.md treats the members of each pair identically, so
+nothing downstream can tell the difference, and asking a person to split a hair
+the adjudication does not split would be a worse screen. The other three labels
+map one to one onto the excluded types.
+
+### C2 asks for a name, which the addendum's field list does not
+
+The addendum lists Employer, Job title, Last day of work and the select. The
+attestation is signed over the claimant's name and the Adjuster's name rule
+compares it with the document (docs/CLAIMS.md, "`full_name` joins the
+attestation, so the name rule can be evaluated at all"), so a claim with no name
+on it cannot be checked against its own evidence. The field is first on the
+screen, labelled "Your name", in the same component as the other three.
+
+### Every file goes up as `other` unless its name says otherwise
+
+`POST /v1/claims` takes an evidence `kind` from five, and C3 lists four
+documents without asking which one is being added. Asking would add a field
+nobody can answer wrongly in a way that matters: the Adjuster reads the document
+itself, and every rule works from what the document says rather than from the
+label the uploader chose. So the kind is read from the file name where the name
+says so and is `other` where it does not.
+
+### The attestation is signed on the server as the account the cover was bound to
+
+Affects T16 and T15.
+
+docs/CLAIMS.md makes the signature `eip191`, recovered against the cover's own
+EVM address, which is the address `payClaim` pays. There is no wallet in the
+browser that can sign: the HashPack path needs a Reown project id and is not
+wired. So the web server derives the holder's key with the same HKDF label the
+API uses, exactly as src/lib/payer.ts already derives the same account's key to
+pay the premium, and signs there. No key reaches the browser.
+
+A cover held by an account this app has no role for is submitted as
+`unsigned_accepted`, which is the honest name for a recorded click-through with
+no signature: the API stores it as what it is, R10 refers it, and the confidence
+cap keeps it out of auto-approval.
+
+### C4 offers the labelled demo check a second time after a failed World check
+
+The claim leg needs a fresh Selfie Check with `require_user_presence`, and the
+staging simulator has no Selfie Check option (docs/FEEDBACK-WORLD.md section 3),
+so on a deployment that does have a World app id the widget opens and the check
+cannot be completed. Without a way through, a demo on the real app id could
+never reach a payout.
+
+So C4 runs the World check when there is an app id, and after a failed check
+offers "Use the demo check" as a secondary, with the same ink-2 line the
+purchase screen uses for its own demo issuer. It is the person's choice and it
+is labelled; the credential it mints records `credential: demo-issuer`, so a
+decision record can never claim a camera ran.
+
+### Home renders any state from fixtures behind a private flag
+
+The acceptance asks for every state to be reachable through the replay or a
+demo control. Three of them have no server path to force: a cover lapses when a
+month's premium goes unpaid, a payment fails when a wallet is short, and a
+browser is offline when it is offline.
+
+`WEB_DEMO_STATES=true` turns on `/home?demo=<state>`, which renders Home from
+fixtures and prints "Demo state. Nothing on this screen came from the API." on
+the screen it renders. Off by default and a private server variable, in the
+spirit of the demo eligibility issuer: a public variable is inlined at build
+time, and a demo control that cannot be turned off after a build is not off by
+default.
+
+### The Payment failed sentence is the deck's on a lapse and the API's on a purchase
+
+docs/DESIGN-TOKENS.md section 8 writes the failure as "Check that your wallet
+has at least 28.00, then try again. Your cover is unchanged until 19 October."
+That sentence is written for a payment that keeps existing cover alive, which is
+the lapsed state, and it is what the lapsed path prints with the amount and the
+date interpolated.
+
+There is no cover to be unchanged during a purchase, so the Pay sheet keeps the
+deck's title and prints the sentence the API's own problem document justifies:
+the reasons a bind refuses are one person one cover, a full series, a series not
+taking cover, and an expired check, and each has its own line already. The
+alternative was to print a sentence about cover that does not exist yet.
+
+### Home prints the reading as it stands and takes the caption from the cover
+
+A series stays ClaimsOpen for the whole claim window while the index falls back
+under its line, so `GET /v1/policy/:id` can answer `claims.open: true` beside a
+reading that is 0.69 points short. Both are true and both are needed: the chain
+is the index key, the reading is the latest month.
+
+The figure on the Index row is the reading, because it is the published number.
+The caption is the cover's own answer, because an amber "Claims open" pill over
+the words "Points from opening claims" is a screen contradicting itself. Written
+up with the measurement in docs/harness-notes.md.
+
+### The lapsed state says "Payment due" once
+
+The deck gives the lapsed state three strings: "Payment due", "Pay by 19 October
+to stay covered." and "Pay 28.00". The first is also the status pill's label on
+the card, so printing it again under the card is the same words twice on one
+screen. The pill carries it, the line says by when, and the button names the
+outcome.

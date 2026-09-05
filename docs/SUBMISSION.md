@@ -49,6 +49,9 @@ The shot list they follow is T24.
 - Showcase cut, two to four minutes. Root pending.
 - Bazantic recipe recording, start to finish. Root pending, and it needs the
   gateway and the recipe from T19 first.
+- Bazantic agentify recording, the second track. Root pending, and it needs the
+  index gateway from T28 as well as the cover gateway. The beats are step 9b of
+  recipes/bazantic/README.md.
 - Harness clip showing the improvement working. Root pending. What it shows is
   https://github.com/hedera-dev/hedera-harness/pull/39.
 
@@ -78,22 +81,82 @@ Nothing is duplicated here.
 
 ## Bazantic
 
+Two tracks are entered, and they share one account and one API. Common to both:
+
 - Username on bazantic.com: `BAZANTIC_USERNAME` (Root pending). Root replaces
   that placeholder with the account's username the moment the account exists.
   Access is requested at https://bazantic.com/become-a-provider#apply, which
   asks for a project name, a work email and a spec or docs URL.
-- Gateway and MCP server: Root pending, browser work on bazantic.com. The spec
-  to import is recipes/bazantic/openapi.yaml, or openapi.json if the importer
-  prefers it; the base URL is https://creance.co, which needs the host under
-  "Live app" first. The browser steps for Root are recipes/bazantic/README.md,
-  which also says what to do when the public host is not up yet. The MCP server
-  endpoint goes here beside the username.
-- Recipe text under recipes/bazantic/: recipes/bazantic/buy-displacement-cover.md
-  and recipes/bazantic/should-my-principal-renew.md. Both use two services, the
+- Two gateways on one API, which is how DESIGN.md section 4 has drawn it from
+  the start. Creating both is Root pending, browser work on bazantic.com, and
+  the base URL for both is https://creance.co, which needs the host under "Live
+  app" first. The MCP server endpoints go here beside the username.
+
+### Best Recipe that uses Sponsor APIs
+
+- Gateway: the cover gateway. Import recipes/bazantic/openapi.yaml, or
+  openapi.json if the importer prefers it. Seven operations. The browser steps
+  for Root are recipes/bazantic/README.md, which also says what to do when the
+  public host is not up yet.
+- Recipes: recipes/bazantic/buy-displacement-cover.md and
+  recipes/bazantic/should-my-principal-renew.md. Both use two services, the
   Hedera mirror node on the index topic 0.0.10366470 and this project's own
   gateway, and both stop rather than guess when the two disagree.
-- Recording: Root pending, the beats are listed at the end of
-  recipes/bazantic/README.md.
+- Recording: Root pending, the beats are step 9 of recipes/bazantic/README.md.
+
+### Agentify a New API
+
+Read from https://ethglobal.com/events/ethonline2026/prizes on 5 September 2026,
+because the backlog carried only the title and the ranking. $1,000 in total,
+$500, $300 and $200. What it asks for, and where each piece is:
+
+- An account on bazantic.com. Shared with the other track, above. Root pending.
+- An x402/MPP gateway in Bazantic for the project. The cover gateway, above.
+- A service that was not available through Bazantic and is not another sponsor's
+  API. The Occupation Displacement Index: a monthly measure of how far a US
+  occupation is losing ground against the labour market, computed from the
+  Bureau of Labor Statistics Current Population Survey, published to the Hedera
+  Consensus Service topic 0.0.10366470 and sold at 0.01 TUSD a call. It exists
+  nowhere else, and it is useful to a caller who will never buy a policy.
+- A working gateway for that service. recipes/bazantic/agentify/openapi.yaml,
+  three operations and nothing about cover in it. Creating it in the console is
+  Root pending; the steps are recipes/bazantic/agentify/README.md.
+- A recipe that uses both services in one working flow.
+  recipes/bazantic/agentify/rank-occupations-and-price-the-worst.md. The index
+  gateway supplies the ranking and the cover gateway supplies the price, and
+  neither answer can be reached from the other.
+- A screen recording demonstrating what the recipe does. Root pending, a second
+  recording; the beats are step 9b of recipes/bazantic/README.md.
+- The Bazantic account username. Shared with the other track, above.
+
+The judging text says the strongest submissions add a new API service and bring
+it into a recipe other builders can reuse, not a one-off connection made for the
+demo. What is built against that: the feed has agent-facing description files
+generated from the same code the API is, `llms.txt` and `SKILL.md`, served at
+https://creance.co/llms.txt and https://creance.co/skill.md as well as committed
+under recipes/bazantic/agentify/; a free catalogue at `GET /v1/index` so a
+caller can find a group key and the price without paying; and a proof that a
+client given nothing but the description file and a funded key discovers the
+feed, pays over x402 on Hedera testnet and gets a reading that matches the
+settled record. That run is docs/HEDERA.md, "The index feed, discovered and paid
+for cold", settlement
+https://hashscan.io/testnet/transaction/0.0.7162784-1788636307-034403213, and
+the transcript is docs/demo/agentify.txt.
+
+Staying callable is documented rather than assumed:
+recipes/bazantic/agentify/README.md says how a caller gets TUSD, that there is
+no faucet for it and the operator mints and transfers it, that HBAR comes from
+the Hedera portal faucet, and what the API side needs to keep writing receipts.
+
+### Which of the two is the stronger submission today
+
+The Agentify track, as of 5 September 2026, because it is the one with an end to
+end proof already recorded: a cold client paid for a reading on testnet and the
+answer matched consensus. The recipe track's evidence is the two recipe texts
+and a gateway nobody has created yet, so its strongest beat is a recording that
+does not exist. Both depend on the same Root pending items, the account and the
+public host; whichever gets a gateway and a recording first becomes the stronger
+one, and this line is updated when that happens.
 
 ## Harness
 

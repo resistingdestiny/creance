@@ -1166,3 +1166,39 @@ The windows that do complete are in README.md. The lesson generalises past this
 build: any pipeline that writes to an append-only log a period at a time has to
 validate the whole run first, because per-item validation plus an unretractable
 write is a partial-failure mode with no cleanup.
+
+### There is no transaction spanning an HCS submit and an EVM call, and the ordering has to carry the whole recovery
+
+An observation is two writes to the same network: a `TopicMessageSubmitTransaction`
+that publishes the signed message, and a `submitObservation` call through the
+relay that carries the sequence number the first one returned. They cannot be
+one transaction. The consensus service and the EVM are separate services, the
+second write needs a value only the first can produce, and neither can be
+rolled back once it lands.
+
+That leaves the ordering as the only recovery mechanism, and it is easy to get
+wrong in a way that looks fine. This build originally wrote its local record of
+a published observation after both network calls returned. A contract call that
+threw, an RPC timeout or an unexpected revert, then left a message permanently
+on the settlement topic with nothing recording that it existed, and the next run
+over the same window republished the period. Two messages for one month, and if
+the source had been revised between the attempts they would carry different
+values with nothing linking them.
+
+The record is now written between the two calls, as soon as the topic receipt is
+in hand and before anything that can throw. A run that dies in the contract call
+leaves a row with `hcs_seq` set and `submit_tx` null, and the next run
+republishes nothing and does the contract call alone, resubmitting the sequence
+number and source hash of the message actually on the topic rather than
+recomputing them.
+
+One window remains and it cannot be closed on this side: a process killed
+between the topic receipt and the local write leaves a message with no row. The
+only fix is to read the topic back through the mirror node before republishing a
+period, which needs a runs table to know which periods a previous run was in the
+middle of, and that is T26's.
+
+The general shape is worth stating for anyone integrating the two services:
+**any write to HCS that a later EVM call depends on needs its durable local
+record between them, not after both.** The same applies in reverse to a contract
+call whose result is then published to a topic.

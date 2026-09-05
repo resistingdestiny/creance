@@ -390,7 +390,9 @@ async function verify(context: Context): Promise<void> {
     console.log(`  ${investor.role}    ${investor.accountId}  ${hashscanUrl('account', investor.accountId)}`);
   }
   console.log('');
-  console.log(`  reserved      ${inUnits(reserved, decimals)} TUSD`);
+  console.log(
+    `  reserved      ${inUnits(reserved, decimals)} TUSD, which pays ${(reserved / needed).toString()} claim(s) at the demonstration limit`,
+  );
   console.log(`  exposure      ${inUnits(state.activeExposure, decimals)} TUSD`);
   console.log(`  window ends   ${new Date(state.windowEndsAt * 1000).toISOString()}`);
   console.log('');

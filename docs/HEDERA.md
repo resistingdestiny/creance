@@ -515,3 +515,139 @@ verification from on chain 296, has no match for the note, the throwaway, the
 ATS factory or the ATS resolver as of 4 September 2026. `CollateralVault` and
 `CoverPool`, which this build did write, are both exact matches and are linked
 above.
+
+## The index topic: the first replay, 5 September 2026
+
+`pnpm oracle:replay --from 2025-01 --to 2026-04 --interval-ms 0` walked sixteen
+real months of BLS history for ODI-COMP-2026-01 against testnet, publishing one
+signed v2 observation per month to the index topic and submitting the thirteen
+final months to CoverPool. April 2026 opened claims on the level form and the
+vault reserved the bound exposure.
+
+Every number below is published BLS data from the committed archive under
+data/bls, not a scenario. The interval was set to zero because this is the proof
+run, not a take; the demo cadence is one month per ten seconds.
+
+### Before the run
+
+`pnpm oracle:preflight` read the preconditions:
+
+| Check | Value |
+|---|---|
+| oracle balance | 14.4093 HBAR |
+| index topic [0.0.10366470](https://hashscan.io/testnet/topic/0.0.10366470) | exists, submit key set, 0 messages |
+| series status | Active (1) |
+| `activeExposure` | 3,000,000,000, three policies bound at 1,000 TUSD each |
+| `exposureCovered` | 0 |
+| `reservedOf` | 0 |
+| `lastObservedMonth` | 0 |
+
+### The sixteen messages
+
+Topic [0.0.10366470](https://hashscan.io/testnet/topic/0.0.10366470), sequence
+numbers 1 to 16, 553 to 571 bytes each. `ebar` and `odi` are the published
+two-decimal values, and the published ODI is the difference of the two published
+smoothed values, so a reader recomputing from the message reaches the oracle's
+boolean.
+
+| Seq | Period | Status | ebar | ODI | Result | Submission |
+|---|---|---|---|---|---|---|
+| 1 | 2025-01 | final | -1.60 | 0.00 | closed | [0xd377…93cf](https://hashscan.io/testnet/transaction/0xd3771761f8e6f309e18a7cf108f00decc4456739099ac2fb648e16e0df3f93cf) |
+| 2 | 2025-02 | final | -1.50 | -0.27 | closed | [0x7b6b…4b6d](https://hashscan.io/testnet/transaction/0x7b6bd9c686b56b77c26f5b76af519dbe674e4a7b74b57cb3f49287ea809a4b6d) |
+| 3 | 2025-03 | final | -1.27 | -0.14 | closed | [0x8d9a…de20](https://hashscan.io/testnet/transaction/0x8d9a7305ee221362496ac9be3761ed8f811b40685481ba142ef946f4b351de20) |
+| 4 | 2025-04 | final | -0.90 | -0.13 | closed | [0xc855…97c1](https://hashscan.io/testnet/transaction/0xc855bede97b4d100cfe9b3741a4c2d6decc5020e71cf65bf64c7f7e9999197b1) |
+| 5 | 2025-05 | final | -0.70 | 0.23 | closed | [0x50f2…2850](https://hashscan.io/testnet/transaction/0x50f277ca11fc52e05aefb5b4ec6d34f1177449842e249fe9f899594a4ca62850) |
+| 6 | 2025-06 | final | -0.87 | -0.04 | closed | [0xc5b5…1dd9](https://hashscan.io/testnet/transaction/0xc5b543a1a459aac9906a5165da788a4fe58a8fc60a897074c0e12eb0390b1dd9) |
+| 7 | 2025-07 | final | -1.30 | -0.27 | closed | [0xa0a6…5065](https://hashscan.io/testnet/transaction/0xa0a6ed1700e1d61134f6bb4c3faead7cba713a1419aaa76a4fa4af0af8ea5065) |
+| 8 | 2025-08 | final | -1.60 | -0.63 | closed | [0xd449…7df6](https://hashscan.io/testnet/transaction/0xd44941f88c2b178c83c4583b8d45fdf354e51e998f4ebe5fffcb07b14efd7df6) |
+| 9 | 2025-09 | final | -1.20 | 0.03 | closed | [0x0889…2eed](https://hashscan.io/testnet/transaction/0x088910776f7e9a7168efaa64ce7e9b65c1de981adde21ddeb751701b6d092eed) |
+| 10 | 2025-10 | no_source | null | null | closed | none, never collected |
+| 11 | 2025-11 | insufficient_history | null | null | closed | none, no smoothing window |
+| 12 | 2025-12 | insufficient_history | null | null | closed | none, no smoothing window |
+| 13 | 2026-01 | final | -0.73 | 0.87 | closed | [0x20dd…7024](https://hashscan.io/testnet/transaction/0x20ddbcf9400fa44833a50f5e9b40f5318585a6d2437fe73ca364508bd2fd7024) |
+| 14 | 2026-02 | final | -0.93 | 0.57 | closed | [0xa092…e9af](https://hashscan.io/testnet/transaction/0xa092e88a2f285aa1662f2f03a49bf36af2d2a4270fe4e06191b79e7a3664e9af) |
+| 15 | 2026-03 | final | -0.80 | 0.47 | closed | [0xb1e2…9dfa](https://hashscan.io/testnet/transaction/0xb1e226e6159d238cadbf72d03aad75191d545440aa7c354a165cf69e4d2e9dfa) |
+| 16 | 2026-04 | final | -0.60 | 0.30 | **OPEN, level** | [0x4154…2578](https://hashscan.io/testnet/transaction/0x415412179290d0891037acd7e062249791cf7ecacc8565bc2265918d94012578) |
+
+Three months publish and never settle: October 2025 was never collected, and
+November and December 2025 have no complete smoothing window because of it. The
+strictly increasing rule allows the skip; the reason is on the topic in the
+message's `status`.
+
+### The opening month
+
+Sequence 16, consensus `1788599088.601062261`, 553 bytes:
+
+    {"attachment_shock":2,"computed_at":"2026-09-05T09:04:48Z","e":-0.5,
+     "ebar":-0.6,"group":"computer_math","level_line":-0.68,
+     "model_version":"odi-1.0.0","odi":0.3,"open":true,"open_reason":"level",
+     "period":"2026-04","revises_seq":null,"series":"ODI-COMP-2026-01",
+     "sig":"0x740273a3...056a331c","source":"bls:LNU04034021",
+     "source_hash":"8f7d00ef99b68936aee4cf43f2d108b0af72a26a7075f66f888af9b34df0aafe",
+     "status":"final","u_all":4,"u_g":3.5,"v":2}
+
+The level line is -0.68 and the smoothed excess is -0.60, so the month opens on
+the level form: the computer and mathematical group's unemployment is not high
+in absolute terms, it is high against its own history. The shock form never came
+close in the window, its maximum being +0.87.
+
+The submission
+[0x4154…2578](https://hashscan.io/testnet/transaction/0x415412179290d0891037acd7e062249791cf7ecacc8565bc2265918d94012578)
+sent `odi` 3000 and `ebar` -6000, the published values scaled by 1e4, with
+`hcsSequence` 16 and the source hash above. The contract decided the opening
+itself and emitted:
+
+| Event | Values |
+|---|---|
+| `ObservationSubmitted` | `open` true, `openReason` 2 (level) |
+| `SeriesStatusChanged` | Active to ClaimsOpen |
+| `ClaimsOpened` | `reserved` 3,000,000,000, `windowEndsAt` 1791191091 |
+| `WindowExtended` | 1791191091 |
+
+### After the run
+
+| Check | Value |
+|---|---|
+| topic messages | 16 |
+| series status | ClaimsOpen (2) |
+| `activeExposure` | 3,000,000,000 |
+| `exposureCovered` | 3,000,000,000 |
+| `reservedOf` | 3,000,000,000, 3,000 TUSD taken from the vault |
+| `lastObservedMonth` | 24315, which is 2026-04 |
+| `windowEndsAt` | 1791191091, 2026-10-05T09:04:51Z |
+| oracle balance | 12.6181 HBAR, so the whole run cost 1.7912 HBAR |
+
+The claim window ends thirty days after the observation rather than sixty days
+after the separation month, because the replayed month is history: the
+separation term, `startOfMonth(2026-05) + 60 days`, expired before the run
+started, so `max` picks the observation term. DESIGN.md 3.6 describes the two
+terms as "whichever ends later", which for any replayed month always means the
+observation term. T13 and T24 should assume that.
+
+### Gas
+
+| Call | Gas used |
+|---|---|
+| first `submitObservation` on the series, 2025-01 | 127,525 |
+| later non-opening months | 110,451 to 110,841 |
+| the opening month, 2026-04 | 253,941 |
+
+The limit used was 1,000,000, set explicitly because `eth_estimateGas` cannot
+price a call that reaches the token service through the vault. Unused gas is
+refunded in full.
+
+### Reproducing and checking it
+
+`pnpm oracle:verify` reads the topic back through the mirror node and checks
+every message: that it is canonical JSON, and that the signature recovers to the
+oracle account's EVM address `0x8aaf5b093842dc2e32f56bad9534d12a83861301`. It
+reads only public data, so it needs no key. All sixteen verify. The signature
+scheme is written out in docs/DECISIONS.md.
+
+The run cannot be repeated on this series. `lastObservedMonth` is now 24315 and
+`submitObservation` reverts `PeriodNotAfterLast` for any month at or before it,
+which is the rule that stops a backfilled month moving a loss window a claim was
+already judged against. May 2026 also opens on the level form and was left
+unsubmitted, so it is still available. A demo replay from scratch needs either a
+fresh series registered by the admin or a publish-only run with `--no-submit`;
+docs/DECISIONS.md records the choice.

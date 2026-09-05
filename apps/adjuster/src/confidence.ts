@@ -108,14 +108,18 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceOutcome {
         ? 0
         : 0.5;
 
+  // Weighted by the model's own reading confidence for the name, the same way
+  // the employer term is, because a name transcribed off a blurred signature
+  // block is weaker evidence than one printed in the address line and the two
+  // fields have no reason to be treated differently.
   const nameMatch = a.fullName === null ? null : compareName(e.employee_name, a.fullName);
   const cName =
     nameMatch === null
       ? null
       : nameMatch === 'match'
-        ? 1
+        ? e.employee_name_confidence
         : nameMatch === 'near_match'
-          ? 0.5
+          ? 0.5 * e.employee_name_confidence
           : 0;
 
   let cQuality = e.legibility;

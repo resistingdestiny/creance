@@ -8,8 +8,10 @@ behind each ticked line in docs/PRIZES.md lives there, not here.
 
 https://github.com/resistingdestiny/creance
 
-MIT licensed. The clean-clone run through is README.md; the architecture is
-docs/ARCHITECTURE.md and the testnet resources are docs/HEDERA.md.
+MIT licensed. The clean-clone run through and the architecture are both in
+README.md, and the testnet resources are in docs/HEDERA.md.
+
+- docs/ARCHITECTURE.md, the diagram updated to what was built: pending, T22.
 
 ## Videos
 
@@ -26,16 +28,17 @@ duplicated here.
 
 ## World
 
-Sandbox app, actions and the four required feedback sections are in
-docs/FEEDBACK-WORLD.md. Pending, T22.
+- docs/FEEDBACK-WORLD.md, the sandbox app, the actions and the four required
+  feedback sections: pending, T22.
 
 ## Bazantic
 
 - Username on bazantic.com: pending, Root, T19.
-- Gateway and MCP server: pending, Root, T19. The steps are in
-  recipes/bazantic/README.md and the spec to import is
-  recipes/bazantic/openapi.yaml.
-- Recipe text: recipes/bazantic/.
+- Gateway and MCP server: pending, Root, T19. The spec to import is
+  recipes/bazantic/openapi.yaml; the browser steps for Root are
+  recipes/bazantic/README.md, pending T19.
+- Recipe text under recipes/bazantic/: pending, T19. The directory holds the
+  OpenAPI spec today, in both openapi.yaml and openapi.json.
 
 ## Harness
 

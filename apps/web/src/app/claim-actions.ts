@@ -23,7 +23,7 @@ import {
   type ClaimEvidence,
 } from '../lib/claim-session';
 import { evidenceKind, separationOption } from '../lib/claim-model';
-import { fetchPolicy } from '../lib/worker-api';
+import { fetchPolicy, type WorldRequestContextView } from '../lib/worker-api';
 
 /**
  * The claim flow's writes.
@@ -134,7 +134,7 @@ export async function continueToConfirm(): Promise<ClaimStepResult> {
  * `require_user_presence` on the claim action, both of which come back inside
  * the context the API signs. Never cached: World refuses a reused nonce.
  */
-export async function startClaimCheck(): Promise<Record<string, unknown> | null> {
+export async function startClaimCheck(): Promise<WorldRequestContextView | null> {
   const session = await readClaim();
   if (session?.policyId == null) redirect('/home');
   try {

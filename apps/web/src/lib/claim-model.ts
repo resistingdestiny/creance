@@ -195,6 +195,37 @@ export function purchaseFailedCopy(premium: string, detail: string): FailureCopy
   return { title: "Your payment didn't go through.", body: detail, action: `Pay ${premium}` };
 }
 
+/** The states C4 can be in, which are the Verify screen's own. */
+export type ClaimCheckState = 'idle' | 'waiting' | 'verified' | 'failed';
+
+export interface ClaimCheckCopy {
+  readonly heading: string;
+  readonly line: string;
+  readonly button: string;
+}
+
+/**
+ * C4's copy, per state, from docs/DESIGN-TOKENS-ADDENDUM.md and only from it.
+ *
+ * The failed state is the purchase Verify screen's, word for word, because the
+ * addendum gives C4 the same two sentences for it. What changes between the two
+ * screens is the reason a check is being asked for, which is the second line.
+ */
+export function claimCheckCopy(state: ClaimCheckState): ClaimCheckCopy {
+  if (state === 'failed') {
+    return {
+      heading: "We couldn't verify you.",
+      line: 'Try again, or use a different device.',
+      button: 'Try again',
+    };
+  }
+  return {
+    heading: "Confirm it's you.",
+    line: 'The same person who bought the cover has to claim it.',
+    button: state === 'verified' ? 'Continue' : 'Verify with World ID',
+  };
+}
+
 /** Which of C6 to C9 a claim is on. The decision replaces C6 when it arrives. */
 export type ClaimScreen = 'received' | 'under_review' | 'approved' | 'declined';
 

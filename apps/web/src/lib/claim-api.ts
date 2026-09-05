@@ -23,6 +23,7 @@
  */
 
 import { getJson, postJson, type Money } from './api';
+import type { WorldRequestContextView } from './worker-api';
 
 /** The identity leg's credential, from either issuer. */
 export interface ClaimCredentialView {
@@ -120,8 +121,8 @@ export interface ClaimAttestationBody {
  * nonce. The signal at claim is the policy id, not the wallet, so the body
  * carries the policy and the purpose.
  */
-export function requestClaimContext(policyId: string): Promise<Record<string, unknown>> {
-  return postJson<Record<string, unknown>>('/v1/world/rp-context', {
+export function requestClaimContext(policyId: string): Promise<WorldRequestContextView> {
+  return postJson<WorldRequestContextView>('/v1/world/rp-context', {
     purpose: 'claim',
     policy_id: policyId,
   });

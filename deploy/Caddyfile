@@ -15,7 +15,12 @@
 
 	# The API's paths. /health and /healthz sit outside /v1/index/, which the
 	# x402 gate meters, so an uptime check never pays to find out the site is up.
-	@api path /v1/* /health /healthz /.well-known/jwks.json
+	#
+	# /llms.txt, /skill.md and /openapi/* are the description files an agent
+	# reads before it calls the index feed. They are served by the API because
+	# they are generated from the same code the API is, so they cannot describe
+	# an endpoint it does not have.
+	@api path /v1/* /health /healthz /.well-known/jwks.json /llms.txt /skill.md /openapi/*
 	handle @api {
 		reverse_proxy 127.0.0.1:{$API_PORT:3210}
 	}

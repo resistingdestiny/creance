@@ -16,6 +16,16 @@
 
 export const PUBLIC_ORIGIN = 'https://creance.co';
 
+/**
+ * The version both documents carry.
+ *
+ * Here rather than in the generator script because the API serves the index
+ * document at runtime as well as writing it to a file, and a served document
+ * that versions itself differently from the committed one is the sort of
+ * difference nobody notices until an importer has both.
+ */
+export const DOCUMENT_VERSION = '0.1.0';
+
 export const MONEY = {
   type: 'object',
   required: ['amount', 'asset', 'decimals', 'display'],

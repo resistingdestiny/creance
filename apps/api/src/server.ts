@@ -5,6 +5,7 @@ import { claimReadRoutes, claimRoutes } from './claims/submit.js';
 import { registerErrorHandling } from './errors.js';
 import { investorRoutes } from './investor/index.js';
 import { replayRoutes } from './replay/index.js';
+import { agentDocsRoutes } from './routes/agent-docs.js';
 import { auditRoutes } from './routes/audit.js';
 import { bindRoutes } from './routes/bind.js';
 import { indexRoutes } from './routes/index-feed.js';
@@ -58,6 +59,7 @@ export async function buildServer(
   // when a paid route is matched. DESIGN.md 3.7.
   if (services.x402 !== null) registerX402(app, services.x402);
 
+  await app.register(agentDocsRoutes);
   await app.register(investorRoutes);
   await app.register(replayRoutes);
   await app.register(opsRoutes, { services });

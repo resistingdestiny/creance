@@ -1,0 +1,109 @@
+# Occupation Displacement Index
+
+> A monthly index of how far a US occupation is losing ground against the labour market as a whole, published to a Hedera Consensus Service topic and sold per call over x402 on Hedera testnet.
+
+Testnet only. No mainnet endpoints and no real funds anywhere in this feed.
+
+## What a reading is
+
+Take the unemployment rate for one occupation group in one month and subtract the rate
+across all occupations. That excess is smoothed over three months (`ebar`), and the index
+(`odi`) is the smoothed excess less its own value twelve months earlier. Subtracting the
+all-occupation rate removes the business cycle and most of the seasonality, so a recession
+does not move every occupation at once. What is left is the occupation against the market.
+Values are percentage points, and every one of them is a decimal string and never a JSON
+number: on chain the thresholds are int64 scaled by 1e4, and a float round trip is how a
+reader ends up with a number the contract never compared.
+
+## The two trigger forms
+
+A reading is a number against two frozen lines, and either one opening is what puts an
+occupation in trouble. Both lines are set when a series is issued and never move.
+
+- **Shock**, `odi >= attachment_shock`. An abrupt dislocation: the occupation has lost
+  ground fast over the last twelve months.
+- **Level**, `ebar >= level_line`. The slow grind that year on year differencing removes:
+  the occupation has settled at a worse level than its own history.
+
+A level line can be negative, and this is the reading most often got wrong. For an
+occupation with structurally low unemployment the trigger is deterioration against its own
+past, not high unemployment in absolute terms. On 5 September 2026 `computer_math` read
+`ebar` -1.37 against a level line of -0.68: claims closed, and the level form is the nearer
+of the two at 0.69 percentage points away. A reading of -0.60 against the same line would
+be close to opening even though the number is negative and looks benign.
+
+## What it is not
+
+It is not a forecast and it is not an unemployment rate. It says how an occupation is doing
+relative to all occupations, on data the US Bureau of Labor Statistics published, with the
+source series id and a hash of the source rows on every reading so anyone can recompute it.
+It says nothing about any individual person.
+
+## Start here
+
+- [The catalogue](https://creance.co/v1/index): free. The fifteen occupation group keys with their
+  labels and source series, the frozen `attachment_shock` and `level_line` for each, which
+  groups have a reading published, and the price of a reading. Call this before paying for
+  anything.
+- [The clock](https://creance.co/v1/replay): free. Whether the feed is on the real calendar (`mode`
+  `live`) or replaying published history for a demo. A reading taken while the clock is
+  replaying is a real published month, but it is not this month.
+
+## The reading, which is the paid call
+
+- [A group's reading](https://creance.co/v1/index/computer_math): 0.01 TUSD. The latest published
+  observation for one occupation group, the twenty-four months before it, whether claims
+  are open and on which form, and the source series and hash behind the number.
+
+## Payment
+
+Price: 0.01 TUSD per call, which is `10000` in the smallest
+unit of the HTS token `0.0.10366463` at 6 decimals.
+
+Flow: x402 version 2, scheme `exact`, network `hedera:testnet`, settled through the
+Blocky402 testnet facilitator at https://api.testnet.blocky402.com. Call without paying and the
+answer is 402 with the requirements in the `PAYMENT-REQUIRED` header and the same terms
+in readable fields in the body. Build a Hedera `TransferTransaction` against them, send
+it in `PAYMENT-SIGNATURE`, and the settlement receipt comes back in `PAYMENT-RESPONSE`.
+
+Pay to 0.0.10366450. The facilitator adds its own signature and pays the Hedera fee,
+so the settlement transaction id begins with its fee payer 0.0.7162784 and not with
+the paying account. That is the id to look up on HashScan.
+
+Testnet only. There are no real funds anywhere in this feed.
+
+## Description files
+
+- [OpenAPI 3.0.3](https://creance.co/openapi/index.json): every public index route, with the 402 and
+  the payment headers on the metered one.
+- [SKILL.md](https://creance.co/skill.md): the same thing as a skill, with a worked call.
+
+## The occupation groups
+
+- `management_business_financial`
+- `professional_related`
+- `service`
+- `sales_related`
+- `office_admin_support`
+- `farming_fishing_forestry`
+- `construction_extraction`
+- `installation_maintenance_repair`
+- `production`
+- `transportation_material_moving`
+- `computer_math`
+- `legal`
+- `arts_design_ent_media`
+- `business_financial_ops`
+- `education_training_library`
+
+## The settled record
+
+- [Index topic 0.0.10366470](https://hashscan.io/testnet/topic/0.0.10366470): every monthly
+  observation as one signed message. The first value published for a period is the
+  settlement value forever; a later source revision is recorded and never resubmitted.
+- [Mirror node](https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10366470/messages?limit=5&order=desc):
+  read the same observations without trusting this API. The `message` field is base64 of
+  the JSON. The numbers there are JSON numbers where this API sends decimal strings, and a
+  closed month is `"open_reason":"none"` there and `null` here; both are the same answer.
+- [Payments topic 0.0.10366471](https://hashscan.io/testnet/topic/0.0.10366471): every
+  settled call for this feed, with the facilitator transaction id on each.

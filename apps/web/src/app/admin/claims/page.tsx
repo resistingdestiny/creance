@@ -75,7 +75,9 @@ async function rowFor(summary: AdminClaimSummary): Promise<QueueRow> {
     separationType: detail?.attestation.separation_type ?? null,
     employer: detail?.attestation.employer_name ?? null,
     evidence: (detail?.evidence ?? []).map((file) => file.sha256),
-    reasonLines: (detail?.reason_lines ?? []).map((entry) => entry.line),
+    // Several codes can compose the same sentence, and a reviewer reading
+    // "Someone will look at your claim" twice learns nothing the second time.
+    reasonLines: [...new Set((detail?.reason_lines ?? []).map((entry) => entry.line))],
     decidable: detail !== null,
   };
 }

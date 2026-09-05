@@ -367,7 +367,14 @@ Referred claims are reviewed at `/admin/claims`, a desktop screen that lists
 each one with the Adjuster's reasons, the evidence fingerprints and the
 statement behind it, and approves or declines through the endpoints below. A
 decline asks for one plain sentence, because that sentence is what the person
-reads. The screen needs `ADMIN_TOKEN`; without it, it says so.
+reads.
+
+The screen asks for the reviewer token before it shows anything. It is the same
+`ADMIN_TOKEN` the API compares, typed once and exchanged for an opaque session
+id in an httpOnly cookie; the token never reaches the browser. Approving moves
+settlement funds, so the decide action checks that session before it calls the
+API, not only the page that renders the button. "Sign out" ends it, and a
+restart of the web server ends every session.
 
 A claim needs two keys: the index has to be open for the occupation, and the
 person has to show they lost their job. The second key is adjudicated. The

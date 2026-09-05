@@ -36,7 +36,7 @@ Run all of these from the repository root.
 | --- | --- |
 | `pnpm test` | Runs every unit test in every workspace. Chain free, no credentials needed. |
 | `pnpm test:testnet` | Runs the integration tests against Hedera testnet: the contract lifecycle run through, one policy bound end to end through the API, one paid request of each kind through the x402 gate, then that policy's audit trail read back off the payments topic. Needs credentials and a database. |
-| `pnpm dev` | Runs the web app on http://localhost:3000 and the API on http://localhost:3210, together. The component gallery, which is the design review surface, is at http://localhost:3000/gallery. The investor screens are at http://localhost:3000/invest and http://localhost:3000/invest/subscribe, and the receipt for a policy is at http://localhost:3000/receipt/:policyId. All of them read the API. |
+| `pnpm dev` | Runs the web app on http://localhost:3000 and the API on http://localhost:3210, together. The component gallery, which is the design review surface, is at http://localhost:3000/gallery. The worker flow starts at http://localhost:3000 and runs through `/occupation`, `/amount`, `/verify`, `/pay` to `/home` and `/cover/index`. The investor screens are at http://localhost:3000/invest and http://localhost:3000/invest/subscribe, and the receipt for a policy is at http://localhost:3000/receipt/:policyId. All of them read the API. |
 | `pnpm lint` | Runs eslint across the repository. |
 | `pnpm typecheck` | Runs the TypeScript compiler in every workspace without emitting. |
 | `pnpm oracle:once` | One live run. Pulls the sixteen BLS series, computes both trigger forms for every bindable group, runs the QA gates of [docs/INDEX-SPEC.md](docs/INDEX-SPEC.md) section 8, publishes one signed observation per group to the index topic, and submits the groups that have a cover series registered in CoverPool. Options: `--period YYYY-MM` (defaults to the newest month the source carries), `--source archive\|cache\|api` (defaults to `api`, the live path), `--series LABEL` to publish one group only, `--no-submit` to publish without a contract call, and `--dry-run` to compute, gate, sign and encode everything and send nothing. |
@@ -89,6 +89,7 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
 ## Layout
 
     apps/web            worker, investor and admin screens, and the demo clock
+    apps/web/src/app    the worker flow: / then /occupation, /amount, /verify, /pay, /home, /cover/index
     apps/web/src/app/invest  the investor overview at /invest and subscribe at /invest/subscribe
     apps/web/src/app/receipt  the receipt for one policy at /receipt/:policyId
     apps/api            quotes, binding, claims, x402 middleware, World verification
@@ -108,6 +109,10 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
     recipes/bazantic    the OpenAPI document the Bazantic gateway imports
 
 The investor screens are desktop, 1280 wide, and they fetch on the server rather than in the browser, so the API has to be running for them to render. `pnpm dev` starts it beside the web app. The origin is `CREANCE_API_URL` and defaults to the address the API listens on, so no configuration is needed to run them locally.
+
+The worker flow is a 390 wide mobile design, centred on canvas at a desktop width. It fetches on the server too, so the same API has to be running. All three endpoints it reads are x402 gated, so the web app pays for them: the index read, the quote and the bind are settled from the demo worker's own testnet account, whose key it derives from `HEDERA_OPERATOR_KEY` exactly as the API derives its own. Every settlement is printed in the web app's terminal with its HashScan link. Without an operator key the screens still render against an API whose gate is off (`X402_ENABLED=false`) and say so otherwise.
+
+Buying cover writes to Hedera testnet: `/pay` settles the first month's premium, binds a real policy, mints its receipt NFT and publishes a receipt to the payments topic, and every bind commits permanent exposure against the demo series. Bind at the smallest amount the slider offers when repeating the run. The check on `/verify` is the API's interim eligibility issuer and not a World Selfie Check; the screen says so, and T11 replaces it.
 
 Workspaces are named under the `@creance` scope. Every one of them extends [tsconfig.base.json](tsconfig.base.json), which sets TypeScript to strict.
 

@@ -1571,6 +1571,235 @@ reads "Cannot reach Hedera". A receipt that showed a payment as recorded when
 the message never arrived would be the one lie this screen must not tell.
 Dates are en-GB in UTC, per the T10 decision.
 
+## T15, web worker screens, 5 September 2026
+
+### The Start screen stays at the root and the landing page is still nobody's
+
+Affects T15 and whoever builds the landing page.
+
+docs/DESIGN-TOKENS.md has two first screens: the app's Start and the marketing
+Landing v2. T10 put Start at `/` as a holding page and this ticket wired it
+rather than moving it, because moving it would break every link a reviewer
+already has and the landing page has no owner. When the landing page lands it
+takes `/` and Start moves to `/start`; nothing else in the flow changes.
+
+### The purchase is a server side session, and the credential never reaches the browser
+
+Affects T15 and T11.
+
+The eligibility credential is a bearer token that binds a policy in the holder's
+name. DESIGN.md 3.6 makes it single use and thirty minutes long. It is held in
+`apps/web/src/lib/purchase-session.ts`, in the web process's own memory, keyed by
+an opaque id in an httpOnly cookie, and the browser never sees it. The occupation,
+the amount and the quote id sit beside it, so a reload in the middle of the flow
+loses nothing.
+
+Memory rather than a store, deliberately. The credential must not outlive the
+process that minted it, and a purchase that survived a restart would present a
+quote whose capacity check is long gone. The cost is that one web process serves
+the demo, which is what a public deployment of this build runs anyway.
+
+### The picker knows which occupations have capacity from a table in the web app
+
+Affects T15 and T16.
+
+Capacity is committed per occupation, so fourteen of the fifteen have no series
+behind them and the picker says so rather than quoting a price nobody can buy.
+There is no endpoint that lists series: `GET /v1/series/:id` answers for an id
+you already know, and the only way to learn that a group has no capacity is to
+ask for a quote and read the 409. So `apps/web/src/lib/occupations.ts` carries
+the series behind each group, from docs/HEDERA.md, "The demo series", exactly as
+the investor screens already carry `DEFAULT_SERIES_ID`. A `GET /v1/series` list
+would replace both.
+
+The same table carries the last month the index opened claims for each group,
+from the backtest in docs/INDEX.md. Two of the fifteen have never opened since
+2010, and the picker says that under the row: it is the one fact a buyer most
+needs and it belongs on the first screen that offers them anything.
+
+### The exhaustion in the Amount screen's sentence comes from the series of record
+
+Affects T15 and T07.
+
+"Full payout at 4 points" needs the series exhaustion, and the quote view carries
+the attachment and the level line and not the exhaustion. It is read from
+docs/HEDERA.md, "The demo series", which publishes E as 4.0 points for
+ODI-COMP-2026-01, and the clause is dropped rather than guessed for a series with
+no published exhaustion. The field belongs in the quote view.
+
+The sentence itself is shipped as the copy deck writes it. It describes the shock
+form only, and it names an exhaustion that matters only when `payout_mode` is
+`indexed`, while the demo series is `full` and opens on the level form. That is a
+disagreement between the copy deck and the product as DESIGN.md 3.2 and
+docs/INDEX.md now define it, and the copy is Root's. It is flagged here rather
+than rewritten.
+
+### "Pays from" is the Hedera account id, not a shortened EVM address
+
+Affects T15.
+
+The quote's `pays_from` is a Hedera account id and docs/DESIGN-TOKENS.md section
+9 shows a shortened `0x` address in the same row. The wallet interface carries
+both, so this is a choice: the account id, tabular, unshortened.
+
+It is eleven characters, so there is nothing to shorten and shortening it would
+invent a format. It is also what the binding receipt, the policy NFT and HashScan
+all name for the holder, so a judge who copies it out of the sheet finds the same
+account everywhere. `shortenAddress` stays in the formatter for the EVM address,
+which no worker screen shows.
+
+### A negative level line is said as a distance from average, never as a signed number
+
+Affects T15 and T16.
+
+The pre kick-off decision "a consumer is never shown a signed index value" leaves
+one place a signed number would still reach the screen: the chart's band label,
+which docs/DESIGN-TOKENS.md fixes as "Pays out above 2.0". For the demo series
+the line is -0.68, and "Pays out above -0.68" is both the signed value the
+decision forbids and, read plainly, wrong.
+
+The label is now interpolated by form and sign. The shock form keeps the deck's
+string, because a shock attachment is a change against a year ago and is
+positive. A negative level line reads "Pays out within 0.68 of average", because
+a level line below zero means claims open when the gap to the all occupation rate
+narrows to that many points. A positive level line reads "Pays out above 2.28
+worse than average". `IndexChart` gained two optional props for this, `bandLabel`
+and `description`, both defaulting to what T10 shipped.
+
+### The trend word is computed in the web app, at a tenth of a point over three published months
+
+Affects T15 and T16.
+
+The copy deck's Home row is "1.1, steady" and the API's headline block carries the
+form, the distance and whether it is open, and no trend. The trend is computed in
+`apps/web/src/lib/worker-model.ts` from the same payload, over the last three
+published months of the form the headline names: the index is rising when its
+distance to the line fell by 0.10 or more, falling when it grew by 0.10 or more,
+steady otherwise.
+
+It is in the web app rather than the API only because the whole history is in the
+one response, so two screens reading the same payload through the same function
+cannot disagree. The 0.10 threshold is a decision, not a fact: CPS sampling noise
+at the detailed occupation level is large enough that a smaller one would flip the
+word most months. The months are published months and not calendar months, so the
+October 2025 collection gap shortens the window rather than breaking it.
+
+### The Verify screen ships the interim issuer, labelled, and does not imitate IDKit
+
+Affects T15 and T11.
+
+`WORLD_APP_ID` is blank in the environment, so there is no Selfie Check to run.
+The screen keeps every string docs/DESIGN-TOKENS.md section 8 gives it, including
+"Verify with World ID", and calls `POST /v1/demo/eligibility`. Under the two deck
+sentences it carries one more, in ink-2, the same way the wallet says it is a
+demo: the check is interim, it is testnet only, and it issues the credential
+without running a World Selfie Check yet.
+
+It does not imitate the IDKit widget. A screen that looks like a Selfie Check and
+is not one is the one thing this state must not be.
+
+"Waiting for the World app" is not rendered. It is the state where the check has
+left for another application, and the interim issuer answers in one request
+without leaving the device, so the button carries its own loading state instead.
+T11 restores the wait along with the widget. The issuer sits behind one interface
+in `apps/web/src/lib/eligibility.ts` so T11 replaces that file and no screen.
+
+### The pay step is settled by a server side payer, and the sheet says so before the press
+
+Affects T15, T08 and T09.
+
+T08 put the x402 gate in front of all three endpoints the worker flow reads, so
+the web app is a paying client of its own API: 0.01 for an index read, 0.05 for
+a quote and the first month's premium for the bind. There is no wallet in the
+browser that can sign, so the payment is made on the server by a payer holding
+the key of the same account the cover is bound to and the NFT is minted to,
+standing in for a wallet signature until HashPack is wired.
+
+That is why every call in this flow was already made on the server. No key ever
+reaches the browser, and the eligibility credential the bind carries as a bearer
+token never leaves the server either.
+
+The key is derived from the operator key with the same HKDF label the API uses
+for its own account, `creance/testnet/policyholder-1`, so a clone with the
+operator key can run the flow and no new secret is stored anywhere. The asset is
+read from the 402's own price rather than configured, so the web app carries no
+token id. The ceiling is 100 in the settlement asset: a premium runs from under
+one to about fifty in an open month, so the ceiling is clear of a real price and
+well under the account's balance.
+
+The sheet carries a line above the button saying the first payment leaves the
+wallet as soon as it is pressed. Before the press, not after it, which is the
+same rule the subscribe screen follows.
+
+The environment file is read by `apps/web/src/lib/payer.ts` rather than by the
+framework, because the framework reads environment files from the application
+directory and this repository keeps one at the root. It is done in that module
+rather than at server startup: it is the only thing in the web app that needs a
+secret, it is only ever loaded on the server, and node's loader does not
+overwrite a variable that is already set, so a deployment that puts them in the
+process environment is unaffected.
+
+### The orchestrated moment is a CSS animation, so reduced motion is an instant state change
+
+Affects T15 and T16.
+
+docs/DESIGN-TOKENS.md section 6 has one orchestrated moment: after a payment
+confirms the card slides up over 420ms while the amount counts up over 600ms,
+and under `prefers-reduced-motion` both are replaced by an instant state change.
+
+The slide is a keyframe animation in the stylesheet with
+`motion-reduce:animate-none` on the element. A scripted transition would have to
+render the card out of place and move it a frame later, and under reduced motion
+that first frame is a visible jump rather than an instant state change. The
+count up is the half CSS cannot express and `DisplayNumber` already skips it under
+the same preference.
+
+The moment runs on arriving from the Pay sheet and never again. `/home?bound=1`
+is what says so and the query is dropped from the address as soon as it has been
+read, so a reload is a plain Home rather than a second performance. Nothing polls
+after the bind: the bind is settled by the time it responds, and polling for a
+policy that already exists is how the moment gets minted twice.
+
+### "What would have happened" is the twenty four months the feed carries
+
+Affects T15 and T16.
+
+The backtest runs from 2010, which is two hundred months and unreadable at 390
+wide. `GET /v1/index/:group` carries twenty four months with an `open` flag on
+each, so the strip is one mark per published month, hairline for closed and
+`triggered` for open, with the two period labels and a two item key. Every mark
+is a month the index actually published rather than a figure typed into the web
+app.
+
+The key is the only legend in the whole design. It earns its place: the marks are
+otherwise unreadable and the alternative is a second axis on a phone.
+
+The sentence the addendum asks for where a series has never opened, "This cover
+has never paid for this occupation since 2010", needs the whole backtest and not
+twenty four months, so it comes from the table in
+`apps/web/src/lib/occupations.ts` described above.
+
+### Six strings on these screens are in neither sheet
+
+Affects T15. Each says what happened and what to do next, without apology, which
+is the sheet's rule for every error in this product.
+
+- Occupation picker, a group with no series: "No cover behind this occupation
+  yet." The copy deck has nothing for it because it was written before capacity
+  was committed per occupation.
+- Occupation picker, a group whose claims have never opened: "Claims have never
+  opened for this occupation since 2010."
+- Occupation picker, self declaration, which DESIGN.md 3.6 asks to be said: "You
+  tell us your occupation. We do not check it against an employer."
+- Amount screen, a series at capacity: "This series is full. Choose a smaller
+  amount or try again later."
+- Index row caption: "Points from opening claims." with the figure beside it,
+  because the deck's "1.1, steady" carries no unit and the distance framing needs
+  one.
+- Every screen, the API unreachable: "We can't reach the index right now." with
+  the command that starts it, which is the worker flow's copy of what the
+  investor screens already say.
+
 ## T20, the Harness contribution, 5 September 2026
 
 ### The contribution is the mirror node read the harness promises and does not ship

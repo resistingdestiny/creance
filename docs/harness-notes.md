@@ -1281,6 +1281,103 @@ correct for their writer and only the first resolves on HashScan, so the reader
 converts before it builds a link, as the T08 note above says. A trail assembled
 from a topic has to expect both forms rather than the one its own writer uses.
 
+## T15, web worker screens, 5 September 2026
+
+### A constant exported from a "use client" module reaches a server component as a stub that throws
+
+`AMOUNT_DEFAULT` was exported beside the amount slider, which is a client
+component. Importing it from the Amount route, a server component, gave back not
+the number 5000 but a function whose body throws:
+
+    Attempted to call AMOUNT_DEFAULT() from the server but AMOUNT_DEFAULT is on
+    the client.
+
+The route did not crash. It passed the stub into a conversion that expects a
+whole number, which threw a RangeError, which the route caught as "the API is
+unreachable" and rendered its error state. Nothing in the terminal said what had
+happened until an explicit log was added to that catch.
+
+The framework documents the directive as marking "the boundary between server
+and client code" and describes what happens to components
+(https://react.dev/reference/rsc/use-client, read 2026-09-05); the failure mode
+for a plain value crossing the same boundary in the other direction is a runtime
+proxy rather than a build error. Two things follow, both applied here: a
+constant the server needs lives in a module with no directive, and a catch that
+renders an error state logs the reason rather than swallowing it.
+
+### A "use server" module may export only async functions, and it is a build error, not a runtime one
+
+A synchronous helper exported beside the purchase flow's server actions compiled
+and typechecked, and `next build` refused it:
+
+    Server Actions must be async functions.
+
+The rule is in the directive's reference
+(https://react.dev/reference/rsc/use-server, read 2026-09-05). It applies to
+every export in the file, not to the ones a client actually calls, so a message
+builder and a result type sitting beside the actions are enough to fail a build
+that `pnpm dev` had been serving happily for an hour. Anything exported from
+those files that is not itself an action moves out.
+
+### The API's money display is the asset's full scale, and the sheet's money rule is two decimals
+
+`POST /v1/bind` answered `premium.display` as `0.858333` for a 1,000 limit,
+which is the six decimal settlement asset written out. docs/DESIGN-TOKENS.md
+section 9 says two decimals for money. The screens therefore format
+`premium.amount` through `src/lib/format.ts` rather than rendering `display`,
+which is the same rule T17 recorded for a coupon, and the exact minor units stay
+one call away in the endpoint's own response. `display` is what a human reading
+the API response sees; it is not what a screen prints.
+
+### The quote view carries the attachment and the level line but not the exhaustion
+
+`GET /v1/quote` returns `attachment_shock` and `level_line`, both of which the
+Amount screen's sentence needs, and no exhaustion, which the same sentence also
+needs ("Full payout at 4 points"). docs/HEDERA.md, "The demo series", publishes
+E as 4.0 points for ODI-COMP-2026-01, so the web app reads it from a per series
+table and drops the clause for a series that has no published exhaustion. The
+field belongs in the quote view; see docs/DECISIONS.md.
+
+### The framework refuses node's own file flags in NODE_OPTIONS, so a start script cannot load one
+
+The web app is a workspace inside a monorepo whose one settings file sits at the
+repository root, and the framework reads settings files from the application
+directory. The obvious fix, putting node's `--env-file-if-exists` flag in front
+of the start script, builds for about a second and then fails:
+
+    Error: Initiated Worker with invalid NODE_OPTIONS env variable:
+    --env-file-if-exists= is not allowed in NODE_OPTIONS
+
+The framework spawns build and render workers and passes the parent's exec
+arguments through NODE_OPTIONS, and node's allow list for that variable does not
+include those flags (https://nodejs.org/api/cli.html#node_optionsoptions, read
+2026-09-05).
+
+The documented alternative, an `instrumentation.ts` with `register`, works but is
+compiled for the Edge runtime as well as node, and `process.loadEnvFile` there is
+reported as "a Node.js API is used which is not supported in the Edge Runtime"
+followed by "Ecmascript file had an error" on every recompile, whether the call
+is guarded by `NEXT_RUNTIME` or hidden behind a dynamic import.
+
+What works and is quiet is to read the file in the one module that needs a
+secret, which is only ever loaded on the server. `process.loadEnvFile` is on the
+global, so that module has no node: import for the Edge build to see.
+
+### A workspace whose entry point is TypeScript with ".js" specifiers cannot be imported through its barrel
+
+`@creance/client` is TypeScript source with `"main": "src/index.ts"`, and its
+barrel re-exports with explicit `.js` specifiers, which is correct for the
+TypeScript runtime the API and its scripts use. The web app's bundler resolves
+those specifiers literally, finds no `.js` file beside the `.ts` one, and fails
+the build with a module-not-found for every line of the barrel.
+
+Importing the concrete modules instead, `@creance/client/src/x402/payer` and
+`@creance/client/src/hedera/keys`, resolves and builds: neither of those two
+files imports anything else inside the package, so the barrel is the only thing
+with a `.js` specifier on the path. The alternative, giving the workspace a build
+step and a `dist`, is a change to a package four other workspaces depend on and
+buys nothing else today.
+
 ## T20, the Hedera Harness, 5 September 2026
 
 ### The mirror node rejects the SDK transaction id form, it does not answer nothing

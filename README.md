@@ -28,7 +28,7 @@ Run all of these from the repository root.
 | --- | --- |
 | `pnpm test` | Runs every unit test in every workspace. Chain free, no credentials needed. |
 | `pnpm test:testnet` | Runs the integration tests against Hedera testnet. Needs `.env`. |
-| `pnpm dev` | Runs the web app and the API together locally. |
+| `pnpm dev` | Runs the web app on http://localhost:3000. The component gallery, which is the design review surface, is at http://localhost:3000/gallery. The API joins this command in T07. |
 | `pnpm lint` | Runs eslint across the repository. |
 | `pnpm typecheck` | Runs the TypeScript compiler in every workspace without emitting. |
 | `pnpm oracle:once` | Pulls BLS data, computes the ODI and publishes one observation to HCS. |

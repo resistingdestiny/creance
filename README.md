@@ -315,9 +315,15 @@ from. The default is
 [apps/steward/profiles/policyholder-2.json](apps/steward/profiles/policyholder-2.json);
 `STEWARD_PROFILE` points at another. The agent never performs the Selfie Check.
 It binds by presenting a credential issued to its principal, and the policy NFT
-is minted to the principal's wallet, not to the agent's. Until T11 wires IDKit
-the credential comes from the API's interim issuer, which the run labels in
-plain words as not being a World check.
+is minted to the principal's wallet, not to the agent's.
+
+The credential has two sources and the profile names which one this principal
+uses. A credential the principal earned at `POST /v1/world/verify` is a real
+Selfie Check, done on a phone by a person; the agent only carries it. The
+default demo profile instead asks the API's interim issuer at
+`POST /v1/demo/eligibility`, because an agent has no camera and a headless run
+cannot produce a proof of personhood. The run prints which one it used in plain
+words, and the interim one says on its own line that it is not a World check.
 
 The rule, written down. Buy when there is no cover in force and the three month
 ODI trend is rising, or when the term is inside its last 30 days. The trend is

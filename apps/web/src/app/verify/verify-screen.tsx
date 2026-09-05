@@ -6,6 +6,7 @@ import { useRef, useState, useTransition } from 'react';
 import { AppFrame } from '../../components/app-frame';
 import { PillButton } from '../../components/pill-button';
 import type { WorldRequestContextView } from '../../lib/worker-api';
+import { verifyCopy, type VerifyState } from '../../lib/worker-model';
 import {
   completeWorldCheck,
   continueToPay,
@@ -38,8 +39,6 @@ import {
 
 /** Loaded only where a check runs, so the SDK stays out of every other route. */
 const WorldCheck = dynamic(() => import('./world-check').then((module) => module.WorldCheck));
-
-type VerifyState = 'idle' | 'waiting' | 'verified' | 'failed' | 'covered';
 
 /** Codes that mean the person chose to stop. No error, just the button back. */
 const CANCELLED = new Set(['user_rejected', 'verification_rejected']);
@@ -115,17 +114,16 @@ export function VerifyScreen({
     setState('failed');
   };
 
-  const heading = HEADINGS[state];
-  const line = LINES[state];
+  const copy = verifyCopy(state);
 
   return (
     <AppFrame>
       <main className="flex min-h-dvh flex-col justify-between px-5 py-10">
         <div className="flex flex-col gap-4">
           <h1 className="text-title font-display font-semibold tracking-title text-ink">
-            {heading}
+            {copy.heading}
           </h1>
-          <p className="text-body-lg text-ink-2">{line}</p>
+          <p className="text-body-lg text-ink-2">{copy.line}</p>
           {state === 'verified' ? (
             <p className="text-body-lg text-ink" data-testid="verify-state" role="status">
               You&apos;re verified
@@ -147,13 +145,13 @@ export function VerifyScreen({
         {state === 'verified' ? (
           <form action={continueToPay}>
             <PillButton className="w-full" type="submit">
-              Continue
+              {copy.button}
             </PillButton>
           </form>
         ) : state === 'covered' ? (
           <form action={goToCover}>
             <PillButton className="w-full" type="submit">
-              Cover
+              {copy.button}
             </PillButton>
           </form>
         ) : (
@@ -162,7 +160,7 @@ export function VerifyScreen({
             loading={pending || state === 'waiting'}
             onClick={start}
           >
-            {state === 'failed' ? 'Try again' : 'Verify with World ID'}
+            {copy.button}
           </PillButton>
         )}
 
@@ -180,19 +178,3 @@ export function VerifyScreen({
     </AppFrame>
   );
 }
-
-const HEADINGS: Record<VerifyState, string> = {
-  idle: "Confirm you're a real person.",
-  waiting: "Confirm you're a real person.",
-  verified: "Confirm you're a real person.",
-  failed: "We couldn't verify you.",
-  covered: 'Covered',
-};
-
-const LINES: Record<VerifyState, string> = {
-  idle: 'One person, one cover. This stops bots and duplicate accounts.',
-  waiting: 'One person, one cover. This stops bots and duplicate accounts.',
-  verified: 'One person, one cover. This stops bots and duplicate accounts.',
-  failed: 'Try again, or use a different device.',
-  covered: 'One person, one cover. This stops bots and duplicate accounts.',
-};

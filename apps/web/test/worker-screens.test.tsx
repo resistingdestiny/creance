@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -23,12 +23,24 @@ vi.mock('next/navigation', () => ({
 vi.mock('../src/app/purchase-actions.js', () => ({
   beginPurchase: vi.fn(),
   chooseOccupation: vi.fn(),
+  completeWorldCheck: vi.fn(),
   continueToPay: vi.fn(),
   continueToVerify: vi.fn(),
+  goToCover: vi.fn(),
   payAndBind: vi.fn(),
   priceCover: vi.fn(),
   startAgain: vi.fn(),
+  startWorldCheck: vi.fn(),
   verifyPerson: vi.fn(),
+}));
+
+/**
+ * The widget is the SDK's, not ours, and it opens a QR code and polls World.
+ * The screen's contract with it is four callbacks, so it is stubbed here and
+ * the SDK is exercised on the Sandbox App instead.
+ */
+vi.mock('../src/app/verify/world-check.js', () => ({
+  WorldCheck: () => null,
 }));
 
 const { AmountScreen } = await import('../src/app/amount/amount-screen.js');
@@ -37,6 +49,7 @@ const { HomeScreen } = await import('../src/app/home/home-screen.js');
 const { OccupationPicker } = await import('../src/app/occupation/occupation-picker.js');
 const { PayScreen } = await import('../src/app/pay/pay-screen.js');
 const { VerifyScreen } = await import('../src/app/verify/verify-screen.js');
+const { startWorldCheck } = await import('../src/app/purchase-actions.js');
 const { OCCUPATIONS } = await import('../src/lib/occupations.js');
 const {
   bandLabelFor,
@@ -140,6 +153,20 @@ describe('the cover amount screen', () => {
 });
 
 describe('the verify screen', () => {
+  const CONTEXT = {
+    app_id: 'app_8569aa8d1bbfb24b1243e86d4fc34adc',
+    action: 'occupation-cover-eligibility',
+    environment: 'staging',
+    preset: 'selfieCheckLegacy',
+    signal: '0.0.10366453',
+    require_user_presence: false,
+    rp_id: 'rp_d6ae9b4ff2018a15',
+    nonce: '0x008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd',
+    created_at: 1_700_000_000,
+    expires_at: 1_700_000_300,
+    signature: `0x${'a'.repeat(130)}`,
+  };
+
   it('carries the copy deck strings and says the check is the interim one', () => {
     render(<VerifyScreen alreadyVerified={false} interim />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
@@ -157,10 +184,43 @@ describe('the verify screen', () => {
     expect(screen.getByText(/without running a World Selfie Check yet/)).toBeTruthy();
   });
 
+  it('drops the interim line when the World check is the one running', () => {
+    render(<VerifyScreen alreadyVerified={false} interim={false} />);
+    expect(screen.queryByText(/Interim check\. Testnet only\./)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Verify with World ID' })).toBeTruthy();
+  });
+
   it('shows the verified state when the credential is already held', () => {
     render(<VerifyScreen alreadyVerified interim />);
     expect(screen.getByRole('status').textContent).toBe("You're verified");
     expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
+  });
+
+  /**
+   * The state the deck string was written for: the check has left for another
+   * application and this screen is waiting for it to come back.
+   */
+  it('waits for the World app once the request context is signed', async () => {
+    vi.mocked(startWorldCheck).mockResolvedValue(CONTEXT);
+    render(<VerifyScreen alreadyVerified={false} interim={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Verify with World ID' }));
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe('Waiting for the World app'),
+    );
+    expect(startWorldCheck).toHaveBeenCalled();
+  });
+
+  it('falls to the failure copy when no context can be signed', async () => {
+    vi.mocked(startWorldCheck).mockResolvedValue(null);
+    render(<VerifyScreen alreadyVerified={false} interim={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Verify with World ID' }));
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+        "We couldn't verify you.",
+      ),
+    );
+    expect(screen.getByText('Try again, or use a different device.')).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy());
   });
 });
 

@@ -7,6 +7,14 @@ into a live gateway. Everything here is testnet only.
     openapi.json                     the same document as JSON
     buy-displacement-cover.md        recipe 1, the buy flow
     should-my-principal-renew.md     recipe 2, the renewal check
+    agentify/                        the index feed as a second gateway
+
+There are two gateways on this one API, which is how DESIGN.md section 4 has
+drawn it from the start. This directory is the cover gateway: quoting, binding
+and the reads around them. `agentify/` is the index feed on its own, imported
+separately, with its own spec, its own price and its own description files,
+because the Occupation Displacement Index is a product a caller might want who
+will never buy a policy. Its README is `agentify/README.md`.
 
 The two spec files are generated, never hand edited. `pnpm api:openapi` writes
 both from `apps/api/src/openapi.ts`, and `apps/api/test/openapi.test.ts`
@@ -21,7 +29,7 @@ the interim eligibility issuer.
 
 | Operation | Price | Notes |
 |---|---|---|
-| `GET /v1/index/{group}` | 0.01 TUSD | the metered index feed |
+| `GET /v1/index/{group}` | 0.01 TUSD | the metered index feed, also in the index gateway |
 | `POST /v1/quote` | 0.05 TUSD | paid, and only paid: a credential is not a payment |
 | `POST /v1/bind` | the first month premium | needs an eligibility credential |
 | `GET /v1/policy/{policyId}` | free | |
@@ -128,6 +136,18 @@ mirror node read with the decoded observation on screen, the paid feed call with
 the 402 and the settlement, the decision line with the numbers in it, quote and
 bind, the policy read back, and HashScan showing the payments topic message.
 That last one is the beat that proves it really happened.
+
+**9b. Record the agentify run, which is a second recording.** The second track
+asks for a demonstration of the new service inside a recipe other builders could
+reuse, so this one is shot against `agentify/` and shows the second gateway
+being used, not the first. The beats: the description file at
+`https://creance.co/llms.txt` on screen with the price in it, the second gateway
+in the Bazantic console beside the first, the free catalogue answering with the
+group keys and the trigger lines, one paid reading per shortlisted occupation
+with the 402 and the settlement visible, the ranking with the margins in it, the
+quote from the cover gateway for the occupation at the top, and HashScan showing
+the settlements on the payments topic. The point the recording has to make is
+that the ranking came from one gateway and the price from the other.
 
 **10. Write down anything the console did that this document did not
 anticipate.** `docs/harness-notes.md`. It is feedback material either way, and

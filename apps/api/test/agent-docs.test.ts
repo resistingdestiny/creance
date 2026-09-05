@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import type { FastifyInstance } from 'fastify';
+import { headline } from '@creance/index-model';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { renderLlmsTxt, renderSkillMd } from '../src/agent-docs.js';
@@ -131,6 +132,67 @@ describe('the agent description files', () => {
     // One line, because a folded YAML scalar is where a frontmatter parser and
     // a loader most often disagree.
     expect(lines[2]?.includes('\n')).toBe(false);
+  });
+
+  it('carries a worked example that is arithmetically what the API would send', () => {
+    // The example in the skill is the month the demo series opened, sequence 16
+    // on the index topic. It is the one part of these files a reader will copy,
+    // so it is recomputed here rather than proofread: the excess from the two
+    // rates, the two margins from the frozen lines, and the headline from the
+    // same function the route calls.
+    const block = /```json\n([\s\S]+?)```/.exec(renderSkillMd());
+    expect(block).not.toBeNull();
+    const example = JSON.parse(block?.[1] ?? '') as {
+      as_of: string;
+      reading: Record<string, string>;
+      trigger: Record<string, string | boolean | null>;
+      headline: Record<string, string | boolean>;
+    };
+    const number = (value: string | boolean | null | undefined): number => Number(value);
+    const uG = number(example.reading['u_g']);
+    const uAll = number(example.reading['u_all']);
+    const ebar = number(example.reading['ebar']);
+    const odi = number(example.reading['odi']);
+    const levelLine = number(example.trigger['level_line']);
+    const attachment = number(example.trigger['attachment_shock']);
+
+    expect(number(example.reading['e'])).toBeCloseTo(uG - uAll, 10);
+    expect(number(example.trigger['level_margin'])).toBeCloseTo(ebar - levelLine, 10);
+    expect(number(example.trigger['shock_margin'])).toBeCloseTo(odi - attachment, 10);
+    // Open on the level form, which is what makes this month worth showing.
+    expect(ebar >= levelLine).toBe(true);
+    expect(odi >= attachment).toBe(false);
+    expect(example.trigger['open']).toBe(true);
+    expect(example.trigger['open_reason']).toBe('level');
+
+    const computed = headline({
+      groupKey: 'computer_math',
+      seriesId: 'ODI-COMP-2026-01',
+      period: example.as_of,
+      uG,
+      uAll,
+      e: uG - uAll,
+      ebar,
+      ebarBase: null,
+      odi,
+      attachmentShock: attachment,
+      levelLine,
+      forms: [],
+      levelOpen: true,
+      shockOpen: false,
+      open: true,
+      openReason: 'level',
+      status: 'final',
+    });
+    expect(computed?.form).toBe(example.headline['form']);
+    expect(computed?.distance.toFixed(2)).toBe(example.headline['distance']);
+    expect(computed?.onTheLine).toBe(example.headline['on_the_line']);
+  });
+
+  it('warns that a margin and a distance have opposite signs', () => {
+    // They do, and it is the trap in this payload: `level_margin` is the
+    // reading less the line, `headline.distance` is the line less the reading.
+    expect(renderSkillMd()).toContain('two sign conventions');
   });
 
   it('opens llms.txt with the title and blockquote the format asks for', () => {

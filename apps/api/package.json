@@ -9,7 +9,9 @@
     "migrate": "tsx --env-file-if-exists=../../.env src/db/cli.ts",
     "openapi": "tsx scripts/openapi.ts",
     "test": "vitest run",
-    "test:testnet": "tsx --env-file-if-exists=../../.env scripts/testnet/bind.ts",
+    "testnet:bind": "tsx --env-file-if-exists=../../.env scripts/testnet/bind.ts",
+    "testnet:x402": "tsx --env-file-if-exists=../../.env scripts/testnet/x402.ts",
+    "test:testnet": "pnpm run testnet:bind && pnpm run testnet:x402",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

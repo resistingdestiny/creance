@@ -63,7 +63,13 @@ async function main(): Promise<void> {
   const applied = await migrate(pool);
   console.log(applied.length === 0 ? 'schema already up to date' : `applied ${applied.join(', ')}`);
 
-  const app = await buildServer({ config, repository: new PostgresRepository(pool) });
+  // No x402 gate: this run proves the chain path, and the paid path is its own
+  // script beside this one so that a rerun of either does not buy the other.
+  const app = await buildServer({
+    config,
+    repository: new PostgresRepository(pool),
+    x402: null,
+  });
   console.log(`series synced from the chain: ${await syncSeries(app.services)}`);
   const written = await backfillObservations(app.services);
   console.log(`observations loaded from the archive: ${written} new`);

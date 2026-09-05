@@ -40,7 +40,7 @@
         ],
         "operationId": "getIndex",
         "summary": "The metered index feed for an occupation group",
-        "description": "The latest published observation, the last twenty-four months and the\ntrigger status, with the source series and the source file hash so a\nreader can recompute the number from the cited rows.\n\nPrice: 0.01 TUSD, smallest unit `10000`, asset `0.0.10366463`, decimals 6.",
+        "description": "The latest published observation, the last twenty-four months and the\ntrigger status, with the source series and the source file hash so a\nreader can recompute the number from the cited rows.\n\nPrice: 0.01 TUSD, smallest unit `10000`, asset `0.0.10366463`, decimals 6.\n\nThe gate runs before the handler, so an unknown group is refused with 402\nand not with 400: the 400 is what a paid call to an unknown group answers.\nSend the group from the enum and the question does not arise.",
         "parameters": [
           {
             "name": "group",
@@ -83,10 +83,11 @@
             "description": "The reading, its history and the trigger status.",
             "headers": {
               "PAYMENT-RESPONSE": {
-                "description": "x402 version 2 settlement receipt, carrying the facilitator transaction id.",
+                "description": "x402 version 2 settlement receipt, base64 of a JSON object with `success`, `transaction`, `network` and `payer`. The transaction id starts with the facilitator fee payer account, not with the payer, because the facilitator pays the Hedera fee; that is the id to look up on HashScan.",
                 "schema": {
                   "type": "string"
-                }
+                },
+                "example": "eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjAuMC43MTYyNzg0QDE3ODg2MTI3MDYuNTY3NjkyNjIzIn0="
               }
             },
             "content": {
@@ -111,7 +112,7 @@
             "description": "Payment required. Price 0.01 TUSD.",
             "headers": {
               "PAYMENT-REQUIRED": {
-                "description": "x402 version 2 payment requirements for this resource.",
+                "description": "x402 version 2 payment requirements for this resource, base64 of the JSON `{\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{...},\"accepts\":[{\"scheme\":\"exact\", \"network\":\"hedera:testnet\",\"amount\":\"10000\",\"asset\":\"0.0.10366463\",\"payTo\":\"0.0.10366450\", \"maxTimeoutSeconds\":60,\"extra\":{\"feePayer\":\"0.0.7162784\"}}]}`. The body carries the same terms in readable fields.",
                 "schema": {
                   "type": "string"
                 }
@@ -120,7 +121,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Problem"
+                  "$ref": "#/components/schemas/PaymentRequired"
                 }
               }
             }
@@ -145,7 +146,7 @@
         ],
         "operationId": "createQuote",
         "summary": "Price cover for an occupation and a limit",
-        "description": "The binding price, with the capacity behind it checked against the series\nprincipal. A quote takes no capacity hold and is valid for fifteen minutes.\n\nCapacity is committed per occupation, so a group with no Displacement Bond\nNote series behind it answers `no_capacity_for_group` rather than quoting a\nprice nobody can buy.\n\nPrice: 0.05 TUSD, smallest unit `50000`, asset `0.0.10366463`, decimals 6.\nAn eligibility credential also satisfies the gate, because it is the output\nof a live biometric check and is a stronger anti-abuse signal than the fee.",
+        "description": "The binding price, with the capacity behind it checked against the series\nprincipal. A quote takes no capacity hold and is valid for fifteen minutes.\n\nCapacity is committed per occupation, so a group with no Displacement Bond\nNote series behind it answers `no_capacity_for_group` rather than quoting a\nprice nobody can buy.\n\nPrice: 0.05 TUSD, smallest unit `50000`, asset `0.0.10366463`, decimals 6.\nNothing substitutes for it. An eligibility credential is not a payment here:\nthe gate never reads the `Authorization` header on this operation, and an\nunpaid call carrying one is refused with the same 402 and the same price.\nThe credential belongs on `POST /v1/bind`.",
         "parameters": [
           {
             "name": "PAYMENT-SIGNATURE",
@@ -155,12 +156,6 @@
             "schema": {
               "type": "string"
             }
-          }
-        ],
-        "security": [
-          {},
-          {
-            "eligibilityCredential": []
           }
         ],
         "requestBody": {
@@ -178,10 +173,11 @@
             "description": "The quote.",
             "headers": {
               "PAYMENT-RESPONSE": {
-                "description": "x402 version 2 settlement receipt, carrying the facilitator transaction id.",
+                "description": "x402 version 2 settlement receipt, base64 of a JSON object with `success`, `transaction`, `network` and `payer`. The transaction id starts with the facilitator fee payer account, not with the payer, because the facilitator pays the Hedera fee; that is the id to look up on HashScan.",
                 "schema": {
                   "type": "string"
-                }
+                },
+                "example": "eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjAuMC43MTYyNzg0QDE3ODg2MTI3MDYuNTY3NjkyNjIzIn0="
               }
             },
             "content": {
@@ -193,7 +189,7 @@
             }
           },
           "400": {
-            "description": "`group_unknown` or `limit_out_of_range`.",
+            "description": "`validation_failed` for a missing field, `group_unknown`, `limit_out_of_range`, or `body_required` and `body_malformed` for a body that is not JSON. Like the 400 on the index feed, these are refusals a paid call gets: the gate answers 402 first.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -206,12 +202,22 @@
             "description": "Payment required. Price 0.05 TUSD.",
             "headers": {
               "PAYMENT-REQUIRED": {
-                "description": "x402 version 2 payment requirements for this resource.",
+                "description": "x402 version 2 payment requirements for this resource, base64 of the JSON `{\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{...},\"accepts\":[{\"scheme\":\"exact\", \"network\":\"hedera:testnet\",\"amount\":\"10000\",\"asset\":\"0.0.10366463\",\"payTo\":\"0.0.10366450\", \"maxTimeoutSeconds\":60,\"extra\":{\"feePayer\":\"0.0.7162784\"}}]}`. The body carries the same terms in readable fields.",
                 "schema": {
                   "type": "string"
                 }
               }
             },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`series_not_found`: a `series_id` was sent and it does not cover that occupation.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -222,6 +228,16 @@
           },
           "409": {
             "description": "`no_capacity_for_group`, `insufficient_capacity` or `series_not_open_for_binding`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`index_unavailable`: no reading for that occupation, so cover cannot be priced.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -272,10 +288,11 @@
             "description": "The bound policy.",
             "headers": {
               "PAYMENT-RESPONSE": {
-                "description": "x402 version 2 settlement receipt, carrying the facilitator transaction id.",
+                "description": "x402 version 2 settlement receipt, base64 of a JSON object with `success`, `transaction`, `network` and `payer`. The transaction id starts with the facilitator fee payer account, not with the payer, because the facilitator pays the Hedera fee; that is the id to look up on HashScan.",
                 "schema": {
                   "type": "string"
-                }
+                },
+                "example": "eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjAuMC43MTYyNzg0QDE3ODg2MTI3MDYuNTY3NjkyNjIzIn0="
               }
             },
             "content": {
@@ -286,8 +303,18 @@
               }
             }
           },
+          "400": {
+            "description": "`validation_failed` for a missing `quote_id`, `body_required` or `body_malformed` for a body that is not JSON, or `credential_ambiguous` when the header and the body carry different credentials. Unlike the other two metered operations, these are refused before the payment: the price comes from the quote, so the body is read first.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
           "401": {
-            "description": "`credential_missing` or `credential_invalid`.",
+            "description": "`credential_missing`, `credential_invalid` or `credential_unknown`, which is a well-formed credential this API did not issue.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -300,7 +327,7 @@
             "description": "Payment required. Price the first month premium from the quote.",
             "headers": {
               "PAYMENT-REQUIRED": {
-                "description": "x402 version 2 payment requirements for this resource.",
+                "description": "x402 version 2 payment requirements for this resource, base64 of the JSON `{\"x402Version\":2,\"error\":\"Payment required\",\"resource\":{...},\"accepts\":[{\"scheme\":\"exact\", \"network\":\"hedera:testnet\",\"amount\":\"10000\",\"asset\":\"0.0.10366463\",\"payTo\":\"0.0.10366450\", \"maxTimeoutSeconds\":60,\"extra\":{\"feePayer\":\"0.0.7162784\"}}]}`. The body carries the same terms in readable fields.",
                 "schema": {
                   "type": "string"
                 }
@@ -309,13 +336,23 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Problem"
+                  "$ref": "#/components/schemas/PaymentRequired"
                 }
               }
             }
           },
           "403": {
-            "description": "`credential_expired`.",
+            "description": "`credential_expired`. They last thirty minutes.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`quote_not_found` or `series_not_found`. A quote that cannot be priced is refused before the 402, so the payer never signs anything.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -325,7 +362,7 @@
             }
           },
           "409": {
-            "description": "`already_covered`, `credential_consumed`, `quote_consumed`, `wallet_mismatch`, `group_mismatch`, `series_mismatch` or `insufficient_capacity`.",
+            "description": "`already_covered`, `credential_consumed`, `quote_consumed`, `wallet_mismatch`, `group_mismatch`, `series_mismatch`, `series_not_open_for_binding` or `insufficient_capacity`.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -346,6 +383,16 @@
           },
           "502": {
             "description": "`chain_write_failed`: the pool refused the write.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`hedera_not_configured`, the API has no Hedera keys and can neither publish a receipt nor mint one, or `upstream_unavailable`, the payment facilitator did not answer.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -472,7 +519,7 @@
         ],
         "operationId": "getSeries",
         "summary": "A Displacement Bond Note series",
-        "description": "The principal, the reserve, the paid claims and the noteholder positions, read from the chain. Free.",
+        "description": "The principal, the reserve, the paid claims and the noteholder positions,\nread from the chain. Free.\n\nIt does not carry the frozen attachment and level line. Those are on the\nindex: GET /v1/index/{group} answers them under `trigger`, and every\nobservation on the index topic carries them too.",
         "parameters": [
           {
             "name": "seriesId",
@@ -490,7 +537,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/Series"
                 }
               }
             }
@@ -533,7 +580,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/SeriesCoupons"
                 }
               }
             }
@@ -630,6 +677,76 @@
           },
           "retryable": {
             "type": "boolean"
+          }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "description": "RFC 9457 problem document with the x402 terms repeated in readable fields.",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "retryable",
+          "price",
+          "x402_version",
+          "scheme",
+          "network",
+          "pay_to",
+          "facilitator"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "example": "payment_required"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "price": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "x402_version": {
+            "type": "integer",
+            "example": 2
+          },
+          "scheme": {
+            "type": "string",
+            "example": "exact"
+          },
+          "network": {
+            "type": "string",
+            "example": "hedera:testnet"
+          },
+          "pay_to": {
+            "type": "string",
+            "description": "The Hedera account the transfer has to credit.",
+            "example": "0.0.10366450"
+          },
+          "facilitator": {
+            "type": "string",
+            "description": "The x402 facilitator that settles the transfer.",
+            "example": "https://api.testnet.blocky402.com"
           }
         }
       },
@@ -980,6 +1097,7 @@
           },
           "issued_via": {
             "type": "string",
+            "description": "How the caller satisfied the gate. Always `x402` while the gate is on, which is how this API runs. The other two are what a build with the gate turned off records.",
             "enum": [
               "x402",
               "credential",
@@ -1148,6 +1266,436 @@
                 "type": "string"
               }
             }
+          }
+        }
+      },
+      "Series": {
+        "type": "object",
+        "description": "A Displacement Bond Note series as the chain holds it: the vault that carries the principal, the note the investors hold, the pool that registers the cover, and the coupon summary.",
+        "required": [
+          "series_id",
+          "group",
+          "settlement_asset",
+          "vault",
+          "note",
+          "cover_pool"
+        ],
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "example": "ODI-COMP-2026-01"
+          },
+          "series_key": {
+            "type": "string",
+            "description": "The series id as the bytes32 the contracts index on.",
+            "example": "0x4f44492d434f4d502d323032362d303100000000000000000000000000000000"
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "management_business_financial",
+              "professional_related",
+              "service",
+              "sales_related",
+              "office_admin_support",
+              "farming_fishing_forestry",
+              "construction_extraction",
+              "installation_maintenance_repair",
+              "production",
+              "transportation_material_moving",
+              "computer_math",
+              "legal",
+              "arts_design_ent_media",
+              "business_financial_ops",
+              "education_training_library"
+            ]
+          },
+          "network": {
+            "type": "string",
+            "example": "testnet"
+          },
+          "settlement_asset": {
+            "$ref": "#/components/schemas/SettlementAsset"
+          },
+          "vault": {
+            "type": "object",
+            "description": "CollateralVault. Every amount is Money. `principal_free` is what is left to sell cover against once the reserve and the paid claims are taken off.",
+            "properties": {
+              "address": {
+                "type": "string"
+              },
+              "contract_id": {
+                "type": "string",
+                "example": "0.0.10367194"
+              },
+              "matures_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "principal_funded": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "principal_paid": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "principal_reserved": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "principal_redeemed": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "principal_remaining": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "principal_free": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "premium_balance": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "hashscan": {
+                "type": "string"
+              }
+            }
+          },
+          "note": {
+            "type": "object",
+            "description": "The ERC-3643 bond token issued through the Asset Tokenization Studio.",
+            "properties": {
+              "contract_id": {
+                "type": "string",
+                "example": "0.0.10368240"
+              },
+              "address": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "symbol": {
+                "type": "string",
+                "example": "CDBN01"
+              },
+              "decimals": {
+                "type": "integer",
+                "example": 6
+              },
+              "total_supply": {
+                "type": "string"
+              },
+              "units": {
+                "type": "string"
+              },
+              "matures_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "paused": {
+                "type": "boolean"
+              },
+              "hashscan": {
+                "type": "string"
+              }
+            }
+          },
+          "holders": {
+            "type": "array",
+            "description": "The noteholders, their positions and their KYC standing.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "example": "investor-1"
+                },
+                "account_id": {
+                  "type": "string",
+                  "example": "0.0.10366460"
+                },
+                "address": {
+                  "type": "string"
+                },
+                "note_balance": {
+                  "type": "string"
+                },
+                "note_frozen": {
+                  "type": "string"
+                },
+                "note_position": {
+                  "type": "string"
+                },
+                "note_units": {
+                  "type": "string"
+                },
+                "subscription": {
+                  "$ref": "#/components/schemas/Money"
+                },
+                "kyc": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "example": 1
+                    },
+                    "granted": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "hashscan": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "cover_pool": {
+            "type": "object",
+            "description": "CoverPool. The capacity a quote is checked against.",
+            "properties": {
+              "address": {
+                "type": "string"
+              },
+              "contract_id": {
+                "type": "string",
+                "example": "0.0.10367199"
+              },
+              "registered": {
+                "type": "boolean"
+              },
+              "active_exposure": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "exposure_covered": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "capacity_used_percent": {
+                "type": "integer",
+                "example": 17
+              },
+              "term_seconds": {
+                "type": "integer",
+                "example": 31536000
+              },
+              "term_months": {
+                "type": "integer",
+                "example": 12
+              },
+              "hashscan": {
+                "type": "string"
+              }
+            }
+          },
+          "coupons": {
+            "type": "object",
+            "description": "A summary. The coupons themselves are the next operation.",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "example": 1
+              },
+              "settled": {
+                "type": "integer",
+                "example": 1
+              },
+              "latest_coupon_id": {
+                "type": "string",
+                "nullable": true,
+                "example": "1"
+              },
+              "rate_percent": {
+                "type": "string",
+                "example": "8"
+              }
+            }
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "coupons": {
+                "type": "string",
+                "example": "/v1/series/ODI-COMP-2026-01/coupons"
+              },
+              "payments_topic": {
+                "type": "string",
+                "example": "https://hashscan.io/testnet/topic/0.0.10366471"
+              }
+            }
+          }
+        }
+      },
+      "SeriesCoupons": {
+        "type": "object",
+        "description": "Every coupon declared on the series, each with the holders it was owed to and how it was paid.",
+        "required": [
+          "series_id",
+          "coupons"
+        ],
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "example": "ODI-COMP-2026-01"
+          },
+          "series_key": {
+            "type": "string"
+          },
+          "settlement_asset": {
+            "$ref": "#/components/schemas/SettlementAsset"
+          },
+          "payments_topic": {
+            "type": "string"
+          },
+          "coupons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "coupon_id": {
+                  "type": "string",
+                  "example": "1"
+                },
+                "coupon_ref": {
+                  "type": "string",
+                  "example": "ODI-COMP-2026-01#1"
+                },
+                "rate_percent": {
+                  "type": "string",
+                  "example": "8"
+                },
+                "rate_bps": {
+                  "type": "integer",
+                  "example": 800
+                },
+                "accrual_start": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "accrual_end": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "record_date": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "execution_date": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "declared_by": {
+                  "type": "string",
+                  "example": "ats_corporate_action"
+                },
+                "paid_by": {
+                  "type": "string",
+                  "example": "hedera_scheduled_transaction"
+                },
+                "total": {
+                  "$ref": "#/components/schemas/Money"
+                },
+                "holders": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "role": {
+                        "type": "string"
+                      },
+                      "account_id": {
+                        "type": "string"
+                      },
+                      "address": {
+                        "type": "string"
+                      },
+                      "entitlement": {
+                        "type": "object",
+                        "description": "The exact fraction the holder is owed, kept as a numerator and a denominator so nothing is rounded before the division.",
+                        "properties": {
+                          "numerator": {
+                            "type": "string"
+                          },
+                          "denominator": {
+                            "type": "string"
+                          },
+                          "record_date_reached": {
+                            "type": "boolean"
+                          }
+                        }
+                      },
+                      "amount": {
+                        "$ref": "#/components/schemas/Money"
+                      },
+                      "remainder": {
+                        "type": "string"
+                      },
+                      "settlement": {
+                        "type": "object",
+                        "description": "The Scheduled Transaction that paid it, and the payments topic message that recorded it.",
+                        "properties": {
+                          "schedule_id": {
+                            "type": "string",
+                            "example": "0.0.10368878"
+                          },
+                          "schedule_memo": {
+                            "type": "string"
+                          },
+                          "transaction_id": {
+                            "type": "string"
+                          },
+                          "result": {
+                            "type": "string",
+                            "example": "SUCCESS"
+                          },
+                          "settled": {
+                            "type": "boolean"
+                          },
+                          "paid_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "topic_sequence_number": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "hashscan": {
+                            "type": "object",
+                            "properties": {
+                              "schedule": {
+                                "type": "string"
+                              },
+                              "transaction": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "SettlementAsset": {
+        "type": "object",
+        "description": "The HTS token every amount on this series is denominated in.",
+        "properties": {
+          "token_id": {
+            "type": "string",
+            "example": "0.0.10366463"
+          },
+          "address": {
+            "type": "string"
+          },
+          "decimals": {
+            "type": "integer",
+            "example": 6
+          },
+          "symbol": {
+            "type": "string",
+            "example": "TUSD"
           }
         }
       },

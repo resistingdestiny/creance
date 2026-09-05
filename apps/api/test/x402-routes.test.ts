@@ -13,6 +13,7 @@ import type {
   VerifyResponse,
 } from '@x402/core/types';
 
+import { buildOpenApiDocument } from '../src/openapi.js';
 import { buildServer } from '../src/server.js';
 import type { Services } from '../src/services.js';
 import { X402Gate } from '../src/x402/gate.js';
@@ -219,6 +220,24 @@ describe('the x402 gate', () => {
       expect(body.facilitator).toBe('https://api.testnet.blocky402.com');
     });
 
+    it('carries every field the OpenAPI document promises a 402 carries', async () => {
+      const built = await harness();
+      const response = await built.app.inject({ method: 'GET', url: '/v1/index/computer_math' });
+
+      // The document is imported into somebody else's product, so an agent that
+      // reads it and never reads this repository has to be able to find the
+      // price and the payment terms in the body it actually gets back.
+      const documented = (
+        buildOpenApiDocument({ version: '0.1.0' }) as {
+          components: { schemas: { PaymentRequired: { required: string[] } } };
+        }
+      ).components.schemas.PaymentRequired.required;
+      const body = response.json() as Record<string, unknown>;
+      for (const field of documented) {
+        expect(body[field], field).toBeDefined();
+      }
+    });
+
     it('refuses a quote at the quote price', async () => {
       const built = await harness();
       const response = await built.app.inject({
@@ -228,6 +247,26 @@ describe('the x402 gate', () => {
       });
       expect(response.statusCode).toBe(402);
       expect((required(response.headers).accepts[0] as PaymentRequirements).amount).toBe('50000');
+    });
+
+    it('refuses a quote at the same price when the caller carries a credential', async () => {
+      const built = await harness();
+      const credential = await issueCredential(built);
+
+      const response = await built.app.inject({
+        method: 'POST',
+        url: '/v1/quote',
+        headers: { authorization: `Bearer ${credential}` },
+        payload: { group: 'computer_math', limit: '5000000000', wallet: POLICYHOLDER_1.accountId },
+      });
+
+      // A quote is a plain paid call, DESIGN.md 3.7. The gate is an onRequest
+      // hook over a route map of prices and it never reads `authorization`, so
+      // an eligibility credential buys nothing here. The OpenAPI document said
+      // otherwise until T19, and this is what holds the two together.
+      expect(response.statusCode).toBe(402);
+      expect((required(response.headers).accepts[0] as PaymentRequirements).amount).toBe('50000');
+      expect(response.json().price.amount).toBe('50000');
     });
 
     it('leaves the free endpoints alone', async () => {

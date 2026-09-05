@@ -8,8 +8,9 @@ import { VerifyScreen } from './verify-screen';
 /**
  * Confirm you're a real person, docs/DESIGN-TOKENS.md section 8.
  *
- * T11 replaces the check behind this screen with the World Selfie Check. The
- * strings do not change when it does; the interim line does.
+ * The check behind it is the World Selfie Check whenever this deployment has a
+ * World app id. A clone with none gets the interim issuer and the line that
+ * says so; the deck strings are the same either way.
  */
 
 export const metadata: Metadata = { title: 'Confirm you are a real person' };

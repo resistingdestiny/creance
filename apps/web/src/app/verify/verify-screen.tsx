@@ -1,27 +1,51 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import dynamic from 'next/dynamic';
+import { useRef, useState, useTransition } from 'react';
 
 import { AppFrame } from '../../components/app-frame';
 import { PillButton } from '../../components/pill-button';
-import { continueToPay, verifyPerson } from '../purchase-actions';
+import type { WorldRequestContextView } from '../../lib/worker-api';
+import {
+  completeWorldCheck,
+  continueToPay,
+  goToCover,
+  startWorldCheck,
+  verifyPerson,
+} from '../purchase-actions';
 
 /**
- * The four states docs/DESIGN-TOKENS.md section 8 gives this screen, with the
- * copy verbatim.
+ * The states docs/DESIGN-TOKENS.md section 8 gives this screen, with the copy
+ * verbatim.
  *
- * What runs behind it today is the API's interim eligibility issuer and not a
- * World Selfie Check, and the screen says so in ink-2 the same way the wallet
- * says it is a demo. It does not imitate the IDKit widget: a screen that looks
- * like a Selfie Check and is not one is the one thing this state must not be.
+ * Behind it is the World Selfie Check: the button fetches a signed request
+ * context from the API, the widget hands the check to the World app, and the
+ * completed result goes back to the API, which forwards it to World and answers
+ * with the eligibility credential. "Waiting for the World app" is the state
+ * while the check is away on another device, which is the state that string was
+ * written for.
  *
- * "Waiting for the World app" belongs to the state where the check has left for
- * another application. The interim issuer answers in one request and never
- * leaves this device, so the button carries its own loading state instead and
- * T11 restores the wait. See docs/DECISIONS.md.
+ * A clone with no World app id in its environment gets the interim issuer
+ * instead, and says so in ink-2 the same way the wallet says it is a demo. That
+ * state does not imitate the widget: a screen that looks like a Selfie Check
+ * and is not one is the one thing it must not be, and it answers in one request
+ * without leaving the device, so its button carries its own loading state.
+ *
+ * "One person, one cover" is a rule, not a failure. Someone who already holds
+ * cover in this series is told the rule and sent to the cover they have, rather
+ * than offered a retry that would be refused the same way.
  */
 
-type VerifyState = 'idle' | 'verified' | 'failed';
+/** Loaded only where a check runs, so the SDK stays out of every other route. */
+const WorldCheck = dynamic(() => import('./world-check').then((module) => module.WorldCheck));
+
+type VerifyState = 'idle' | 'waiting' | 'verified' | 'failed' | 'covered';
+
+/** Codes that mean the person chose to stop. No error, just the button back. */
+const CANCELLED = new Set(['user_rejected', 'verification_rejected']);
+
+/** Codes cured by a fresh signature. Retried once, silently. */
+const STALE = new Set(['invalid_rp_signature', 'malformed_request']);
 
 export function VerifyScreen({
   interim,
@@ -31,30 +55,85 @@ export function VerifyScreen({
   alreadyVerified: boolean;
 }) {
   const [state, setState] = useState<VerifyState>(alreadyVerified ? 'verified' : 'idle');
+  const [context, setContext] = useState<WorldRequestContextView | null>(null);
+  const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  /** Set when our own verification refused, so onError does not overwrite it. */
+  const refused = useRef(false);
+  /** One silent retry per attempt on an expired or malformed signature. */
+  const retried = useRef(false);
 
-  const check = () => {
+  const interimCheck = () => {
     startTransition(async () => {
       const result = await verifyPerson();
       setState(result.ok ? 'verified' : 'failed');
     });
   };
 
+  const openWidget = () => {
+    refused.current = false;
+    startTransition(async () => {
+      const fresh = await startWorldCheck();
+      if (fresh === null) {
+        setState('failed');
+        return;
+      }
+      setContext(fresh);
+      setState('waiting');
+      setOpen(true);
+    });
+  };
+
+  const start = () => {
+    retried.current = false;
+    if (interim) interimCheck();
+    else openWidget();
+  };
+
+  // Throwing here is deliberate. The widget turns it into `failed_by_host_app`
+  // and never calls onSuccess, so the success state is gated on the API.
+  const handleVerify = async (result: unknown) => {
+    const answer = await completeWorldCheck(result);
+    if (answer.ok) return;
+    refused.current = true;
+    setState(answer.alreadyCovered ? 'covered' : 'failed');
+    throw new Error(answer.error ?? 'the check was refused');
+  };
+
+  const onError = (code: string) => {
+    setOpen(false);
+    if (refused.current) return;
+    if (CANCELLED.has(code)) {
+      setState('idle');
+      return;
+    }
+    if (STALE.has(code) && !retried.current) {
+      retried.current = true;
+      openWidget();
+      return;
+    }
+    setState('failed');
+  };
+
+  const heading = HEADINGS[state];
+  const line = LINES[state];
+
   return (
     <AppFrame>
       <main className="flex min-h-dvh flex-col justify-between px-5 py-10">
         <div className="flex flex-col gap-4">
           <h1 className="text-title font-display font-semibold tracking-title text-ink">
-            {state === 'failed' ? "We couldn't verify you." : "Confirm you're a real person."}
+            {heading}
           </h1>
-          <p className="text-body-lg text-ink-2">
-            {state === 'failed'
-              ? 'Try again, or use a different device.'
-              : 'One person, one cover. This stops bots and duplicate accounts.'}
-          </p>
+          <p className="text-body-lg text-ink-2">{line}</p>
           {state === 'verified' ? (
             <p className="text-body-lg text-ink" data-testid="verify-state" role="status">
               You&apos;re verified
+            </p>
+          ) : null}
+          {state === 'waiting' ? (
+            <p className="text-body-lg text-ink" data-testid="verify-state" role="status">
+              Waiting for the World app
             </p>
           ) : null}
           {interim ? (
@@ -71,12 +150,49 @@ export function VerifyScreen({
               Continue
             </PillButton>
           </form>
+        ) : state === 'covered' ? (
+          <form action={goToCover}>
+            <PillButton className="w-full" type="submit">
+              Cover
+            </PillButton>
+          </form>
         ) : (
-          <PillButton className="w-full" loading={pending} onClick={check}>
+          <PillButton
+            className="w-full"
+            loading={pending || state === 'waiting'}
+            onClick={start}
+          >
             {state === 'failed' ? 'Try again' : 'Verify with World ID'}
           </PillButton>
+        )}
+
+        {context === null || interim ? null : (
+          <WorldCheck
+            context={context}
+            open={open}
+            onOpenChange={setOpen}
+            handleVerify={handleVerify}
+            onSuccess={() => setState('verified')}
+            onError={onError}
+          />
         )}
       </main>
     </AppFrame>
   );
 }
+
+const HEADINGS: Record<VerifyState, string> = {
+  idle: "Confirm you're a real person.",
+  waiting: "Confirm you're a real person.",
+  verified: "Confirm you're a real person.",
+  failed: "We couldn't verify you.",
+  covered: 'Covered',
+};
+
+const LINES: Record<VerifyState, string> = {
+  idle: 'One person, one cover. This stops bots and duplicate accounts.',
+  waiting: 'One person, one cover. This stops bots and duplicate accounts.',
+  verified: 'One person, one cover. This stops bots and duplicate accounts.',
+  failed: 'Try again, or use a different device.',
+  covered: 'One person, one cover. This stops bots and duplicate accounts.',
+};

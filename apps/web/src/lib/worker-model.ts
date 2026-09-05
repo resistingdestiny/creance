@@ -247,6 +247,12 @@ export interface PriceResult {
 export interface VerifyResult {
   readonly ok: boolean;
   readonly error: string | null;
+  /**
+   * One person, one cover: this person already holds cover in this series. Not
+   * a failure of the check, so the screen says the rule rather than offering a
+   * retry that would be refused the same way. DESIGN.md 3.6.
+   */
+  readonly alreadyCovered: boolean;
 }
 
 export interface PayResult {

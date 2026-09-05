@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 
 import { ApiError } from '../lib/api';
-import { issueEligibilityFor } from '../lib/eligibility';
+import { issueEligibilityFor, type EligibilityRequest } from '../lib/eligibility';
 import { AMOUNT_DEFAULT } from '../lib/cover-amount';
 import { findOccupation, hasCover } from '../lib/occupations';
 import {
@@ -23,7 +23,14 @@ import {
   type PriceResult,
   type VerifyResult,
 } from '../lib/worker-model';
-import { bindPolicy, requestQuote, toMinorUnits, waitForSerial } from '../lib/worker-api';
+import {
+  bindPolicy,
+  requestQuote,
+  requestWorldContext,
+  toMinorUnits,
+  waitForSerial,
+  type WorldRequestContextView,
+} from '../lib/worker-api';
 
 /**
  * The purchase flow's writes.
@@ -95,38 +102,85 @@ export async function continueToVerify(): Promise<void> {
 }
 
 /**
- * Verify screen: the check that earns an eligibility credential.
+ * Verify screen: a fresh signed context for one IDKit request.
  *
- * The credential is single use, lasts thirty minutes and is held in the server
- * side session. Nothing about it is returned to the browser.
+ * Called on every opening of the widget, never cached. The signature lives five
+ * minutes and World refuses a nonce it has already seen, so a retry after
+ * someone cancelled or after the context expired gets its own.
+ */
+export async function startWorldCheck(): Promise<WorldRequestContextView | null> {
+  const session = await readPurchase();
+  if (!session?.group) redirect('/occupation');
+  try {
+    return await requestWorldContext(DEMO_ACCOUNT.accountId);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verify screen: the completed check, forwarded to the API.
+ *
+ * The IDKit result crosses from the browser to here and no further: the API
+ * forwards it to World, checks the signal against the wallet, takes the
+ * nullifier out of the proof and answers with the credential. The credential is
+ * single use, lasts thirty minutes and stays in the server side session.
+ */
+export async function completeWorldCheck(result: unknown): Promise<VerifyResult> {
+  const session = await readPurchase();
+  const group = session?.group;
+  if (!group || session === null) redirect('/occupation');
+  return await earnCredential({ group, wallet: DEMO_ACCOUNT, proof: result });
+}
+
+/**
+ * Verify screen: the interim check, for a clone with no World app.
+ *
+ * The nullifier is the session's own, because there is no proof to take one
+ * from. On the World path it comes out of the proof, inside the API.
  */
 export async function verifyPerson(): Promise<VerifyResult> {
   const session = await readPurchase();
   const group = session?.group;
   if (!group || session === null) redirect('/occupation');
+  return await earnCredential({ group, wallet: DEMO_ACCOUNT, nullifier: session.nullifier });
+}
 
+async function earnCredential(request: EligibilityRequest): Promise<VerifyResult> {
   try {
-    const issued = await issueEligibilityFor({
-      group,
-      wallet: DEMO_ACCOUNT,
-      nullifier: session.nullifier,
-    });
+    const issued = await issueEligibilityFor(request);
     await updatePurchase({
       credential: issued.credential,
       credentialExpiresAt: issued.expiresAt,
     });
-    return { ok: true, error: null };
+    return { ok: true, error: null, alreadyCovered: false };
   } catch (cause) {
-    if (cause instanceof ApiError && cause.code === 'no_capacity_for_group') {
-      return { ok: false, error: 'There is no cover behind this occupation yet.' };
+    if (cause instanceof ApiError && cause.code === 'already_covered') {
+      return {
+        ok: false,
+        error: 'One person, one cover. This stops bots and duplicate accounts.',
+        alreadyCovered: true,
+      };
     }
-    return { ok: false, error: "We couldn't verify you." };
+    if (cause instanceof ApiError && cause.code === 'no_capacity_for_group') {
+      return {
+        ok: false,
+        error: 'There is no cover behind this occupation yet.',
+        alreadyCovered: false,
+      };
+    }
+    return { ok: false, error: "We couldn't verify you.", alreadyCovered: false };
   }
 }
 
 /** Verify screen: "Continue". */
 export async function continueToPay(): Promise<void> {
   redirect('/pay');
+}
+
+/** Verify screen, when this person already holds cover: the cover they have. */
+export async function goToCover(): Promise<void> {
+  redirect('/home');
 }
 
 /**

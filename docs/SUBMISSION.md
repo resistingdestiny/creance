@@ -15,9 +15,14 @@ MIT licensed, see LICENSE. The repository is private today; Root makes it public
 before submission, and that is the one thing on this line that needs a person.
 
 The clean-clone run through and the architecture are both in README.md, and the
-testnet resources are in docs/HEDERA.md. [Layout](../README.md#layout) says how the
+testnet resources are in docs/HEDERA.md.
+[Fifteen minutes from a clean clone](../README.md#fifteen-minutes-from-a-clean-clone)
+is the measured run of the three flows a judge is asked to repeat.
+[Layout](../README.md#layout) says how the
 five applications, the two packages and the contracts fit together,
-[Payment flow](../README.md#payment-flow) walks the x402 path step by step, and
+[Payment flow](../README.md#payment-flow) walks the x402 path step by step,
+[Tokenization](../README.md#tokenization) gives the note's steps in the order to
+run them, and
 docs/HEDERA.md carries every account, token, topic and contract id with the
 transaction that proved it. Every place the build differs from the brief is in
 docs/DECISIONS.md, one section per ticket. There is no separate architecture

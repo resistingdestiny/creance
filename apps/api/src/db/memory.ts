@@ -2,6 +2,10 @@ import { AppError } from '../errors.js';
 import {
   ACTIVE_POLICY_STATUSES,
   type ClaimAuditRow,
+  type ClaimEvidenceRow,
+  type ClaimRow,
+  type ClaimStatus,
+  type RecordDecisionInput,
   type CredentialRow,
   type GroupRow,
   type ObservationRow,
@@ -163,6 +167,77 @@ export class MemoryRepository implements Repository {
       .sort((a, b) => a.claimId.localeCompare(b.claimId));
   }
 
+  async claim(claimId: string): Promise<ClaimRow | null> {
+    return this.fullClaims.get(claimId) ?? null;
+  }
+
+  async claimsByStatus(status: ClaimStatus, limit: number): Promise<ClaimRow[]> {
+    return [...this.fullClaims.values()]
+      .filter((row) => row.status === status)
+      .sort((a, b) => (a.submittedAt ?? '').localeCompare(b.submittedAt ?? ''))
+      .slice(0, limit);
+  }
+
+  async priorClaimCount(
+    nullifier: string,
+    seriesId: string,
+    exceptClaimId: string,
+  ): Promise<number> {
+    return [...this.fullClaims.values()].filter(
+      (row) =>
+        row.nullifier === nullifier &&
+        row.seriesId === seriesId &&
+        row.claimId !== exceptClaimId &&
+        row.status !== 'void',
+    ).length;
+  }
+
+  async claimEvidence(claimId: string): Promise<ClaimEvidenceRow[]> {
+    return (this.evidenceRows.get(claimId) ?? []).slice();
+  }
+
+  async evidenceSeenElsewhere(claimId: string, hashes: string[]): Promise<Set<string>> {
+    const wanted = new Set(hashes);
+    const seen = new Set<string>();
+    for (const [id, rows] of this.evidenceRows) {
+      if (id === claimId) continue;
+      for (const row of rows) if (wanted.has(row.sha256)) seen.add(row.sha256);
+    }
+    return seen;
+  }
+
+  /** The same lock the SQL has: a claim that is not waiting is not decidable. */
+  async recordDecision(input: RecordDecisionInput): Promise<ClaimRow> {
+    const existing = this.fullClaims.get(input.claimId);
+    if (
+      existing === undefined ||
+      (existing.status !== 'submitted' && existing.status !== 'under_review')
+    ) {
+      throw claimNotDecidable();
+    }
+    const updated: ClaimRow = {
+      ...existing,
+      status: input.status,
+      decision: input.decision,
+      reasons: input.reasons,
+      confidence: input.confidence,
+      decisionHash: input.decisionHash,
+      decisionRecord: input.decisionRecord,
+      hcsDecisionSeq: input.hcsDecisionSeq,
+      amount: input.amount,
+      decidedBy: input.decidedBy,
+      reviewer: input.reviewer,
+      decidedAt: input.decidedAt,
+    };
+    this.fullClaims.set(input.claimId, updated);
+    const policy = this.policyRows.get(existing.policyId);
+    const next = POLICY_STATUS_FOR[input.status];
+    if (policy !== undefined && next !== undefined) {
+      this.policyRows.set(policy.policyId, { ...policy, status: next });
+    }
+    return updated;
+  }
+
   async updatePayment(paymentId: string, patch: Partial<PaymentRow>): Promise<void> {
     const existing = this.paymentRows.get(paymentId);
     if (existing === undefined) return;
@@ -198,10 +273,51 @@ export class MemoryRepository implements Repository {
     this.claimPolicies.set(row.claimId, policyId);
   }
 
+  /** The full claims the review queue reads, and their evidence. */
+  private readonly fullClaims = new Map<string, ClaimRow>();
+  private readonly evidenceRows = new Map<string, ClaimEvidenceRow[]>();
+
+  /** Test reach-in: the whole claim, as T13's submit path will write it. */
+  putClaim(row: ClaimRow, evidence: ClaimEvidenceRow[] = []): void {
+    this.fullClaims.set(row.claimId, row);
+    this.evidenceRows.set(row.claimId, evidence);
+    this.claimPolicies.set(row.claimId, row.policyId);
+    this.claimRows.set(row.claimId, {
+      claimId: row.claimId,
+      status: row.status,
+      packetHash: row.packetHash,
+      decisionHash: row.decisionHash,
+      decision: row.decision,
+      amount: row.amount,
+      hcsSubmittedSeq: row.hcsSubmittedSeq,
+      hcsDecisionSeq: row.hcsDecisionSeq,
+      paidTx: null,
+      submittedAt: row.submittedAt,
+      decidedAt: row.decidedAt,
+      paidAt: null,
+    });
+  }
+
   /** Test reach-in: the payment written beside a policy. */
   paymentsFor(ref: string): PaymentRow[] {
     return [...this.paymentRows.values()].filter((row) => row.ref === ref);
   }
+}
+
+/** The policy status a decided claim leaves behind. Mirrors the SQL. */
+const POLICY_STATUS_FOR: Record<string, PolicyRow['status']> = {
+  approved: 'approved',
+  declined: 'declined',
+  under_review: 'under_review',
+};
+
+export function claimNotDecidable(): AppError {
+  return new AppError(
+    409,
+    'claim_not_decidable',
+    'Claim already decided',
+    'That claim is not waiting for a decision. Somebody decided it first.',
+  );
 }
 
 export function alreadyCovered(seriesId: string): AppError {

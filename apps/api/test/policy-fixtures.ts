@@ -75,6 +75,7 @@ export const CONFIG: ApiConfig = {
     rpContextTtlSeconds: 300,
     enabled: true,
   },
+  autoApproval: { limit: '5000000000', confidence: 0.9 },
   demoIssuer: true,
   databaseUrl: undefined,
 };

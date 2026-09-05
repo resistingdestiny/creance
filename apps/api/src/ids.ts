@@ -19,6 +19,8 @@ export const ID_PREFIXES = {
   quote: 'qte',
   payment: 'pay',
   credential: 'elg',
+  claim: 'clm',
+  evidence: 'evd',
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;

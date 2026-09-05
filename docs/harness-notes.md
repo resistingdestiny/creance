@@ -1705,3 +1705,51 @@ The message published at consensus timestamp 1788617265.386050104 was returned b
 recorded longer waits for contract state; a topic submit's receipt already carries
 the sequence number, so nothing in this flow has to poll the mirror node at all,
 and the read-back here was a check rather than a dependency.
+
+## T21, the public deployment, 5 September 2026
+
+### A blank line in an environment file erases a value baked into the image
+
+`ENV GIT_SHA=$GIT_SHA` in a Dockerfile puts the build's commit in the image.
+Starting that image with `--env-file` pointed at a file carrying `GIT_SHA=`
+replaces it with the empty string, not with the image's value: the file wins and
+a blank entry is still an entry. Measured directly:
+
+    printf 'GIT_SHA=\n' > /tmp/probe.list
+    podman run --rm --env-file /tmp/probe.list creance-api \
+      node -e 'console.log(JSON.stringify(process.env.GIT_SHA))'
+    ""
+
+`.env.example` ships `GIT_SHA=` blank, so every deployment reading the
+repository's own file would have served a health endpoint with an empty commit,
+which is the one field the endpoint exists for. Two things fix it and both are
+in: `compose.yaml` re-sets `GIT_SHA` in the service's `environment:` block,
+which compose applies after `env_file:`, and the API now reads a blank value as
+`unknown` so the failure would be legible rather than silent.
+
+### A `.dockerignore` pattern without `**/` matches the context root only
+
+A bare `node_modules` line excludes `/node_modules` and nothing else. In a pnpm
+workspace that leaves `apps/api/node_modules` and `packages/*/node_modules` in
+the context, and the `COPY apps/api apps/api` that follows the install
+overwrites the `node_modules` the install had just created with the host's tree
+of symlinks. The image built and started, and the damage was one missing binary
+in `node_modules/.bin`, which would have surfaced as an unrelated failure later.
+Every pattern that can appear inside a workspace needs `**/`, and the way to
+check is to look inside the image rather than at the build log:
+
+    podman run --rm creance-oracle ls /repo/apps/oracle/node_modules/.bin
+
+### Turbopack reports a missing root tsconfig as one that "doesn't resolve correctly"
+
+`next build` inside a container whose context did not include
+`tsconfig.base.json` fails with:
+
+    ./apps/web/tsconfig.json
+    Error: An issue occurred while parsing a tsconfig.json file.
+    extends: "../../tsconfig.base.json" doesn't resolve correctly
+
+The file it names is the one that is present. Nothing in the message says the
+extended file is absent, which sends you looking at path aliases and module
+resolution rather than at the copy list. Any image that builds one workspace of
+a repository with a shared base config has to copy that base config in.

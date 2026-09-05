@@ -1076,12 +1076,15 @@ its share of `principal_funded`. The second is that figure less the CoverPool
 reserve, and it renders only when the reserve is above nought.
 
 The deck's 92,500 came from subtracting the bound cover limits, which is the
-worst case a series could reach rather than a state it is in. With no policy
-bound, both the reserve and the active exposure are nought today, so a worst
-case computed either way equals the current figure, and a line reading "100,000
-if triggered" would read as a promise that nothing can be lost. It appears the
-moment `submitObservation` opens a month and the vault takes a reserve, which
-is the moment it means something.
+worst case a series could reach rather than a state it is in. The two figures
+have since come apart on testnet: T07 has bound policies, so `activeExposure`
+reads 2,000 TUSD while the reserve is still nought, and the screen shows
+"Capacity used 2 percent" against a principal that is wholly intact. That is
+the right pair of readings. A cover limit that is bound is capacity taken, and
+capacity taken is what the capacity row measures; it is not principal at risk,
+because no month is open and the vault has earmarked nothing. The worst case
+line appears the moment `submitObservation` opens a month and the vault takes a
+reserve, which is the moment there is a worst case to name.
 
 ### The copy deck's em dash becomes a comma, and a zero clause is dropped
 

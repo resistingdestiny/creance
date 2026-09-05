@@ -2404,6 +2404,7 @@ renames a prop is a class of failure worth one line of configuration to avoid.
 `@worldcoin/idkit-core/hashing`. The same symbols are documented from three
 different packages across three pages; these are the paths the integration guide
 shows and they need no extra direct dependency.
+
 ## T25, the Adjuster, 5 September 2026
 
 ### The model extracts and the code decides, with nothing in between
@@ -2848,3 +2849,73 @@ only from the admin payload. docs/CLAIMS.md says they "carry dates and sometimes
 an employer name", which is exactly what must not be reachable from a public id.
 The claim screen in T16 gets the codes from the free endpoint and the sentences
 with the decision.
+
+## T21, the public deployment, 5 September 2026
+
+### The public host is a fresh VPS behind Caddy, not Fly.io
+
+The acceptance offers either. Caddy on a VPS was taken for three reasons.
+
+Both apps have to be on one origin. `https://creance.co` is baked into the World
+Developer Portal's allowed origins, into the x402 resource URLs the API
+advertises in a 402, and into the Bazantic gateway's base URL. Moving the API to
+an `api.` subdomain would invalidate all three, so the deployment has to route
+paths, not hosts. One Caddy site block with a path matcher does that in six
+lines. On Fly.io the same thing is two apps and a router in front of them, or
+one machine running both processes, which is the compose file again with a
+proprietary wrapper around it.
+
+The oracle is a long-lived worker with a writable volume that the API reads. On
+one host that is a named volume mounted in two containers. Fly.io volumes attach
+to one machine at a time, so the same arrangement means colocating the oracle
+and the API in one machine group and giving up the separation.
+
+And the fallback matters more than the convenience. DESIGN.md section 8 answers
+"a judge cannot reach the app" with a recorded fallback in the video. A compose
+file and a Caddyfile run on any Linux box with an address, including a laptop
+behind a tunnel, in the ten minutes before a deadline. A Fly.io deployment needs
+an account, a token and a working control plane.
+
+The cost is that certificates, updates and the host itself are ours. For a
+fortnight of testnet that is the cheaper side of the trade.
+
+### `GET /healthz` stays, as an alias of `GET /health`
+
+The acceptance names `/health`. `/healthz` already existed, returns the same
+facts, and is named in the README, in the T11 signer check and in anything an
+operator has already bookmarked. Both paths are registered on one handler in
+apps/api/src/routes/ops.ts, so the two bodies cannot drift, and the older name
+is not a redirect: a health check that follows a 301 is testing the redirect.
+
+The body gained one field, `replay`, the oracle's run state. It is read with
+`readReplayState`, which apps/api/src/replay/state.ts exports for this, and not
+by calling `GET /v1/replay`: a process that reaches itself over HTTP to answer a
+health check is reporting the proxy's health rather than its own.
+
+Both paths stay outside `/v1/index/`, which the x402 gate meters, so an uptime
+check never has to pay to find out whether the site is up.
+
+### The acceptance's `PUBLIC_BASE_URL` is `PUBLIC_SITE_URL`
+
+The backlog line says the apps are reachable at `PUBLIC_BASE_URL`. No such
+variable exists: `PUBLIC_SITE_URL` has carried the public origin since T07 and
+is what the API, the World configuration and the OpenAPI document all read. A
+second name for one value is a bug waiting to be introduced, so the ticket's
+name is treated as a synonym and nothing was added.
+
+### The compose file publishes nothing beyond the loopback interface
+
+The API and the web app are bound to `127.0.0.1` on the host and Caddy proxies
+to them. The only thing the internet can reach is Caddy on 80 and 443. It costs
+nothing, and it means a misconfigured firewall cannot expose an unencrypted API
+that issues credentials.
+
+### The oracle service runs its daily check in a loop rather than exiting
+
+docs/INDEX-SPEC.md section 9 asks for the oracle in schedule mode as a service
+with `restart: always`. `pnpm oracle:schedule` is still the stub until T26, and
+a stub that exits under `restart: always` is a container that restarts forever
+and reads as broken. The image's command is therefore the schedule itself: run
+`pnpm run oracle:schedule`, sleep a day, repeat. The container stays up, the
+restart policy means what it says, and T26 changes the body of that one npm
+script without touching the image or the compose file.

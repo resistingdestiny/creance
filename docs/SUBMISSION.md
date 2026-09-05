@@ -13,6 +13,18 @@ README.md, and the testnet resources are in docs/HEDERA.md.
 
 - docs/ARCHITECTURE.md, the diagram updated to what was built: pending, T22.
 
+## Live app
+
+- https://creance.co: pending, Root. The images, the compose file, the Caddy
+  site and the deploy script are built and proved locally under T21; what is
+  missing is the host. Root provides a VPS with DNS pointed at it and the
+  production .env on it, then `deploy/deploy.sh --with-caddy` puts the app up.
+  The requirements are listed in deploy/README.md.
+- https://creance.co/health: the same, and it is what a judge should be pointed
+  at first. It returns the commit the running build came from.
+- The uptime check in .github/workflows/uptime.yml starts checking that URL
+  every fifteen minutes once the repository variable PUBLIC_SITE_URL is set.
+
 ## Videos
 
 - Main video, five minutes or less, shared across the Hedera tracks. Pending, T22.

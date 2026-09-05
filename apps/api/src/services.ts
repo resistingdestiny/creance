@@ -157,7 +157,11 @@ export async function buildServices(options: BuildServicesOptions = {}): Promise
     evidenceKeys: options.evidenceKeys !== undefined ? options.evidenceKeys : loadEvidenceKeys(),
     evidenceStore: options.evidenceStore ?? new FileObjectStore(),
     thresholds: options.thresholds ?? frozenThresholds(),
-    gitSha: process.env.GIT_SHA ?? 'unknown',
+    // Blank counts as absent. The images bake this at build time and nothing
+    // sets it at runtime, but a configuration file that carries the name blank
+    // would erase what the build baked in, and an empty string in the health
+    // body is indistinguishable from a deployment that lost its commit.
+    gitSha: process.env.GIT_SHA?.trim() || 'unknown',
     startedAt: new Date(),
   };
 }

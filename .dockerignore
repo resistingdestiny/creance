@@ -1,0 +1,25 @@
+# The build context is the repository root for all three images, so everything a
+# run writes locally is excluded here rather than in each Dockerfile. The images
+# install from the lockfile, so a local node_modules would only be dead weight
+# and, being a tree of relative symlinks into a store that is not in the image,
+# would break the install that the build just did.
+#
+# Every pattern that can appear inside a workspace is written with `**/`: a
+# pattern without one matches at the root of the context only, so a bare
+# `node_modules` would leave apps/api/node_modules in the image.
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/var
+**/artifacts
+**/cache
+**/typechain-types
+**/*.tsbuildinfo
+**/*.log
+**/.scratch
+.git
+.env
+.env.*
+!.env.example
+.playwright-mcp

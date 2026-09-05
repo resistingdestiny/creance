@@ -1,8 +1,9 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, RouteHandlerMethod } from 'fastify';
 
 import { seriesForGroup } from '../config.js';
 import type { CredentialRow } from '../db/types.js';
 import { AppError } from '../errors.js';
+import { readReplayState, type ReplayState } from '../replay/state.js';
 import type { Services } from '../services.js';
 import { rfc3339 } from '../views.js';
 import { continuityHolds } from '../world/config.js';
@@ -11,15 +12,35 @@ import { requiredString } from './quote.js';
 
 /// Health, the JWKS, and the interim eligibility issuer.
 ///
-/// `GET /healthz` returns the git SHA because MISSION's definition of done
-/// names it, so it is a submission artefact rather than plumbing. The SHA comes
-/// from an environment variable set at build time, never from running git at
-/// request time.
+/// `GET /health` returns the git SHA because MISSION's definition of done names
+/// it, so it is a submission artefact rather than plumbing. The SHA comes from
+/// an environment variable set at build time, never from running git at request
+/// time. It also carries the oracle's run state, so one call to one path tells
+/// a judge which commit is deployed and whether the demo clock is walking.
+///
+/// `GET /healthz` is the same handler under its older path. It shipped first
+/// and the README, the deploy script and the T11 signer check all name it, so
+/// it stays as an alias rather than being moved. See docs/DECISIONS.md.
+///
+/// Both paths sit outside `/v1/index/`, which the x402 gate meters, so an
+/// uptime check never has to pay to find out whether the site is up.
+///
+/// The replay state is read with `readReplayState`, the reader
+/// apps/api/src/replay/state.ts exports for exactly this. Health never calls
+/// `GET /v1/replay`: a process that reaches itself over HTTP to answer a health
+/// check reports the proxy's health, not its own.
 
-export const opsRoutes: FastifyPluginAsync<{ services: Services }> = async (app, options) => {
+export interface OpsPluginOptions {
+  services: Services;
+  /** Injected in tests, so a route test needs no state file on disk. */
+  readReplay?: () => ReplayState;
+}
+
+export const opsRoutes: FastifyPluginAsync<OpsPluginOptions> = async (app, options) => {
   const { services } = options;
+  const readReplay = options.readReplay ?? ((): ReplayState => readReplayState());
 
-  app.get('/healthz', async (_request, reply) => {
+  const health: RouteHandlerMethod = async (_request, reply) => {
     let database = 'ok';
     try {
       await services.repository.groups();
@@ -38,6 +59,10 @@ export const opsRoutes: FastifyPluginAsync<{ services: Services }> = async (app,
         index: services.indexData === null ? 'not_loaded' : 'ok',
         world: services.config.world.enabled ? 'ok' : 'not_configured',
       },
+      // The oracle's run state, exactly as GET /v1/replay serves it minus the
+      // badge, which is a screen's business and not an operator's. A clone that
+      // has never run the oracle reads as live and idle rather than as an error.
+      replay: readReplay(),
       // Which credential this deployment asks for and in which environment.
       // The preset is configuration because the Selfie Check feature flag is
       // granted per app by a human, so a rung change is a `.env` edit, and a
@@ -54,7 +79,10 @@ export const opsRoutes: FastifyPluginAsync<{ services: Services }> = async (app,
         signer_matches: signerMatches(services.config.world),
       },
     });
-  });
+  };
+
+  app.get('/health', health);
+  app.get('/healthz', health);
 
   /// The public half of the credential signing key. Public material only: the
   /// document is built from the exported public JWK, and a test asserts the

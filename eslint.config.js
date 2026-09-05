@@ -21,6 +21,10 @@ export default tseslint.config(
       globals: {
         console: 'readonly',
         process: 'readonly',
+        // Node 22 has it globally. Only plain JavaScript files need it declared:
+        // typescript-eslint turns no-undef off for TypeScript, where the
+        // compiler already knows.
+        fetch: 'readonly',
       },
     },
   },

@@ -1772,3 +1772,189 @@ ends, and it hung. `buildServices` constructs a `SdkHederaGateway` whenever the
 keys are present, and its gRPC connections hold the event loop open. The job
 writes no topic message, so it passes `hedera: null` and exits. Any command
 built on `buildServices` that does not publish should do the same.
+
+## T21, the public deployment, 5 September 2026
+
+### A blank line in an environment file erases a value baked into the image
+
+`ENV GIT_SHA=$GIT_SHA` in a Dockerfile puts the build's commit in the image.
+Starting that image with `--env-file` pointed at a file carrying `GIT_SHA=`
+replaces it with the empty string, not with the image's value: the file wins and
+a blank entry is still an entry. Measured directly:
+
+    printf 'GIT_SHA=\n' > /tmp/probe.list
+    podman run --rm --env-file /tmp/probe.list creance-api \
+      node -e 'console.log(JSON.stringify(process.env.GIT_SHA))'
+    ""
+
+`.env.example` shipped `GIT_SHA=` blank, so every deployment reading the
+repository's own file would have served a health endpoint with an empty commit,
+which is the one field the endpoint exists for.
+
+The first fix was wrong in an instructive way. Re-setting `GIT_SHA` in the
+service's `environment:` block does beat `env_file`, so the blank stopped
+winning, but a runtime value beats the image's own `ENV` too, and what the
+endpoint then reported was the commit the deploying shell was standing on rather
+than the commit the running image was built from. Those agree after every deploy
+that rebuilds and disagree after exactly the deploy worth catching, so the
+endpoint was confidently answering the wrong question. What is in now: the name
+is a build argument and nothing else, no service sets it at runtime, the name is
+gone from `.env.example`, and `deploy/deploy.sh` refuses a configuration file
+that carries it. The API still reads a blank value as `unknown`, so any
+remaining path to the failure is legible rather than silent.
+
+### `.env.example` cannot be copied verbatim: a blank there is a value, not an absence
+
+Copying `.env.example` unedited into a deployment and starting the API gives
+
+    Error: no deployment record at : run pnpm contracts:deploy first
+
+`loadApiConfig` reads `process.env.CREANCE_DEPLOYMENT_RECORD ?? <the default>`,
+and `??` only falls back on `undefined`. A file that carries the name with an
+empty value hands the process an empty string, which is a path, so the documented
+default never applies. The comment beside it in `.env.example` says the value
+defaults to `contracts/deployments/testnet.json` and that you set it only to
+point somewhere else, so the file and the code disagree about what blank means.
+
+The same shape is all over that function: `HEDERA_COVERPOOL_ADDRESS`,
+`HEDERA_SETTLEMENT_TOKEN_ID`, `HEDERA_SERIES_ID` and the topic ids all read
+`process.env.X ?? <the record>`, and a blank line for any of them shadows the
+deployment record the same way. It is not specific to the deployment and it is
+not new here, so nothing in T21 changed it: fixing two of a dozen would suggest a
+blank file works right up until the next one. What T21 does is stop relying on
+it. `deploy/README.md` says the production file is `.env.example` filled in, and
+`GIT_SHA` was removed from `.env.example` outright rather than left blank, which
+is the one case where a blank line would have overridden a value baked into an
+image rather than a value read from a committed file.
+
+### podman-compose runs no build at all for `up -d --build` when the containers exist
+
+A redeploy at a new commit came back reporting the old one:
+
+    deploy: http://localhost:13000 at 9e406cfd7bafea9ed8a65cbdebae6ea82ef73118
+    deploy: GET /health reports a32b63573fe6bcc3a268ca04c235b33d15c0c33a, not
+    9e406cfd7bafea9ed8a65cbdebae6ea82ef73118. A stale image is running.
+
+The build log for that run has zero `STEP` lines in it. podman-compose 1.0.6
+with containers already present does not build and does not recreate; it starts
+what is there, and `--build` is ignored. Docker Compose rebuilds and replaces the
+container when the image changes, so this is a difference between the two
+runtimes and not a compose file mistake.
+
+Adding `--force-recreate` fixes it, and the same run then reports the new commit
+and exits 0. `deploy/deploy.sh` passes it on every rebuilding deploy and the
+README shows it in the compose command, because a second `up -d --build` in a
+session is exactly when the flag matters and exactly when it is easy to omit.
+
+Worth saying separately: the stale image was caught rather than shipped. The
+check that compares `GET /health` against `git rev-parse HEAD` is what turned an
+invisible no-op redeploy into a non-zero exit with both commits printed.
+
+### podman does not invalidate an `ENV` layer when its build argument changes
+
+The Dockerfile reference is explicit that an `ARG` whose value changes
+invalidates the cache for the instructions after it that use the value. podman
+4.9.3 does not do that for `ENV`. With
+
+    ARG GIT_SHA=unknown
+    ENV GIT_SHA=$GIT_SHA
+
+two builds of the same source at different commits produce two images carrying
+the same commit, the first one:
+
+    podman build --build-arg GIT_SHA=aaaabbbbccccdddd -t probe .
+    podman inspect probe --format '{{range .Config.Env}}{{println .}}{{end}}' | grep GIT_SHA
+    GIT_SHA=e639a0ba2747e2c801478f7a855b07b5a81ae97d
+
+That is worse than a blank value: the health endpoint answers with a real commit
+that is not the commit in the image, and nothing about the output looks wrong.
+A `RUN` carrying the value in its command text does have the value in its cache
+key, so putting one in front of the `ENV` rebuilds the `ENV` and everything after
+it. Both images now do:
+
+    ARG GIT_SHA=unknown
+    RUN echo "$GIT_SHA" > /repo/.git-sha
+    ENV GIT_SHA=$GIT_SHA
+
+and two builds at two commits produce two different baked values.
+
+### A `.dockerignore` pattern without `**/` matches the context root only
+
+A bare `node_modules` line excludes `/node_modules` and nothing else. In a pnpm
+workspace that leaves `apps/api/node_modules` and `packages/*/node_modules` in
+the context, and the `COPY apps/api apps/api` that follows the install
+overwrites the `node_modules` the install had just created with the host's tree
+of symlinks. The image built and started, and the damage was one missing binary
+in `node_modules/.bin`, which would have surfaced as an unrelated failure later.
+Every pattern that can appear inside a workspace needs `**/`, and the way to
+check is to look inside the image rather than at the build log:
+
+    podman run --rm creance-oracle ls /repo/apps/oracle/node_modules/.bin
+
+### Turbopack reports a missing root tsconfig as one that "doesn't resolve correctly"
+
+`next build` inside a container whose context did not include
+`tsconfig.base.json` fails with:
+
+    ./apps/web/tsconfig.json
+    Error: An issue occurred while parsing a tsconfig.json file.
+    extends: "../../tsconfig.base.json" doesn't resolve correctly
+
+The file it names is the one that is present. Nothing in the message says the
+extended file is absent, which sends you looking at path aliases and module
+resolution rather than at the copy list. Any image that builds one workspace of
+a repository with a shared base config has to copy that base config in.
+
+### podman-compose lets the project's configuration file shadow the shell
+
+The compose specification is explicit that values in the shell take precedence
+over those in the project's environment file. podman-compose 1.0.6 does the
+opposite. `compose.yaml` carried `GIT_SHA: ${GIT_SHA:-unknown}` and
+`deploy/deploy.sh` exported `GIT_SHA` from `git rev-parse HEAD`; the deployment
+came up reporting
+
+    {"status":"ok","sha":"unknown", ...}
+
+because the file being read for substitution carried `GIT_SHA=` blank, which
+`:-` then treated as absent. The exported value was never consulted. The same
+compose file against a configuration that does not mention `GIT_SHA` at all does
+read the shell, so this is precedence and not a missing feature.
+
+Renaming the substitution to a name no configuration file defines,
+`CREANCE_GIT_SHA`, fixes it, and fixes it on both runtimes rather than depending
+on which one the host has. The lesson generalises: a compose substitution that
+has to come from the deploy command rather than from the operator's
+configuration needs a name that configuration never uses.
+
+### podman-compose flattens an exec form health check and loses the quoting
+
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3210/health')..."]
+
+is an exec form test, which the compose specification says is run without a
+shell. podman-compose 1.0.6 joins the array back into one string and hands it to
+`/bin/sh -c`, and the quotes do not survive the trip:
+
+    podman inspect creance_api_1 --format '{{json .State.Health}}'
+    ..."ExitCode":1,"Output":"/bin/sh: 1: Syntax error: \"(\" unexpected"
+
+The container answered `GET /health` with 200 throughout. Only the check was
+broken, and the symptom is a service stuck at `starting` with a rising failing
+streak, which reads like a slow boot rather than a mangled command. Anything
+depending on `condition: service_healthy` waits forever.
+
+The fix is a health check with no shell metacharacters in it at all:
+`apps/api/scripts/healthcheck.mjs` does the fetch and the compose test is
+`['CMD', 'node', '/repo/apps/api/scripts/healthcheck.mjs']`. That works on both
+runtimes, whether or not the array is flattened.
+
+### A configuration file value keeps an inline comment
+
+A value written as `FOO=bar   # trailing note` reaches the process as
+`"bar   # trailing note"`, comment and all, measured by starting the API image
+against a one line probe file and printing what the process saw. A `.env`
+written by hand with the comment beside the value, which is a natural thing to
+do, would have given the API a `PUBLIC_SITE_URL` with a comment in it, and that
+origin goes into every issued credential and every x402 resource URL.
+`.env.example` keeps comments on their own lines and `deploy/deploy.sh` refuses
+to deploy a file that does not.

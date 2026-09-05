@@ -12,6 +12,7 @@ import type {
   CredentialRow,
   GroupRow,
   ObservationRow,
+  ClaimAuditRow,
   PaymentRow,
   PolicyRow,
   QuoteRow,
@@ -362,6 +363,35 @@ export class PostgresRepository implements Repository {
     return rows.length === 0 ? null : toPayment(rows[0]);
   }
 
+  /**
+   * The policy's own payments and the ones its quote paid for, oldest first.
+   *
+   * `ref` carries the policy id on the bind premium and the quote id on the
+   * index read and the quote before it, so both names are asked for at once.
+   * `created_at` orders them because a settled row and an uncollected one both
+   * have it, and a payment that never settled still belongs on the receipt.
+   */
+  async paymentsForPolicy(policyId: string, quoteId: string | null): Promise<PaymentRow[]> {
+    const refs = quoteId === null ? [policyId] : [policyId, quoteId];
+    const { rows } = await this.pool.query(
+      'SELECT * FROM payments WHERE ref = ANY($1::text[]) ORDER BY created_at ASC',
+      [refs],
+    );
+    return rows.map(toPayment);
+  }
+
+  /** The claims on a policy, projected to the columns the audit trail shows. */
+  async claimAudit(policyId: string): Promise<ClaimAuditRow[]> {
+    const { rows } = await this.pool.query(
+      `SELECT claim_id, status, packet_hash, decision_hash, decision, amount,
+              hcs_submitted_seq, hcs_decision_seq, paid_tx,
+              submitted_at, decided_at, paid_at
+         FROM claims WHERE policy_id = $1 ORDER BY created_at ASC`,
+      [policyId],
+    );
+    return rows.map(toClaimAudit);
+  }
+
   async updatePayment(paymentId: string, patch: Partial<PaymentRow>): Promise<void> {
     const columns: Record<string, unknown> = {};
     if (patch.status !== undefined) columns['status'] = patch.status;
@@ -595,6 +625,23 @@ function toPayment(row: Row): PaymentRow {
     hcsTopic: maybeText(row, 'hcs_topic'),
     hcsSeq: maybeNumber(row, 'hcs_seq'),
     requestId: text(row, 'request_id'),
+  };
+}
+
+function toClaimAudit(row: Row): ClaimAuditRow {
+  return {
+    claimId: text(row, 'claim_id'),
+    status: text(row, 'status'),
+    packetHash: maybeText(row, 'packet_hash'),
+    decisionHash: maybeText(row, 'decision_hash'),
+    decision: maybeText(row, 'decision') as ClaimAuditRow['decision'],
+    amount: maybeText(row, 'amount'),
+    hcsSubmittedSeq: maybeNumber(row, 'hcs_submitted_seq'),
+    hcsDecisionSeq: maybeNumber(row, 'hcs_decision_seq'),
+    paidTx: maybeText(row, 'paid_tx'),
+    submittedAt: maybeInstant(row, 'submitted_at'),
+    decidedAt: maybeInstant(row, 'decided_at'),
+    paidAt: maybeInstant(row, 'paid_at'),
   };
 }
 

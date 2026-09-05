@@ -1,6 +1,7 @@
 import { AppError } from '../errors.js';
 import {
   ACTIVE_POLICY_STATUSES,
+  type ClaimAuditRow,
   type CredentialRow,
   type GroupRow,
   type ObservationRow,
@@ -29,6 +30,7 @@ export class MemoryRepository implements Repository {
   private readonly policyRows = new Map<string, PolicyRow>();
   private readonly paymentRows = new Map<string, PaymentRow>();
   private readonly observationRows = new Map<string, ObservationRow>();
+  private readonly claimRows = new Map<string, ClaimAuditRow>();
 
   constructor(groups: GroupRow[] = []) {
     for (const group of groups) this.groupRows.set(group.groupKey, group);
@@ -137,6 +139,19 @@ export class MemoryRepository implements Repository {
     );
   }
 
+  async paymentsForPolicy(policyId: string, quoteId: string | null): Promise<PaymentRow[]> {
+    const refs = new Set([policyId, ...(quoteId === null ? [] : [quoteId])]);
+    return [...this.paymentRows.values()]
+      .filter((row) => row.ref !== null && refs.has(row.ref))
+      .sort((a, b) => a.paymentId.localeCompare(b.paymentId));
+  }
+
+  async claimAudit(policyId: string): Promise<ClaimAuditRow[]> {
+    return [...this.claimRows.values()]
+      .filter((row) => this.claimPolicies.get(row.claimId) === policyId)
+      .sort((a, b) => a.claimId.localeCompare(b.claimId));
+  }
+
   async updatePayment(paymentId: string, patch: Partial<PaymentRow>): Promise<void> {
     const existing = this.paymentRows.get(paymentId);
     if (existing === undefined) return;
@@ -159,6 +174,17 @@ export class MemoryRepository implements Repository {
 
   async close(): Promise<void> {
     // Nothing to release.
+  }
+
+  /**
+   * Test reach-in: a claim on a policy. T13 owns the write path; until it
+   * exists the audit endpoint's claim entries are driven from here.
+   */
+  private readonly claimPolicies = new Map<string, string>();
+
+  addClaim(policyId: string, row: ClaimAuditRow): void {
+    this.claimRows.set(row.claimId, row);
+    this.claimPolicies.set(row.claimId, policyId);
   }
 
   /** Test reach-in: the payment written beside a policy. */

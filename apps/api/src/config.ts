@@ -97,6 +97,22 @@ function readJson<T>(path: string): T | undefined {
   }
 }
 
+/**
+ * A variable set to nothing is not set.
+ *
+ * The README tells a judge to copy the example environment and fill in the few
+ * lines it names, so every other line arrives as `NAME=` and node reads it as
+ * the empty string. `??` does not catch that, and an empty string here would
+ * erase a default the deployment record or the resources file already carries:
+ * a copied example alone stopped the API booting, because the path to the
+ * deployment record came out as `''` rather than as the file next to this one.
+ * Blank is absent, which is what makes a partly filled file behave like one.
+ */
+function fromEnv(name: string): string | undefined {
+  const raw = process.env[name];
+  return raw === undefined || raw.trim() === '' ? undefined : raw.trim();
+}
+
 function required(value: string | undefined, what: string): string {
   if (value === undefined || value === '') {
     throw new Error(`${what} is missing: set it in the environment or in the deployment record`);
@@ -139,11 +155,11 @@ export function loadApiConfig(
 ): ApiConfig {
   const recordPath =
     options.recordPath ??
-    process.env.CREANCE_DEPLOYMENT_RECORD ??
+    fromEnv('CREANCE_DEPLOYMENT_RECORD') ??
     fileURLToPath(new URL(DEFAULT_RECORD, import.meta.url));
   const resourcesPath =
     options.resourcesPath ??
-    process.env.CREANCE_HEDERA_RESOURCES ??
+    fromEnv('CREANCE_HEDERA_RESOURCES') ??
     fileURLToPath(new URL(DEFAULT_RESOURCES, import.meta.url));
 
   const record = readJson<DeploymentFile>(recordPath);
@@ -164,7 +180,7 @@ export function loadApiConfig(
       : [
           {
             label: record.series.label,
-            seriesId: process.env.HEDERA_SERIES_ID ?? record.series.id,
+            seriesId: fromEnv('HEDERA_SERIES_ID') ?? record.series.id,
             groupKey: record.series.group,
             maturityAt: record.series.maturityAt,
           },
@@ -176,48 +192,48 @@ export function loadApiConfig(
   return {
     network,
     chainId: record.chainId ?? 296,
-    rpcUrl: process.env.HEDERA_RPC_URL ?? 'https://testnet.hashio.io/api',
-    mirrorUrl: process.env.HEDERA_MIRROR_URL ?? 'https://testnet.mirrornode.hedera.com/api/v1',
-    publicBaseUrl: (process.env.PUBLIC_SITE_URL ?? 'http://localhost:3210').replace(/\/+$/, ''),
+    rpcUrl: fromEnv('HEDERA_RPC_URL') ?? 'https://testnet.hashio.io/api',
+    mirrorUrl: fromEnv('HEDERA_MIRROR_URL') ?? 'https://testnet.mirrornode.hedera.com/api/v1',
+    publicBaseUrl: (fromEnv('PUBLIC_SITE_URL') ?? 'http://localhost:3210').replace(/\/+$/, ''),
     coverPoolAddress: required(
-      process.env.HEDERA_COVERPOOL_ADDRESS ?? record.coverPool?.address,
+      fromEnv('HEDERA_COVERPOOL_ADDRESS') ?? record.coverPool?.address,
       'the CoverPool address',
     ),
     vaultAddress: required(
-      process.env.HEDERA_VAULT_ADDRESS ?? record.collateralVault?.address,
+      fromEnv('HEDERA_VAULT_ADDRESS') ?? record.collateralVault?.address,
       'the CollateralVault address',
     ),
     settlementToken: {
-      tokenId: process.env.HEDERA_SETTLEMENT_TOKEN_ID ?? token?.tokenId ?? '',
+      tokenId: fromEnv('HEDERA_SETTLEMENT_TOKEN_ID') ?? token?.tokenId ?? '',
       address: token?.evmAddress ?? '',
       decimals: token?.decimals ?? 6,
       symbol: token?.symbol ?? 'TUSD',
     },
-    policyNftTokenId: process.env.HEDERA_POLICY_NFT_ID ?? resources?.policyNft?.tokenId ?? '',
+    policyNftTokenId: fromEnv('HEDERA_POLICY_NFT_ID') ?? resources?.policyNft?.tokenId ?? '',
     paymentsTopicId:
-      process.env.HEDERA_TOPIC_PAYMENTS ?? resources?.topics?.payments?.topicId ?? '',
-    indexTopicId: process.env.HEDERA_TOPIC_INDEX ?? resources?.topics?.index?.topicId ?? '',
-    claimsTopicId: process.env.HEDERA_TOPIC_CLAIMS ?? resources?.topics?.claims?.topicId ?? '',
+      fromEnv('HEDERA_TOPIC_PAYMENTS') ?? resources?.topics?.payments?.topicId ?? '',
+    indexTopicId: fromEnv('HEDERA_TOPIC_INDEX') ?? resources?.topics?.index?.topicId ?? '',
+    claimsTopicId: fromEnv('HEDERA_TOPIC_CLAIMS') ?? resources?.topics?.claims?.topicId ?? '',
     series,
     api: {
-      accountId: process.env.HEDERA_API_ID ?? apiAccount?.accountId ?? '',
+      accountId: fromEnv('HEDERA_API_ID') ?? apiAccount?.accountId ?? '',
       address: apiAccount?.evmAddress ?? '',
-      key: roleKey('api', process.env.HEDERA_API_KEY),
+      key: roleKey('api', fromEnv('HEDERA_API_KEY')),
     },
     operator: {
-      accountId: process.env.HEDERA_OPERATOR_ID ?? operator?.accountId ?? '',
+      accountId: fromEnv('HEDERA_OPERATOR_ID') ?? operator?.accountId ?? '',
       address: operator?.evmAddress ?? '',
-      key: process.env.HEDERA_OPERATOR_KEY,
+      key: fromEnv('HEDERA_OPERATOR_KEY'),
     },
     credentialTtlSeconds: seconds('CREDENTIAL_TTL_SECONDS', 1800),
     world: loadWorldConfig(),
     quoteTtlSeconds: seconds('QUOTE_TTL_SECONDS', 900),
     autoApproval: {
-      limit: process.env.AUTO_APPROVAL_LIMIT ?? '5000000000',
-      confidence: Number(process.env.AUTO_APPROVAL_CONFIDENCE ?? '0.9'),
+      limit: fromEnv('AUTO_APPROVAL_LIMIT') ?? '5000000000',
+      confidence: Number(fromEnv('AUTO_APPROVAL_CONFIDENCE') ?? '0.9'),
     },
-    demoIssuer: (process.env.DEMO_ELIGIBILITY_ISSUER ?? 'true') !== 'false',
-    databaseUrl: process.env.DATABASE_URL,
+    demoIssuer: (fromEnv('DEMO_ELIGIBILITY_ISSUER') ?? 'true') !== 'false',
+    databaseUrl: fromEnv('DATABASE_URL'),
   };
 }
 

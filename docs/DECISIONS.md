@@ -1313,3 +1313,124 @@ short dated maturity demonstration is read through the same screen. It is not
 linked from anywhere: the endpoint has no series list to build a link from, and
 the demonstration is a demonstration. The label on the screen is always the
 series' own, so the two can never be confused.
+
+## T08, x402 gating, 5 September 2026
+
+### The three metered prices are 0.01 and 0.05 TUSD, and the bind is the quote's premium
+
+DESIGN.md 3.7 fixes the index feed at "0.01 in the settlement asset or the HBAR
+equivalent" and calls the quote fee "a small fee" without naming it. It is
+0.05. The settlement asset is TUSD (0.0.10366463, six decimals), so the wire
+amounts are 10000 and 50000, and both are configurable through
+`X402_PRICE_INDEX` and `X402_PRICE_QUOTE`.
+
+The HBAR alternative is not taken. Blocky402's testnet facilitator settles an
+arbitrary HTS token, proved by a real settlement of TUSD, so nothing forces the
+fallback; an HTS token in the settlement path is a named criterion for the
+Hedera prize; and the Hedera exact scheme's own Money conversion refuses HBAR,
+so pricing in HBAR would mean the explicit tinybar form everywhere for no gain.
+
+`POST /v1/bind` has no price of its own. It costs the first month's premium
+from the quote, which is a different number for every quote.
+
+### The bind gate is a route handler, not an entry in the payment map
+
+The other two endpoints are gated by `paymentMiddleware` from `@x402/fastify`
+and its route map. `POST /v1/bind` is not, because its price depends on the
+quote id in the request body and the middleware runs on Fastify's `onRequest`
+hook, which is before the body is parsed. A dynamic price function there is
+handed an undefined body. The measurement is in docs/harness-notes.md.
+
+So `apps/api/src/x402/bind.ts` does the same sequence in the route handler, but
+against the same `x402ResourceServer` object: the same requirements builder, the
+same facilitator client, the same verify and settle calls, the same lifecycle
+hooks and therefore the same `payments` row and the same topic message. What is
+ours is the ordering, and the ordering is the library's `authorization` flow:
+price, verify, bind, settle.
+
+The alternative was moving the quote id into the query string so the price
+function could reach it. An API shape should not be decided by a hook's
+ordering.
+
+### The x402 settlement message on the payments topic, version 1
+
+The payments topic already carries `kind: "coupon"` from T14 and
+`kind: "policy"` from T07. A settled x402 payment is a third kind, fixed here
+and versioned, because T18 builds the read side from it.
+
+    {"v":1,"kind":"settlement","endpoint":"GET /v1/index/:group","x402":2,
+     "scheme":"exact","network":"hedera:testnet","payer":"0.0.10366451",
+     "payTo":"0.0.10366450","amount":"10000","asset":"0.0.10366463","decimals":6,
+     "tx":"0.0.7162784@1788602043.272119725",
+     "facilitator":"api.testnet.blocky402.com","ref":"qte_01M1...",
+     "at":"2026-09-05T09:54:13.000Z"}
+
+`endpoint` is the route with its parameter rather than the concrete path, so
+the messages group. `amount` is an integer string in the asset's minor units and
+`decimals` travels with it, matching the coupon message, so a reader can render
+the figure without knowing our token. `tx` is the facilitator's own transaction
+id and it is the whole point of the message: a message is written only after the
+facilitator reported a settled transfer, and a settlement with no transaction id
+is logged rather than published. `ref` is the quote id or the policy id the
+payment bought, and there is nothing else on the message: the topic is public,
+so no nullifier, no credential and no wallet beyond the account that paid, which
+is already visible in the transfer.
+
+The row carries the topic id and the sequence number, so a payment points at its
+own receipt.
+
+### A settlement that fails after the bind leaves the policy bound and the premium failed
+
+Settling after the handler is what makes a reverted bind free. The other side of
+it is a bind that succeeded and a settlement that then failed: the policy is in
+CoverPool, the exposure is committed and neither can be withdrawn.
+
+The request still answers 201 with the policy, because the cover is real and
+telling the caller otherwise would send them to retry a bind that would be
+refused as `already_covered`. The `payments` row goes to `failed`, the failure
+is logged with the facilitator's own `errorMessage`, which is the Hedera receipt
+status, and nothing is published to the payments topic, because the audit trail
+may not carry a payment that did not happen.
+
+The policy status is not changed. `payment_failed` and `lapse` belong to the
+premium schedule watcher, which is T09's, and a policy whose first premium never
+settled reaches the same place by that route: `paidThroughMonth` is the month it
+started in and the next unpaid month lapses it after the grace period.
+
+### The first premium settled over x402 does not call recordPremium
+
+The open question T07 left. It does not, and it should not:
+`CoverPool.bind` already sets `paidThroughMonth` to the month the policy starts
+in, so `recordPremium(policyId, period)` for that same month is a no-op by its
+own `if (m > p.paidThroughMonth)` guard.
+
+`recordPremium` gets its first caller in T09, from the premium schedule watcher,
+for month two onwards.
+
+### A settled payment whose topic message fails is a row, not a lost payment
+
+The publish is retried three times with a doubling delay and every failure is
+logged with the facilitator transaction id. If all three fail the `payments` row
+is still `settled` and carries the transaction id, with a null `hcs_seq`, so the
+reconciliation list is a query rather than a hunt through the log. The retries
+are in process and do not survive a restart, which is the same trade the bind
+receipt already makes; what does survive is the row.
+
+### The payer sets its spend controls rather than taking the defaults
+
+`@x402/core`'s client refuses, before any network call, an asset it does not
+recognise as a network default, and caps a payment at one dollar. On
+`hedera:testnet` the only recognised asset is USDC, and a first premium is more
+than a dollar, so both defaults would refuse every payment this build makes.
+`packages/client/src/x402/payer.ts` allows the settlement token explicitly and
+takes a ceiling in minor units, which is a real control rather than an
+inherited one: the server names the price and the payer refuses anything above
+its own ceiling.
+
+### Blocky402's testnet facilitator was used as it is, with no self-hosting
+
+DESIGN.md section 8 offers self-hosting Blocky402 with Docker if the testnet
+instance is unavailable. It was not needed: `https://api.testnet.blocky402.com`
+answered `GET /health` and advertised `exact` on `hedera:testnet` with fee payer
+0.0.7162784 throughout, and settled every payment this ticket made. No API key
+and no account, which its own testnet documentation says is deliberate.

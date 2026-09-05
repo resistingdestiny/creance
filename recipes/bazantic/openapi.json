@@ -3,7 +3,7 @@
   "info": {
     "title": "Creance",
     "version": "0.1.0",
-    "description": "Parametric occupation cover funded by Displacement Bond Notes, on Hedera testnet.\n\nA worker buys cover against their occupation being displaced. Claims open when\nthe Occupation Displacement Index says the occupation is being displaced, and a\npayout also needs proof that the person lost their job. Investors fund the\npayouts and earn the premiums as coupons.\n\nTestnet only. No mainnet endpoints, no real funds.\n\nMoney: every amount is an integer string in the settlement asset smallest unit,\nwith the asset and its decimals beside it. Never parse `display`.\n\nErrors: RFC 9457 `application/problem+json`, with a `code` to switch on and a\n`retryable` boolean for an agent retry loop.\n\nPayment: the three metered operations are x402 version 2, scheme `exact`,\nnetwork `hedera:testnet`, settled through the Blocky402 testnet facilitator.",
+    "description": "Parametric occupation cover funded by Displacement Bond Notes, on Hedera testnet.\n\nA worker buys cover against their occupation being displaced. Claims open when\nthe Occupation Displacement Index says the occupation is being displaced, and a\npayout also needs proof that the person lost their job. Investors fund the\npayouts and earn the premiums as coupons.\n\nTestnet only. No mainnet endpoints, no real funds.\n\nMoney: every amount is an integer string in the settlement asset smallest unit,\nwith the asset and its decimals beside it. Never parse `display`.\n\nErrors: RFC 9457 `application/problem+json`, with a `code` to switch on and a\n`retryable` boolean for an agent retry loop.\n\nPayment: the three metered operations are x402 version 2, scheme `exact`,\nnetwork `hedera:testnet`, settled through the Blocky402 testnet facilitator.\nAn unpaid call is refused with 402 and the requirements in the\n`PAYMENT-REQUIRED` header; every settlement is written to the payments topic.",
     "license": {
       "name": "MIT"
     }
@@ -68,7 +68,7 @@
             "name": "PAYMENT-SIGNATURE",
             "in": "header",
             "required": false,
-            "description": "x402 version 2 payment payload, network hedera:testnet, scheme exact. Not enforced yet; T08 turns the gate on.",
+            "description": "x402 version 2 payment payload, network hedera:testnet, scheme exact. Required: an unpaid call is refused with 402.",
             "schema": {
               "type": "string"
             }
@@ -147,7 +147,7 @@
             "name": "PAYMENT-SIGNATURE",
             "in": "header",
             "required": false,
-            "description": "x402 version 2 payment payload, network hedera:testnet, scheme exact. Not enforced yet; T08 turns the gate on.",
+            "description": "x402 version 2 payment payload, network hedera:testnet, scheme exact. Required: an unpaid call is refused with 402.",
             "schema": {
               "type": "string"
             }
@@ -242,7 +242,7 @@
             "name": "PAYMENT-SIGNATURE",
             "in": "header",
             "required": false,
-            "description": "x402 version 2 payment payload, network hedera:testnet, scheme exact. Not enforced yet; T08 turns the gate on.",
+            "description": "x402 version 2 payment payload, network hedera:testnet, scheme exact. Required: an unpaid call is refused with 402.",
             "schema": {
               "type": "string"
             }

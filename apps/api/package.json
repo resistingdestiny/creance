@@ -9,7 +9,9 @@
     "migrate": "tsx --env-file-if-exists=../../.env src/db/cli.ts",
     "openapi": "tsx scripts/openapi.ts",
     "test": "vitest run",
-    "test:testnet": "tsx --env-file-if-exists=../../.env scripts/testnet/bind.ts",
+    "testnet:bind": "tsx --env-file-if-exists=../../.env scripts/testnet/bind.ts",
+    "testnet:x402": "tsx --env-file-if-exists=../../.env scripts/testnet/x402.ts",
+    "test:testnet": "pnpm run testnet:bind && pnpm run testnet:x402",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -24,6 +26,9 @@
     "@creance/client": "workspace:*",
     "@creance/index-model": "workspace:*",
     "@hiero-ledger/sdk": "2.87.0",
+    "@x402/core": "2.25.0",
+    "@x402/fastify": "2.25.0",
+    "@x402/hedera": "2.25.0",
     "ethers": "^6.15.0",
     "fastify": "^5.12.1",
     "jose": "^6.2.10",

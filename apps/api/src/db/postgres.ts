@@ -318,11 +318,59 @@ export class PostgresRepository implements Repository {
     );
   }
 
+  async insertPayment(row: PaymentRow): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO payments (payment_id, endpoint, payer, pay_to, amount, asset, asset_decimals,
+                             facilitator, facilitator_tx, chain_tx_id, status, ref, settled_at,
+                             hcs_topic, hcs_seq, request_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [
+        row.paymentId,
+        row.endpoint,
+        row.payer,
+        row.payTo,
+        row.amount,
+        row.asset,
+        row.assetDecimals,
+        row.facilitator,
+        row.facilitatorTx,
+        row.chainTxId,
+        row.status,
+        row.ref,
+        row.settledAt,
+        row.hcsTopic,
+        row.hcsSeq,
+        row.requestId,
+      ],
+    );
+  }
+
+  async paymentByRef(endpoint: string, ref: string): Promise<PaymentRow | null> {
+    const { rows } = await this.pool.query(
+      `SELECT * FROM payments WHERE endpoint = $1 AND ref = $2
+        ORDER BY created_at DESC LIMIT 1`,
+      [endpoint, ref],
+    );
+    return rows.length === 0 ? null : toPayment(rows[0]);
+  }
+
+  async paymentByFacilitatorTx(facilitatorTx: string): Promise<PaymentRow | null> {
+    const { rows } = await this.pool.query(
+      'SELECT * FROM payments WHERE facilitator_tx = $1 LIMIT 1',
+      [facilitatorTx],
+    );
+    return rows.length === 0 ? null : toPayment(rows[0]);
+  }
+
   async updatePayment(paymentId: string, patch: Partial<PaymentRow>): Promise<void> {
     const columns: Record<string, unknown> = {};
     if (patch.status !== undefined) columns['status'] = patch.status;
     if (patch.hcsTopic !== undefined) columns['hcs_topic'] = patch.hcsTopic;
     if (patch.hcsSeq !== undefined) columns['hcs_seq'] = patch.hcsSeq;
+    if (patch.payer !== undefined) columns['payer'] = patch.payer;
+    if (patch.facilitator !== undefined) columns['facilitator'] = patch.facilitator;
+    if (patch.facilitatorTx !== undefined) columns['facilitator_tx'] = patch.facilitatorTx;
+    if (patch.settledAt !== undefined) columns['settled_at'] = patch.settledAt;
     const names = Object.keys(columns);
     if (names.length === 0) return;
     const sets = names.map((name, index) => `${name} = $${index + 2}`).join(', ');
@@ -526,6 +574,27 @@ function toPolicy(row: Row): PolicyRow {
     hcsTopic: maybeText(row, 'hcs_topic'),
     hcsReceiptSeq: maybeNumber(row, 'hcs_receipt_seq'),
     bindTxId: maybeText(row, 'bind_tx_id'),
+  };
+}
+
+function toPayment(row: Row): PaymentRow {
+  return {
+    paymentId: text(row, 'payment_id'),
+    endpoint: text(row, 'endpoint'),
+    payer: text(row, 'payer'),
+    payTo: text(row, 'pay_to'),
+    amount: text(row, 'amount'),
+    asset: text(row, 'asset'),
+    assetDecimals: Number(row['asset_decimals']),
+    facilitator: maybeText(row, 'facilitator'),
+    facilitatorTx: maybeText(row, 'facilitator_tx'),
+    chainTxId: maybeText(row, 'chain_tx_id'),
+    status: text(row, 'status') as PaymentRow['status'],
+    ref: maybeText(row, 'ref'),
+    settledAt: maybeInstant(row, 'settled_at'),
+    hcsTopic: maybeText(row, 'hcs_topic'),
+    hcsSeq: maybeNumber(row, 'hcs_seq'),
+    requestId: text(row, 'request_id'),
   };
 }
 

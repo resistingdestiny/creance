@@ -1145,3 +1145,99 @@ names" and does not say which trailing punctuation ends a token
 2026-09-05). A colon does not, because a colon is the variant separator, so
 `shadow:` reads as the start of a variant and the base utility is emitted. The
 comment was reworded. The test caught it, which is the argument for having it.
+
+## T08, x402 and Blocky402, 5 September 2026
+
+### The Fastify middleware prices a route before the request body exists
+
+`@x402/fastify`'s `paymentMiddleware` registers its work on Fastify's
+`onRequest` hook, and a route's `price` may be a function of the request
+context, which carries an `adapter.getBody()`. Those two do not compose.
+Fastify parses the body after `onRequest`, in the parsing phase, so
+`getBody()` inside a price function returns `undefined` on every request. A
+route whose price depends on the body cannot be priced from the route map.
+
+Measured with a route configured as
+
+    'POST /probe-body': { accepts: { price: async (ctx) => {
+        console.log(ctx.adapter.getBody?.());   // undefined, every time
+        return '$0.01';
+    } } }
+
+against a POST carrying `{"quote_id":"quote_abc"}`.
+
+`POST /v1/bind` charges the first month's premium, which is per quote and
+identified by the quote id in the body, so this is exactly the case that does
+not work. The endpoint gets its own gate in `apps/api/src/x402/bind.ts`, driving
+the same `x402ResourceServer` object, so the wire format, the facilitator and
+the settlement path are the library's and only the ordering is ours. The
+alternative, moving the quote id into the query string, would have changed the
+API shape to suit a hook's ordering.
+
+The adapter interface's own JSDoc says "Fastify automatically parses JSON
+bodies", which is true and is not the same claim.
+
+### The settle hook is handed the request context from before the route matched
+
+`x402HTTPResourceServer` builds an `enrichedContext` carrying `routePattern`
+and uses it to price the route, but the Fastify middleware stores the
+unenriched `context` on the request and passes that one to settlement. So a
+`afterSettle` hook reading `transportContext.request.routePattern` finds it
+undefined and has only the concrete path. Recognising which route a settlement
+belongs to has to be done by method and path, which is what
+`apps/api/src/x402/gate.ts` does.
+
+### The client refuses its own network's non-default token, and caps a payment at a dollar
+
+`x402Client`'s spend controls default to "only assets `findDefaultAsset`
+recognises, capped at `$1` each". On `hedera:testnet` the only recognised asset
+is USDC `0.0.429274`. This build settles in its own HTS token
+`0.0.10366463`, and a first premium is more than a dollar, so both defaults
+refuse the payment before it reaches the facilitator, in the client, with no
+network call to look at. `packages/client/src/x402/payer.ts` sets
+`spendControls.allowedAssets` to the settlement token and turns the dollar cap
+off, and takes a ceiling in minor units instead.
+
+The server half needs the matching setting: `new ExactHederaScheme({
+defaultAssets: { 'hedera:testnet': { asset, decimals } } })`, or a `"$0.01"`
+price converts against USDC and advertises the wrong token.
+
+### The facilitator settles an arbitrary HTS token, not only USDC
+
+The package ships USDC as the network default and its README points at the
+Circle faucet, which reads as though the default were a constraint. It is not.
+Blocky402's testnet facilitator verified and settled a transfer of this build's
+own token `0.0.10366463` with no configuration on its side: the asset travels in
+the payment requirements and the facilitator checks the transfer against them.
+Confirmed by a real settlement, `0.0.7162784@1788600927.143349211`, which moved
+10000 minor units of `0.0.10366463` from `0.0.10366451` to `0.0.10366450` with
+the network fee of 1379442 tinybars paid by `0.0.7162784`.
+
+### The settlement field is `transaction`, and `payer` is the wallet
+
+Two disagreements between the x402 Hedera scheme specification and Blocky402's
+own API reference, both resolved by running it. The settle response carries the
+Hedera transaction id under `transaction`, which is Blocky402's spelling; the
+scheme specification calls the same field `transactionId`. And `payer` carries
+the paying wallet `0.0.10366451`, not the sponsoring fee payer that the scheme
+specification's example shows there. This build reads both keys for the
+transaction id and stores its own idea of the payer beside whatever the
+facilitator returned.
+
+### HashScan will not resolve the transaction id the facilitator returns
+
+The facilitator returns `0.0.7162784@1788600927.143349211`. HashScan's
+transaction route wants `0.0.7162784-1788600927-143349211`, and so does the
+mirror node's `/transactions/{id}`. Pasting the `@` form returns nothing at all
+rather than an error, which is a bad thing to discover in front of a judge.
+`hashscanTransactionUrl` in `packages/client` does the conversion.
+
+### The packages moved a minor version during the event
+
+The prep reading was against 2.24.0, published 2026-08-27. The registry served
+2.25.0 for all four packages on 5 September. Nothing in the shapes above
+changed. `@x402/hedera` 2.25.0 pins `@hiero-ledger/sdk` 2.85.0 while this
+repository is on 2.87.0, so two copies of the SDK are on disk; the README warns
+that mixing them breaks the SDK's `instanceof` checks, so every file that
+touches x402 imports `PrivateKey` and the rest from `@x402/hedera` rather than
+from the SDK directly, and nothing has been seen to break.

@@ -10,10 +10,10 @@
 /// importer accepts 3.0, and 3.1's JSON Schema alignment buys this document
 /// nothing.
 ///
-/// The three paid operations carry their 402 and their payment headers even
-/// though T07 does not gate them, because an agent reading this document has to
-/// be able to find out what a call will cost before it makes one. T08 turns the
-/// gate on and nothing in this document changes.
+/// The three paid operations carry their 402 and their payment headers, because
+/// an agent reading this document has to be able to find out what a call will
+/// cost before it makes one. The gate is live: an unpaid call to any of them
+/// comes back 402 with the requirements in `PAYMENT-REQUIRED`.
 
 export const PUBLIC_ORIGIN = 'https://creance.co';
 
@@ -89,7 +89,7 @@ const PAYMENT_SIGNATURE_HEADER = {
   in: 'header',
   required: false,
   description:
-    'x402 version 2 payment payload, network hedera:testnet, scheme exact. Not enforced yet; T08 turns the gate on.',
+    'x402 version 2 payment payload, network hedera:testnet, scheme exact. Required: an unpaid call is refused with 402.',
   schema: { type: 'string' },
 };
 
@@ -156,6 +156,8 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
         '',
         'Payment: the three metered operations are x402 version 2, scheme `exact`,',
         'network `hedera:testnet`, settled through the Blocky402 testnet facilitator.',
+        'An unpaid call is refused with 402 and the requirements in the',
+        '`PAYMENT-REQUIRED` header; every settlement is written to the payments topic.',
       ].join('\n'),
       license: { name: 'MIT' },
     },

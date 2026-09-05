@@ -20,6 +20,8 @@ info:
 
     Payment: the three metered operations are x402 version 2, scheme `exact`,
     network `hedera:testnet`, settled through the Blocky402 testnet facilitator.
+    An unpaid call is refused with 402 and the requirements in the
+    `PAYMENT-REQUIRED` header; every settlement is written to the payments topic.
   license:
     name: MIT
 servers:
@@ -72,8 +74,8 @@ paths:
           in: header
           required: false
           description: >-
-            x402 version 2 payment payload, network hedera:testnet, scheme exact. Not enforced yet;
-            T08 turns the gate on.
+            x402 version 2 payment payload, network hedera:testnet, scheme exact. Required: an
+            unpaid call is refused with 402.
           schema:
             type: string
       responses:
@@ -133,8 +135,8 @@ paths:
           in: header
           required: false
           description: >-
-            x402 version 2 payment payload, network hedera:testnet, scheme exact. Not enforced yet;
-            T08 turns the gate on.
+            x402 version 2 payment payload, network hedera:testnet, scheme exact. Required: an
+            unpaid call is refused with 402.
           schema:
             type: string
       security:
@@ -207,8 +209,8 @@ paths:
           in: header
           required: false
           description: >-
-            x402 version 2 payment payload, network hedera:testnet, scheme exact. Not enforced yet;
-            T08 turns the gate on.
+            x402 version 2 payment payload, network hedera:testnet, scheme exact. Required: an
+            unpaid call is refused with 402.
           schema:
             type: string
       security:

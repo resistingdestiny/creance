@@ -47,6 +47,9 @@ importers:
       '@hiero-ledger/sdk':
         specifier: 2.87.0
         version: 2.87.0(bn.js@5.2.3)(supports-color@8.1.1)
+      '@worldcoin/idkit-core':
+        specifier: 4.2.4
+        version: 4.2.4
       '@x402/core':
         specifier: 2.25.0
         version: 2.25.0
@@ -1116,6 +1119,9 @@ packages:
     resolution: {integrity: sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg==}
     engines: {node: '>= 20.19.0'}
 
+  '@noble/secp256k1@2.3.0':
+    resolution: {integrity: sha512-0TQed2gcBbIrh7Ccyw+y/uZQvbJwm7Ao4scBUxqpBCcsOlZG0O4KGfjtNAy/li4W8n1xt3dxrwJ0beZ2h2G6Kw==}
+
   '@nomicfoundation/edr-darwin-arm64@0.19.0':
     resolution: {integrity: sha512-Yo2MkZoM85zkasUPJDj8l8QezPdrMzqQUJhp78TUQDq8FQXhdJTZ39k3Jax5OQ3hqjMhMkrGbctn9w9h6mEusg==}
     engines: {node: '>= 22'}
@@ -1883,6 +1889,13 @@ packages:
 
   '@vitest/utils@3.2.7':
     resolution: {integrity: sha512-x6BDOd7dyo3PFLY3I9/HJ25X/6OurhGXk2/B9gOZNPF7XDVjeBK4k01lQE5uvDpbuheErh91qYuE1E2OEjK3Rw==}
+
+  '@worldcoin/idkit-core@4.2.4':
+    resolution: {integrity: sha512-R7nupFbXtk1h0ErnDDlarYlGqnFBLzy96xcMWOHqzkt7Wzs788cyxHZqgJHRsSnWx6LMToxp5kO3zr5N4rBatA==}
+
+  '@worldcoin/idkit-server@1.1.1':
+    resolution: {integrity: sha512-iO4Kd3QBLzJak3BPz5eIzRjW0kT8Px5c3LbNzvCKMnczLvVSKoWqdvGiJlkK8Dp29KstNI62iv4ak0z8nzui/Q==}
+    engines: {node: '>=18'}
 
   '@x402/core@2.25.0':
     resolution: {integrity: sha512-5Ys0XYz3FKutxVKoXC46R/XPT/oaAbuj7ahzrlVHwQxZJPH9u6u91IOh0ztz+7G/zYGsaXR8l3ety205QtEnUw==}
@@ -5321,6 +5334,8 @@ snapshots:
 
   '@noble/hashes@2.2.0': {}
 
+  '@noble/secp256k1@2.3.0': {}
+
   '@nomicfoundation/edr-darwin-arm64@0.19.0':
     optional: true
 
@@ -5749,7 +5764,7 @@ snapshots:
 
   '@signinwithethereum/siwe-parser@4.2.1':
     dependencies:
-      '@noble/hashes': 1.7.2
+      '@noble/hashes': 1.8.0
       apg-js: 4.4.0
 
   '@signinwithethereum/siwe@4.2.1(ethers@6.16.0)(viem@2.56.3(typescript@5.9.3)(zod@3.25.76))':
@@ -5857,7 +5872,7 @@ snapshots:
     dependencies:
       '@mattrglobal/bbs-signatures': 1.4.0(supports-color@8.1.1)
       '@noble/curves': 1.8.2
-      '@noble/hashes': 1.7.2
+      '@noble/hashes': 1.8.0
       '@terminal3/vc_core': 0.0.37
       '@terminal3/verify_vc_core': 0.0.38
       '@types/jsonld': 1.5.15
@@ -6161,6 +6176,16 @@ snapshots:
       '@vitest/pretty-format': 3.2.7
       loupe: 3.2.1
       tinyrainbow: 2.0.0
+
+  '@worldcoin/idkit-core@4.2.4':
+    dependencies:
+      '@noble/hashes': 1.8.0
+      '@worldcoin/idkit-server': 1.1.1
+
+  '@worldcoin/idkit-server@1.1.1':
+    dependencies:
+      '@noble/hashes': 1.8.0
+      '@noble/secp256k1': 2.3.0
 
   '@x402/core@2.25.0':
     dependencies:
@@ -6635,7 +6660,7 @@ snapshots:
     dependencies:
       '@noble/ciphers': 1.2.1
       '@noble/curves': 1.8.2
-      '@noble/hashes': 1.7.2
+      '@noble/hashes': 1.8.0
       '@scure/base': 2.2.0
       canonicalize: 2.1.0
       did-resolver: 4.1.0

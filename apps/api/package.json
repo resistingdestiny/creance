@@ -27,6 +27,7 @@
     "@creance/client": "workspace:*",
     "@creance/index-model": "workspace:*",
     "@hiero-ledger/sdk": "2.87.0",
+    "@worldcoin/idkit-core": "4.2.4",
     "@x402/core": "2.25.0",
     "@x402/fastify": "2.25.0",
     "@x402/hedera": "2.25.0",

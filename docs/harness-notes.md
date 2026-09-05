@@ -1720,12 +1720,49 @@ a blank entry is still an entry. Measured directly:
       node -e 'console.log(JSON.stringify(process.env.GIT_SHA))'
     ""
 
-`.env.example` ships `GIT_SHA=` blank, so every deployment reading the
+`.env.example` shipped `GIT_SHA=` blank, so every deployment reading the
 repository's own file would have served a health endpoint with an empty commit,
-which is the one field the endpoint exists for. Two things fix it and both are
-in: `compose.yaml` re-sets `GIT_SHA` in the service's `environment:` block,
-which compose applies after `env_file:`, and the API now reads a blank value as
-`unknown` so the failure would be legible rather than silent.
+which is the one field the endpoint exists for.
+
+The first fix was wrong in an instructive way. Re-setting `GIT_SHA` in the
+service's `environment:` block does beat `env_file`, so the blank stopped
+winning, but a runtime value beats the image's own `ENV` too, and what the
+endpoint then reported was the commit the deploying shell was standing on rather
+than the commit the running image was built from. Those agree after every deploy
+that rebuilds and disagree after exactly the deploy worth catching, so the
+endpoint was confidently answering the wrong question. What is in now: the name
+is a build argument and nothing else, no service sets it at runtime, the name is
+gone from `.env.example`, and `deploy/deploy.sh` refuses a configuration file
+that carries it. The API still reads a blank value as `unknown`, so any
+remaining path to the failure is legible rather than silent.
+
+### podman does not invalidate an `ENV` layer when its build argument changes
+
+The Dockerfile reference is explicit that an `ARG` whose value changes
+invalidates the cache for the instructions after it that use the value. podman
+4.9.3 does not do that for `ENV`. With
+
+    ARG GIT_SHA=unknown
+    ENV GIT_SHA=$GIT_SHA
+
+two builds of the same source at different commits produce two images carrying
+the same commit, the first one:
+
+    podman build --build-arg GIT_SHA=aaaabbbbccccdddd -t probe .
+    podman inspect probe --format '{{range .Config.Env}}{{println .}}{{end}}' | grep GIT_SHA
+    GIT_SHA=e639a0ba2747e2c801478f7a855b07b5a81ae97d
+
+That is worse than a blank value: the health endpoint answers with a real commit
+that is not the commit in the image, and nothing about the output looks wrong.
+A `RUN` carrying the value in its command text does have the value in its cache
+key, so putting one in front of the `ENV` rebuilds the `ENV` and everything after
+it. Both images now do:
+
+    ARG GIT_SHA=unknown
+    RUN echo "$GIT_SHA" > /repo/.git-sha
+    ENV GIT_SHA=$GIT_SHA
+
+and two builds at two commits produce two different baked values.
 
 ### A `.dockerignore` pattern without `**/` matches the context root only
 

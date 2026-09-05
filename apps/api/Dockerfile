@@ -50,7 +50,9 @@ COPY --chown=node:node docs/hedera.testnet.json docs/hedera.testnet.json
 COPY --chown=node:node data/bls data/bls
 
 # The commit this image was built from. GET /health returns it, and that is the
-# line in MISSION's definition of done.
+# line in MISSION's definition of done. A build argument and never a runtime
+# variable: a runtime value beats the image's own ENV, and the endpoint would
+# then report the deploying shell rather than the image it is answering from.
 ARG GIT_SHA=unknown
 # The RUN is not decoration. podman 4.9.3 does not treat a change of build
 # argument as invalidating a later ENV layer, so a rebuild at a new commit

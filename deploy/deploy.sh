@@ -104,13 +104,14 @@ API_PORT=${API_PORT:-3210}
 WEB_PORT=${WEB_PORT:-3000}
 export API_PORT WEB_PORT
 
-# The commit this build came from, baked into the images and returned by
-# GET /health. It is the whole point of the health endpoint, so it is read here
-# rather than left to whatever happens to be in the environment.
+# The commit this build came from. It goes in as a build argument, the images
+# bake it, and GET /health reads it back out of the running container below.
 #
 # CREANCE_GIT_SHA rather than GIT_SHA because podman-compose lets the project's
-# own `.env` shadow the shell, and `.env` carries GIT_SHA blank. See the comment
-# in compose.yaml and docs/harness-notes.md.
+# own `.env` shadow the shell for substitution, and because `env_file` would
+# hand a GIT_SHA line straight to the container and override the baked value.
+# Nothing named GIT_SHA belongs in either file. See the comment in compose.yaml
+# and docs/harness-notes.md.
 GIT_SHA=$(git rev-parse HEAD)
 CREANCE_GIT_SHA=$GIT_SHA
 export CREANCE_GIT_SHA

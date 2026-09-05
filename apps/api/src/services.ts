@@ -144,9 +144,10 @@ export async function buildServices(options: BuildServicesOptions = {}): Promise
     evidenceKeys: options.evidenceKeys !== undefined ? options.evidenceKeys : loadEvidenceKeys(),
     evidenceStore: options.evidenceStore ?? new FileObjectStore(),
     thresholds: options.thresholds ?? frozenThresholds(),
-    // Blank counts as absent. `.env.example` ships `GIT_SHA=` empty, so a clone
-    // running from source would otherwise report an empty string, and the
-    // uptime check cannot tell that apart from a deployment that lost its SHA.
+    // Blank counts as absent. The images bake this at build time and nothing
+    // sets it at runtime, but a configuration file that carries the name blank
+    // would erase what the build baked in, and an empty string in the health
+    // body is indistinguishable from a deployment that lost its commit.
     gitSha: process.env.GIT_SHA?.trim() || 'unknown',
     startedAt: new Date(),
   };

@@ -332,9 +332,13 @@ index and World are configured, and the oracle's run state, so one call says
 which code is live and whether the demo clock is walking. `GET /healthz` is the
 same handler under the path that shipped first. Neither is behind the x402 gate.
 
-The commit comes from `GIT_SHA`, set when the image is built. Run from a clone
-with `pnpm dev` it is blank, and the endpoint says `unknown`; that is correct
-rather than broken, because a working tree has no single commit.
+The commit is `GIT_SHA`, baked into the image as a build argument and never set
+at runtime, so what comes back is the commit the running image was built from
+rather than the commit whoever deployed it happened to be standing on. Those are
+the same after a normal deploy and differ after a deploy that skipped the build,
+which is the case worth catching. Run from a clone with `pnpm dev` there is no
+image and the endpoint says `unknown`; that is correct rather than broken,
+because a working tree has no single commit.
 
 ## Deployment
 

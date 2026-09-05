@@ -56,6 +56,9 @@ COPY --chown=node:node data/bls data/bls
 RUN mkdir -p /repo/var/oracle /repo/var/cache/bls
 VOLUME /repo/var
 
+# The commit this image was built from. A build argument and never a runtime
+# variable: a runtime value beats the image's own ENV, and a container would then
+# report the deploying shell rather than the image it is running.
 ARG GIT_SHA=unknown
 # The RUN is not decoration. podman 4.9.3 does not treat a change of build
 # argument as invalidating a later ENV layer, so a rebuild at a new commit

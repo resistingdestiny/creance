@@ -233,6 +233,10 @@ export class FakeChain implements ChainGateway {
   async closeWindow(seriesKey: string): Promise<ChainWrite> {
     if (this.closeWindowError !== null) throw this.closeWindowError;
     this.closed.push(seriesKey);
+    // The contract puts the series back where it was and clears the window, so
+    // the recording does too: a job that reads the state back afterwards has to
+    // see what the chain would have shown it.
+    this.set({ status: 'active', windowEndsAt: 0 });
     return {
       transactionHash: `0x${'ba'.repeat(32)}`,
       hashscan: `https://hashscan.io/testnet/transaction/0x${'ba'.repeat(32)}`,

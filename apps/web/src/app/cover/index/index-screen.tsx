@@ -65,7 +65,7 @@ export function IndexScreen({
               size="large"
               state={open ? 'triggered' : 'flat'}
               threshold={threshold}
-              width={350}
+              width={344}
             />
             {negativeLine ? (
               <p className="text-secondary text-ink-2">

@@ -85,8 +85,10 @@ export interface HeadlineReading {
   readonly trend: IndexTrend;
   /** The Home row's value, as the copy deck writes it: "1.10, steady". */
   readonly value: string;
-  /** The caption under it, in ink-2. */
+  /** The caption under it, in ink-2. It never repeats the figure beside it. */
   readonly caption: string;
+  /** The same line under the Index tab's large figure, which carries the trend. */
+  readonly detail: string;
 }
 
 /**
@@ -134,7 +136,11 @@ export function headlineReading(index: IndexView): HeadlineReading | null {
     ? `Claims are open for ${label}.`
     : headline.on_the_line
       ? 'On the line that opens claims.'
-      : `${distance} points from opening claims.`;
+      : 'Points from opening claims.';
+  const detail =
+    headline.open || headline.on_the_line
+      ? caption
+      : `Points from opening claims, ${trend}.`;
 
   return {
     form,
@@ -145,6 +151,7 @@ export function headlineReading(index: IndexView): HeadlineReading | null {
     trend,
     value: `${distance}, ${trend}`,
     caption,
+    detail,
   };
 }
 
@@ -173,13 +180,15 @@ export function chartThreshold(index: IndexView): number {
  * The shock form is a change against a year ago and its attachment is positive,
  * so it keeps the copy deck's own string. The level form is an excess against
  * every occupation, and its line is negative for a profession that is usually
- * unemployed less than average, so the sign becomes a word.
+ * unemployed less than average. A negative line means claims open when the gap
+ * to the average narrows to that many points, so it is said that way round:
+ * "within 0.68 of average", not "above -0.68".
  */
 export function bandLabelFor(index: IndexView): string {
   const form = index.headline?.form ?? 'level';
   const line = chartThreshold(index);
   if (form === 'shock') return `Pays out above ${formatIndexValue(line)}`;
-  if (line < 0) return `Pays out above ${formatIndexValue(Math.abs(line))} better than average`;
+  if (line < 0) return `Pays out within ${formatIndexValue(Math.abs(line))} of average`;
   return `Pays out above ${formatIndexValue(line)} worse than average`;
 }
 

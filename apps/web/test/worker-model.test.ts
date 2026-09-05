@@ -84,7 +84,8 @@ describe('the headline reading', () => {
     const reading = headlineReading(INDEX);
     expect(reading?.distance).toBe('0.69');
     expect(reading?.value).toBe('0.69, falling');
-    expect(reading?.caption).toBe('0.69 points from opening claims.');
+    expect(reading?.caption).toBe('Points from opening claims.');
+    expect(reading?.detail).toBe('Points from opening claims, falling.');
   });
 
   it('never shows a signed value, even when the index is past the line', () => {
@@ -153,7 +154,7 @@ describe('the chart', () => {
   });
 
   it('words a negative level line as a distance from average', () => {
-    expect(bandLabelFor(INDEX)).toBe('Pays out above 0.68 better than average');
+    expect(bandLabelFor(INDEX)).toBe('Pays out within 0.68 of average');
     expect(lineIsNegative(INDEX)).toBe(true);
   });
 

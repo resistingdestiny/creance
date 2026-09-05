@@ -6,6 +6,7 @@ import { AmountSlider } from '../../components/amount-slider';
 import { AppFrame } from '../../components/app-frame';
 import { PillButton } from '../../components/pill-button';
 import { TextLink } from '../../components/text-link';
+import { formatAmount } from '../../lib/format';
 import type { PriceResult } from '../../lib/worker-model';
 import { continueToVerify, priceCover } from '../purchase-actions';
 
@@ -76,7 +77,10 @@ export function AmountScreen({
           {price.premium === '' ? '' : `${price.premium} a month`}
         </p>
 
-        <AmountSlider onChange={setLimit} value={limit} />
+        {/* The label carries the figure, so the cover a person is buying is on
+            screen as a number and not only as a thumb position. It tracks the
+            thumb rather than the price, which lands 250ms later. */}
+        <AmountSlider label={`Cover ${formatAmount(limit)}`} onChange={setLimit} value={limit} />
 
         <p className="text-secondary text-ink-2">{price.sentence}</p>
 

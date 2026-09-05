@@ -66,7 +66,7 @@ export default async function CoverIndexPage({
         occupation={occupationLabel(group)}
         open={reading?.open ?? false}
         points={chartPoints(index)}
-        sentence={reading === null ? null : `${reading.trend}. ${reading.caption}`}
+        sentence={reading?.detail ?? null}
         threshold={chartThreshold(index)}
       />
     );

@@ -35,6 +35,16 @@ export interface IndexChartProps {
   readonly height?: number;
   /** The large chart's data table, which is the chart's text alternative. */
   readonly showTable?: boolean;
+  /**
+   * The band's caption. Defaults to the copy deck's "Pays out above {t}".
+   *
+   * A level line can be negative, and docs/DECISIONS.md forbids showing a
+   * consumer a signed index value, so the worker screens pass the same
+   * threshold worded as a distance from average. See src/lib/worker-model.ts.
+   */
+  readonly bandLabel?: string;
+  /** The accessible reading, when the raw latest value must not be said aloud. */
+  readonly description?: string;
 }
 
 const BAND_FILL = 'rgba(209,59,59,0.06)';
@@ -123,6 +133,8 @@ export function IndexChart({
   width,
   height,
   showTable = false,
+  bandLabel,
+  description,
 }: IndexChartProps) {
   const defaults = DEFAULTS[size];
   const w = width ?? defaults.width;
@@ -147,10 +159,12 @@ export function IndexChart({
 
   const first = points[0];
   const last = points.at(-1);
-  const bandLabel = `Pays out above ${formatIndexValue(threshold)}`;
-  const ariaLabel = latest
-    ? `${label}. Latest reading ${formatIndexValue(latest.value)}, ${formatPeriodShort(latest.period)}. Pays out above ${formatIndexValue(threshold)}.`
-    : `${label}. No reading yet. Pays out above ${formatIndexValue(threshold)}.`;
+  const caption = bandLabel ?? `Pays out above ${formatIndexValue(threshold)}`;
+  const ariaLabel =
+    description ??
+    (latest
+      ? `${label}. Latest reading ${formatIndexValue(latest.value)}, ${formatPeriodShort(latest.period)}. Pays out above ${formatIndexValue(threshold)}.`
+      : `${label}. No reading yet. Pays out above ${formatIndexValue(threshold)}.`);
 
   return (
     <figure className="m-0 flex flex-col gap-2">
@@ -198,7 +212,7 @@ export function IndexChart({
       {size === 'large' && first && last ? (
         <figcaption className="flex items-baseline justify-between text-caption">
           <span className="text-ink-2">{formatPeriodShort(first.period)}</span>
-          <span className="text-triggered">{bandLabel}</span>
+          <span className="text-triggered">{caption}</span>
           <span className="text-ink-2">{formatPeriodShort(last.period)}</span>
         </figcaption>
       ) : null}

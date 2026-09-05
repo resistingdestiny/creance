@@ -128,6 +128,21 @@ export function claimsOpenLine(policy: PolicyView): string {
   return `If you lost your job on or after ${formatDay(policy.claims_payable_from)}, you can claim ${coverAmount(policy.limit)}.`;
 }
 
+/**
+ * The waiting period, in days, from the cover's own dates.
+ *
+ * C1 says "in the first 60 days of cover" and the addendum's closing line makes
+ * the waiting period an interpolated figure, not a constant. It is the gap
+ * between the cover starting and the first day a separation can qualify, which
+ * is what `claims_payable_from` means.
+ */
+export function waitingPeriodDays(policy: PolicyView): number {
+  const start = Date.parse(`${policy.cover_starts}T00:00:00Z`);
+  const payable = Date.parse(`${policy.claims_payable_from}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(payable)) return 0;
+  return Math.max(0, Math.round((payable - start) / 86_400_000));
+}
+
 /** The Lapsed state, docs/DESIGN-TOKENS.md section 8, with the real date. */
 export interface LapsedCopy {
   readonly heading: string;

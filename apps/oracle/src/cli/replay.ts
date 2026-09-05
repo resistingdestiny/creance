@@ -3,6 +3,7 @@ import { periodRange, resolveDataset, type Period } from '@creance/index-model';
 import { findSeries, loadOracleConfig, type OracleConfig, type OracleSeries } from '../config.js';
 import { oracleKeyHex } from '../keys.js';
 import { DryRunPublisher, HcsPublisher, type Publisher } from '../publisher.js';
+import { publishedOnTopic } from '../published.js';
 import { QaFailed, runPipeline } from '../run.js';
 import { applyScenario, loadScenario } from '../scenario.js';
 import { StateFile, type OracleMode } from '../state.js';
@@ -231,6 +232,20 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   log(`cadence    ${options.intervalMs} ms per month, ${periods.length} months`);
   log('');
 
+  // What the topic already carries. The store under var/ is this machine's
+  // memory and a clone has none, so without this a clean clone republishes
+  // every month of the window the shared topic already settled.
+  const alreadyPublished =
+    wiring.topicId === null
+      ? new Set<string>()
+      : await publishedOnTopic({ mirrorUrl: config.mirrorUrl, topicId: wiring.topicId, mode });
+  if (alreadyPublished.size > 0) {
+    log(
+      `topic      ${alreadyPublished.size} group months already on the topic, not published again`,
+    );
+    log('');
+  }
+
   const state = new StateFile(options.statePath ?? config.statePath, {
     mode,
     series: series?.label ?? null,
@@ -250,6 +265,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
       publisher: wiring.publisher,
       submitter: wiring.submitter,
       writer: wiring.writer,
+      publishedOnTopic: alreadyPublished,
       topicId: wiring.topicId,
       keyHex,
       state,

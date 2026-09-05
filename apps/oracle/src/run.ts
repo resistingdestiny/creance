@@ -19,7 +19,7 @@ import { assertUnderCap, buildMessage, signMessage, type ObservationMessage } fr
 import { mirrorMessageUrl, topicMessageUrl, type Publisher } from './publisher.js';
 import { formatReport, runQaGates, type QaReport } from './qa.js';
 import type { OracleMode, StateFile } from './state.js';
-import type { ObservationRecord, ObservationWriter } from './store.js';
+import { recordKey, type ObservationRecord, type ObservationWriter } from './store.js';
 import { toMonthIndex, transactionUrl, type SubmitResult, type Submitter } from './submitter.js';
 
 /**
@@ -41,11 +41,11 @@ import { toMonthIndex, transactionUrl, type SubmitResult, type Submitter } from 
  * `submit_tx` null, and the next run over the same window republishes nothing
  * and does the contract call alone: see `resumeSubmit`.
  *
- * One window is left and it cannot be closed from here: a process killed
- * between the topic receipt and the row write leaves a message with no row. The
- * fix for that is to read the topic back through the mirror node before
- * republishing a period, which is a T26 job because it needs the runs table to
- * know which periods a previous run was in the middle of.
+ * The store alone is not enough to know what settled. It is a file under
+ * `var/`, so a clone has none, and a process killed between the topic receipt
+ * and the row write leaves a message with no row. Both cases are covered by
+ * `publishedOnTopic`, which the commands read back through the mirror node
+ * before the walk starts and pass in here.
  *
  * Nothing is retried by rollback. An HCS message cannot be retracted and the
  * contract reverts on a duplicate, so idempotence is a read before each write:
@@ -175,6 +175,17 @@ export interface PipelineOptions {
   /** Null switches the chain call off entirely, which is what a backfill wants. */
   submitter: Submitter | null;
   writer: ObservationWriter;
+  /**
+   * The group and period keys already on the index topic, from the mirror node.
+   *
+   * The store below remembers what this machine published, and it is a file
+   * under `var/` that a clone does not carry. The topic is what actually
+   * settled, and docs/INDEX-SPEC.md says the first value published for a period
+   * settles it forever, so a clean clone running the demo replay against the
+   * shared testnet topic has to be told what is already there or it publishes a
+   * second message for every month it walks. Keys are `recordKey` keys.
+   */
+  publishedOnTopic?: ReadonlySet<string>;
   keyHex: string;
   state?: StateFile;
   /** Milliseconds between the start of one tick and the start of the next. */
@@ -256,6 +267,16 @@ export async function runPipeline(options: PipelineOptions): Promise<RunSummary>
         } else {
           log(`${period}  ${groupKey.padEnd(32)} already published in ${existing.mode} mode`);
         }
+        continue;
+      }
+
+      // Nothing local says this was published, but the topic might. A clone has
+      // no store, so without this the demo replay writes a second message for
+      // every month the shared topic already carries.
+      const topicKey = recordKey({ group_key: groupKey, period, mode: options.mode });
+      if (options.publishedOnTopic?.has(topicKey) === true) {
+        skippedCount += 1;
+        log(`${period}  ${groupKey.padEnd(32)} already on the index topic`);
         continue;
       }
 

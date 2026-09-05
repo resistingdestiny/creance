@@ -16,7 +16,7 @@ import { loadOracleConfig } from '../src/config.js';
 import { addressOfKey, verifyMessage } from '../src/message.js';
 import { DryRunPublisher } from '../src/publisher.js';
 import { QaFailed, periodsUsed, precheckWindow, runPipeline } from '../src/run.js';
-import { MemoryObservationWriter } from '../src/store.js';
+import { MemoryObservationWriter, recordKey } from '../src/store.js';
 import { DryRunSubmitter, NULL_ODI } from '../src/submitter.js';
 
 /// The pipeline is exercised against the committed archive with the chain
@@ -154,6 +154,54 @@ describe('the replay of real history for the demo series', () => {
     expect(second.publishedCount).toBe(0);
     expect(second.skippedCount).toBe(19);
     expect(submitter.calls).toHaveLength(0);
+  });
+
+  it('publishes nothing the topic already carries, even with an empty store', async () => {
+    // The clean clone case. The store is a file under var/ that a clone does
+    // not have, so on a fresh machine every month of the demo window looks
+    // unpublished and the replay would put a second message on the shared
+    // index topic for each one. What settled is what the topic says.
+    const publisher = new DryRunPublisher();
+    const submitter = new DryRunSubmitter();
+    const onTopic = new Set(
+      ['2026-05', '2026-06', '2026-07'].map((period) =>
+        recordKey({ group_key: 'computer_math', period: period as Period, mode: 'replay' }),
+      ),
+    );
+    const summary = await runPipeline(
+      base({
+        writer: new MemoryObservationWriter(),
+        publisher,
+        submitter,
+        publishedOnTopic: onTopic,
+        periods: ['2026-05', '2026-06', '2026-07'] as Period[],
+      }),
+    );
+    expect(summary.publishedCount).toBe(0);
+    expect(summary.skippedCount).toBe(3);
+    expect(publisher.published).toHaveLength(0);
+    expect(submitter.calls).toHaveLength(0);
+  });
+
+  it('still publishes the months the topic does not carry', async () => {
+    const publisher = new DryRunPublisher();
+    const onTopic = new Set([
+      recordKey({ group_key: 'computer_math', period: '2026-05' as Period, mode: 'replay' }),
+    ]);
+    const summary = await runPipeline(
+      base({
+        writer: new MemoryObservationWriter(),
+        publisher,
+        publishedOnTopic: onTopic,
+        periods: ['2026-05', '2026-06'] as Period[],
+      }),
+    );
+    expect(summary.publishedCount).toBe(1);
+    expect(summary.skippedCount).toBe(1);
+    const periods = publisher.published.map(
+      (bytes) => (JSON.parse(bytes.toString('utf8')) as { period: string }).period,
+    );
+    expect(periods).toEqual(['2026-06']);
   });
 
   it('does not publish a month again in live mode that the replay already put on the topic', async () => {

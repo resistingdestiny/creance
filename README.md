@@ -54,7 +54,7 @@ Run all of these from the repository root.
 | `pnpm ats:issue` | Issues the demo Displacement Bond Note series as an Asset Tokenization Studio bond on Hedera testnet and runs the compliance sequence: roles, the credential issuer, a KYC grant per noteholder, the mints, a blocked then allowed transfer, pause, freeze and the first coupon. Idempotent: run it again and it does nothing. The run through with a link for every transaction is [docs/ATS.md](docs/ATS.md). Stages: `status throwaway issue roles issuer kyc1 mint1 blocked kyc2 allowed mint2 controls coupon couponcheck verify`. |
 | `pnpm coupons:pay` | Settles a declared coupon on Hedera testnet: seeds the premium account, subscribes the noteholders in the vault, pays each holder with a Scheduled Transaction carrying the vault's `fundCoupon` call, and publishes each settlement to the payments topic. Idempotent: run it again and it does nothing. The run through is [docs/ATS.md](docs/ATS.md) section 14. Stages: `status fund probe seed subscribe pay publish verify`. |
 | `pnpm coupons:mature` | Runs a maturity redemption on Hedera testnet, on a short dated series opened for the purpose because the demo series matures in 2027: opens the series and a matching note, subscribes both noteholders, waits, then burns each holding through ATS and returns the principal from the vault. Stages: `status fund open bond subscribe wait redeem payout`. |
-| `pnpm api:dev` | Runs the API alone on port 3210, reading Hedera testnet and the local database. Endpoints: `POST /v1/quote`, `POST /v1/bind`, `GET /v1/policy/:id`, `GET /v1/audit/:id`, `GET /v1/index/:group`, `GET /v1/series/:id`, `GET /v1/series/:id/coupons`, `GET /v1/replay`, `GET /healthz` and `GET /.well-known/jwks.json`. The index, quote and bind routes are paid: see [Payment flow](#payment-flow). `GET /v1/replay` is the oracle's run state, which is what puts the REPLAY badge on the web app; it sits outside `/v1/index/` because everything under that prefix is metered. Set `PORT` to move it, and `X402_ENABLED=false` to serve them open. |
+| `pnpm api:dev` | Runs the API alone on port 3210, reading Hedera testnet and the local database. Endpoints: `POST /v1/quote`, `POST /v1/bind`, `GET /v1/policy/:id`, `GET /v1/audit/:id`, `GET /v1/index/:group`, `GET /v1/series/:id`, `GET /v1/series/:id/coupons`, `GET /v1/replay`, `GET /health`, `GET /healthz` and `GET /.well-known/jwks.json`. The index, quote and bind routes are paid: see [Payment flow](#payment-flow). `GET /v1/replay` is the oracle's run state, which is what puts the REPLAY badge on the web app; it sits outside `/v1/index/` because everything under that prefix is metered. Set `PORT` to move it, and `X402_ENABLED=false` to serve them open. |
 | `pnpm api:migrate` | Creates the API schema and seeds the fifteen occupation groups. Idempotent. |
 | `pnpm api:openapi` | Regenerates [recipes/bazantic/openapi.yaml](recipes/bazantic/openapi.yaml) and the JSON beside it from the routes. A test fails if the committed files differ. |
 | `pnpm demo:seed` | Seeds the demo series, policyholders, investors and claim packets. |
@@ -322,9 +322,46 @@ The receipt screen at `/receipt/:policyId` in the web app is that endpoint,
 rendered. The measured run through and the links are in
 [docs/HEDERA.md](docs/HEDERA.md), section "Audit trail".
 
+## Health
+
+    curl -s http://127.0.0.1:3210/health
+
+`GET /health` is what a judge, an uptime check and a deploy script all read. It
+returns the commit the running build came from, whether Postgres, Hedera, the
+index and World are configured, and the oracle's run state, so one call says
+which code is live and whether the demo clock is walking. `GET /healthz` is the
+same handler under the path that shipped first. Neither is behind the x402 gate.
+
+The commit comes from `GIT_SHA`, set when the image is built. Run from a clone
+with `pnpm dev` it is blank, and the endpoint says `unknown`; that is correct
+rather than broken, because a working tree has no single commit.
+
+## Deployment
+
+Everything above runs from a clone with no containers, and that stays the
+shortest path. For the public deployment there are three OCI images and a
+compose file:
+
+    GIT_SHA="$(git rev-parse HEAD)" docker compose up -d --build
+    curl -s http://127.0.0.1:3210/health
+
+`compose.yaml` runs Postgres, the API, the web app and the index oracle. The
+API and the web app are published on 127.0.0.1 only; on a public host
+[deploy/Caddyfile](deploy/Caddyfile) terminates TLS and routes `/v1/*`,
+`/health`, `/healthz` and `/.well-known/jwks.json` to the API and everything
+else to the web app, so both live on one origin.
+[deploy/deploy.sh](deploy/deploy.sh) is the wrapper that builds with the current
+commit and refuses to finish until `GET /health` returns it. The host
+requirements and the steps are in [deploy/README.md](deploy/README.md).
+
+`podman compose` runs the same files: the images are plain OCI and the compose
+file uses no runtime-specific keys.
+
 ## Continuous integration
 
 [.github/workflows/ci.yml](.github/workflows/ci.yml) installs with a frozen lockfile, then runs lint, typecheck and test on every pull request. It resolves pnpm from the `packageManager` field rather than pinning a version in the workflow, so the pnpm that installs is always the one that wrote the lockfile.
+
+[.github/workflows/uptime.yml](.github/workflows/uptime.yml) checks `GET /health` on the public host every fifteen minutes and fails on anything but a 200 carrying a commit. It reads the repository variable `PUBLIC_SITE_URL` and does nothing when it is unset, so it is green before a host exists.
 
 ## Disclosure
 

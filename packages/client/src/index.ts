@@ -7,5 +7,6 @@ export function describeWorkspace(): string {
   return `${workspaceName}: ${summary}`;
 }
 
+export * from './hedera/mirror.js';
 export * from './hedera/schedule.js';
 export * from './units.js';

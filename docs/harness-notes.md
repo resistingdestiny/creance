@@ -1281,3 +1281,56 @@ form the facilitator returns, `0.0.7162784@1788602397.120605122`. Both are
 correct for their writer and only the first resolves on HashScan, so the reader
 converts before it builds a link, as the T08 note above says. A trail assembled
 from a topic has to expect both forms rather than the one its own writer uses.
+
+## T20, the Hedera Harness, 5 September 2026
+
+### The mirror node rejects the SDK transaction id form, it does not answer nothing
+
+The T08 note above says pasting the `@` form "returns nothing at all rather than
+an error". That is true of HashScan's transaction route and false of the mirror
+node's REST API, which was read again on 5 September 2026 while building the
+Harness contribution:
+
+    GET /transactions/0.0.10362512-1788608475-314442638   200
+    GET /transactions/0.0.10362512@1788608475.314442638   400
+      {"_status":{"messages":[{"message":"Invalid Transaction id. Please use
+       \"shard.realm.num-sss-nnn\" format where sss are seconds and nnn are
+       nanoseconds"}]}}
+
+Both forms are still a trap for the same reason, because an id copied out of an
+app's receipt panel is in the `@` form and the app author has no reason to
+suspect it, but the failure mode differs by reader: the mirror node says exactly
+what is wrong, HashScan renders an empty page. The Harness PR normalises before
+it reads and treats a 400 as the caller's mistake rather than as lag, since a
+malformed request never comes right by waiting.
+
+### Tier 3.5 verifies effects through a mirror node the harness has no code for
+
+hedera-harness at `dev`, 2.0.0-rc.4, read on 5 September 2026. `src/types.ts`
+describes CHAIN as "verify txs via mirror node" and
+`docs/authoring-a-recipe.md` as verifying "against the mirror node rather than
+UI toasts", but no file under `src/` reads it: the only `fetch` in the tree is
+the dev-server health probe in `src/validation/devServer.ts`. What ships instead
+is `prompts/validator.md`, which hands the evaluator agent five endpoints and
+the sentence "Poll up to ~30s for mirror lag". Two of those endpoints are wrong
+for the question the prompt asks of them. `GET /api/v1/topics/{topicId}/messages`
+is listed for verifying a message landed, and it answers 200 with an empty list
+for a topic that was never created, so thirty seconds of polling it cannot
+distinguish a typo in a topic id from a message still in flight. Nothing in the
+prompt mentions the two transaction id forms.
+
+### A freshly created account's mirror node visibility is a race, not a delay
+
+`provisionChainSigner` returns as soon as `AccountCreateTransaction` has a
+receipt, and the scaffold it hands that account to resolves the account id from
+the EVM alias through the mirror node. Whether the first read finds it is a
+coin toss. Two runs of the same script, minutes apart on 5 September 2026:
+
+    account 0.0.10377496   GET /accounts/0.0.10377496 -> 404, then 200 after 946ms
+    account 0.0.10377504   GET /accounts/0.0.10377504 -> 200 on the first read
+
+The one that intermittently loses is worse than one that always loses, because
+the failure reads as a flaky app rather than as a missing wait. The same is true
+of the topic message read, which was 404 on the first attempt in every run
+measured and 200 roughly a second later. Waiting for the account before the run
+goes on is what the Harness PR changes.

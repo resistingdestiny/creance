@@ -84,7 +84,8 @@ A failed gate is a bug or a source anomaly; either way a human looks before anyt
 ## 9. Monitoring and alerting
 
 - The runs table is the heartbeat. GET /v1/index/health returns last run, last period per group, qa status, staleness in days, and mode (live or replay). It is free, and because it sits under the prefix the x402 gate meters, the gate exempts that one path by name with a test holding it open. GET /health carries a summary of the same document in its `index` block, which is what "the deploy health check includes it" means in practice.
-- Staleness is measured from the end of the newest reference month at the source, never from the last successful run: a run that succeeds every day while nothing new has been published is a heartbeat with nothing behind it.
+- Staleness is measured from the end of the newest reference month, never from the last successful run: a run that succeeds every day while nothing new has been published is a heartbeat with nothing behind it. The oracle measures the newest month the source carries, because its question is whether the Bureau has published; the health endpoint measures the newest month this deployment published, because its question is whether the feed a caller pays for is current.
+- The health document survives a database outage. The last run, the QA gates and the mode are read from the oracle's files, so only the published periods are lost: the document reports `database: unreachable`, leaves the periods out and says `degraded`, and GET /health still carries the git SHA and the run state.
 - Alerts through NOTIFY_URL (and STATUS.md): failed run; qa failure; source stale (newest period older than 45 days); revision detected; and the first open month for any group, which is a product event, not only an ops event.
 - The oracle runs in schedule mode as a service in the deploy compose (restart always); logs are retained for the event window; the daily status job includes index health in STATUS.md.
 

@@ -47,6 +47,13 @@ the deploy health check and the container health check both see it. A stale
 source does not change the status code: restarting the container would not make
 the Bureau of Labor Statistics publish.
 
+The last run, the gates and the mode are read from the oracle's files, and only
+the published periods come from the database, so an unreachable database
+degrades the document rather than ending it: `status` and `database` both say
+`unreachable`, the periods are absent rather than empty, and everything the
+files carry is still reported. `GET /health` keeps returning the git SHA, the
+replay state and `deps.db` in that case, which is the case it exists for.
+
 The alerts of docs/INDEX-SPEC.md section 9 are posted to `NOTIFY_URL`, one HTTP
 POST per alert with a body of event, group, period, message and run id:
 
@@ -142,3 +149,10 @@ there.
 **`GET /v1/index/health` answers `never_run`.** No runs file on that deployment.
 Check `ORACLE_RUNS_PATH` names the same file in both containers; in the compose
 file both services set it to `/repo/var/oracle/runs.json` on the shared volume.
+
+**`GET /v1/index/health` answers `degraded` with `database: unreachable`.** The
+oracle is fine and Postgres is not: the last run and the gates in the same
+document were read from files. `newest_period` is null because nothing could be
+asked, not because nothing has been published, so the staleness line says
+nothing until the database is back. Look at `deps.db` on `GET /health` and at
+the db service.

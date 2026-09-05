@@ -19,12 +19,29 @@ Being built. The contracts, the note series, the coupon and maturity runs, the i
     pnpm install
     cp .env.example .env
 
-Then fill in the blanks in `.env`. Every variable is listed with a one line comment in [.env.example](.env.example). Nothing in the scaffold needs credentials, so `pnpm test` works before you fill anything in. `.env` is ignored by git and must never be committed.
+Three lines in `.env` are enough for everything below: `HEDERA_OPERATOR_ID`,
+`HEDERA_OPERATOR_KEY` and `DATABASE_URL`. Leave every other line exactly as the
+example has it. A blank line is read as unset rather than as an empty value, so
+the contract addresses, the token, the topics and the account ids all come from
+the two data files this repository already carries,
+[contracts/deployments/testnet.json](contracts/deployments/testnet.json) and
+[docs/hedera.testnet.json](docs/hedera.testnet.json). The oracle, API, Steward,
+adjuster, policyholder and investor accounts each derive their key from the
+operator key with HKDF, so the operator key is the only Hedera secret a clone
+needs. Every variable is listed with a one line comment in
+[.env.example](.env.example). `.env` is ignored by git and must never be
+committed.
 
-For the API, point `DATABASE_URL` at a PostgreSQL database you can write to and create the schema:
+`pnpm test` needs none of it: the unit suite touches no chain and no database.
+
+For the API, create the database and point `DATABASE_URL` at it:
 
     createdb creance
     pnpm api:migrate
+
+`DATABASE_URL` is `postgresql://user:password@localhost:5432/creance` where the
+server wants a password, or `postgresql:///creance?host=/var/run/postgresql`
+where a unix socket and peer authentication are enough.
 
 `pnpm api:migrate` applies the migrations under `apps/api/migrations` and seeds the fifteen occupation groups. It is idempotent: running it again prints `nothing to do`. The API also runs it at boot, so a first `pnpm dev` after `createdb` is enough.
 

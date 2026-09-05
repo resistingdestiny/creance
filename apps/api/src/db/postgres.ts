@@ -654,7 +654,8 @@ export class PostgresRepository implements Repository {
         `UPDATE claims
             SET status = $2, decision = $3, reasons = $4, confidence = $5,
                 decision_hash = $6, decision_record = $7, hcs_decision_seq = $8,
-                amount = $9, decided_by = $10, reviewer = $11, decided_at = $12
+                amount = $9, decided_by = $10, reviewer = $11, decided_at = $12,
+                reason_lines = $13, resubmit = $14
           WHERE claim_id = $1 AND status IN ('submitted','under_review')
         RETURNING *`,
         [
@@ -670,6 +671,8 @@ export class PostgresRepository implements Repository {
           input.decidedBy,
           input.reviewer,
           input.decidedAt,
+          JSON.stringify(input.reasonLines),
+          input.resubmit === null ? null : JSON.stringify(input.resubmit),
         ],
       );
       const row = rows[0];
@@ -1005,6 +1008,10 @@ function toClaim(row: Row): ClaimRow {
     packetManifest: (row['packet_manifest'] as Record<string, unknown> | null) ?? null,
     decision: maybeText(row, 'decision') as ClaimRow['decision'],
     reasons: Array.isArray(row['reasons']) ? (row['reasons'] as string[]) : [],
+    reasonLines: Array.isArray(row['reason_lines'])
+      ? (row['reason_lines'] as { code: string; line: string }[])
+      : [],
+    resubmit: (row['resubmit'] as { allowed: boolean; why: string } | null) ?? null,
     confidence: maybeText(row, 'confidence'),
     reviewer: maybeText(row, 'reviewer'),
     decidedBy: maybeText(row, 'decided_by'),

@@ -313,6 +313,12 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
         status,
         decision,
         reasons: reasons.length > 0 ? reasons : reason === '' ? [] : ['reviewer_decision'],
+        // The sentences beside the codes. A reviewer posts one plain sentence
+        // and no codes, so it is stored as the line for the decision they made.
+        reasonLines:
+          asLines(body.reason_lines) ??
+          (reason === '' ? [] : [{ code: 'reviewer_decision', line: reason }]),
+        resubmit: asResubmit(body.resubmit),
         confidence: typeof body.confidence === 'string' ? body.confidence : null,
         decisionHash,
         decisionRecord: composed,
@@ -532,6 +538,26 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function asLines(value: unknown): { code: string; line: string }[] | null {
+  if (!Array.isArray(value)) return null;
+  return value
+    .filter(
+      (entry): entry is { code: string; line: string } =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as { code?: unknown }).code === 'string' &&
+        typeof (entry as { line?: unknown }).line === 'string',
+    )
+    .map((entry) => ({ code: entry.code, line: entry.line }));
+}
+
+function asResubmit(value: unknown): { allowed: boolean; why: string } | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const entry = value as { allowed?: unknown; why?: unknown };
+  if (typeof entry.allowed !== 'boolean') return null;
+  return { allowed: entry.allowed, why: typeof entry.why === 'string' ? entry.why : '' };
 }
 
 function asStrings(value: unknown): string[] {

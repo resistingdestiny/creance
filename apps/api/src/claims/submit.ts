@@ -178,6 +178,8 @@ export const claimRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
         packetManifest: manifest,
         decision: null,
         reasons: [],
+        reasonLines: [],
+        resubmit: null,
         confidence: null,
         reviewer: null,
         decidedBy: null,

@@ -291,6 +291,8 @@ export class MemoryRepository implements Repository {
       status: input.status,
       decision: input.decision,
       reasons: input.reasons,
+      reasonLines: input.reasonLines,
+      resubmit: input.resubmit,
       confidence: input.confidence,
       decisionHash: input.decisionHash,
       decisionRecord: input.decisionRecord,

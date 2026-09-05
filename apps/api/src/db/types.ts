@@ -270,6 +270,16 @@ export interface ClaimRow {
   packetManifest: Record<string, unknown> | null;
   decision: 'approve' | 'refer' | 'decline' | null;
   reasons: string[];
+  /**
+   * The sentences a person reads, one per code, as the Adjuster composed them.
+   *
+   * Served from the admin payload and never from the free claim read: they
+   * carry dates and sometimes an employer name, and a claim id is public
+   * because the claims topic carries it.
+   */
+  reasonLines: { code: string; line: string }[];
+  /** Whether a corrected packet would be worth submitting, and why. */
+  resubmit: { allowed: boolean; why: string } | null;
   confidence: string | null;
   reviewer: string | null;
   decidedBy: string | null;
@@ -323,6 +333,8 @@ export interface RecordDecisionInput {
   status: ClaimStatus;
   decision: 'approve' | 'refer' | 'decline';
   reasons: string[];
+  reasonLines: { code: string; line: string }[];
+  resubmit: { allowed: boolean; why: string } | null;
   confidence: string | null;
   decisionHash: string | null;
   decisionRecord: Record<string, unknown> | null;

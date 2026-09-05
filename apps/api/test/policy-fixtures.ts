@@ -346,6 +346,8 @@ export function claimRow(patch: Partial<ClaimRow> = {}): ClaimRow {
     packetManifest: null,
     decision: null,
     reasons: [],
+    reasonLines: [],
+    resubmit: null,
     confidence: null,
     reviewer: null,
     decidedBy: null,

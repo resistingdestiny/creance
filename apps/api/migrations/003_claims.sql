@@ -35,6 +35,19 @@ ALTER TABLE claims
   ADD COLUMN IF NOT EXISTS world_action text,
   ADD COLUMN IF NOT EXISTS world_presence boolean NOT NULL DEFAULT false;
 
+-- The sentences a person reads, beside the codes a machine switches on.
+--
+-- docs/CLAIMS.md: "reasons[] is canonical" and "reason_lines[] is presentation",
+-- composed by the Adjuster from one set of templates because several of the
+-- sentences only mean anything with the dates filled in. 002 stored the codes
+-- and dropped the sentences, which left the decline screen with nothing to
+-- print. They are stored here and served only from the admin payload: they
+-- carry dates and sometimes an employer name, and a claim id is public because
+-- the claims topic carries it.
+ALTER TABLE claims
+  ADD COLUMN IF NOT EXISTS reason_lines jsonb,
+  ADD COLUMN IF NOT EXISTS resubmit jsonb;
+
 INSERT INTO schema_migrations (version) VALUES ('003_claims')
   ON CONFLICT (version) DO NOTHING;
 

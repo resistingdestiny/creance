@@ -1,0 +1,200 @@
+/**
+ * The worker endpoints, as the web app sees them.
+ *
+ * Four calls make the purchase flow, and all four are the API as it stands on
+ * main (recipes/bazantic/openapi.yaml, apps/api/src/routes):
+ *
+ *   POST /v1/demo/eligibility  the interim issuer, replaced by T11
+ *   POST /v1/quote             the binding price, no capacity hold, 15 minutes
+ *   POST /v1/bind              the policy, the NFT receipt and the HCS receipt
+ *   GET  /v1/policy/:id        free, and what the app polls for the NFT serial
+ *   GET  /v1/index/:group      the latest reading, 24 months and the trigger
+ *
+ * All of them are called on the server. The eligibility credential is a bearer
+ * token that binds a policy, so it never reaches the browser: it is held in the
+ * purchase session and attached here. See src/lib/purchase-session.ts.
+ *
+ * DESIGN.md 3.7 makes the index feed, the quote and the bind paid calls. T08
+ * puts the x402 gate in front of them and nothing in this module changes then,
+ * because the gate is satisfied by the caller and the caller is the server.
+ */
+
+import { getJson, postJson, type Money } from './api';
+
+export interface EligibilityView {
+  readonly eligibility: string;
+  readonly jti: string;
+  readonly series_id: string;
+  readonly group: string;
+  readonly wallet: string;
+  readonly expires_at: string;
+  readonly issuer: string;
+  readonly warning?: string;
+}
+
+export interface QuoteView {
+  readonly quote_id: string;
+  readonly series_id: string;
+  readonly group: string;
+  readonly wallet: string;
+  readonly limit: Money;
+  readonly premium: Money;
+  readonly annual_rate_bps: number;
+  readonly term_months: number;
+  readonly waiting_period_days: number;
+  readonly cover_starts: string;
+  readonly cover_ends: string;
+  readonly claims_payable_from: string;
+  readonly first_payment_due: string;
+  /** A Hedera account id, not an EVM address. See docs/DECISIONS.md. */
+  readonly pays_from: string;
+  readonly attachment_shock: string;
+  readonly level_line: string;
+  readonly payout_mode: string;
+  readonly capacity: {
+    readonly free_before: string;
+    readonly free_after: string;
+    readonly used_pct: number;
+  };
+  readonly expires_at: string;
+}
+
+export interface PolicyView {
+  readonly policy_id: string;
+  readonly series_id: string;
+  readonly group: string;
+  readonly status: string;
+  readonly limit: Money;
+  readonly premium: Money;
+  readonly cover_starts: string;
+  readonly cover_ends: string;
+  readonly claims_payable_from: string;
+  readonly next_payment_due: string | null;
+  readonly paid_through: string;
+  readonly holder_account: string;
+  readonly nft: { readonly token_id: string | null; readonly serial: number | null };
+  readonly hcs_receipt: {
+    readonly topic_id: string | null;
+    readonly sequence_number: number | null;
+  };
+  readonly chain: {
+    readonly cover_pool: string;
+    readonly bind_transaction: string | null;
+    readonly hashscan: string | null;
+  };
+}
+
+export interface IndexReading {
+  readonly period: string;
+  readonly u_g: string | null;
+  readonly u_all: string | null;
+  readonly e: string | null;
+  readonly ebar: string | null;
+  readonly odi: string | null;
+}
+
+export interface IndexHistoryPoint extends IndexReading {
+  readonly open: boolean;
+  readonly open_reason: string | null;
+}
+
+export interface IndexView {
+  readonly group: string;
+  readonly group_label: string;
+  readonly series_id: string | null;
+  readonly as_of: string;
+  readonly reading: IndexReading;
+  readonly trigger: {
+    readonly attachment_shock: string;
+    readonly level_line: string;
+    readonly open: boolean;
+    readonly open_reason: string | null;
+    readonly shock_margin: string | null;
+    readonly level_margin: string | null;
+  };
+  /**
+   * Which form is nearer its line, chosen server side so that two screens
+   * cannot choose differently. `distance` is the points to a payout: positive
+   * is short of the line, negative is past it. See docs/DECISIONS.md, "The
+   * headline index figure is whichever form is nearer its line".
+   */
+  readonly headline: {
+    readonly form: 'level' | 'shock';
+    readonly distance: string;
+    readonly on_the_line: boolean;
+    readonly open: boolean;
+  } | null;
+  readonly history: readonly IndexHistoryPoint[];
+  readonly source: {
+    readonly series: string | null;
+    readonly hash: string | null;
+    readonly model_version: string | null;
+    readonly replay: boolean;
+  };
+}
+
+/**
+ * The slider is in whole cover amounts and the API is in the settlement
+ * asset's minor units, which have six decimals. 5,000 is "5000000000". The
+ * conversion is here rather than in a screen because it is the one place a
+ * factor of a million can be got wrong.
+ */
+export function toMinorUnits(amount: number, decimals = 6): string {
+  if (!Number.isInteger(amount)) throw new RangeError(`Not a whole cover amount: ${amount}`);
+  return (BigInt(amount) * 10n ** BigInt(decimals)).toString();
+}
+
+export function issueEligibility(body: {
+  group: string;
+  wallet: string;
+  wallet_evm: string;
+  /** A decimal integer string, never hex. The API refuses anything else. */
+  nullifier: string;
+}): Promise<EligibilityView> {
+  return postJson<EligibilityView>('/v1/demo/eligibility', body);
+}
+
+export function requestQuote(body: {
+  group: string;
+  /** Minor units, as an integer string. Use toMinorUnits. */
+  limit: string;
+  wallet: string;
+}): Promise<QuoteView> {
+  return postJson<QuoteView>('/v1/quote', body);
+}
+
+export function bindPolicy(quoteId: string, eligibility: string): Promise<PolicyView> {
+  return postJson<PolicyView>('/v1/bind', { quote_id: quoteId }, { bearer: eligibility });
+}
+
+export function fetchPolicy(id: string): Promise<PolicyView> {
+  return getJson<PolicyView>(`/v1/policy/${encodeURIComponent(id)}`);
+}
+
+export function fetchIndex(group: string): Promise<IndexView> {
+  return getJson<IndexView>(`/v1/index/${encodeURIComponent(group)}`);
+}
+
+/**
+ * The NFT is minted after `CoverPool.bind` has returned, so a 201 from
+ * /v1/bind can carry a null serial and the serial appears a moment later. The
+ * API's own comment says the web app polls this endpoint for it, so this is
+ * that poll: it never fails the purchase, because the cover is already real by
+ * the time the bind responded, and it gives up with whatever the last read
+ * said.
+ */
+export async function waitForSerial(
+  policy: PolicyView,
+  { attempts = 8, delayMs = 1_500 } = {},
+): Promise<PolicyView> {
+  let latest = policy;
+  for (let attempt = 0; attempt < attempts && latest.nft.serial === null; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    try {
+      latest = await fetchPolicy(latest.policy_id);
+    } catch {
+      return latest;
+    }
+  }
+  return latest;
+}

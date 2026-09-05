@@ -12,6 +12,11 @@ next-env.d.ts
 coverage/
 artifacts/
 cache/
+
+# Everything a run writes at runtime: the raw BLS cache under var/cache/bls, and
+# the oracle's run state and observation store under var/oracle. Derived data,
+# never committed; the archive that is committed lives in data/bls.
+var/
 typechain-types/
 *.log
 .DS_Store

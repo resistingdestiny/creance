@@ -5,11 +5,18 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
+    "dev": "tsx --env-file-if-exists=../../.env src/main.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
+  },
+  "dependencies": {
+    "@creance/client": "workspace:*",
+    "ethers": "^6.15.0",
+    "fastify": "^5.12.1"
   }
 }

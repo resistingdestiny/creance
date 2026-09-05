@@ -212,6 +212,10 @@ The per transaction cap is 15 million.
 | `bind` | 224,668 | 800,000 |
 | `submitObservation` on an opening month | 271,024 | 1,000,000 |
 | `payClaim` (HTS transfer out) | 172,689 | 1,500,000 |
+| `attributePremium` | 66,627 | 1,000,000 |
+| `fundCoupon` (HTS transfer out, scheduled) | 62,592 | 1,500,000 |
+| `redeemAtMaturity` (HTS transfer out) | 86,424 | 1,500,000 |
+| ATS `fullRedeemAtMaturity` | 218,097 | 3,000,000 |
 
 Run through transactions:
 [subscribe](https://hashscan.io/testnet/transaction/0xafcf4a83a90455cf8c94d8ea8423994bdc479cdc588488cacd25b767c6745e46),
@@ -221,11 +225,293 @@ Run through transactions:
 
 ## Scheduled transactions
 
-Filled in by T05. The measured maximum expiry window for a long-term scheduled
-transaction on testnet, and the link to the one scheduled settlement transfer
-that executed.
+Premiums move as Scheduled Transactions: one `ScheduleCreate` per policy per
+month, holding a settlement token transfer that executes at the due date. The
+helper is `packages/client/src/hedera/schedule.ts` and the spike that measured
+everything below is `pnpm hedera:schedule`, which writes to testnet and is not
+part of `pnpm test`.
+
+### The expiry window
+
+**A long-term schedule may expire at most 5,356,800 seconds, exactly 62.0 days,
+after the consensus timestamp of the create.** One second more is rejected with
+`SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE`; an expiry already in the past is
+rejected with `SCHEDULE_EXPIRATION_TIME_MUST_BE_HIGHER_THAN_CONSENSUS_TIME`.
+Bisected with 26 creates on 4 September 2026, see docs/harness-notes.md for the
+bracket and the reference point, which is the part the documentation leaves out.
+
+Sixty-two days is longer than a month, so the monthly premium chain works as
+DESIGN.md 3.5 describes it and the section 8 fallback is not needed. The demo
+clock cadence still runs the same code, because the helper takes an `executeAt`
+and never a duration.
+
+### The transfers that executed
+
+All four moved 1.000000 TUSD (`1000000` minor units) from policyholder-1
+0.0.10366453 to the steward 0.0.10366451, paid for by policyholder-1.
+
+| Schedule | Wait for expiry | Executed | Transfer |
+|---|---|---|---|
+| [0.0.10367504](https://hashscan.io/testnet/schedule/0.0.10367504) | false | 2026-09-04T18:55:19Z, the same consensus round as the create | [0.0.10366453-1788548112-130188515](https://hashscan.io/testnet/transaction/0.0.10366453-1788548112-130188515) |
+| [0.0.10367507](https://hashscan.io/testnet/schedule/0.0.10367507) | true | 2026-09-04T18:58:25Z, at its expiry | [0.0.10366453-1788548118-155677633](https://hashscan.io/testnet/transaction/0.0.10366453-1788548118-155677633) |
+| [0.0.10367560](https://hashscan.io/testnet/schedule/0.0.10367560) | true | 2026-09-04T19:03:10Z, at its expiry | [0.0.10366453-1788548402-487005336](https://hashscan.io/testnet/transaction/0.0.10366453-1788548402-487005336) |
+| [0.0.10367787](https://hashscan.io/testnet/schedule/0.0.10367787) | true | 2026-09-04T19:25:59Z, at its expiry | [0.0.10366453-1788549772-250616112](https://hashscan.io/testnet/transaction/0.0.10366453-1788549772-250616112) |
+
+The second and fourth rows are the long-term path the acceptance line asks for:
+created with `waitForExpiry` true and an expiry three minutes out, held until
+the expiry, then executed. `scheduleNext` watched each one, read `SUCCESS` off
+the executed transfer and created the following month:
+[0.0.10367530](https://hashscan.io/testnet/schedule/0.0.10367530) due
+2026-10-04T18:58:25Z, and
+[0.0.10367811](https://hashscan.io/testnet/schedule/0.0.10367811) due
+2026-10-04T19:25:59Z, both with the memo `creance premium POL-SPIKE-1 202610`
+and both pending until then. Their creates are
+[0.0.10366453-1788548303-209325632](https://hashscan.io/testnet/transaction/0.0.10366453-1788548303-209325632)
+and
+[0.0.10366453-1788549961-236590372](https://hashscan.io/testnet/transaction/0.0.10366453-1788549961-236590372).
+
+A create and the transfer it schedules share one transaction id and are told
+apart by the mirror node's `scheduled` flag, so each link in the last column
+resolves to both. Read an execution with
+`GET /schedules/{scheduleId}` for `executed_timestamp`, then
+`GET /transactions?timestamp={executed_timestamp}` filtered to `scheduled=true`.
+
+### The two-party path
+
+DESIGN.md 3.7 also allows the API to create the premium schedules and hand them
+back for the Steward to sign, so the payer key never leaves the Steward. Proved
+on [0.0.10367633](https://hashscan.io/testnet/schedule/0.0.10367633): the
+operator created it with `setPayerAccountId` naming policyholder-1 and without
+the payer signature, the mirror node showed it pending with one signature and no
+`executed_timestamp`, and it executed only after a
+[ScheduleSign](https://hashscan.io/testnet/transaction/0.0.10362512-1788548807-559562997)
+carrying the payer key. The create was charged to the operator and the execution
+fee to policyholder-1, which is what `setPayerAccountId` decides.
+
+The transaction id of the executed transfer belongs to the **creator**, not the
+payer: it is `0.0.10362512-1788548802-958639314` here. Match an execution to a
+policy by the schedule id and the memo, never by the account in the transaction
+id.
+
+### Fees
+
+Measured from the mirror node's `charged_tx_fee` on every transaction the spike
+produced, not from the SDK's estimate. A `ScheduleCreate` costs the same whether
+it succeeds or is rejected, which makes a bisection an expensive way to learn
+something once. Ranges are the spread actually observed across the runs; a
+Hedera fee is quoted in dollars and paid in HBAR, so the same transaction moves
+by a few thousand tinybars as the rate moves.
+
+| Transaction | HBAR |
+|---|---|
+| `ScheduleCreate`, one signature, rejected or accepted | 0.12905667 |
+| `ScheduleCreate` carrying a contract call, 1,500,000 gas limit | 1.29264098 |
+| `ScheduleCreate` without the payer signature | 0.12954988 |
+| `ScheduleCreate`, pre-signed by a payer that is not the operator | 0.13034724 to 0.13084538 |
+| `ScheduleSign` | 0.01425047 |
+| `ScheduleDelete` | 0.01290566 |
+| the scheduled `CryptoTransfer` when it executes | 0.01161510 to 0.01295497 |
+
+So a premium costs its payer about 0.143 HBAR a month all in, and a twelve month
+policy pre-scheduled at bind costs about 1.72 HBAR in fees on top of the
+premiums themselves.
+
+### Scheduling a contract call
+
+A schedule can carry a `ContractExecuteTransaction`, and the contract sees the
+schedule's payer as `msg.sender`. Measured on 4 September 2026, because the
+answer decides how a coupon is paid: the premium account is a balance inside
+`CollateralVault` and a contract has no key with which to sign a transfer.
+
+The probe scheduled `fundCoupon` with a zero amount from the api account, which
+holds `TREASURY_ROLE`. The vault checks the role before it checks the amount, so
+the revert name is the answer: schedule
+[0.0.10368856](https://hashscan.io/testnet/schedule/0.0.10368856) executed at
+its expiry and reverted `ZeroAmount`, not on the role. See
+docs/harness-notes.md, which also records that the create costs ten times a
+scheduled transfer and that the contract result of a scheduled call is reachable
+only by its consensus timestamp.
+
+That is how the coupon is paid. One schedule per noteholder carries
+`fundCoupon(seriesId, couponRef, holder, amount)`, so the settlement token goes
+straight from the premium account to the holder:
+
+| Holder | Schedule | Memo | Executed transfer |
+|---|---|---|---|
+| investor-1 | [0.0.10368878](https://hashscan.io/testnet/schedule/0.0.10368878) | `creance coupon ODI-COMP-2026-01 1 investor-1` | [0.0.10366450-1788556746-724064738](https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738) |
+| investor-2 | [0.0.10368880](https://hashscan.io/testnet/schedule/0.0.10368880) | `creance coupon ODI-COMP-2026-01 1 investor-2` | [0.0.10366450-1788556748-511830975](https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975) |
+
+Both carry an admin key and `waitForExpiry` true, and both executed with
+`SUCCESS`, at 62,592 and 57,792 gas. The helper is `scheduleContractCall` in
+`packages/client/src/hedera/schedule.ts`, beside `scheduleTransfer`.
+
+### Conventions the rest of the build depends on
+
+- **The memo is the accounting record.** Every premium schedule carries
+  `creance premium <policyId> <YYYYMM>` and every coupon schedule carries
+  `creance coupon <seriesLabel> <couponId> <holderRole>`, both under the 100
+  byte memo cap, and `parsePremiumMemo` and `parseCouponMemo` read them back. The period is the same `uint32` `YYYYMM`
+  CoverPool takes. Never derive the month from the execution timestamp: the
+  network picks that, and it can land either side of the stated expiry by a
+  fraction of a second.
+- **The payer pays three times over**: the create fee, the execution fee and the
+  premium itself. Its signature on the frozen create is the only one the
+  arrangement needs, so a premium is pre-signed at bind in one round trip.
+- **Set an admin key** or the schedule is immutable and a lapsed policy cannot
+  cancel the premiums it has already pre-signed. `ScheduleDelete` signed by that
+  key is the cancellation, proven on testnet.
+- **Creating a schedule proves nothing about whether it will pay.** A payer
+  without the balance at execution still got a successful create. Missed
+  premiums are detected by reading the execution, never the create receipt.
+- **After a premium settles, `CoverPool.recordPremium(policyId, period)` has to
+  be called by the api account, which holds BINDER_ROLE.** That is T07 and T09
+  work; the watcher hands back `(scheduleId, policyId, period, executed
+  transaction id)` for it, and T18 writes the same tuple to the payments topic.
+  Without the call, `lapse()` becomes callable once the 15 day grace past
+  `paidThroughMonth` has run out and a paid premium looks like a missed one.
+- **Settled is not the same as executed, and only settled may be recorded.** A
+  schedule executes whether or not the transfer inside it succeeds, so an
+  underfunded payer produces an execution with a result of
+  `INSUFFICIENT_TOKEN_BALANCE` and no money moved. `scheduleNext` calls
+  `onExecuted` only for `SUCCESS` and everything else goes to `onFailed`,
+  including the case where the mirror node never returned the transfer. Marking
+  an unpaid month as paid is the worse error of the two: it stops `lapse()` from
+  ever becoming callable on that policy.
+- **The due day is not the last execution date.** A policy due on the 31st runs
+  on 28 February, and the premium after that is due on 31 March. The chain
+  carries the unclamped `dueDay` so one short month does not move every later
+  premium back by three days.
 
 ## Asset Tokenization Studio
 
-Filled in by T06. The Displacement Bond Note series ids, the ERC-3643 token
-address, the identity registry and the KYC grants.
+The Displacement Bond Note for the demo series is an Asset Tokenization Studio
+bond, release 8.0.0, deployed by the ATS testnet factory. It is a **contract,
+not an HTS token**: it has a contract id and an EVM address, it has no token id,
+its HashScan links are `/contract/`, and nobody associates with it. Issued and
+configured by `pnpm ats:issue`; the step by step run through with a link for
+every transaction is docs/ATS.md, and the machine readable copy is
+`series.ats` in `contracts/deployments/testnet.json`.
+
+### The note
+
+| Field | Value |
+|---|---|
+| Series id | ODI-COMP-2026-01 |
+| Contract id | [0.0.10368240](https://hashscan.io/testnet/contract/0.0.10368240) |
+| EVM address | `0xBB14C072d2861B944C18e5f873C5aEa71c2F1f36` |
+| Name, symbol | Creance Displacement Bond Note ODI-COMP-2026-01, CDBN01 |
+| Factory | [0.0.9213391](https://hashscan.io/testnet/contract/0.0.9213391) `0xd1f118a40f3b02883d35909ef2517e7edd78379d` |
+| Resolver | [0.0.9212226](https://hashscan.io/testnet/contract/0.0.9212226) `0xba2d5fc2083a0b8f164c50e65d782087fba18e0a` |
+| Configuration | bond `0x00...02`, version 1 |
+| ISIN | `ZZODIC55S1Q6`, a generated test value, see docs/ATS.md |
+| Decimals | 6, the same scale as TUSD |
+| Units, nominal | 100 units at 1,000 USD, principal 100,000 |
+| Supply cap | `100000000`, which is 100 units at 6 decimals |
+| Maturity | 1820082162, the same value the vault froze for the series |
+| Deploy transaction | [0x226d62fd...49ad398](https://hashscan.io/testnet/transaction/0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398) |
+
+Compliance switches, all set at creation and two of them irreversible: internal
+KYC on, clearing off, not controllable, no control list, no external KYC list,
+no external T-REX compliance module or identity registry, Regulation S.
+
+A throwaway bond
+[0.0.10368234](https://hashscan.io/testnet/contract/0.0.10368234) was deployed
+first to prove the factory and the resolver. It is not part of the demo and
+holds no supply.
+
+### Roles on the note
+
+All eight are held by the operator 0.0.10362512. The hashes are the 8.0.0
+values, which changed in that release.
+
+| Role | Purpose |
+|---|---|
+| ROLE_SSI_MANAGER | registers the credential issuer |
+| ROLE_KYC | grants and revokes KYC |
+| ROLE_ISSUER | mints to a noteholder |
+| ROLE_CORPORATE_ACTION | declares a coupon |
+| ROLE_PAUSER | stops every transfer |
+| ROLE_FREEZE_MANAGER | freezes part of a holding |
+| ROLE_MATURITY_REDEEMER | burns a holding at maturity |
+| ROLE_MATURITY_MANAGER | moves the maturity date, forward only |
+
+### Noteholders
+
+| Holder | Account | Balance | Units | KYC |
+|---|---|---|---|---|
+| investor-1 | [0.0.10366460](https://hashscan.io/testnet/account/0.0.10366460) | `50000000` | 50 | granted, `urn:uuid:92801b75-ca3c-4617-a044-9533154baffe` |
+| investor-2 | [0.0.10366462](https://hashscan.io/testnet/account/0.0.10366462) | `50000000` | 50 | granted, `urn:uuid:f2323f3c-423d-44e2-b006-55fb7816f13c` |
+
+Total supply `100000000`, exactly the cap. The credential issuer is the
+operator `0x639444758B987b4D938c57169a1F61A62b2d009C`, registered with
+[addIssuer](https://hashscan.io/testnet/transaction/0x7a1a32e3178bea2e894552cd3822e1006933abe6e83c4a9098265bd052f89230).
+Removing an issuer revokes every grant it made, silently, so that registration
+stands for the life of the series.
+
+### The compliance demonstration
+
+The same transfer of 10 units from investor-1 to investor-2, before and after
+the KYC grant, with nothing else changed:
+
+- [refused](https://hashscan.io/testnet/transaction/0x0791d049fa5ab514f4af143a5f652973df0f6a22f0a288d7dd39334529970cf1) with `InvalidKycStatus`
+- [the grant](https://hashscan.io/testnet/transaction/0xecdc481155d644bfb8a1254b39d040f0751cfc3e06456bbef878c88322024f9a)
+- [settled](https://hashscan.io/testnet/transaction/0xce6d12fcf5def0015a0cc15806a3a315e4f0d3dddfb108b50798ebe3b93d911c)
+
+Pause and freeze each block a transfer that would otherwise pass:
+[pause](https://hashscan.io/testnet/transaction/0xbeb15e8acfeac4008d0116d3c85a1032d3f5452773056a90b32f3cf1d72a86db),
+[refused with IsPaused](https://hashscan.io/testnet/transaction/0xd6e1aa8e3839f9afab72295f34ba2769663c48aef0800f08565fd7877315370a),
+[unpause](https://hashscan.io/testnet/transaction/0x30a3eecd2db8868242106f589536d4783000527712490904ffae7a84fada7f3b),
+[freeze](https://hashscan.io/testnet/transaction/0xeecbf14f96b9923b452966dc7fa31a34c890d8dea1f928fa9692922653fe7891),
+[refused with InsufficientBalance](https://hashscan.io/testnet/transaction/0x04fbd62b599b3b0871ca85dacef17fb59df286400feb37496f25aa36b7706539),
+[unfreeze](https://hashscan.io/testnet/transaction/0x0edc8a9a1ad5459e7603a17e4efddd6cc3a4f1ea149c0c37eb95c1ac59a6b9f4).
+
+A freeze leaves the partition balance, so while tokens are frozen `balanceOf`
+reports only the spendable part and a holder's position is `balanceOf` plus
+`getFrozenTokens`. Any screen that shows a holding has to add the two.
+
+### The first coupon
+
+Coupon id `1`,
+[declared](https://hashscan.io/testnet/transaction/0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804)
+at 8 percent a year over a real calendar month, 4 September to 4 October 2026,
+with the record date at 1788553283 and the execution date at 1788553583. After
+the record date, `getCouponFor` returns `1036800000000000000 / 3153600000000000`
+for each holder, which is 328.767123 USD, or `328767123` TUSD minor units.
+
+The coupon action declares and snapshots. It never moves money: there is no
+settlement token in the coupon facet. The payment is a Scheduled Transaction
+from the vault's premium account, and it settled on the same day: `328767123`
+TUSD minor units to each holder, out of a premium account seeded for the
+demonstration, published to the payments topic at sequence numbers 1 and 2. The
+schedules and the executed transfers are in the Scheduled transactions section
+above and the full run through is docs/ATS.md section 14.
+
+### The maturity demonstration
+
+The demo series and its note both mature on 4 September 2027, the vault has no
+setter for a maturity date and the note's `updateMaturityDate` only moves
+forward, so maturity is shown on a second, short dated series. It is a
+demonstration and not the demo series.
+
+| Field | Value |
+|---|---|
+| Vault series | `ODI-MAT-1788558259`, matured 1788558259 |
+| Note | [0.0.10368952](https://hashscan.io/testnet/contract/0.0.10368952) `0x6e89613455159365B07CdCB9852311caE318afC9`, CDBNMAT |
+| Subscribed | 1,000 TUSD per noteholder, `principalFunded` `2000000000` |
+| investor-1 | [burn](https://hashscan.io/testnet/transaction/0xf8541d294c1f124ea8c5e4162a5e49886cd6abcd8b76e16bafd26f2d2bf1524e), [redemption](https://hashscan.io/testnet/transaction/0x99d1a179ec384366352753347063e3894341c8b5f06b8f4dece2dfc1cfbc47a6), `1000000000` returned |
+| investor-2 | [burn](https://hashscan.io/testnet/transaction/0xef9b02f8c5e06973918f04d5556d5a2c2253f893736d967bf297037d0ece5927), [redemption](https://hashscan.io/testnet/transaction/0x959ffb9ecd3f00213c34e299b4c85d0f4720a56a1d2351332a41d7b0758186cd), `1000000000` returned |
+
+ATS burns the note holding and the vault returns the principal. Principal
+reduced by a payout is on chain on the T04 run through series
+`T04-SMOKE-1788546334`, where `principalFunded` is `30000000`, `principalPaid`
+is `10000000` after one paid claim and `principalRemaining` is `20000000`.
+
+### Verification
+
+The note is a proxy the ATS factory deployed, dispatching through the Business
+Logic Resolver to facets this build neither compiled nor deployed, so there is
+nothing of ours to submit for it. Sourcify, which is where HashScan reads
+verification from on chain 296, has no match for the note, the throwaway, the
+ATS factory or the ATS resolver as of 4 September 2026. `CollateralVault` and
+`CoverPool`, which this build did write, are both exact matches and are linked
+above.

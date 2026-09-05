@@ -2,6 +2,13 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { AtsRecord } from '../../ats/record.js';
+import type {
+  CouponSettlementRecord,
+  MaturityDemoRecord,
+  SubscriptionRecord,
+} from '../../coupons/record.js';
+
 /// The deployment record. Every step reads it, does only what is missing and
 /// writes it back, so a relay timeout half way through is recovered by running
 /// the same command again. T07 and T12 read the addresses from here rather than
@@ -20,6 +27,9 @@ export interface DeploymentRecord {
   verification?: Record<string, string>;
   gasUsed?: Record<string, number>;
   testnetRunthrough?: { series: string; at: string; links: Record<string, string> };
+  /// The short dated series T14 opened to reach maturity inside the event. It
+  /// is not the demo series and nothing else reads it.
+  maturityDemo?: MaturityDemoRecord;
 }
 
 export interface ContractRecord {
@@ -41,6 +51,16 @@ export interface SeriesRecord {
   maturityAt: number;
   openSeriesTx?: string;
   registerSeriesTx?: string;
+  /// The note issued for this series through the Asset Tokenization Studio,
+  /// written by `pnpm ats:issue`. The vault's own atsToken field is zero in
+  /// this deployment, so this is where the note address is read from.
+  ats?: AtsRecord;
+  /// One entry per settled ATS coupon, keyed by the coupon id. Written by
+  /// `pnpm coupons:pay`, read by the investor endpoints.
+  couponSettlements?: Record<string, CouponSettlementRecord>;
+  /// What each noteholder has subscribed in the vault, so the principal the
+  /// note reports and the principal the vault holds can be compared.
+  subscriptions?: SubscriptionRecord[];
 }
 
 const RECORD_PATH = fileURLToPath(new URL('../../deployments/testnet.json', import.meta.url));

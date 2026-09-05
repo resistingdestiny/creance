@@ -265,6 +265,416 @@ series; a code change means a new deployment. A proxy would add a storage layout
 hazard and a verification complication for no benefit here, and the Hedera EVM
 forbids `delegatecall` into system contracts, which is the pattern an
 upgradeable HTS consumer would reach for.
+## T05, Scheduled Transactions, 4 September 2026
+
+### The long-term expiry window is 62 days, so the premium chain is one schedule per month
+
+Measured on testnet by bisection, not read off a page. A `ScheduleCreate` is
+accepted when the expiration time is at most **5,356,800 seconds, exactly 62.0
+days, after the consensus timestamp of the create**, and rejected one second
+later with `SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE`. The bisection and the
+exact bracket are in docs/harness-notes.md.
+
+A month fits inside that window with a month to spare, so the contingency in
+DESIGN.md section 8, "compress cadence with the demo clock and create the next
+transaction on each execution", is **not needed** for correctness. It stays in
+the demo path for a different reason: the demo clock runs a month every ten
+seconds, so every expiry is seconds away and the whole chain is visible inside a
+video. Both cadences run the same code, because the helper takes an `executeAt`
+and never a duration.
+
+Consequence for T09 and T14: a premium schedule is one Scheduled Transaction per
+month with `waitForExpiry` true, created ahead of time. Creating all twelve at
+bind is possible within the window but is twelve fees and twelve failure points
+inside the bind path, so the Steward creates the first few and tops up on each
+execution.
+
+### The helper lives in packages/client, not contracts/scripts
+
+The backlog offered either. It went to `packages/client/src/hedera/schedule.ts`
+because T09 (apps/steward) and T14 (apps/api) both import it, and neither can
+import from the contracts workspace without dragging Hardhat and ethers behind
+it.
+
+That means `packages/client` now has its first dependency, `@hiero-ledger/sdk`
+pinned to exactly 2.87.0, the same version the contracts workspace pins. Both
+resolve to one installed copy, so there is one protobuf runtime in a process
+that loads both, which is the condition the T03 entry above sets. The helper
+imports nothing from `contracts/scripts`: it takes a `Client`, an account id and
+a `PrivateKey`, and the spike script does the key derivation.
+
+### The payer pays the creation fee, the execution fee and the premium
+
+`scheduleTransfer(payer, to, amount, executeAt)` names one payer and it pays for
+everything: the `ScheduleCreate` fee, the fee for the scheduled transfer when it
+executes, and the transfer itself. The create is charged to the payer by
+generating the transaction id against the payer account rather than the client
+operator, and the execution is charged to it by `setPayerAccountId`. The payer's
+signature on the frozen create is therefore the only signature the whole
+arrangement needs, so a premium is pre-signed at bind in one round trip.
+
+The acceptance line does not say who pays what, and the alternative, letting the
+Steward or the API pay the fees for the policyholder's transfer, would put a
+second signature and a second funded account on the money path for no benefit.
+
+The other shape DESIGN.md 3.7 offers, where the API creates the schedules and
+returns them for the Steward to sign, is supported by the same helper: pass no
+payer key, set `preSign` false, and finish the schedule later with
+`signSchedule`. Then the creator pays the create fee and the payer named by
+`setPayerAccountId` still pays the execution. Both paths are proved on testnet
+in docs/HEDERA.md. Pre-signing is the default because it is one round trip and
+one fee payer.
+
+### Every premium schedule carries an admin key
+
+Without an admin key a schedule is immutable, and DESIGN.md 3.5 lapses a policy
+15 days past a missed premium. The only way to stop the premiums a lapsed policy
+has already pre-signed is `ScheduleDeleteTransaction` signed by the admin key,
+so the helper takes one and the spike proved the delete path on testnet.
+
+### The accounting month comes from the memo, never from the execution timestamp
+
+Execution is best effort at the earliest consensus time after the expiry, so the
+executed transfer's timestamp is later than the due time by an amount the
+network chooses. Every premium schedule carries the memo
+`creance premium <policyId> <YYYYMM>`, and `parsePremiumMemo` reads the policy
+and the period back out of it. The period is the `YYYYMM` `uint32` CoverPool
+takes, so an execution maps to `recordPremium(policyId, period)` with no date
+arithmetic at the boundary.
+
+### scheduleNext is a watcher, not an on-chain loop
+
+A Hedera schedule cannot create another schedule: `ScheduleCreateTransaction` is
+not on the list of transactions that can be scheduled. So "creates the following
+month's transfer when one executes" is a process that polls the mirror node for
+`executed_timestamp` and then creates the next one. `scheduleNext` returns
+`(scheduleId, policyId, period, executed transaction id)` through its callback,
+which is what T09 needs for `CoverPool.recordPremium` from the api account and
+T18 needs for the payments topic entry. If nobody makes that call, `lapse()`
+becomes callable once the 15 day grace past `paidThroughMonth` has run out, and
+a paid premium looks exactly like a missed one.
+
+### The watcher reports a premium only when the transfer settled
+
+An execution is not a payment. A schedule executes whether or not the transfer
+inside it succeeds, and the docs say so about the underfunded payer, so
+`executed_timestamp` on its own cannot be the signal that a month was paid.
+`scheduleNext` splits the two: `onExecuted` fires only on `SUCCESS`, everything
+else goes to `onFailed`, and the returned outcome carries `settled` for a caller
+that uses neither.
+
+The asymmetry is deliberate. Missing a real payment delays a `recordPremium`
+call, which the next cycle can repair. Reporting a payment that never happened
+marks an unpaid month as paid in CoverPool, and `lapse()` can then never become
+callable on that policy. So the `UNKNOWN` case, an execution whose transfer the
+mirror node would not return, counts as unsettled rather than assumed good.
+
+### The premium chain is anchored on the due day, not on the last execution date
+
+A policy due on the 31st has to run on 28 February and then on 31 March. Feeding
+each clamped date back into the next step instead moves the whole rest of the
+term to the 28th, which quietly shortens the cover the policyholder bought. Each
+slot therefore carries the unclamped `dueDay` and the clamp is recomputed from
+it every month.
+
+## T06, the note series in ATS, 4 September 2026
+
+### The series is ODI-COMP-2026-01, and Office stays a picker entry
+
+The T06 ticket names `ODI-OFFICE-2026-01`; DESIGN.md 3.4 names
+`ODI-COMP-2026-01` for the computer and mathematical group, with the principal,
+the coupon and the attachment that go with it, and the backtest that opens
+claims in April 2026 on the level form. MISSION says DESIGN.md wins on product.
+The vault and the pool already carry `ODI-COMP-2026-01`, frozen at deploy time
+with its thresholds and its maturity, and there is no setter for either. Issuing
+the note under the other id would have left the two halves of the same
+instrument disagreeing about which series they are.
+
+So the note is `ODI-COMP-2026-01`, and its maturity is the vault's own
+`1820082162` rather than a fresh twelve months from the issuance, so the day the
+note matures and the day the vault returns principal are the same day. Office
+and administrative support stays what DESIGN.md 3.4 makes it: the first entry in
+the web picker, with the honest line that its cover has never been triggerable
+since 2010.
+
+### The note is issued through the ATS contracts, not through the ATS SDK
+
+DESIGN.md 3.8 and the ticket both accept the SDK or the web application. Neither
+is usable from a session with no browser: `SupportedWallets` at 8.0.0 is
+Metamask, WalletConnect, DFNS, Fireblocks and AWS KMS, and the Metamask adapter
+reads `globalThis.window.ethereum`. The web application path needs the same
+extension plus a person to click through the wizard.
+
+The note is therefore deployed by an `ethers` call to `IFactory.deployBond` on
+the ATS testnet factory, with the ABIs taken from
+`@hashgraph/asset-tokenization-contracts@8.0.0`, the package the SDK itself
+depends on, and every later call goes to the bond proxy through the `IAsset`
+ABI from the same package. The factory, the resolver, the bond configuration,
+the request fields, the single partition and the credential library are all the
+ones the SDK would have used. What is lost is the SDK's client side validation,
+which this build replaces where it matters: the ISIN check digit the SDK never
+runs, and the credential signature the SDK does run and the contract does not.
+
+What is gained, beyond being able to run at all, is that `pnpm ats:issue` is a
+real command a judge can run, rather than a description of a wizard.
+
+### ERC-3643 here means the ATS compliance stack, not external T-REX modules
+
+DESIGN.md 3.8 asks for "the ERC-3643 configuration: identity registry, KYC list
+of investor test accounts, transfer restrictions, pause and freeze roles". In
+ATS 8.0.0 that phrase splits in two. ATS bonds are ERC-3643 compatible out of
+the box through their own facets, and the wizard's optional step 4, which is
+`complianceId` and `identityRegistryId` on the request, is for wiring an
+**external** T-REX compliance module and identity registry that have to be
+deployed first.
+
+This note takes the native path and passes the zero address for both. The
+identity layer is the SSI issuer registry plus the per account KYC records, the
+compliance layer is the internal KYC gate with the control list facets
+available, and the restrictions are `ROLE_PAUSER` and `ROLE_FREEZE_MANAGER`.
+Every behaviour DESIGN.md asks for is demonstrated in docs/ATS.md and enforced
+by the note itself. Deploying a T-REX compliance module and identity registry
+would have been a second contract project on the day allocated to this one, and
+would not have changed a single thing a judge can see.
+
+### The KYC mechanism is internal KYC, and it is the only one
+
+Internal KYC and external KYC lists combine as an AND, not the OR the compliance
+guide describes, so registering an external list as a fallback would have made
+the gate stricter rather than safer. The note is deployed with
+`internalKycActivated` true, which cannot be undone, and with no external KYC
+list. Each grant carries a real `EcdsaSecp256k1Signature2019` credential signed
+by the operator key, verified off chain before the call, with its id and
+validity window written on chain.
+
+The fallback, ATS's `MockedExternalKycList`, was not needed: the credential path
+took under an hour end to end against the hour it was time boxed to.
+
+Note for anyone reading the contract: `grantKyc` stores the credential id as an
+opaque string and verifies nothing. The signature check is the caller's job, and
+this build does it in `contracts/ats/credential.ts`.
+
+### A coupon is declared by ATS and paid by a Scheduled Transaction
+
+DESIGN.md 3.5 reads as though the ATS coupon action or the ATS mass payout
+module moves the money. The coupon facet has no settlement token in it at all:
+`setCoupon` records a rate and a window, snapshots the holders at the record
+date and exposes each holder's entitlement as an exact fraction, and
+`executionDate` is when the coupon becomes payable, not when anything is paid.
+
+So the two halves stay separate on purpose. ATS declares, and a Hedera Scheduled
+Transaction of the settlement token from the vault's premium account pays. The
+link between them is recorded rather than inferred: the coupon id, the
+numerator, the denominator, the computed amount and the settlement transaction
+are stored together and published to the payments topic. That is T14.
+
+Mass Payout was evaluated and cut. It is a NestJS backend, a PostgreSQL
+database, a second frontend and a second Node major version, for two
+noteholders.
+
+### The demo coupon's record date is minutes out, not a month out
+
+A live coupon takes its holder snapshot at the end of the month it pays for. The
+first coupon on this series accrues over a real calendar month, 4 September to 4
+October 2026, but its record date is five minutes after the declaration and its
+execution date ten, so the declaration and the settlement can both be shown
+inside the event. The accrual window, which is what the amount is computed from,
+is real; only the snapshot instant is brought forward. Anything published about
+the coupon says so.
+
+### The ISIN is a generated test value under a user assigned country code
+
+The factory validates the ISIN on chain and reverts an empty or wrong one, and
+there is no registered ISIN for a demo instrument. The value is derived from the
+series label under the `ZZ` prefix, which is user assigned in ISO 3166 and can
+never be issued by a national numbering agency, so it cannot collide with a real
+security. The rule and its tests are in `contracts/ats/isin.ts`.
+
+### The vault's atsToken field stays zero, and the note address lives in the record
+
+`CollateralVault.openSeries` stored `atsToken` as the zero address for
+`ODI-COMP-2026-01`, because the note did not exist when the series was opened.
+`openSeries` reverts `SeriesExists` on a second call and there is no setter, so
+the field cannot be filled without redeploying the vault, which is out of scope
+for this ticket and would invalidate every link already published for T04.
+
+The field is therefore informational and zero in this deployment. The note
+address of record is `series.ats.note` in
+`contracts/deployments/testnet.json`, which is where T07 and the web app read
+it. On any future deployment, `openSeries` is called with the note address and
+the field carries it.
+
+For T07: the series column should be `ats_contract_address` plus
+`ats_contract_id`, not `ats_token`. The note is a contract and has no token id.
+
+### The ATS scripts live in the contracts workspace and load no Hedera SDK
+
+T03 fixed that `@hiero-ledger/sdk` and `@hashgraph/sdk` must never both be
+loaded in one process. The ATS SDK pulls `@hashgraph/sdk@2.64.5`, so it would
+have needed a workspace of its own. Going to the contracts directly removes the
+question: `contracts/ats/` needs `ethers`, the ATS contracts package for its
+ABIs and the credential libraries, and speaks to Hedera over the JSON-RPC relay
+and the mirror node REST API only. The one Hedera SDK import in its graph is the
+existing key derivation in `contracts/scripts/hedera/derive.ts`, which is
+`@hiero-ledger/sdk` and is reused rather than copied so there is one derivation
+in the build.
+
+## T14, coupons and maturity, 4 September 2026
+
+### A coupon is paid by scheduling the vault's own fundCoupon call
+
+T06 settled the halves: the Asset Tokenization Studio coupon action declares the
+rate, the accrual window and each holder's entitlement, and it never moves
+money, because there is no settlement token anywhere in the coupon facet. This
+is the other half, and it decides how the money moves.
+
+The premium account is a balance inside `CollateralVault`, and a contract has no
+key with which to sign the transfer inside a Scheduled Transaction. Two shapes
+were available. The vault could pay the treasury account and a scheduled
+transfer from there could pay the holder, which is two moves and leaves a
+noteholder's coupon sitting in an operational account in between. Or the
+schedule could carry the vault call itself, if a contract call can be scheduled
+at all and if the vault sees the schedule payer as the caller.
+
+Both halves of that condition were measured before anything was relied on. A
+`ScheduleCreate` carrying a `ContractExecuteTransaction` was accepted on
+testnet, executed at its expiry, and a scheduled `fundCoupon` with a zero amount
+reverted `ZeroAmount` rather than on the role, which is only possible if the
+caller was the api account holding `TREASURY_ROLE`. The evidence is in
+docs/harness-notes.md.
+
+So a coupon is one Scheduled Transaction per noteholder, carrying
+`fundCoupon(seriesId, couponRef, holder, amount)`, created by the api account
+with `waitForExpiry` true, an admin key and the memo
+`creance coupon <series> <couponId> <holderRole>`. The settlement token goes
+straight from the premium account to the noteholder and no intermediate account
+ever holds it. `fundCoupon` pays only from `premiumBalance`, so the rule that a
+coupon is never paid out of principal is enforced by the contract and not by the
+script.
+
+The acceptance line asks for "the ATS coupon action or mass payout module".
+The answer is the coupon action, as the declaration half; Mass Payout was
+evaluated and cut in T06 as a NestJS backend, a PostgreSQL database and a second
+frontend for two noteholders. The scheduled `fundCoupon` call is the payment
+half, and the link between the two is recorded rather than inferred.
+
+The two step shape stays as the fallback and needs no new code:
+`fundCoupon` to the treasury account and `scheduleTransfer` from there, both of
+which already exist. It is what a network without schedulable contract calls
+would need.
+
+### The settlement amount is floor(numerator * 10^6 / denominator), and the remainder stays in the premium account
+
+The entitlement ATS returns is an exact fraction in **whole currency units**,
+because the on chain formula divides out both the token decimals and the nominal
+value decimals. The settlement amount is that fraction times the settlement
+token's own scale, truncated. Rounding up would pay out more than the note owes
+across a holder list, so the remainder, `907200000000000` of a denominator of
+`3153600000000000` for each holder of the first coupon, stays in the premium
+account and is recorded next to the amount.
+
+### The premium was seeded for the demonstration, and the live path is the watcher
+
+The first coupon had to be paid out of a premium account holding nothing. No
+policy has been bound against the demo series, because binding is T07 and T07 is
+blocked behind T02, so there was no premium inflow to pay from.
+
+`pnpm coupons:pay seed` therefore sends the coupon's own cost, 657.534246 TUSD,
+from a policyholder account to the vault as a stand-in premium and attributes it
+to the series with `attributePremium` from the api account, which holds
+`TREASURY_ROLE`. Both halves are real: a native token transfer into the vault,
+and the same attribution call the live path makes. What is missing is only the
+policy that would have produced the premium.
+
+The live path is unchanged and already specified: the premium schedule watcher
+reads a settled premium and the api account calls `attributePremium` for it,
+exactly as this step does. The 20 TUSD left in the vault by the T04 run through
+belongs to the throwaway series and was deliberately not attributed;
+`attributePremium` names a series, so only what this step sent was credited.
+
+### Both noteholders were subscribed, so the note and the vault agree on the principal
+
+Before this ticket the note had 100 units minted against a vault holding
+nothing: `principalFunded` was zero for the demo series, so every principal
+figure on an investor screen would have read zero against a note claiming
+100,000 of principal. The two would have contradicted each other on camera.
+
+`pnpm coupons:pay subscribe` moves 50,000 TUSD from each investor to the api
+account and subscribes it on the investor's behalf, which is the flow DESIGN.md
+3.8 describes, the API paying after the ATS mint. The vault now holds 100,000
+TUSD against 100 units of 1,000, and `subscriptionOf` names each investor for
+the redemption at maturity.
+
+### Maturity is shown on a second, short dated series
+
+Neither maturity date on the demo series can be brought into the event. The
+vault froze 4 September 2027 at `openSeries` and has no setter, and the note's
+`updateMaturityDate` only ever moves the date forward.
+
+`pnpm coupons:mature` therefore opens a short dated series in the vault,
+deploys a matching short dated ATS bond, subscribes both noteholders, waits and
+redeems both sides: `fullRedeemAtMaturity` burns each note holding under
+`ROLE_MATURITY_REDEEMER`, and `redeemAtMaturity` returns the principal from the
+vault. It is labelled a maturity demonstration everywhere it appears, in the
+series label itself, and nothing reads it as the demo series.
+
+### Principal reduction after a payout is read from the T04 series, not paid again
+
+"Principal reduced by payouts after a trigger" is already on chain: the T04 run
+through paid one 10,000 claim against a 30,000 principal on a throwaway series,
+and `principalRemaining` has read 20,000 ever since. `pnpm coupons:mature payout`
+reads those three numbers off testnet and records them.
+
+Paying a second real claim to show the same arithmetic belongs to T13, which
+owns the claim path, and the rounding cases are covered exhaustively in
+contracts/test/hardhat/collateral-vault.ts, including the 47,500 each after a
+5,000 claim that DESIGN.md 3.4 sets out.
+
+### The coupon settlement message on the payments topic, version 1
+
+T06 assigned the payments topic entry for a coupon to this ticket and T18 builds
+the read side, so the shape is fixed here and versioned.
+
+    {"v":1,"kind":"coupon","series":"ODI-COMP-2026-01","seriesId":"0x4f44...",
+     "couponId":"1","holder":"0.0.10366460","holderAddress":"0xb6c2...",
+     "numerator":"1036800000000000000","denominator":"3153600000000000",
+     "amount":"328767123","token":"0.0.10366463","scheduleId":"0.0.10368878",
+     "transactionId":"0.0.10366450-1788556746-724064738","result":"SUCCESS",
+     "paidAt":"1788556871.150984988"}
+
+Every amount is an integer string in the settlement token's minor units, and the
+fraction the amount came from travels with it so a reader can redo the
+arithmetic against the note rather than trusting the publisher. `kind` is there
+because premiums land on the same topic. A message is written only after the
+transfer settled: a schedule executes whether or not the transaction inside it
+succeeded, and publishing an unsettled execution would put a payment that never
+happened into the audit trail.
+
+### The investor endpoints stand alone in apps/api/src/investor
+
+apps/api is still the T01 placeholder: no Fastify, no Postgres, no dependencies,
+because building it is T07 and T07 is blocked behind T02. The two endpoints this
+ticket owes cannot wait for that.
+
+They are a self contained Fastify plugin that reads chain state directly, vault
+views and the note over the JSON-RPC relay through ethers, and the coupon
+settlements from `contracts/deployments/testnet.json`, which `pnpm coupons:pay`
+writes. No database and no Postgres dependency. T07 registers the same plugin
+and swaps the reader behind the `ChainReader` interface when the database
+exists.
+
+The plugin does not import from the contracts workspace, which would pull
+Hardhat into the API: the ABI fragments it needs are written out in
+`apps/api/src/investor/abi.ts`, narrow and all views. It reads the deployment
+record as a data file, and every value in it can be overridden from the
+environment.
+
+Conventions follow what the rest of the API will use: snake_case fields, every
+amount as `{amount, asset, decimals, display}` with `display` never parsed,
+RFC 3339 timestamps in UTC, and RFC 9457 problem documents for errors. The
+amount conversion lives in `packages/client/src/units.ts` so the API, the
+Steward and the web app share one implementation.
+
 ## T10, web scaffold, 4 September 2026
 
 ### Design tokens live in @theme, not in a JS config

@@ -1,0 +1,828 @@
+/// Scheduled Transactions for the monthly premium.
+///
+/// A schedule transaction creates the entity; the scheduled transaction is the
+/// thing inside it that eventually executes. Everything here schedules one
+/// settlement token transfer per policy per month, so the two words stay apart:
+/// `scheduleTransfer` creates one, `waitForExecution` reads the outcome, and
+/// `scheduleNext` chains the following month once the current one has run.
+///
+/// A schedule cannot create another schedule, so the chain is a watcher and not
+/// an on-chain loop. See docs/HEDERA.md, section "Scheduled transactions".
+///
+/// https://docs.hedera.com/hedera/sdks-and-apis/sdks/schedule-transaction/create-a-schedule-transaction
+import {
+  AccountId,
+  Client,
+  ContractExecuteTransaction,
+  ContractId,
+  Hbar,
+  Key,
+  PrivateKey,
+  ScheduleCreateTransaction,
+  ScheduleSignTransaction,
+  Timestamp,
+  TokenId,
+  Transaction,
+  TransactionId,
+  TransferTransaction,
+} from '@hiero-ledger/sdk';
+
+/// The schedule memo is capped at 100 bytes, the same cap every Hedera memo
+/// carries, and it is the only field that links an execution back to a policy.
+export const MAX_SCHEDULE_MEMO_BYTES = 100;
+
+/// Every memo this build writes starts here, so a mirror node sweep of the
+/// payer's schedules can pick out the ones that belong to Creance.
+export const PREMIUM_MEMO_PREFIX = 'creance premium';
+
+const PREMIUM_MEMO_PATTERN = /^creance premium ([A-Za-z0-9:_-]{1,48}) (\d{6})$/;
+
+// -- Period arithmetic, chain free ------------------------------------------
+
+/**
+ * A period is `YYYYMM` as a number, the form CoverPool takes on every function
+ * that names a month. 2026-04 is 202604.
+ */
+export function assertPeriod(period: number): number {
+  if (!Number.isInteger(period)) {
+    throw new Error(`a period is an integer YYYYMM, got ${period}`);
+  }
+  const month = period % 100;
+  const year = (period - month) / 100;
+  if (year < 1970 || year > 9999 || month < 1 || month > 12) {
+    throw new Error(`a period is YYYYMM with a month of 1 to 12, got ${period}`);
+  }
+  return period;
+}
+
+/** The period a moment falls in, read in UTC. */
+export function periodOf(date: Date): number {
+  return date.getUTCFullYear() * 100 + date.getUTCMonth() + 1;
+}
+
+/** The month index CoverPool counts in: `year * 12 + (month - 1)`. */
+export function monthIndexOf(period: number): number {
+  const month = assertPeriod(period) % 100;
+  return ((period - month) / 100) * 12 + (month - 1);
+}
+
+/** The inverse of `monthIndexOf`. */
+export function periodFromMonthIndex(index: number): number {
+  const year = Math.floor(index / 12);
+  return year * 100 + (index - year * 12) + 1;
+}
+
+/** Step a period by whole months. Crosses year boundaries in both directions. */
+export function addMonths(period: number, months: number): number {
+  return periodFromMonthIndex(monthIndexOf(period) + months);
+}
+
+/** The month after this one. 202612 becomes 202701. */
+export function nextPeriod(period: number): number {
+  return addMonths(period, 1);
+}
+
+/** The last day of a UTC month, so a day-of-month can be clamped into it. */
+function daysInMonth(year: number, monthIndexZeroBased: number): number {
+  return new Date(Date.UTC(year, monthIndexZeroBased + 1, 0)).getUTCDate();
+}
+
+/**
+ * The same wall clock moment one or more months later, in UTC, with the day of
+ * month clamped into the target month.
+ *
+ * `dueDay` is the day the policy is actually due on, which is not always the
+ * day the previous premium ran. A policy due on the 31st runs on 28 February,
+ * and the step after that has to be 31 March, not 28 March. Pass the unclamped
+ * due day and the chain recovers; leave it out and the step is measured from
+ * `executeAt`, which is right for a one-off call and wrong for a chain.
+ */
+export function nextExecuteAt(executeAt: Date, months = 1, dueDay?: number): Date {
+  const year = executeAt.getUTCFullYear();
+  const monthIndex = executeAt.getUTCMonth() + months;
+  const targetYear = year + Math.floor(monthIndex / 12);
+  const targetMonth = ((monthIndex % 12) + 12) % 12;
+  const wanted = dueDay ?? executeAt.getUTCDate();
+  const day = Math.min(wanted, daysInMonth(targetYear, targetMonth));
+  return new Date(
+    Date.UTC(
+      targetYear,
+      targetMonth,
+      day,
+      executeAt.getUTCHours(),
+      executeAt.getUTCMinutes(),
+      executeAt.getUTCSeconds(),
+      executeAt.getUTCMilliseconds(),
+    ),
+  );
+}
+
+/**
+ * The memo a premium schedule carries. It names the policy and the accounting
+ * period, because the execution consensus timestamp is only close to the due
+ * time and must never be used to derive the month.
+ */
+export function premiumMemo(policyId: string, period: number): string {
+  assertPeriod(period);
+  if (!/^[A-Za-z0-9:_-]{1,48}$/.test(policyId)) {
+    throw new Error(`a policy id is 1 to 48 characters of [A-Za-z0-9:_-], got ${policyId}`);
+  }
+  const memo = `${PREMIUM_MEMO_PREFIX} ${policyId} ${period}`;
+  if (Buffer.byteLength(memo, 'utf8') > MAX_SCHEDULE_MEMO_BYTES) {
+    throw new Error(`the schedule memo is over ${MAX_SCHEDULE_MEMO_BYTES} bytes: ${memo}`);
+  }
+  return memo;
+}
+
+/** The policy and period a premium memo names, or null when it is not one. */
+export function parsePremiumMemo(memo: string): { policyId: string; period: number } | null {
+  const match = PREMIUM_MEMO_PATTERN.exec(memo.trim());
+  if (!match) {
+    return null;
+  }
+  const period = Number(match[2]);
+  try {
+    assertPeriod(period);
+  } catch {
+    return null;
+  }
+  return { policyId: match[1] as string, period };
+}
+
+/** One month of the premium chain: which policy, which month, when it is due. */
+export interface PremiumSlot {
+  policyId: string;
+  period: number;
+  executeAt: Date;
+  memo: string;
+  /**
+   * The day of month the policy is due on, kept unclamped so that one short
+   * month does not move every later premium. A policy bound on the 31st has
+   * `dueDay` 31 even in the months where `executeAt` says 28.
+   */
+  dueDay: number;
+}
+
+/**
+ * Build a slot, with the memo derived rather than passed in. `dueDay` defaults
+ * to the day `executeAt` falls on, which is what the first slot of a chain
+ * wants; pass it explicitly when a chain is resumed from a clamped date.
+ */
+export function premiumSlot(
+  policyId: string,
+  period: number,
+  executeAt: Date,
+  dueDay = executeAt.getUTCDate(),
+): PremiumSlot {
+  return { policyId, period, executeAt, memo: premiumMemo(policyId, period), dueDay };
+}
+
+/**
+ * The slot after this one. This is the whole of `scheduleNext` that can be
+ * decided without the network, so it is the part that carries a unit test.
+ *
+ * The step is measured against `dueDay` and not against the previous
+ * `executeAt`, so a chain that passes through February comes back out on its
+ * own day of month instead of staying on the 28th for the rest of the term.
+ */
+export function nextPremiumSlot(slot: PremiumSlot, months = 1): PremiumSlot {
+  return premiumSlot(
+    slot.policyId,
+    addMonths(slot.period, months),
+    nextExecuteAt(slot.executeAt, months, slot.dueDay),
+    slot.dueDay,
+  );
+}
+
+// -- Links -------------------------------------------------------------------
+
+export type HashscanKind = 'account' | 'token' | 'topic' | 'transaction' | 'contract' | 'schedule';
+
+/** Explorer link. The schedule route is `/{network}/schedule/{scheduleId}`. */
+export function hashscanUrl(kind: HashscanKind, id: string, network = 'testnet'): string {
+  return `https://hashscan.io/${network}/${kind}/${id}`;
+}
+
+/**
+ * The SDK prints a transaction id as `0.0.x@seconds.nanos`, and a scheduled one
+ * carries a `?scheduled` suffix. The mirror node and HashScan both want
+ * `0.0.x-seconds-nanos` and tell the two apart by a flag, not by the id.
+ */
+export function toMirrorTransactionId(sdkTransactionId: string): string {
+  const withoutSuffix = sdkTransactionId.trim().replace(/\?scheduled$/, '');
+  const match = /^(\d+\.\d+\.\d+)@(\d+)\.(\d+)$/.exec(withoutSuffix);
+  if (!match) {
+    throw new Error(`expected a shard.realm.number@seconds.nanos id, got ${sdkTransactionId}`);
+  }
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
+/** The mirror node record of the schedule entity, which is where execution shows up. */
+export function mirrorScheduleUrl(mirrorUrl: string, scheduleId: string): string {
+  return `${mirrorUrl.replace(/\/+$/, '')}/schedules/${scheduleId}`;
+}
+
+// -- Creating a schedule -----------------------------------------------------
+
+/**
+ * The account that pays. It pays twice: the fee for creating the schedule, and
+ * the fee for executing the scheduled transfer. It is also the account the
+ * settlement token leaves, so its key is the only signature the inner transfer
+ * needs and the schedule is complete the moment it is created.
+ *
+ * The key is optional because DESIGN.md 3.7 allows the other shape too: the API
+ * creates the schedule and hands it back for the Steward to sign. Leave the key
+ * out, set `preSign` false, and finish it later with `signSchedule`.
+ */
+export interface SchedulePayer {
+  accountId: string | AccountId;
+  key?: PrivateKey;
+}
+
+export interface ScheduleTransferParams {
+  client: Client;
+  /** Settlement token id. Amounts are integers in its minor units. */
+  tokenId: string | TokenId;
+  payer: SchedulePayer;
+  to: string | AccountId;
+  /** Minor units. 1.00 TUSD at six decimals is 1000000n. */
+  amount: bigint;
+  /** When the transfer is due. Also the schedule's expiry. */
+  executeAt: Date;
+  /** Use `premiumMemo` unless you are probing the network. */
+  memo: string;
+  /**
+   * Without an admin key the schedule is immutable and a lapsed policy cannot
+   * stop its remaining premiums, so pass one for anything a policy owns.
+   */
+  adminKey?: Key;
+  /**
+   * True holds the transfer until the expiry, which is what makes this a
+   * schedule. False executes as soon as the signatures are complete, which for
+   * a pre-signed transfer means immediately.
+   */
+  waitForExpiry?: boolean;
+  /**
+   * True signs the create with the payer key and charges the create to the
+   * payer, which completes the schedule in one round trip. False leaves the
+   * schedule pending on the payer's signature and charges the create to the
+   * client operator.
+   */
+  preSign?: boolean;
+  /** Read the transaction record so the create fee comes back. Costs a query. */
+  readFee?: boolean;
+  network?: string;
+  maxTransactionFee?: Hbar;
+}
+
+/**
+ * What a `ScheduleCreate` produced, whatever kind of transaction it holds. The
+ * same record describes a scheduled transfer and a scheduled contract call.
+ */
+export interface CreatedSchedule {
+  scheduleId: string;
+  /** The id the executed transfer will carry, ending in `?scheduled`. */
+  scheduledTransactionId: string;
+  /** The id of the create itself. */
+  createTransactionId: string;
+  memo: string;
+  expirationTime: Date;
+  waitForExpiry: boolean;
+  /** False when the schedule is still waiting for `signSchedule`. */
+  preSigned: boolean;
+  /** The ScheduleCreate fee in HBAR, only when `readFee` was set. */
+  createFeeHbar: string | null;
+  links: {
+    schedule: string;
+    create: string;
+    scheduled: string;
+  };
+}
+
+/** The part of a schedule that is the same whatever transaction it holds. */
+interface ScheduleCommon {
+  client: Client;
+  payer: SchedulePayer;
+  executeAt: Date;
+  memo: string;
+  adminKey?: Key;
+  waitForExpiry: boolean;
+  preSign: boolean;
+  readFee: boolean;
+  network: string;
+  maxTransactionFee?: Hbar;
+}
+
+/**
+ * Wrap one unfrozen transaction in a `ScheduleCreate` and send it.
+ *
+ * The create is paid by the payer as well as the execution: the transaction id
+ * is generated against the payer account and the frozen create is signed with
+ * the payer key, which is the same signature the inner transaction needs.
+ *
+ * Creating a schedule proves nothing about whether it will do anything. A payer
+ * without the balance at execution time still gets a successful create, so an
+ * outcome is read from the execution and never from the create receipt.
+ */
+async function createSchedule(
+  inner: Transaction,
+  options: ScheduleCommon,
+): Promise<CreatedSchedule> {
+  const { client, payer, executeAt, memo, adminKey, waitForExpiry, preSign, readFee, network, maxTransactionFee } =
+    options;
+
+  if (Buffer.byteLength(memo, 'utf8') > MAX_SCHEDULE_MEMO_BYTES) {
+    throw new Error(`the schedule memo is over ${MAX_SCHEDULE_MEMO_BYTES} bytes: ${memo}`);
+  }
+  if (preSign && !payer.key) {
+    throw new Error('a pre-signed schedule needs the payer key; set preSign false to sign later');
+  }
+
+  const payerId =
+    typeof payer.accountId === 'string' ? AccountId.fromString(payer.accountId) : payer.accountId;
+
+  let create = new ScheduleCreateTransaction()
+    .setScheduledTransaction(inner)
+    .setScheduleMemo(memo)
+    .setExpirationTime(Timestamp.fromDate(executeAt))
+    .setWaitForExpiry(waitForExpiry)
+    .setPayerAccountId(payerId);
+
+  if (preSign) {
+    create = create.setTransactionId(TransactionId.generate(payerId));
+  }
+  if (adminKey) {
+    create = create.setAdminKey(adminKey);
+  }
+  if (maxTransactionFee) {
+    create = create.setMaxTransactionFee(maxTransactionFee);
+  }
+
+  const frozen = create.freezeWith(client);
+  const response = await (preSign ? frozen.sign(payer.key as PrivateKey) : Promise.resolve(frozen))
+    .then((transaction) => transaction.execute(client));
+
+  let createFeeHbar: string | null = null;
+  let receipt;
+  if (readFee) {
+    const record = await response.getRecord(client);
+    receipt = record.receipt;
+    createFeeHbar = record.transactionFee.toString();
+  } else {
+    receipt = await response.getReceipt(client);
+  }
+
+  const scheduleId = receipt.scheduleId;
+  const scheduledTransactionId = receipt.scheduledTransactionId;
+  if (!scheduleId || !scheduledTransactionId) {
+    throw new Error('the schedule create receipt carried no schedule id');
+  }
+
+  const createTransactionId = response.transactionId.toString();
+  return {
+    scheduleId: scheduleId.toString(),
+    scheduledTransactionId: scheduledTransactionId.toString(),
+    createTransactionId,
+    memo,
+    expirationTime: executeAt,
+    waitForExpiry,
+    preSigned: preSign,
+    createFeeHbar,
+    links: {
+      schedule: hashscanUrl('schedule', scheduleId.toString(), network),
+      create: hashscanUrl('transaction', toMirrorTransactionId(createTransactionId), network),
+      scheduled: hashscanUrl(
+        'transaction',
+        toMirrorTransactionId(scheduledTransactionId.toString()),
+        network,
+      ),
+    },
+  };
+}
+
+/**
+ * Schedule one settlement token transfer of `amount` minor units from `payer`
+ * to `to`, due at `executeAt`, signed by the payer key at creation.
+ *
+ * The payer is also the account the settlement token leaves, so its signature
+ * on the frozen create is the only one the whole arrangement needs and the
+ * schedule is complete the moment it is created.
+ */
+export async function scheduleTransfer(params: ScheduleTransferParams): Promise<CreatedSchedule> {
+  const {
+    client,
+    tokenId,
+    payer,
+    to,
+    amount,
+    executeAt,
+    memo,
+    adminKey,
+    waitForExpiry = true,
+    preSign = true,
+    readFee = false,
+    network = 'testnet',
+    maxTransactionFee,
+  } = params;
+
+  if (amount <= 0n) {
+    throw new Error(`a scheduled transfer moves a positive amount, got ${amount}`);
+  }
+
+  const payerId =
+    typeof payer.accountId === 'string' ? AccountId.fromString(payer.accountId) : payer.accountId;
+
+  // The inner transaction is not frozen; the schedule create carries it.
+  const transfer = new TransferTransaction()
+    .addTokenTransfer(tokenId, payerId, -amount)
+    .addTokenTransfer(tokenId, to, amount);
+
+  return createSchedule(transfer, {
+    client,
+    payer,
+    executeAt,
+    memo,
+    ...(adminKey === undefined ? {} : { adminKey }),
+    waitForExpiry,
+    preSign,
+    readFee,
+    network,
+    ...(maxTransactionFee === undefined ? {} : { maxTransactionFee }),
+  });
+}
+
+export interface ScheduleContractCallParams {
+  client: Client;
+  /** The contract in `0.0.x` form. A Hedera transaction never takes an EVM address. */
+  contractId: string | ContractId;
+  /** The whole call data, selector included, as an ABI encoder returns it. */
+  callData: string | Uint8Array;
+  /** An explicit gas limit. The relay cannot price a call it cannot simulate. */
+  gas: number;
+  payer: SchedulePayer;
+  executeAt: Date;
+  memo: string;
+  adminKey?: Key;
+  waitForExpiry?: boolean;
+  preSign?: boolean;
+  readFee?: boolean;
+  network?: string;
+  maxTransactionFee?: Hbar;
+}
+
+/**
+ * Schedule a contract call, due at `executeAt`.
+ *
+ * The contract sees the schedule's payer as `msg.sender`, so a call behind a
+ * role check runs under the payer's authority and no key of the contract's own
+ * is needed, which a contract does not have. Measured on testnet: a scheduled
+ * call to a role gated function reverted on the argument it was given and not
+ * on the role, which is only possible if the payer was the caller. See
+ * docs/harness-notes.md.
+ *
+ * A scheduled contract call executes whether or not the call inside it
+ * succeeds, exactly like a scheduled transfer, so the result is read from the
+ * execution.
+ */
+export async function scheduleContractCall(
+  params: ScheduleContractCallParams,
+): Promise<CreatedSchedule> {
+  const {
+    client,
+    contractId,
+    callData,
+    gas,
+    payer,
+    executeAt,
+    memo,
+    adminKey,
+    waitForExpiry = true,
+    preSign = true,
+    readFee = false,
+    network = 'testnet',
+    maxTransactionFee,
+  } = params;
+
+  if (!Number.isInteger(gas) || gas <= 0) {
+    throw new Error(`a scheduled contract call needs a positive gas limit, got ${gas}`);
+  }
+
+  const call = new ContractExecuteTransaction()
+    .setContractId(contractId)
+    .setGas(gas)
+    .setFunctionParameters(toCallDataBytes(callData));
+
+  return createSchedule(call, {
+    client,
+    payer,
+    executeAt,
+    memo,
+    ...(adminKey === undefined ? {} : { adminKey }),
+    waitForExpiry,
+    preSign,
+    readFee,
+    network,
+    ...(maxTransactionFee === undefined ? {} : { maxTransactionFee }),
+  });
+}
+
+/** Call data as bytes, from either the 0x hex string form or the bytes form. */
+export function toCallDataBytes(callData: string | Uint8Array): Uint8Array {
+  if (typeof callData !== 'string') {
+    return callData;
+  }
+  const hex = callData.startsWith('0x') ? callData.slice(2) : callData;
+  if (hex.length === 0 || hex.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(hex)) {
+    throw new Error(`expected 0x prefixed call data with whole bytes, got ${callData}`);
+  }
+  return Uint8Array.from(Buffer.from(hex, 'hex'));
+}
+
+export interface SignScheduleParams {
+  client: Client;
+  scheduleId: string;
+  key: PrivateKey;
+  network?: string;
+}
+
+export interface ScheduleSignature {
+  scheduleId: string;
+  transactionId: string;
+  status: string;
+  link: string;
+}
+
+/**
+ * Add a signature to a schedule that already exists. This is the second shape
+ * DESIGN.md 3.7 allows: the API creates the premium schedules and the Steward
+ * signs them, so the payer key never leaves the Steward.
+ *
+ * A schedule whose signatures are still incomplete at its expiry simply does
+ * not execute, which is the same outcome as a payer that cannot pay.
+ */
+export async function signSchedule(params: SignScheduleParams): Promise<ScheduleSignature> {
+  const { client, scheduleId, key, network = 'testnet' } = params;
+  const signed = await new ScheduleSignTransaction()
+    .setScheduleId(scheduleId)
+    .freezeWith(client)
+    .sign(key);
+  const response = await signed.execute(client);
+  const receipt = await response.getReceipt(client);
+  const transactionId = response.transactionId.toString();
+  return {
+    scheduleId,
+    transactionId,
+    status: receipt.status.toString(),
+    link: hashscanUrl('transaction', toMirrorTransactionId(transactionId), network),
+  };
+}
+
+// -- Reading the outcome -----------------------------------------------------
+
+/** The mirror node's view of a schedule. Fields this build reads, not all of them. */
+export interface MirrorSchedule {
+  schedule_id: string;
+  consensus_timestamp: string;
+  creator_account_id: string;
+  payer_account_id: string;
+  memo: string;
+  deleted: boolean;
+  executed_timestamp: string | null;
+  expiration_time: string | null;
+  wait_for_expiry: boolean;
+  signatures: unknown[];
+}
+
+async function mirrorGet<T>(url: string): Promise<T | null> {
+  const response = await fetch(url, { headers: { accept: 'application/json' } });
+  if (response.status === 404) {
+    await response.text();
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`mirror node ${response.status} for ${url}: ${await response.text()}`);
+  }
+  return (await response.json()) as T;
+}
+
+/** The schedule entity, or null while the mirror node has not caught up. */
+export async function readSchedule(
+  mirrorUrl: string,
+  scheduleId: string,
+): Promise<MirrorSchedule | null> {
+  return mirrorGet<MirrorSchedule>(mirrorScheduleUrl(mirrorUrl, scheduleId));
+}
+
+/** What one execution of a premium schedule tells the caller. */
+export interface ScheduleExecution {
+  scheduleId: string;
+  /** Consensus timestamp of the executed transfer, `seconds.nanos`. */
+  executedAt: string;
+  /** Mirror form of the executed transfer's id, `0.0.x-seconds-nanos`. */
+  executedTransactionId: string;
+  /** SUCCESS, or the failure the transfer hit. A failed transfer still executes. */
+  result: string;
+  /**
+   * True only when the money actually moved. A schedule executes whether or not
+   * the transfer inside it succeeds, so `executedAt` alone says nothing about
+   * whether the premium was paid. `UNKNOWN`, which is what an execution whose
+   * transfer the mirror node would not return looks like, is not settled
+   * either: this fails closed, because the cost of missing a payment is a late
+   * lapse and the cost of inventing one is a policy that can never lapse.
+   */
+  settled: boolean;
+  link: string;
+}
+
+/** The result string used when the mirror node never returned the transfer. */
+export const UNKNOWN_RESULT = 'UNKNOWN';
+
+/** Whether a mirror node result string means the settlement token moved. */
+export function isSettled(result: string): boolean {
+  return result === 'SUCCESS';
+}
+
+interface MirrorTransaction {
+  transaction_id: string;
+  result: string;
+  scheduled: boolean;
+  consensus_timestamp: string;
+}
+
+/**
+ * The transfer that ran at a schedule's execution timestamp. The schedule
+ * record carries the timestamp but not the transaction id, so this is a second
+ * read keyed on the timestamp, filtered to the scheduled child.
+ */
+export async function readExecutedTransfer(
+  mirrorUrl: string,
+  executedTimestamp: string,
+): Promise<MirrorTransaction | null> {
+  const base = mirrorUrl.replace(/\/+$/, '');
+  const body = await mirrorGet<{ transactions: MirrorTransaction[] }>(
+    `${base}/transactions?timestamp=${executedTimestamp}`,
+  );
+  return body?.transactions?.find((tx) => tx.scheduled) ?? null;
+}
+
+export interface PollOptions {
+  attempts?: number;
+  delayMs?: number;
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Poll the mirror node until the schedule has executed. Returns null when the
+ * budget runs out, which is the missed-premium signal: a schedule whose payer
+ * cannot pay expires without executing and the lapse path takes over.
+ *
+ * Execution is best effort "at the earliest available consensus time after the
+ * expiration time", so the executed timestamp is close to but later than the
+ * due time. Never assert equality on it, and never derive the accounting month
+ * from it; the memo carries the month.
+ */
+export async function waitForExecution(
+  mirrorUrl: string,
+  scheduleId: string,
+  { attempts = 40, delayMs = 3000 }: PollOptions = {},
+  network = 'testnet',
+): Promise<ScheduleExecution | null> {
+  let executedAt: string | null = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (!executedAt) {
+      const schedule = await readSchedule(mirrorUrl, scheduleId);
+      if (schedule?.deleted && !schedule.executed_timestamp) {
+        return null;
+      }
+      executedAt = schedule?.executed_timestamp ?? null;
+    }
+    if (executedAt) {
+      // The two endpoints do not land at the same moment, so an execution the
+      // schedule already reports can still be missing from /transactions. Keep
+      // polling rather than reporting it with no result.
+      const executed = await readExecutedTransfer(mirrorUrl, executedAt);
+      if (executed) {
+        const transactionId = executed.transaction_id;
+        return {
+          scheduleId,
+          executedAt,
+          executedTransactionId: transactionId,
+          result: executed.result,
+          settled: isSettled(executed.result),
+          link: hashscanUrl('transaction', transactionId, network),
+        };
+      }
+    }
+    await sleep(delayMs);
+  }
+  if (executedAt) {
+    // It executed and the mirror node never showed the transfer. Report it, but
+    // never as a payment.
+    return {
+      scheduleId,
+      executedAt,
+      executedTransactionId: '',
+      result: UNKNOWN_RESULT,
+      settled: false,
+      link: '',
+    };
+  }
+  return null;
+}
+
+// -- Chaining the next month -------------------------------------------------
+
+/**
+ * What a watcher hands back when a premium executes. When `settled` is true,
+ * T09 turns this into the `CoverPool.recordPremium(policyId, period)` call from
+ * the api account and T18 writes it to the payments topic. Without that call
+ * `lapse()` becomes callable once the grace period past `paidThroughMonth` has
+ * run out, so an execution nobody records looks exactly like a missed premium.
+ *
+ * When `settled` is false the opposite rule applies and it matters more: the
+ * schedule ran but the money did not move, so recording it would mark an unpaid
+ * month as paid and `lapse()` could never fire again. That case goes to
+ * `onFailed`, never to `onExecuted`.
+ */
+export interface PremiumExecution extends ScheduleExecution {
+  policyId: string;
+  period: number;
+}
+
+/** Attach a slot's policy and period to an execution. Pure, so it is testable. */
+export function premiumExecution(
+  execution: ScheduleExecution,
+  slot: PremiumSlot,
+): PremiumExecution {
+  return { ...execution, policyId: slot.policyId, period: slot.period };
+}
+
+export interface ScheduleNextParams extends Omit<ScheduleTransferParams, 'memo' | 'executeAt'> {
+  mirrorUrl: string;
+  /** The schedule being watched, and the slot it stands for. */
+  scheduleId: string;
+  slot: PremiumSlot;
+  /** How far the next slot steps. One month unless the demo clock says otherwise. */
+  months?: number;
+  poll?: PollOptions;
+  /** Called only when the settlement token actually moved. */
+  onExecuted?: (execution: PremiumExecution) => void | Promise<void>;
+  /**
+   * Called when the schedule executed and the transfer inside it did not
+   * succeed, including the case where the mirror node never returned it. The
+   * policy is on its way to lapsing and nothing may be recorded as paid.
+   */
+  onFailed?: (execution: PremiumExecution) => void | Promise<void>;
+}
+
+export interface ScheduleNextResult {
+  execution: PremiumExecution;
+  next: CreatedSchedule;
+  slot: PremiumSlot;
+}
+
+/** A caller that ignores the callbacks still has to read this. */
+export type ScheduleNextOutcome = ScheduleNextResult & { settled: boolean };
+
+/**
+ * Wait for one premium to execute and create the following month's.
+ *
+ * A Hedera schedule cannot create another schedule, so the monthly chain is
+ * this watcher and nothing else: poll for the execution, hand it to whichever
+ * callback the settlement result calls for, then create the next month. The
+ * Steward runs it; if the process stops, the chain stops, which is why the
+ * schedules are created a few months ahead rather than one at a time.
+ *
+ * The next month is created whether or not this one settled. A failed premium
+ * is not a lapse: the policy has the 15 day grace period from DESIGN.md 3.5 to
+ * recover, and stopping the chain would leave a policyholder who tops up with
+ * no schedule to pay from. What a failure does change is that nothing is
+ * recorded as paid.
+ */
+export async function scheduleNext(
+  params: ScheduleNextParams,
+): Promise<ScheduleNextOutcome | null> {
+  const { mirrorUrl, scheduleId, slot, months = 1, poll, onExecuted, onFailed, ...transfer } =
+    params;
+
+  const execution = await waitForExecution(mirrorUrl, scheduleId, poll, transfer.network);
+  if (!execution) {
+    return null;
+  }
+
+  const premium = premiumExecution(execution, slot);
+  if (premium.settled) {
+    await onExecuted?.(premium);
+  } else {
+    await onFailed?.(premium);
+  }
+
+  const nextSlot = nextPremiumSlot(slot, months);
+  const next = await scheduleTransfer({
+    ...transfer,
+    memo: nextSlot.memo,
+    executeAt: nextSlot.executeAt,
+  });
+  return { execution: premium, next, slot: nextSlot, settled: premium.settled };
+}

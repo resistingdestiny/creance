@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyBaseLogger, FastifyPluginAsync } from 'fastify';
 
 import { canonicalize, type JsonValue } from '@creance/index-model';
 
@@ -8,6 +8,7 @@ import { AppError } from '../errors.js';
 import type { ClaimRow, ClaimStatus } from '../db/types.js';
 import type { Services } from '../services.js';
 import { openEvidence } from './evidence.js';
+import { payApprovedClaim, type PayoutOutcome } from './payout.js';
 import { hashRecord, reviewerRecord } from './record.js';
 import { requireAdmin, type AdminActor } from './token.js';
 import { adminClaimSummary, adminClaimView } from './view.js';
@@ -204,6 +205,16 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
       // claim, or one operator running the pass twice during a demo, produce
       // one decision rather than two topic messages and two records.
       if (claim.decision !== null && claim.status !== 'submitted' && claim.status !== 'under_review') {
+        // An approved claim that has not been paid is the retry path. The
+        // authorisation is stored and reusable until its deadline, and
+        // `payClaim` is permissionless, so a payout that failed for an
+        // environmental reason is one more call and not a new decision.
+        const retried =
+          claim.status === 'approved' && claim.paidTx === null
+            ? await pay(services, claim, request.log)
+            : claim.paidTx === null
+              ? undefined
+              : { paid: true, idempotent: true, transactionHash: claim.paidTx };
         return reply.send({
           claim_id: claim.claimId,
           status: claim.status,
@@ -211,6 +222,7 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
           decision_hash: claim.decisionHash,
           hcs_decision_seq: claim.hcsDecisionSeq,
           idempotent: true,
+          ...(retried === undefined ? {} : { payout: retried }),
         });
       }
 
@@ -286,17 +298,51 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
         'a claim was decided',
       );
 
+      // The second key turns here. An approval is a decision with a hash the
+      // CLAIMS role can sign over, which is the whole of what `payClaim`
+      // checks, so the payout runs in the same request the decision arrives in
+      // and a clean claim is decided and paid in one session, as DESIGN.md 3.9
+      // says it should be.
+      const payout = decision === 'approve' ? await pay(services, stored, request.log) : undefined;
+      const paid = payout?.paid === true ? await services.repository.claim(stored.claimId) : null;
+
       return reply.status(201).send({
         claim_id: stored.claimId,
-        status: stored.status,
+        status: paid?.status ?? stored.status,
         decision: stored.decision,
         decision_hash: stored.decisionHash,
         hcs_decision_seq: stored.hcsDecisionSeq,
         idempotent: false,
+        ...(payout === undefined ? {} : { payout }),
       });
     },
   );
 };
+
+/**
+ * The payout, which can refuse but must never fail the decision.
+ *
+ * A decision is a record and a hash on a public topic; a payout is a
+ * transaction that can revert for reasons that have nothing to do with the
+ * claim being valid, the realistic one on Hedera being a wallet that has not
+ * associated the settlement token. So the decision stands, the authorisation is
+ * stored, and the payout is reported as what it was. Anyone can retry it.
+ */
+async function pay(
+  services: Services,
+  claim: ClaimRow,
+  log: FastifyBaseLogger,
+): Promise<PayoutOutcome> {
+  try {
+    return await payApprovedClaim(services, claim, log);
+  } catch (error) {
+    log.error(
+      { err: error, claim_id: claim.claimId },
+      'the payout failed after the claim was approved',
+    );
+    return { paid: false, reason: 'payout_failed' };
+  }
+}
 
 /**
  * The claims whose decision hash has not reached the topic yet.

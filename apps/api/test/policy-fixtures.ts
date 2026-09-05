@@ -25,6 +25,7 @@ import {
   type EvidenceKeys,
 } from '../src/claims/evidence.js';
 import type { AdminTokens } from '../src/claims/token.js';
+import { TopicOutbox } from '../src/x402/settlement.js';
 import { CredentialIssuer } from '../src/credentials.js';
 import { MemoryRepository } from '../src/db/memory.js';
 import type { ClaimRow, GroupRow, ObservationRow } from '../src/db/types.js';
@@ -451,6 +452,7 @@ export async function buildTestServices(
     adminTokens?: AdminTokens;
     evidenceKeys?: EvidenceKeys | null;
     evidenceStore?: MemoryObjectStore;
+    outbox?: TopicOutbox;
   } = {},
 ): Promise<TestHarness> {
   const repository = new MemoryRepository(GROUPS);
@@ -472,6 +474,7 @@ export async function buildTestServices(
     indexData: null,
     // No gate: the paid path has its own file and its own testnet command.
     x402: null,
+    outbox: options.outbox ?? new TopicOutbox({ attempts: 1 }),
     adminTokens: options.adminTokens ?? ADMIN_TOKENS,
     evidenceKeys: options.evidenceKeys === undefined ? TEST_EVIDENCE_KEYS : options.evidenceKeys,
     evidenceStore: options.evidenceStore ?? new MemoryObjectStore(),

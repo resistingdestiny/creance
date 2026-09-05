@@ -3596,3 +3596,34 @@ that neither app's maths uses.
 
 Both copies answer to docs/INDEX-SPEC.md section 9 rather than to each other, and
 both are held by tests that assert the line holds at 45 days and trips at 46.
+
+They do not measure from the same place, and that is deliberate rather than a
+consequence of the duplication. The oracle measures the newest period the source
+carries, because the question it is asking is whether the Bureau has published.
+The health endpoint measures the newest period this deployment published,
+because the question it is asking is whether the feed a caller is paying for is
+current. They agree while publication keeps up with releases, and where they
+disagree the gap is the thing worth seeing: a source that has moved on while
+this deployment has not is a publication failure, and it would be invisible if
+both numbers came from the same side.
+
+### The index health document degrades rather than failing with the database
+
+`GET /health` embeds the index block, so a repository call inside it is a
+repository call inside the endpoint that exists to report a database outage. The
+first version awaited `latestPeriods` outside the handler's own try, which meant
+an unreachable Postgres produced an error envelope instead of the degraded
+document with the git SHA, `deps.db` and the replay state in it.
+
+The read is now caught and the result is `null` rather than an empty list. Null
+and empty are different answers: an empty list is a deployment that has
+published nothing, null is a deployment that could not be asked, and reporting
+the second as the first would say the index had never published anything. So the
+document carries `database: unreachable`, leaves `last_period_by_group` empty,
+reports no staleness, and answers `degraded`; a failed last run still outranks
+it, because that is a fact about this deployment rather than about what could be
+read.
+
+The half an operator needs most survives, because it never came from the
+database: whether the oracle ran, whether the gates passed, and which calendar
+the feed is on all come from the two files the oracle writes.

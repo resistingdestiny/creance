@@ -38,6 +38,8 @@ vi.mock('../src/app/claim-actions.js', () => ({
 
 vi.mock('../src/app/admin/claims/actions.js', () => ({
   decide: vi.fn(async () => ({ ok: true, message: 'Approved and paid.' })),
+  signIn: vi.fn(async () => ({ ok: false, message: 'That token was not accepted.' })),
+  signOut: vi.fn(async () => ({ ok: true, message: 'Signed out.' })),
 }));
 
 /** The widget is the SDK's and opens a QR code. Its contract is four callbacks. */
@@ -51,9 +53,10 @@ const { ConfirmScreen } = await import('../src/app/claim/confirm/confirm-screen.
 const { ReviewScreen } = await import('../src/app/claim/review/review-screen.js');
 const { ClaimStatusScreen } = await import('../src/app/claim/status/status-screen.js');
 const { ReviewQueue } = await import('../src/app/admin/claims/review-queue.js');
+const { ReviewerSignIn } = await import('../src/app/admin/claims/sign-in.js');
 const { HomeScreen } = await import('../src/app/home/home-screen.js');
 const { OfflineNotice } = await import('../src/app/home/offline-notice.js');
-const { decide } = await import('../src/app/admin/claims/actions.js');
+const { decide, signIn } = await import('../src/app/admin/claims/actions.js');
 const { claimDay, claimsOpenLine, homeStatus, lapsedCopy } = await import(
   '../src/lib/claim-model.js'
 );
@@ -491,6 +494,28 @@ describe('the admin review queue', () => {
   it('offers no decision on a claim whose detail could not be read', () => {
     render(<ReviewQueue rows={[{ ...row, decidable: false }]} status="under_review" />);
     expect(screen.getByRole('button', { name: 'Approve' }).hasAttribute('disabled')).toBe(true);
+  });
+});
+
+describe('the reviewer sign in', () => {
+  it('asks for the token and says why', () => {
+    render(<ReviewerSignIn />);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Review queue');
+    expect(screen.getByLabelText('Reviewer token')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open the queue' })).toBeTruthy();
+  });
+
+  it('never puts the token on screen', () => {
+    render(<ReviewerSignIn />);
+    expect(screen.getByLabelText('Reviewer token').getAttribute('type')).toBe('password');
+  });
+
+  it('says only that a wrong token was wrong', async () => {
+    render(<ReviewerSignIn />);
+    fireEvent.change(screen.getByLabelText('Reviewer token'), { target: { value: 'wrong' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Open the queue' }));
+    expect(await screen.findByText('That token was not accepted.')).toBeTruthy();
+    expect(signIn).toHaveBeenCalled();
   });
 });
 

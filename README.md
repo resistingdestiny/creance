@@ -90,6 +90,19 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
 
 ## Layout
 
+Five applications, two shared packages and one Hardhat project. `apps/api` is
+the integration point: it prices and binds cover, meters three of its routes
+with x402, verifies World proofs, serves the claims and audit reads, and is the
+only thing that talks to Postgres. `apps/web` renders every screen and reads
+that API on the server. `apps/oracle` turns the published BLS series into the
+index, publishes each observation to the index topic and submits it to
+CoverPool, which is what opens a month for an occupation group. `apps/steward`
+buys cover as an agent and `apps/adjuster` decides claims as one, and both reach
+the API over HTTP like any other client. `contracts` holds CoverPool and
+CollateralVault, which hold the policies, the capacity and the money. Everything
+on chain is Hedera testnet, and every account, token, topic and contract id is
+in [docs/HEDERA.md](docs/HEDERA.md).
+
     apps/web            worker, investor and admin screens, and the demo clock
     apps/web/src/app    the worker flow: / then /occupation, /amount, /verify, /pay, /home, /cover/index
     apps/web/src/app/invest  the investor overview at /invest and subscribe at /invest/subscribe

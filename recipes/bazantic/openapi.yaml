@@ -204,6 +204,11 @@ paths:
         never performs the check itself, and the NFT is always minted to the
         principal wallet named in the credential.
 
+        The credential is issued by POST /v1/world/verify, which forwards the
+        complete IDKit result to World and checks it. That is the only issuer
+        this API offers a person; it is not part of this gateway because a
+        Selfie Check is completed in the World App and not by an agent.
+
         Price: the first month premium, taken from the quote. There is no static
         price for this operation.
       parameters:
@@ -428,7 +433,7 @@ components:
         A short-lived eligibility credential, EdDSA over Ed25519, thirty minutes, carrying the
         nullifier, the occupation group, the series and the wallet. Verify it against GET
         /.well-known/jwks.json. An agent gets one from its principal after that person completes a
-        World Selfie Check.
+        World Selfie Check; the issuer is POST /v1/world/verify.
   schemas:
     Money:
       type: object

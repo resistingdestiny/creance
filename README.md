@@ -360,6 +360,53 @@ the due dates seconds apart, so a whole chain is visible inside one run.
 A full run against testnet, with every link, is in
 [docs/demo/steward.txt](docs/demo/steward.txt).
 
+## Tokenization
+
+The premiums are funded by investors who buy the series as a security. The
+Displacement Bond Note is issued through the [Asset Tokenization
+Studio](https://github.com/hashgraph/asset-tokenization-studio) release 8.0.0 as
+a Bond with the ERC-3643 configuration: an identity registry, a KYC list of
+investor accounts, transfer restrictions, and pause and freeze roles. The demo
+note is contract
+[0.0.10368240](https://hashscan.io/testnet/contract/0.0.10368240) and every
+transaction behind the steps below is linked in [docs/ATS.md](docs/ATS.md).
+
+Three commands, in this order. Each one is idempotent: run it again and it reads
+the chain, finds the work done and does nothing, so a judge repeating a step
+sees `nothing to do` rather than a second issuance.
+
+    pnpm ats:issue        issuance, roles, the credential issuer, KYC, mints,
+                          a blocked then an allowed transfer, pause, freeze
+                          and the first declared coupon
+    pnpm coupons:pay      the declared coupon settled to each holder by a
+                          Scheduled Transaction, then published to the
+                          payments topic
+    pnpm coupons:mature   a maturity redemption, on a short dated series
+                          opened for it because the demo series matures in 2027
+
+Each command takes a stage name to run one step on its own, which is what to use
+when watching a single operation rather than the whole sequence.
+`pnpm ats:issue status` prints where the series has got to and sends nothing;
+the stage lists are in [Commands](#commands) above.
+
+What each step proves, and where the evidence is:
+
+| Step | What it demonstrates | Links |
+| --- | --- | --- |
+| `issue` | The security exists on testnet with its coupon schedule configured | [docs/ATS.md](docs/ATS.md), "The run through" step 2 |
+| `kyc1`, `mint1`, `kyc2`, `mint2` | The identity registry gates who may hold the note | [docs/HEDERA.md](docs/HEDERA.md), "The compliance demonstration" |
+| `blocked` then `allowed` | The same transfer fails compliance and then succeeds after a KYC grant | [docs/HEDERA.md](docs/HEDERA.md), "The compliance demonstration" |
+| `controls` | Pause and freeze, the two roles a regulated issuer needs | [docs/HEDERA.md](docs/HEDERA.md), "The compliance demonstration" |
+| `coupon`, then `pnpm coupons:pay` | A coupon distribution paid by Scheduled Transaction, with the settlement on the payments topic | [docs/HEDERA.md](docs/HEDERA.md), "The first coupon" |
+| `pnpm coupons:mature` | Redemption at maturity: the holding is burned through ATS and the principal returns from the vault | [docs/HEDERA.md](docs/HEDERA.md), "The maturity demonstration" |
+
+The principal at risk logic is ours, not ATS's: the CollateralVault holds the
+subscribed principal and the CoverPool reserves against it when a month opens,
+pays approved claims out of the reserve and returns the remainder when the claim
+window closes. That is why a paid claim lowers noteholder principal. Both
+contracts are verified on HashScan and their addresses are in
+[docs/HEDERA.md](docs/HEDERA.md).
+
 ## Claims
 
 A payout needs two keys. The index key is the group's index being open, which

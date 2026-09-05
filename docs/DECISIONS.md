@@ -1019,3 +1019,157 @@ the same value, because framework public variables are inlined at build time and
 only a prefixed name reaches the browser bundle. Both are in `.env.example` with
 the same default, and both must be set to `https://creance.co` before the
 production build runs, not after.
+
+## T07, the API, 5 September 2026
+
+### The bind receipt goes to the payments topic, not the index topic
+
+The acceptance for T07 asks for the receipt on the index topic. It cannot go
+there: the index topic's submit key is the oracle's, and the api account cannot
+write to it. Creating a fifth topic would be a change to `pnpm hedera:setup` in
+the contracts workspace, outside this ticket's scope, and would give the read
+side two places to look for a settlement record.
+
+So the receipt goes to the payments topic, whose submit key the api account
+holds. T14 already writes versioned messages there with a `kind` field, so a
+`{"v":1,"kind":"policy",...}` message sits beside the coupons and the premiums
+and one reader parses all three. The policy id travels in the message, so the
+link from a payment to a policy exists in the direction that matters.
+
+### A bind writes two topic messages, not one
+
+`BindParams.hcsReceiptSeq` is an input to `CoverPool.bind`, so the receipt has
+to be on the topic before the contract call. A call that then reverts would
+leave a message on a public settlement record claiming a policy that does not
+exist, and a message cannot be withdrawn.
+
+So the first message carries `status: "binding"` and the second carries
+`status: "bound"` or `status: "failed"` with the reason, the bind transaction
+and the NFT serial, and quotes the first message's sequence number in
+`receiptSeq`. A reader takes the second message as the outcome and the first
+only as the sequence number the chain recorded. The alternative, a single
+message written after the bind, cannot exist: its sequence number is the thing
+the bind needs.
+
+### The policy NFT is minted and frozen with the operator key
+
+The CPOL collection's treasury, admin, supply and freeze keys are all the
+operator's, set that way by `pnpm hedera:setup`. The api account, which holds
+BINDER_ROLE, cannot mint a serial or freeze a holder against it.
+
+The two ways out were a `TokenUpdate` rotating the supply and freeze keys to the
+api key, signed by the operator admin key, or letting the API process hold the
+operator key. The API process holds the operator key. This is testnet only, the
+operator key already funds every account in the build and is already required by
+`pnpm contracts:deploy`, and a key rotation on the collection would have to be
+undone before any later ticket that mints outside the API. The API pays for the
+mint from the api account and adds the operator signature only where the token's
+own keys demand it, so the fee accounting still reads as the API's.
+
+If this ever leaves testnet the rotation is the answer, and it is one
+transaction.
+
+### Every account key is derived from the operator key, including the API's
+
+`HEDERA_API_KEY` is in the example environment and may be left blank. When it is
+blank the API derives the key with HKDF-SHA256 over the operator key and the
+label `creance/testnet/api`, which is exactly what `pnpm hedera:setup` did when
+it created the account. A clone that has the operator key therefore has every
+account, and no derived secret is ever written down. An explicit value wins,
+which is what a rotation would look like.
+
+The derivation moved from `contracts/scripts/hedera/derive.ts` to
+`packages/client/src/hedera/keys.ts` so that the API can use it without pulling
+Hardhat into its dependency graph. The contracts module re-exports it, so there
+is one implementation and the day 0 setup and the API cannot derive different
+keys for the same role.
+
+### The API writes the observations table until the oracle exists
+
+docs/INDEX-SPEC.md section 6.4 of the API note says the API never writes
+`observations` and the oracle never writes anything else. That is the end state.
+Today the oracle is T12 and does not exist, nothing has been published to the
+index topic, and `GET /v1/index/:group` has to answer.
+
+So the API loads the whole history from the committed archive under `data/bls`
+at boot, through `packages/index-model`, and writes it into `observations` with
+`ON CONFLICT DO NOTHING`, because the first published value settles forever. The
+rows carry no HCS sequence number and no on-chain submission id, which is
+honest: nothing was published. When T12 arrives it becomes the writer and this
+becomes the path a clone takes before it has ever run the oracle.
+
+### The observations table follows INDEX-SPEC, not the API note
+
+Two shapes were on offer: the API note's `observations`, keyed on
+`(series_id, period)`, and docs/INDEX-SPEC.md section 10's, keyed on
+`(group_key, period, status)`. The second one is used, because the oracle owns
+this table and the specification the oracle is built to is the one that has to
+be satisfied. The consequence is that a revision arrives as a second row with
+`status = 'revised'` beside the value that settled, rather than as an update.
+
+A and L are not columns on it. They are frozen at issuance, they live in the
+published calibration and on chain in `SeriesTerms`, and the API reads them
+from the calibration so that all fifteen groups have them and not only the one
+with a series behind it.
+
+### The interim eligibility issuer, replaced by T11
+
+`POST /v1/demo/eligibility` mints an eligibility credential without a World
+Selfie Check. It exists so that `POST /v1/bind` can take a real credential and
+enforce every rule around it today, rather than being built twice. It is
+labelled in its own response body, it is not in the Bazantic OpenAPI document,
+and `DEMO_ELIGIBILITY_ISSUER=false` turns it off.
+
+T11 replaces the issuer and nothing else: the credential shape, the JWKS, the
+audience check, the single-use `jti` and the wallet, group and series checks at
+bind are all already here and already tested.
+
+The credential is EdDSA over Ed25519 rather than an HMAC over a shared secret,
+so that the Steward and the Bazantic gateway can verify a credential they are
+carrying without holding a key that could also mint one. The public half is at
+`GET /.well-known/jwks.json`.
+
+### A quote takes no capacity hold
+
+A quote reports the capacity as it stands and expires in fifteen minutes;
+`POST /v1/bind` rechecks it under a row lock and against the chain, and
+`CoverPool.bind` rechecks it again. Holding capacity would mean expiring holds,
+and a hold that leaks is a series that cannot be filled. With one series and
+three policyholders in the demo, a contended failure at bind is the better
+trade.
+
+### The premium comes from the DECISIONS formula, and it is not 15 to 30
+
+The price is the guide rate from the distance to the level line multiplied by
+the capacity term, which is the formula of record. Priced against the archive's
+latest month, July 2026, the demo series quotes 96 basis points, which is 4.00 a
+month for a 5,000 limit and not the 15 to 30 DESIGN.md 3.4 gives as the demo
+number. The premium is a function of the month, and across the demo window it
+runs from 4.00 in July 2026 to 50.42 in April 2026. The numbers are in
+docs/harness-notes.md.
+
+### The first premium is written as uncollected
+
+There is no x402 gate in this ticket, so `POST /v1/bind` cannot collect the
+first premium. It writes a `payments` row with `status = 'uncollected'` and a
+null `facilitator_tx` all the same, so that T08 settles a row that already
+exists rather than adding a second write path. The row carries the payments
+topic sequence number of the bind receipt, which is the link the audit trail
+needs.
+
+### Plain SQL migrations, not an ORM
+
+apps/oracle writes `observations`, `runs` and `source_files` in the same
+database from T12. A schema owned by one application's model classes is a
+schema the other has to guess at, so the schema is plain SQL files applied in
+name order and recorded in `schema_migrations`, and the typed access is hand
+written queries behind a repository interface. The interface has a memory
+implementation so that `pnpm test` needs no database, and it enforces the two
+rules that matter, the one active policy per nullifier per series and the
+capacity check, so those are tested rather than assumed.
+
+### recordPremium has a wrapper and no caller
+
+`CoverPool.recordPremium(policyId, period)` is on the chain gateway, because
+T09 needs it and writing it here cost nothing. Nothing in T07 calls it: a
+premium has to settle before it can be recorded, and nothing settles until T08.

@@ -8,6 +8,7 @@
     "once": "tsx --env-file-if-exists=../../.env src/cli/once.ts",
     "replay": "tsx --env-file-if-exists=../../.env src/cli/replay.ts",
     "preflight": "tsx --env-file-if-exists=../../.env src/cli/preflight.ts",
+    "schedule": "tsx --env-file-if-exists=../../.env src/cli/schedule.ts",
     "verify": "tsx --env-file-if-exists=../../.env src/cli/verify.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

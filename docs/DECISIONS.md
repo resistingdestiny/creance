@@ -2950,6 +2950,47 @@ The token is a private server variable and never a NEXT_PUBLIC one. The web
 image inlines public variables at build time, so a token there would be in the
 bundle a judge can read.
 
+### A reviewer proves who they are before the server spends its own admin token
+
+Affects T16 and T21.
+
+The entry above gives the web server `ADMIN_TOKEN` so that screen C9 can print
+the sentences a decline carries. The review queue needs the same token for a
+different reason, and the two are not the same permission: C9 reads one claim,
+named by the browser's own server side session, and returns one field. The queue
+reads every waiting claim with the claimant's employer, job title, separation
+date and evidence fingerprints on it, and its two buttons call
+`POST /v1/admin/claims/:id/decide`, where an approval runs `payClaim` and moves
+settlement funds out of the vault.
+
+Gating that on `hasAdminToken()` gates it on the server's own configuration, so
+every request that reaches the app is a reviewer. T21 puts the web app on a
+public host with everything outside `/v1/*` routed to it, so that is a stranger
+with a claimant's file open and a payout button. The API's own bearer gate is
+constant time and per request, and a screen in front of it that gates nothing
+undoes it.
+
+So a reviewer signs in: one screen, the same token typed once, compared in
+constant time over sha256 digests rather than raw strings, because
+`timingSafeEqual` throws on a length mismatch and the exception would leak the
+length. What the browser then holds is an opaque id in an httpOnly cookie
+scoped to `/admin`, exactly as `claim-session.ts` holds the id of a claim, and
+the token itself never goes back. The session lives in the web process's memory
+for eight hours, so a restart signs everyone out, which is the safe direction.
+
+Both halves are checked, and the action's check is not the page's. A Next.js
+server action is its own endpoint, reachable without ever loading the page that
+renders the button, so `decide` checks the session before it uses the claim id
+for anything and refuses without calling the API at all. That is what
+`apps/web/test/review-gate.test.ts` asserts: not that the screen said no, but
+that the API was never reached.
+
+What this is not: one shared credential, no accounts, no rate limit on the entry
+screen, and a decision that records `reviewer:root` whoever typed it.
+docs/CLAIMS.md already says per-actor scopes are on the list of things a real
+deployment needs and this one does not have. This closes the hole that a public
+deployment opens; it does not turn the queue into an identity system.
+
 ### The five choices on C2 collapse eight separation types onto five labels
 
 docs/DESIGN-TOKENS-ADDENDUM.md fixes five labels for "How did it end?" and

@@ -123,7 +123,7 @@ describe('the decision record', () => {
     const record = decideFixture(packetA()).record;
     const shuffled = Object.fromEntries(
       Object.entries(record as unknown as Record<string, unknown>).reverse(),
-    ) as typeof record;
+    ) as unknown as typeof record;
     expect(decisionHash(shuffled)).toBe(decisionHash(record));
   });
 

@@ -3462,3 +3462,137 @@ useful for checking that a shot is framed correctly before the state it needs
 exists on chain. It is never used in a take: nothing in a demonstration path may
 run against a mock, and the screen prints a label saying nothing came from the
 API. docs/DEMO.md says both halves of that.
+
+## T26, index operations, 5 September 2026
+
+The scheduler, the QA gates as an operational rule rather than a pure function,
+monitoring, revisions and the backfill proof. docs/INDEX-SPEC.md sections 5 to
+12 are the specification; these are the places the build had to decide something
+it left open, or differ from it.
+
+### The runs table is a file the API reads, not a Postgres table the oracle writes
+
+docs/INDEX-SPEC.md section 10 puts `runs` in Postgres, in the apps/api schema,
+owned by the oracle. The oracle has no database connection: T12 kept it off
+Postgres deliberately, behind an `ObservationWriter` interface with a JSON file
+behind it, so the two apps stayed decoupled. T26 keeps that arrangement and adds
+a second file beside the first, `ORACLE_RUNS_PATH`, defaulting to
+var/oracle/runs.json.
+
+The alternative was a `PostgresObservationWriter` and a runs writer beside it,
+plus `DATABASE_URL` in the oracle service. It was rejected for three reasons.
+`pnpm test` has to stay chain free and database free, so every path that writes
+a row would need a second implementation for the tests anyway. The API already
+reads one file the oracle writes across the same volume, and the reader for it
+is thirty lines of coercion that cannot throw, so this is a shape both apps
+already know. And a database connection in the worker is a new failure mode for
+the daily check: an index that stops publishing because its heartbeat table was
+unreachable is worse than one that writes a file.
+
+What is lost is that the runs table is not queryable with SQL, and that the two
+copies of the schema, the migration and the file, can drift. The migration keeps
+`runs` as it is, so the day the oracle does take a connection the shape is
+already there.
+
+The file carries the period as the `YYYY-MM` string rather than the integer form
+of the Postgres column, because every other period in the oracle is that string
+and a file the API coerces field by field gains nothing from the integer.
+
+### One invocation of the scheduler is one check
+
+The ticket did not say whether `pnpm oracle:schedule` schedules itself or the
+container loop does. The image's command already loops the script and sleeps a
+day, and T21 recorded that as a decision, so the loop owns the cadence and one
+invocation does one check and exits.
+
+That is the safer half of the pair. A resident process that has to hit 14:10 UTC
+itself is a process whose clock, restarts and missed windows all have to be
+reasoned about, and a check that publishes only what the source has and the
+store and the topic do not is safe at any hour and safe to run twice. The 14:10
+in the specification is what the loop was started at, and `--wait` exists for a
+deployment with no loop around it: it sleeps until the next `--at` and then does
+its one check. Both paths run the same check, so a manual run and a scheduled
+run cannot drift apart.
+
+### GET /v1/index/health is under the metered prefix, and the gate exempts it
+
+docs/INDEX-SPEC.md section 9 names the path. The x402 gate meters
+`GET /v1/index/:group`, which compiles to one non-empty segment and so matches
+`health` as readily as `computer_math`, and the library's pattern syntax escapes
+every character a negative lookahead would need, so the exemption cannot be
+written as a pattern.
+
+It is written as a list of exact method and path pairs, `FREE_UNDER_METERED_PREFIX`,
+applied by overriding `requiresPayment` on the resource server the middleware
+asks. Exact paths and not a prefix, because a prefix under a metered prefix is
+exactly how a free route silently stops being free. Two tests hold it: one that
+the endpoint answers 200 with the gate configured, and one that a reading for a
+group still answers 402, so the exemption cannot widen unnoticed.
+
+The alternative was `GET /v1/health`, outside the metered prefix, which needs no
+exemption at all and which T12 anticipated. It was rejected because the
+specification names this path and an operator will type this path. Fastify
+matches a static segment before a parameter, so the route and the reading route
+coexist and `health` never reaches the metered handler.
+
+### A revision is a second row, keyed by its status
+
+docs/INDEX-SPEC.md section 10 keys observations on `(group_key, period, status)`,
+which allows a revision row beside the settled one, and section 6 says the
+settled row is never touched. The store's key gains the status only when the
+status is a revision, so everything that asks "was this period published" asks
+about the settlement and passes no status at all.
+
+Two revisions of one period collapse to one row, which is what the unique key
+says and what stops a fetch run twice recording the same restatement twice. A
+run that finds a source hash it has already recorded a revision for does
+nothing.
+
+The published message carries `"status":"revision"`, which is section 7's word.
+The stored row carries `revised`, which is the word the observations table's
+status check in apps/api/migrations/001_init.sql uses. They are the same event,
+and the two words are the two schemas' rather than a distinction.
+
+The revision path takes no submitter at all. The contract would ignore a second
+observation for the same period, and asking it to would be a worse way of saying
+"settlement never moves" than not asking.
+
+### Backfill writes a file and no observation rows
+
+docs/INDEX-SPEC.md section 11 says backfill "writes observations with status
+final". It does not, and this records that rather than leaving it to be found.
+
+What settles is what the index topic carries, and backfill publishes nothing by
+design: history before a series existed is context, not settlement. Rows for
+periods that were never published would be a second answer to the question the
+topic already answers, and the observations table is what the metered feed reads
+from, so unpublished history in it would be sold as a reading. docs/INDEX.md,
+which is what the backfill regenerates, is the artefact the specification is
+really asking for, and it is byte identical on a rerun.
+
+### Alerts are one POST and no queue
+
+`NOTIFY_URL` did not exist anywhere before this ticket. It is one HTTP POST per
+alert with a body of event, group, period, message and run id, no signature and
+no authentication, because everything in the body is already public on the topic.
+
+There is no retry and no queue, and a delivery that fails is logged. A run that
+failed because its alert failed would turn a notice into an outage. A clone with
+no `NOTIFY_URL` logs the line it would have sent, so the demo path and
+`pnpm test` need no endpoint, and every alert is written to the run log as well
+as posted, so the container logs the event window keeps carry them too.
+
+The specification also sends alerts to STATUS.md. That file is the board's,
+outside this repository, and builders do not edit it; docs/INDEX-OPS.md says the
+daily status job is what carries index health into it.
+
+### The staleness rule is duplicated rather than shared
+
+The 45 day line and the age arithmetic exist twice, in apps/oracle/src/staleness.ts
+and in apps/api/src/oracle/health.ts. The API must not import the worker, which
+is the same rule apps/api/src/replay/state.ts follows for the state reader, and
+the alternative was to put an operations threshold into the pure model package
+that neither app's maths uses.
+
+Both copies answer to docs/INDEX-SPEC.md section 9 rather than to each other, and
+both are held by tests that assert the line holds at 45 days and trips at 46.

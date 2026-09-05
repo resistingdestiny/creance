@@ -12,6 +12,7 @@ This is the scaffold. Every workspace is in place with a placeholder test, and e
 
 - Node 22 or later
 - pnpm 11.25.0, which is pinned by the `packageManager` field in [package.json](package.json). Run `corepack enable` and pnpm will match it.
+- PostgreSQL 14 or later, for the API. Only the API needs it, and only when it runs: `pnpm test` has no database.
 
 ## Setup
 
@@ -20,6 +21,13 @@ This is the scaffold. Every workspace is in place with a placeholder test, and e
 
 Then fill in the blanks in `.env`. Every variable is listed with a one line comment in [.env.example](.env.example). Nothing in the scaffold needs credentials, so `pnpm test` works before you fill anything in. `.env` is ignored by git and must never be committed.
 
+For the API, point `DATABASE_URL` at a PostgreSQL database you can write to and create the schema:
+
+    createdb creance
+    pnpm api:migrate
+
+`pnpm api:migrate` applies the migrations under `apps/api/migrations` and seeds the fifteen occupation groups. It is idempotent: running it again prints `nothing to do`. The API also runs it at boot, so a first `pnpm dev` after `createdb` is enough.
+
 ## Commands
 
 Run all of these from the repository root.
@@ -27,8 +35,8 @@ Run all of these from the repository root.
 | Command | What it does |
 | --- | --- |
 | `pnpm test` | Runs every unit test in every workspace. Chain free, no credentials needed. |
-| `pnpm test:testnet` | Runs the integration tests against Hedera testnet. Needs `.env`. |
-| `pnpm dev` | Runs the web app on http://localhost:3000. The component gallery, which is the design review surface, is at http://localhost:3000/gallery. The API joins this command in T07. |
+| `pnpm test:testnet` | Runs the integration tests against Hedera testnet: the contract lifecycle run through, then one policy bound end to end through the API. Needs credentials and a database. |
+| `pnpm dev` | Runs the web app on http://localhost:3000 and the API on http://localhost:3210, together. The component gallery, which is the design review surface, is at http://localhost:3000/gallery. |
 | `pnpm lint` | Runs eslint across the repository. |
 | `pnpm typecheck` | Runs the TypeScript compiler in every workspace without emitting. |
 | `pnpm oracle:once` | Pulls BLS data, computes the ODI and publishes one observation to HCS. |
@@ -44,7 +52,9 @@ Run all of these from the repository root.
 | `pnpm ats:issue` | Issues the demo Displacement Bond Note series as an Asset Tokenization Studio bond on Hedera testnet and runs the compliance sequence: roles, the credential issuer, a KYC grant per noteholder, the mints, a blocked then allowed transfer, pause, freeze and the first coupon. Idempotent: run it again and it does nothing. The run through with a link for every transaction is [docs/ATS.md](docs/ATS.md). Stages: `status throwaway issue roles issuer kyc1 mint1 blocked kyc2 allowed mint2 controls coupon couponcheck verify`. |
 | `pnpm coupons:pay` | Settles a declared coupon on Hedera testnet: seeds the premium account, subscribes the noteholders in the vault, pays each holder with a Scheduled Transaction carrying the vault's `fundCoupon` call, and publishes each settlement to the payments topic. Idempotent: run it again and it does nothing. The run through is [docs/ATS.md](docs/ATS.md) section 14. Stages: `status fund probe seed subscribe pay publish verify`. |
 | `pnpm coupons:mature` | Runs a maturity redemption on Hedera testnet, on a short dated series opened for the purpose because the demo series matures in 2027: opens the series and a matching note, subscribes both noteholders, waits, then burns each holding through ATS and returns the principal from the vault. Stages: `status fund open bond subscribe wait redeem payout`. |
-| `pnpm api:dev` | Runs the investor endpoints locally on port 3210: `GET /v1/series/:id` and `GET /v1/series/:id/coupons`, reading Hedera testnet. |
+| `pnpm api:dev` | Runs the API alone on port 3210, reading Hedera testnet and the local database. Endpoints: `POST /v1/quote`, `POST /v1/bind`, `GET /v1/policy/:id`, `GET /v1/index/:group`, `GET /v1/series/:id`, `GET /v1/series/:id/coupons`, `GET /healthz` and `GET /.well-known/jwks.json`. Set `PORT` to move it. |
+| `pnpm api:migrate` | Creates the API schema and seeds the fifteen occupation groups. Idempotent. |
+| `pnpm api:openapi` | Regenerates [recipes/bazantic/openapi.yaml](recipes/bazantic/openapi.yaml) and the JSON beside it from the routes. A test fails if the committed files differ. |
 | `pnpm demo:seed` | Seeds the demo series, policyholders, investors and claim packets. |
 
 Both oracle commands read `data/bls` first, the snapshot of the raw BLS files committed at kick-off, which is verified against its `PROVENANCE.txt` hashes before anything is computed. That makes the published tables reproducible from a clean clone with no network and no credentials. `--source cache` reads whatever a previous live fetch left under `var/cache/bls`, and `--source api` fetches from the BLS Public Data API and caches the raw responses there. The API path works without a key, on the v1 endpoint, at 25 requests a day; set `BLS_API_KEY` in `.env` to use v2 and its higher allowance. Both paths send `BLS_CONTACT` as the User-Agent, because BLS refuses a client that does not identify itself.
@@ -64,9 +74,12 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
     packages/index-model  ODI maths, calibration and backtests, no chain dependencies
     data/bls            snapshot of the raw BLS source files, with their hashes
     contracts/coupons   coupon settlement and the maturity demonstration
-    packages/client     API client, Scheduled Transactions and amount conversion
+    packages/client     API client, Scheduled Transactions, mirror node reads, amount conversion
+    recipes/bazantic    the OpenAPI document the Bazantic gateway imports
 
 Workspaces are named under the `@creance` scope. Every one of them extends [tsconfig.base.json](tsconfig.base.json), which sets TypeScript to strict.
+
+The API's schema is plain SQL under `apps/api/migrations`, applied in name order and recorded in `schema_migrations`. It is deliberately not owned by an ORM: the index oracle writes `observations`, `runs` and `source_files` in the same database, so the schema has to be readable by something that is not the API process.
 
 Solidity sources belong in `contracts/contracts`, which is where Hardhat looks by default. [contracts/hardhat.config.ts](contracts/hardhat.config.ts) configures two networks and no others: the local in process chain for unit tests, and Hedera testnet through the Hashio JSON-RPC relay. The deploy key is read from the environment, so an empty environment simply leaves the account list empty.
 

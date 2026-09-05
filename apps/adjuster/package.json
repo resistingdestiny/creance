@@ -5,11 +5,23 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
+    "start": "tsx --env-file-if-exists=../../.env src/main.ts",
+    "extract": "tsx --env-file-if-exists=../../.env scripts/extract.ts",
+    "fixtures": "tsx scripts/render-fixtures.ts",
+    "testnet:publish": "tsx --env-file-if-exists=../../.env scripts/testnet/publish.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.124.0",
+    "@creance/client": "workspace:*",
+    "@creance/index-model": "workspace:*",
+    "@hiero-ledger/sdk": "2.87.0",
+    "zod": "4.5.4"
   }
 }

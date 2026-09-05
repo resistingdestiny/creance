@@ -17,6 +17,8 @@
     "typecheck": "pnpm -r typecheck",
     "oracle:once": "pnpm --filter @creance/oracle once",
     "oracle:replay": "pnpm --filter @creance/oracle replay",
+    "oracle:preflight": "pnpm --filter @creance/oracle preflight",
+    "oracle:verify": "pnpm --filter @creance/oracle verify",
     "oracle:backtest": "pnpm --filter @creance/index-model backtest",
     "oracle:backfill": "pnpm --filter @creance/index-model backfill",
     "oracle:schedule": "node scripts/stub.mjs oracle:schedule",

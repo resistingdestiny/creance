@@ -247,6 +247,49 @@ export interface PriceResult {
 export interface VerifyResult {
   readonly ok: boolean;
   readonly error: string | null;
+  /**
+   * One person, one cover: this person already holds cover in this series. Not
+   * a failure of the check, so the screen says the rule rather than offering a
+   * retry that would be refused the same way. DESIGN.md 3.6.
+   */
+  readonly alreadyCovered: boolean;
+}
+
+/** The states the Verify screen can be in. docs/DESIGN-TOKENS.md section 8. */
+export type VerifyState = 'idle' | 'waiting' | 'verified' | 'failed' | 'covered';
+
+export interface VerifyCopy {
+  readonly heading: string;
+  readonly line: string;
+  readonly button: string;
+}
+
+/**
+ * The Verify screen's copy, per state, from the deck and only from the deck.
+ *
+ * `covered` is the one person, one cover rule. The deck has no dedicated string
+ * for it, and the nearest is the screen's own second line, which says the rule
+ * outright; the heading is the Home deck's word for the state the person is
+ * actually in, and the button carries them to it. Recorded in
+ * docs/DECISIONS.md.
+ */
+export function verifyCopy(state: VerifyState): VerifyCopy {
+  const rule = 'One person, one cover. This stops bots and duplicate accounts.';
+  if (state === 'failed') {
+    return {
+      heading: "We couldn't verify you.",
+      line: 'Try again, or use a different device.',
+      button: 'Try again',
+    };
+  }
+  if (state === 'covered') {
+    return { heading: 'Covered', line: rule, button: 'Cover' };
+  }
+  return {
+    heading: "Confirm you're a real person.",
+    line: rule,
+    button: state === 'verified' ? 'Continue' : 'Verify with World ID',
+  };
 }
 
 export interface PayResult {

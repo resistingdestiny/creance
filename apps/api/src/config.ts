@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 
 import { roleKeyHex } from '@creance/client';
 
+import { loadWorldConfig, type WorldConfig } from './world/config.js';
+
 /// Everything the policy endpoints need to know about the deployment, read
 /// once at boot and never at request time.
 ///
@@ -58,6 +60,8 @@ export interface ApiConfig {
   operator: AccountConfig & { key: string | undefined };
   credentialTtlSeconds: number;
   quoteTtlSeconds: number;
+  /** The World ID app this deployment runs its Selfie Check against. */
+  world: WorldConfig;
   /** Serve the labelled demo eligibility issuer. Replaced by T11's World path. */
   demoIssuer: boolean;
   databaseUrl: string | undefined;
@@ -204,6 +208,7 @@ export function loadApiConfig(
       key: process.env.HEDERA_OPERATOR_KEY,
     },
     credentialTtlSeconds: seconds('CREDENTIAL_TTL_SECONDS', 1800),
+    world: loadWorldConfig(),
     quoteTtlSeconds: seconds('QUOTE_TTL_SECONDS', 900),
     demoIssuer: (process.env.DEMO_ELIGIBILITY_ISSUER ?? 'true') !== 'false',
     databaseUrl: process.env.DATABASE_URL,

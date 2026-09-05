@@ -15,6 +15,7 @@ import {
   pointsInProse,
   premiumAmount,
   trendOf,
+  verifyCopy,
   whatWouldHaveHappened,
 } from '../src/lib/worker-model.js';
 import { toMinorUnits } from '../src/lib/worker-api.js';
@@ -191,5 +192,45 @@ describe('the Home rows', () => {
 
   it('falls back to the premium alone when nothing is due', () => {
     expect(nextPaymentLine({ ...POLICY, next_payment_due: null }, formatDay)).toBe('0.85');
+  });
+});
+
+describe("the Verify screen's copy", () => {
+  it('says the deck line in every state that is not a failure', () => {
+    for (const state of ['idle', 'waiting', 'verified', 'covered'] as const) {
+      expect(verifyCopy(state).line).toBe(
+        'One person, one cover. This stops bots and duplicate accounts.',
+      );
+    }
+  });
+
+  it('offers the check, then the way on', () => {
+    expect(verifyCopy('idle')).toEqual({
+      heading: "Confirm you're a real person.",
+      line: 'One person, one cover. This stops bots and duplicate accounts.',
+      button: 'Verify with World ID',
+    });
+    expect(verifyCopy('verified').button).toBe('Continue');
+  });
+
+  it('gives the failure both deck sentences and a retry', () => {
+    expect(verifyCopy('failed')).toEqual({
+      heading: "We couldn't verify you.",
+      line: 'Try again, or use a different device.',
+      button: 'Try again',
+    });
+  });
+
+  /**
+   * One person, one cover, said as the rule it is. No retry: a second check by
+   * the same person would be refused the same way, so the button goes to the
+   * cover they already hold.
+   */
+  it('says the rule to someone who already holds cover, and does not offer a retry', () => {
+    const copy = verifyCopy('covered');
+    expect(copy.heading).toBe('Covered');
+    expect(copy.line).toBe('One person, one cover. This stops bots and duplicate accounts.');
+    expect(copy.button).toBe('Cover');
+    expect(copy.button).not.toBe('Try again');
   });
 });

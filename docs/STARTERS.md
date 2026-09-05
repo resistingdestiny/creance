@@ -89,6 +89,35 @@ README, which are four and six lines respectively; everything around them,
 including the per-quote gate on `POST /v1/bind`, the settlement records and the
 payments topic message, is this build's.
 
+## The World IDKit packages
+
+https://github.com/worldcoin/idkit
+
+`@worldcoin/idkit` 4.2.3 in `apps/web` and `@worldcoin/idkit-core` 4.2.4 in
+`apps/api`, both pinned exactly rather than with a caret. Dependencies, not
+copied source. MIT licensed.
+
+What is used from them, and nothing else. In the API,
+`signRequest` and `computeRpSignatureMessage` from
+`@worldcoin/idkit-core/signing`, which produce and describe the `rp_context`
+signature the World App checks, and `hashSignal` from
+`@worldcoin/idkit-core/hashing`, which is the `hash_to_field` the signal
+comparison needs. In the web app, `IDKitRequestWidget` and the preset builders
+`selfieCheckLegacy`, `proofOfHuman`, `orbLegacy` and `deviceLegacy` from
+`@worldcoin/idkit`. `apps/web/src/app/verify/world-check.tsx` is thirty lines of
+our own around the widget; the state machine, the error mapping and every check
+on the returned proof are this build's.
+
+The test vectors in `apps/api/test/world-signing.test.ts` are copied, and this
+is the entry for them: the four `hash_to_field` values, the two
+`compute_rp_signature_message` messages, the two 65 byte `sign_request`
+signatures and the signing key `0xabab...ab` they are computed with are all
+published on https://docs.world.org/world-id/idkit/signatures. That key is a
+documentation vector and is not any key of this deployment. The assertions
+around them are ours, as is the trick the test needs to run at all, which is
+stubbing `Date.now` and `crypto.getRandomValues` because the shipped
+`signRequest` takes neither as a parameter.
+
 ## Blocky402
 
 https://blocky402.com/docs/testnet/

@@ -9,6 +9,7 @@ import { indexRoutes } from './routes/index-feed.js';
 import { opsRoutes } from './routes/ops.js';
 import { policyRoutes } from './routes/policy.js';
 import { quoteRoutes } from './routes/quote.js';
+import { worldRoutes } from './world/routes.js';
 import { buildServices, type BuildServicesOptions, type Services } from './services.js';
 import { registerX402 } from './x402/gate.js';
 
@@ -60,6 +61,7 @@ export async function buildServer(
   await app.register(bindRoutes, { services });
   await app.register(policyRoutes, { services });
   await app.register(auditRoutes, { services });
+  await app.register(worldRoutes, { services });
 
   return Object.assign(app, { services }) as FastifyInstance & { services: Services };
 }

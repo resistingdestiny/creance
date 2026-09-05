@@ -240,7 +240,7 @@
         ],
         "operationId": "bindPolicy",
         "summary": "Bind a quoted policy",
-        "description": "Registers the policy in CoverPool, writes a receipt to the payments topic\nand mints the policy NFT to the holder wallet.\n\nThe body is a quote id and nothing else: the amount, the wallet and the\nlimit all come from the quote and from the eligibility credential, so a\nrequest cannot influence its own price.\n\nAn eligibility credential is required. An agent gets one from its\nprincipal, after that person completes a World Selfie Check; the agent\nnever performs the check itself, and the NFT is always minted to the\nprincipal wallet named in the credential.\n\nPrice: the first month premium, taken from the quote. There is no static\nprice for this operation.",
+        "description": "Registers the policy in CoverPool, writes a receipt to the payments topic\nand mints the policy NFT to the holder wallet.\n\nThe body is a quote id and nothing else: the amount, the wallet and the\nlimit all come from the quote and from the eligibility credential, so a\nrequest cannot influence its own price.\n\nAn eligibility credential is required. An agent gets one from its\nprincipal, after that person completes a World Selfie Check; the agent\nnever performs the check itself, and the NFT is always minted to the\nprincipal wallet named in the credential.\n\nThe credential is issued by POST /v1/world/verify, which forwards the\ncomplete IDKit result to World and checks it. That is the only issuer\nthis API offers a person; it is not part of this gateway because a\nSelfie Check is completed in the World App and not by an agent.\n\nPrice: the first month premium, taken from the quote. There is no static\nprice for this operation.",
         "parameters": [
           {
             "name": "PAYMENT-SIGNATURE",
@@ -558,7 +558,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "description": "A short-lived eligibility credential, EdDSA over Ed25519, thirty minutes, carrying the nullifier, the occupation group, the series and the wallet. Verify it against GET /.well-known/jwks.json. An agent gets one from its principal after that person completes a World Selfie Check."
+        "description": "A short-lived eligibility credential, EdDSA over Ed25519, thirty minutes, carrying the nullifier, the occupation group, the series and the wallet. Verify it against GET /.well-known/jwks.json. An agent gets one from its principal after that person completes a World Selfie Check; the issuer is POST /v1/world/verify."
       }
     },
     "schemas": {

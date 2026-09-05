@@ -5,6 +5,8 @@ import type { CredentialRow } from '../db/types.js';
 import { AppError } from '../errors.js';
 import type { Services } from '../services.js';
 import { rfc3339 } from '../views.js';
+import { continuityHolds } from '../world/config.js';
+import { signerMatches } from '../world/rp-context.js';
 import { requiredString } from './quote.js';
 
 /// Health, the JWKS, and the interim eligibility issuer.
@@ -34,6 +36,22 @@ export const opsRoutes: FastifyPluginAsync<{ services: Services }> = async (app,
         db: database,
         hedera: services.hedera === null ? 'not_configured' : 'ok',
         index: services.indexData === null ? 'not_loaded' : 'ok',
+        world: services.config.world.enabled ? 'ok' : 'not_configured',
+      },
+      // Which credential this deployment asks for and in which environment.
+      // The preset is configuration because the Selfie Check feature flag is
+      // granted per app by a human, so a rung change is a `.env` edit, and a
+      // judge should be able to read which rung is running without a redeploy.
+      // No secret is here: the app id and the rp id are public request values.
+      world: {
+        app_id: services.config.world.appId,
+        rp_id: services.config.world.rpId,
+        environment: services.config.world.environment,
+        preset: services.config.world.preset,
+        action_eligibility: services.config.world.actionEligibility,
+        action_claim: services.config.world.actionClaim,
+        continuity: continuityHolds(services.config.world),
+        signer_matches: signerMatches(services.config.world),
       },
     });
   });
@@ -50,12 +68,13 @@ export const opsRoutes: FastifyPluginAsync<{ services: Services }> = async (app,
   /**
    * POST /v1/demo/eligibility
    *
-   * The interim eligibility issuer. T11 replaces it with the World Selfie Check
-   * path; it is here so that /v1/bind can take a real credential today and so
-   * the testnet integration test can bind. It is labelled in its own response
-   * and in the OpenAPI document, it is not in the Bazantic gateway's six
-   * operations, and it is turned off by setting DEMO_ELIGIBILITY_ISSUER to
-   * false. See docs/DECISIONS.md, "The interim eligibility issuer".
+   * The interim eligibility issuer. POST /v1/world/verify is the real one: it
+   * forwards a completed Selfie Check to World and issues the same credential
+   * on the strength of it. This one stays for the testnet bind script and the
+   * Steward, which have no World App and no camera. It is labelled in its own
+   * response, it is not in the Bazantic gateway's six operations, and it is
+   * turned off by setting DEMO_ELIGIBILITY_ISSUER to false. See
+   * docs/DECISIONS.md, "The interim eligibility issuer".
    */
   app.post<{ Body: Record<string, unknown> }>('/v1/demo/eligibility', async (request, reply) => {
     const body = request.body ?? {};
@@ -139,7 +158,8 @@ export const opsRoutes: FastifyPluginAsync<{ services: Services }> = async (app,
       wallet,
       expires_at: rfc3339(issued.expiresAt),
       issuer: 'demo',
-      warning: 'Issued without a World Selfie Check. Demo only, replaced by T11.',
+      warning:
+        'Issued without a World Selfie Check. Demo only. The real issuer is POST /v1/world/verify.',
     });
   });
 };

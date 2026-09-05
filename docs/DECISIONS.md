@@ -1686,9 +1686,13 @@ October 2025 collection gap shortens the window rather than breaking it.
 
 ### The Verify screen ships the interim issuer, labelled, and does not imitate IDKit
 
-Affects T15 and T11.
+Affects T15 and T11. Superseded by T11, "The World issuer replaces the interim
+one and the interim one stays": `WORLD_APP_ID` is filled in now, the screen runs
+the Selfie Check, and the interim state below is what a clone with no World app
+still gets.
 
-`WORLD_APP_ID` is blank in the environment, so there is no Selfie Check to run.
+`WORLD_APP_ID` was blank in the environment when this was written, so there was
+no Selfie Check to run.
 The screen keeps every string docs/DESIGN-TOKENS.md section 8 gives it, including
 "Verify with World ID", and calls `POST /v1/demo/eligibility`. Under the two deck
 sentences it carries one more, in ink-2, the same way the wallet says it is a
@@ -2288,3 +2292,115 @@ The policy view carries `cover_starts` and `cover_ends` and does not carry
 `term_months`, which is on the quote. So "at annual renewal" is read as
 `cover_ends` falling inside the next 30 days, which is the same question and
 needs one field rather than two.
+
+## T11, the World Selfie Check, 5 September 2026
+
+### One action or two, and what that costs the claim
+
+Affects T11 and T13.
+
+DESIGN.md 3.6 asks for two things that cannot both be true. It names two actions
+in the Developer Portal, `occupation-cover-eligibility` and
+`occupation-cover-claim`, and it says the claim's check must produce "the same
+nullifier as the purchase". A nullifier is scoped to the app and the action, so
+two actions produce two different identifiers for one person. No configuration
+changes that.
+
+The resolution is one registered action for both steps, told apart by the
+signal: the wallet id at purchase, the policy id at claim, and
+`require_user_presence` only at claim. Then the purchase and the claim return
+the identical nullifier, "the same live person bought the cover and collects it"
+is a check rather than a story, and "one active policy per person per series"
+and "one claim per person per series" are the same key in the same column.
+
+The Developer Portal is Root's, and this session cannot register an action in
+it, so the action names stay configuration. `WORLD_ACTION_ELIGIBILITY` and
+`WORLD_ACTION_CLAIM` are read separately and both are passed to the signer, so
+setting both to one registered `occupation-cover` is a `.env` edit and a
+restart. `GET /healthz` reports `world.continuity`, which is true exactly when
+the two are the same string, so which regime is running is readable from
+outside.
+
+What T13 inherits, explicitly, so it inherits no ambiguity:
+
+- When `world.continuity` is true, the claim check's nullifier must equal
+  `policies.nullifier` and there is nothing to add to the schema.
+- When it is false, the claim's nullifier is a different number and T13 adds a
+  `claim_nullifier numeric(78,0)` column to enforce one claim per person per
+  series on it. The continuity claim then weakens to "both were live people and
+  the claimant controls the policy wallet", and the README and
+  docs/FEEDBACK-WORLD.md have to say exactly that. Overclaiming a property a
+  judge can check is worse than the property being absent.
+
+### The World issuer replaces the interim one and the interim one stays
+
+Affects T11, T07, T09 and T19.
+
+`POST /v1/world/verify` is the real eligibility issuer: it forwards a completed
+IDKit result to World, checks it against this deployment's action, environment,
+signal and preset, and issues the credential from DESIGN.md 3.6 on the strength
+of it. The credential shape, the EdDSA signing, the JWKS, the `urn:creance:bind`
+audience and the single use `jti` are all unchanged from T07. Only how the
+credential is earned changed.
+
+`POST /v1/demo/eligibility` stays behind `DEMO_ELIGIBILITY_ISSUER`. The testnet
+bind script and the Steward have no World App and no camera, and a bind test
+that cannot run without a phone in someone's hand is not a test. It is labelled
+in its own response, it is not in the Bazantic gateway's six operations, and the
+OpenAPI text now names the World endpoint as the issuer a person uses.
+
+`apps/web/src/lib/eligibility.ts` keeps both behind one interface and switches
+on `WORLD_APP_ID` being set. Nothing else in the web app knows which issuer it
+got.
+
+### The web app holds no World configuration of its own
+
+Affects T11 and T27.
+
+`POST /v1/world/rp-context` returns the app id, the action, the environment, the
+preset and the signal beside the signature. The browser gets all of them in one
+answer, so there is one source for the values that have to agree between the
+signed message and the widget, and a preset or environment change is an API
+restart rather than a rebuild of the front end. It also means no `NEXT_PUBLIC_`
+World variable exists to drift.
+
+The signing key never leaves the API. The World docs are explicit that an RP
+signature is never generated on the client, and the IDKit result crosses from
+the browser to a server action and no further, so the credential still never
+reaches a browser.
+
+### The duplicate state says the rule, and does not offer a retry
+
+Affects T11 and T16.
+
+The acceptance asks for "the copy from docs/DESIGN-TOKENS.md" for the duplicate
+case, and section 8 has no dedicated string for it. The nearest is the Verify
+screen's own second line, which states the rule outright: "One person, one
+cover. This stops bots and duplicate accounts." That line is the duplicate
+state's copy. The heading is "Covered", the Home deck's word for the state the
+person is actually in, and the button is "Cover" and carries them to the cover
+they already hold. All three are deck strings and no new copy was invented.
+
+There is no "Try again". A second check by the same person would be refused the
+same way, so a retry button would be a loop. The rule is not a failure and does
+not read as one.
+
+The check happens at `POST /v1/world/verify`, before the pay sheet, as well as
+inside the bind transaction. Under x402 the settle step only runs after the
+handler succeeds, so a refusal at bind costs nothing either; refusing before the
+pay step is about telling someone the truth earlier, not about money.
+
+### The IDKit packages are pinned exactly, not with a caret
+
+Affects T11 and T27.
+
+`@worldcoin/idkit` 4.2.3 in the web app and `@worldcoin/idkit-core` 4.2.4 in the
+API, both without a caret. The React package had 109 published versions and its
+latest was two days old when this was written. A minor bump mid-event that
+renames a prop is a class of failure worth one line of configuration to avoid.
+
+`signRequest` and `computeRpSignatureMessage` are imported from
+`@worldcoin/idkit-core/signing` and `hashSignal` from
+`@worldcoin/idkit-core/hashing`. The same symbols are documented from three
+different packages across three pages; these are the paths the integration guide
+shows and they need no extra direct dependency.

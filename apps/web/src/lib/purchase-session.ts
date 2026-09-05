@@ -34,7 +34,11 @@ export interface PurchaseSession {
   /** The eligibility credential. Server side only, never sent to a browser. */
   credential: string | null;
   credentialExpiresAt: string | null;
-  /** The World ID nullifier the interim issuer is asked for, fresh per purchase. */
+  /**
+   * The nullifier the interim issuer is asked for, fresh per purchase. Unused
+   * on the World path, where it comes out of the proof inside the API and the
+   * web app never sees it.
+   */
   nullifier: string;
   /** Set once the bind returns. Home reads the policy from it. */
   policyId: string | null;
@@ -60,7 +64,8 @@ function prune(now: number): void {
  *
  * A fresh one per purchase, because one active policy per nullifier per series
  * is enforced at bind and every repeated run of the flow would otherwise be
- * refused as already covered.
+ * refused as already covered. A real World ID does not get that courtesy, which
+ * is the point of the rule.
  */
 export function freshNullifier(): string {
   return BigInt(`0x${randomBytes(31).toString('hex')}`).toString();

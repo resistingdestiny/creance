@@ -107,13 +107,18 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
     packages/client/src/x402  the payer: one Hedera account key in, a fetch that completes the 402 flow out
     apps/api/src/x402   the gate: the 402, the facilitator, the payments row and the topic message
     apps/api/src/audit  the audit trail: the message shapes with no writer yet, and the read that assembles a policy's trail from the topics
+    apps/api/src/world  the World path: the signed rp_context, the verify forward, and the eligibility credential it earns
     recipes/bazantic    the OpenAPI document the Bazantic gateway imports
 
 The investor screens are desktop, 1280 wide, and they fetch on the server rather than in the browser, so the API has to be running for them to render. `pnpm dev` starts it beside the web app. The origin is `CREANCE_API_URL` and defaults to the address the API listens on, so no configuration is needed to run them locally.
 
 The worker flow is a 390 wide mobile design, centred on canvas at a desktop width. It fetches on the server too, so the same API has to be running. All three endpoints it reads are x402 gated, so the web app pays for them: the index read, the quote and the bind are settled from the demo worker's own testnet account, whose key it derives from `HEDERA_OPERATOR_KEY` exactly as the API derives its own. Every settlement is printed in the web app's terminal with its HashScan link. Without an operator key the screens still render against an API whose gate is off (`X402_ENABLED=false`) and say so otherwise.
 
-Buying cover writes to Hedera testnet: `/pay` settles the first month's premium, binds a real policy, mints its receipt NFT and publishes a receipt to the payments topic, and every bind commits permanent exposure against the demo series. Bind at the smallest amount the slider offers when repeating the run. The check on `/verify` is the API's interim eligibility issuer and not a World Selfie Check; the screen says so, and T11 replaces it.
+Buying cover writes to Hedera testnet: `/pay` settles the first month's premium, binds a real policy, mints its receipt NFT and publishes a receipt to the payments topic, and every bind commits permanent exposure against the demo series. Bind at the smallest amount the slider offers when repeating the run.
+
+The check on `/verify` is a World Selfie Check. Fill in `WORLD_APP_ID`, `WORLD_RP_ID` and `WORLD_RP_SIGNING_KEY` from the World Developer Portal and the screen runs IDKit with the `selfieCheckLegacy` preset, the signal bound to the wallet id and an `rp_context` signed by the API; the completed result goes to the API, which forwards it to World and issues the eligibility credential on the strength of it. Scan the code with the World ID Sandbox App. Leave those variables blank and the API's labelled interim issuer runs instead, which mints the same credential without a check, and the screen says so.
+
+One person holds one active cover per series. That rule is a unique index in the database and a check before the pay step, so a second purchase with the same World ID is refused before anybody is asked to pay. Selfie Check is a medium-assurance credential: World says so itself, and it means someone holding two World ID accounts could hold two covers. See [docs/FEEDBACK-WORLD.md](docs/FEEDBACK-WORLD.md).
 
 Workspaces are named under the `@creance` scope. Every one of them extends [tsconfig.base.json](tsconfig.base.json), which sets TypeScript to strict.
 

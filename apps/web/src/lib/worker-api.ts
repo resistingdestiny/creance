@@ -4,7 +4,9 @@
  * Four calls make the purchase flow, and all four are the API as it stands on
  * main (recipes/bazantic/openapi.yaml, apps/api/src/routes):
  *
- *   POST /v1/demo/eligibility  the interim issuer, replaced by T11
+ *   POST /v1/world/rp-context  a signed context for one IDKit request
+ *   POST /v1/world/verify      the completed Selfie Check, and the credential
+ *   POST /v1/demo/eligibility  the interim issuer, for a clone with no World app
  *   POST /v1/quote             the binding price, no capacity hold, 15 minutes
  *   POST /v1/bind              the policy, the NFT receipt and the HCS receipt
  *   GET  /v1/policy/:id        free, and what the app polls for the NFT serial
@@ -30,6 +32,28 @@ export interface EligibilityView {
   readonly expires_at: string;
   readonly issuer: string;
   readonly warning?: string;
+}
+
+/**
+ * Everything one IDKit request needs, signed by the API.
+ *
+ * The web app holds no World configuration of its own: the app id, the action,
+ * the preset and the environment come back with the signature, so there is one
+ * source for all of them and a rung change is an API restart. The signing key
+ * never leaves the API, which is what the World docs require.
+ */
+export interface WorldRequestContextView {
+  readonly app_id: string;
+  readonly action: string;
+  readonly environment: string;
+  readonly preset: string;
+  readonly signal: string;
+  readonly require_user_presence: boolean;
+  readonly rp_id: string;
+  readonly nonce: string;
+  readonly created_at: number;
+  readonly expires_at: number;
+  readonly signature: string;
 }
 
 export interface QuoteView {
@@ -152,6 +176,21 @@ export function issueEligibility(body: {
   nullifier: string;
 }): Promise<EligibilityView> {
   return postJson<EligibilityView>('/v1/demo/eligibility', body);
+}
+
+/** A fresh context per widget opening. Never cached: World refuses a reused nonce. */
+export function requestWorldContext(wallet: string): Promise<WorldRequestContextView> {
+  return postJson<WorldRequestContextView>('/v1/world/rp-context', { wallet });
+}
+
+/** The completed IDKit result, forwarded whole. The API checks it and World verifies it. */
+export function verifyWorldCheck(body: {
+  group: string;
+  wallet: string;
+  wallet_evm: string;
+  result: unknown;
+}): Promise<EligibilityView> {
+  return postJson<EligibilityView>('/v1/world/verify', body);
 }
 
 export function requestQuote(body: {

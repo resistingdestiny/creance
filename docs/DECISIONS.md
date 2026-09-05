@@ -1571,3 +1571,46 @@ is still waiting for reads "Recording on Hedera", and one it could not check
 reads "Cannot reach Hedera". A receipt that showed a payment as recorded when
 the message never arrived would be the one lie this screen must not tell.
 Dates are en-GB in UTC, per the T10 decision.
+
+## T20, the Harness contribution, 5 September 2026
+
+### The contribution is the mirror node read the harness promises and does not ship
+
+Of everything in docs/harness-notes.md, the candidate chosen is the mirror node.
+Tier 3.5 CHAIN says it "verifies effects via mirror node" in src/types.ts and in
+docs/authoring-a-recipe.md, and the validator prompt tells the evaluator agent to
+treat the mirror node as keyless ground truth, but the harness ships no
+mirror-node code at all: the only fetch in src/ is the dev-server health probe.
+So an endpoint list and the sentence "poll up to ~30s for mirror lag" is the
+whole of it, and four things our notes measured are left to a non-deterministic
+agent to rediscover on every run: entity endpoints answer 404 for a second or
+two after consensus and then 200 (T03 and T07 notes), /topics/{id}/messages
+answers 200 with an empty list for a topic that does not exist so it cannot
+answer existence at all (T03 note), the SDK's transaction id form is rejected
+where the mirror form resolves (T08 and T18 notes), and the error text a real
+Hashio outage emits matches none of the patterns in src/evalInfra.ts (T04 note),
+so a transient outage is graded as an app defect and burns the repair budget,
+which is the same defect class the maintainers fixed for the missing browser in
+1.2.1. The other candidates were rejected as duplicates or as too thin: the
+association and ED25519 points our notes carry are already open PRs #15 and #16
+against the same files, the HOL Guard validator is open issue #8, and the DER
+secret-pattern gap in src/specDefaults.ts is real but is a four-line regex change
+with no developer-experience story to show. The PR targets dev rather than
+master because dev is 2.0.0-rc.4 and every maintainer merge since 26 August went
+there, so a PR against master would be against code that has already moved:
+schema v3, Claude as the default agent, @hiero-ledger/sdk and playwright shipped
+with the harness, src/evalInfra.ts and src/preflight.ts. It is
+https://github.com/hedera-dev/hedera-harness/pull/39, and it adds
+src/validation/mirrorNode.ts with 18 offline tests, makes provisionChainSigner
+wait for the ephemeral signer on the mirror node before the run is graded,
+extends the infrastructure classifier, and corrects the validator prompt.
+
+### The harness fork is not vendored into this repository
+
+The contribution lives in the fork at
+https://github.com/resistingdestiny/hedera-harness, cloned outside this
+repository. Nothing from the harness is copied in and this repository does not
+depend on it, so T20 touches only the four documentation files in its scope. The
+one piece of our own code that crossed over is the transaction id conversion
+that hashscanTransactionUrl in packages/client already does, rewritten there as
+normalizeTransactionId; it is recorded in docs/STARTERS.md.

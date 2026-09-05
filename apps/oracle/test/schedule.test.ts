@@ -199,6 +199,9 @@ describe('a check with nothing new at the source', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.state).toBe('done');
     expect(rows[0]?.notes).toBe('no new period at the source, newest is 2026-07');
+    // The month it gated, which is the newest one, so the row and its QA report
+    // name the same period.
+    expect(rows[0]?.target_period).toBe('2026-07');
     // The newest month is still gated, so a source that went bad between
     // releases is caught before the release that would have published it.
     expect(rows[0]?.qa_json?.map((report) => report.period)).toEqual(['2026-07']);

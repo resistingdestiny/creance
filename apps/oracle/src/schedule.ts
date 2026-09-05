@@ -162,7 +162,10 @@ export async function runScheduledCheck(options: ScheduleOptions): Promise<Sched
     }
 
     const targets = targetsFor(newest, options.dataset.latest);
-    await run.target(targets[targets.length - 1] ?? null);
+    // The newest month either way. A check that found nothing new still gated
+    // that month, and a row whose target period is null while its QA report
+    // names a month reads as though the two came from different runs.
+    await run.target(targets[targets.length - 1] ?? options.dataset.latest);
     if (targets.length === 0) {
       await run.note(`no new period at the source, newest is ${options.dataset.latest}`);
       log(`verify     nothing new to publish`);

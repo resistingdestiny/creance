@@ -3,7 +3,7 @@ import { describe, expect, it, afterEach, vi } from 'vitest';
 import { computeRpSignatureMessage, signRequest } from '@worldcoin/idkit-core/signing';
 import { hashSignal } from '@worldcoin/idkit-core/hashing';
 
-import { signRpContext, WorldNotConfigured } from '../src/world/rp-context.js';
+import { signerMatches, signRpContext, WorldNotConfigured } from '../src/world/rp-context.js';
 import type { WorldConfig } from '../src/world/config.js';
 
 /**
@@ -211,5 +211,27 @@ describe('signRpContext', () => {
 
   it('refuses to sign without a key rather than signing with a placeholder', () => {
     expect(() => signRpContext(world({ signingKey: undefined }), 'a')).toThrow(WorldNotConfigured);
+  });
+});
+
+describe('signerMatches', () => {
+  /**
+   * The vector key's address is published with the vectors, so this asserts
+   * the recovery path against a value nobody in this repository chose.
+   */
+  it('recovers the address the vector key signs with', () => {
+    expect(signerMatches(world({ signerAddress: '0xe239cdc5fbe977a8a141b72194d3cf8c41bc5bc6' }))).toBe(
+      true,
+    );
+  });
+
+  it('says no when the environment names a different signer', () => {
+    expect(signerMatches(world({ signerAddress: '0x0000000000000000000000000000000000000001' }))).toBe(
+      false,
+    );
+  });
+
+  it('has nothing to say when no address is configured', () => {
+    expect(signerMatches(world({ signerAddress: '' }))).toBeNull();
   });
 });

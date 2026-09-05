@@ -6,6 +6,7 @@ import { AppError } from '../errors.js';
 import type { Services } from '../services.js';
 import { rfc3339 } from '../views.js';
 import { continuityHolds } from '../world/config.js';
+import { signerMatches } from '../world/rp-context.js';
 import { requiredString } from './quote.js';
 
 /// Health, the JWKS, and the interim eligibility issuer.
@@ -50,6 +51,7 @@ export const opsRoutes: FastifyPluginAsync<{ services: Services }> = async (app,
         action_eligibility: services.config.world.actionEligibility,
         action_claim: services.config.world.actionClaim,
         continuity: continuityHolds(services.config.world),
+        signer_matches: signerMatches(services.config.world),
       },
     });
   });

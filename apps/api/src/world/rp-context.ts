@@ -1,4 +1,5 @@
 import { signRequest } from '@worldcoin/idkit-core/signing';
+import { getBytes, keccak256, toBeHex, toUtf8Bytes, verifyMessage, zeroPadValue } from 'ethers';
 
 import type { WorldConfig } from './config.js';
 
@@ -101,4 +102,35 @@ export function requestContext(
     signal,
     require_user_presence: purpose === 'claim',
   };
+}
+
+/**
+ * Whether the configured signing key is the one the Portal registered.
+ *
+ * A wrong key produces `invalid_rp_signature` in the World App, which names
+ * none of its four inputs and is the worst error in this integration to debug
+ * live. Recovering the address from a throwaway signature turns that into a
+ * boot-time yes or no, which is the whole reason `WORLD_RP_SIGNER_ADDRESS` is
+ * in the environment. Null when there is nothing to compare against.
+ *
+ * The message is rebuilt here rather than taken from the SDK because the point
+ * is to check the SDK's output, not to trust it.
+ */
+export function signerMatches(world: WorldConfig): boolean | null {
+  if (world.signerAddress === '' || world.signingKey === undefined) return null;
+  try {
+    const context = signRpContext(world, world.actionEligibility);
+    const message = new Uint8Array(81);
+    message[0] = 1;
+    message.set(getBytes(context.nonce), 1);
+    const view = new DataView(message.buffer);
+    view.setBigUint64(33, BigInt(context.created_at), false);
+    view.setBigUint64(41, BigInt(context.expires_at), false);
+    const actionField = BigInt(keccak256(toUtf8Bytes(world.actionEligibility))) >> 8n;
+    message.set(getBytes(zeroPadValue(toBeHex(actionField), 32)), 49);
+    const recovered = verifyMessage(message, context.signature);
+    return recovered.toLowerCase() === world.signerAddress.toLowerCase();
+  } catch {
+    return false;
+  }
 }

@@ -74,6 +74,28 @@ Nothing is duplicated here.
   nullifiers, so `GET /health` reports `world.continuity` as false and the
   continuity sentence is the weaker one. docs/DECISIONS.md under T11 and T13
   says exactly what that costs.
+- Mini App surface: the same web app runs inside World App as a Mini App, where
+  IDKit uses the native transport and shows no QR code. `MiniKitProvider` is
+  mounted in the root layout and one helper reads the surface; no MiniKit command
+  is called, so nothing in this build touches World Chain. **Root pending**: no
+  Mini App is registered in the Developer Portal yet, so there is no Mini App id
+  and no draft to open. The fields the form asks for, and the three approvals
+  between an account and a device run, are listed in the feedback document under
+  section 2. Once the app exists, `WORLD_MINI_APP_ID` is the only value the build
+  needs and the mini app id goes here.
+- Mini App entry links, from `GET /v1/world/mini-app`: launch is
+  `https://world.org/mini-app?app_id=<mini_app_id>`, and the occupation index
+  deep link is
+  `https://world.org/mini-app?app_id=<mini_app_id>&path=%2Fcover%2Findex%2Fcomputer_math`,
+  which opens the index page for computer and mathematical, the group the demo
+  series ODI-COMP-2026-01 covers. The same target in the custom scheme,
+  `worldapp://mini-app?app_id=<mini_app_id>&path=%2Fcover%2Findex%2Fcomputer_math`,
+  is what a notification's `mini_app_path` would carry.
+- Notifications: not built. The Developer Portal Advanced settings permission is
+  a human grant on an app that does not exist yet, and the send endpoint
+  addresses people by World Chain wallet address, which this build does not store.
+  docs/DECISIONS.md under T27 has the gate and the plan; the feedback document has
+  it as a finding.
 - Sandbox App: Root pending. The staging simulator cannot complete a Selfie
   Check, so the credential needs a phone and a face. What is left to run, and
   why each item matters, is listed in the feedback document under "What is left

@@ -12,6 +12,7 @@
     "test": "vitest run",
     "testnet:bind": "tsx --env-file-if-exists=../../.env scripts/testnet/bind.ts",
     "testnet:x402": "tsx --env-file-if-exists=../../.env scripts/testnet/x402.ts",
+    "testnet:agentify": "tsx --env-file-if-exists=../../.env scripts/testnet/agentify.ts",
     "testnet:audit": "tsx --env-file-if-exists=../../.env scripts/testnet/audit.ts",
     "testnet:bind-backdated": "tsx --env-file-if-exists=../../.env scripts/testnet/bind-backdated.ts",
     "testnet:claim": "tsx --env-file-if-exists=../../.env scripts/testnet/claim.ts",

@@ -113,8 +113,15 @@ export function readEvidence(value: unknown, at: number, index: number): Uploade
 export function filenameOf(value: unknown, contentType: string): string {
   const raw = typeof value === 'string' ? value : '';
   const last = raw.split(/[\\/]/).pop() ?? '';
-  const cleaned = last
-    .replace(/[\u0000-\u001f\u007f]/g, '')
+  // Control characters are dropped by code point rather than by a regular
+  // expression, because a regular expression with a control range in it is
+  // exactly the thing a linter is right to stop.
+  const cleaned = [...last]
+    .filter((character) => {
+      const code = character.codePointAt(0) ?? 0;
+      return code > 0x1f && code !== 0x7f;
+    })
+    .join('')
     .trim()
     .slice(0, 120);
   if (cleaned !== '' && cleaned !== '.' && cleaned !== '..') return cleaned;

@@ -174,6 +174,11 @@ with `--dry-run`, which computes, gates, signs and encodes every month and sends
 nothing, and add `--interval-ms 250` so a nineteen month window takes ten
 seconds instead of three minutes. Keep the real cadence for the demo.
 
+A dry run reaches no network at all, so it does not read the topic either and
+reports the whole window as published. That is the run saying what it would have
+done, not a claim about the topic. The real command is the one that reports
+`skipped 19 already published`.
+
 A single workspace can be run on its own, for example `pnpm --filter @creance/index-model test`.
 
 ## Layout

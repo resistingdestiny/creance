@@ -1131,3 +1131,38 @@ which rows were used.
 The allowance is pooled across everything sharing the address, so a second
 process on the same host spends it too. Register a key before relying on the
 live path on demonstration day.
+
+### A replay from 2019-01 trips the jump gate on April 2020, and rightly
+
+`pnpm oracle:replay --from 2019-01` is the command the ticket's acceptance text
+names. It does not replay historical months: it stops at 2020-04 with
+
+    jump: management_business_financial moved 2.17 against 0.95,
+          service moved 4.03 against 0.99,
+          computer_math moved 3.03 against 2.00,
+          legal moved 2.67 against 1.67,
+          business_financial_ops moved 2.26 against 1.17
+
+Five groups past five standard deviations of their own trailing 24 months, in
+the month United States unemployment went from 4.4 to 14.7 percent. The gate is
+doing exactly what docs/INDEX-SPEC.md section 8 asks of it, and the frozen
+calibration already excludes 2020 and 2021 from the sigma window for the same
+reason. Nothing here is a bug in the gate or in the data.
+
+What was a bug is what the worker did about it. The gates originally ran period
+by period as the walk proceeded, so this run published fifteen months to the
+settlement topic and then exited 1 on the sixteenth. An HCS message cannot be
+retracted, and the first value published for a period settles it forever, so
+half a window on the topic is not a state anything can recover from.
+
+The gates now run over the whole window before the first message is published. A
+window that cannot finish publishes nothing, and the command names the month it
+stopped at and the longest window that would have run, which for 2019-01 is
+`--to 2020-03`. The gates stayed non-overridable: there is no flag that
+publishes a month that failed one, because a settlement value that a gate
+rejected is worse than no value.
+
+The windows that do complete are in README.md. The lesson generalises past this
+build: any pipeline that writes to an append-only log a period at a time has to
+validate the whole run first, because per-item validation plus an unretractable
+write is a partial-failure mode with no cleanup.

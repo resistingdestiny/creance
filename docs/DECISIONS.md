@@ -2922,14 +2922,17 @@ script without touching the image or the compose file.
 
 ## T22, wrap-up documentation and evidence, 5 September 2026
 
-### The architecture and pricing write-ups are not repository documents
+### The wrap-up write-ups are not repository documents
 
-DESIGN.md section 4 lists `docs/ARCHITECTURE.md` and `docs/PRICING.md` in the
-repository's `docs/` tree. Neither was created. The repository holds product
-documentation, and both of those exist to serve the event rather than the
-product: one restates the build for a judge who has the code in front of them,
-the other publishes actuarial assumptions for a prize line. Both are written up
-and kept with the event record instead.
+DESIGN.md section 4 lists `docs/ARCHITECTURE.md`, `docs/PRICING.md`,
+`docs/PRIZES.md` and `docs/FEEDBACK-WORLD.md` in the repository's `docs/` tree.
+None of the four is in it. The repository holds product documentation, and all
+four exist to serve the event rather than the product: one restates the build
+for a judge who has the code in front of them, one publishes actuarial
+assumptions for a prize line, one is the prize checklist itself, and one is
+feedback about somebody else's product. All four are written and kept with the
+event record instead. `.gitignore` names them so none of them comes back by
+accident.
 
 What a reader of the repository gets instead is one paragraph at the top of
 README.md's Layout section saying how the five applications, the two packages
@@ -2937,9 +2940,10 @@ and the contracts fit together, and the two documents that were already carrying
 the load: docs/HEDERA.md for every id and the transaction that proved it, and
 this file for every place the build differs from the brief.
 
-docs/PRIZES.md stays where it is. It was created by an earlier ticket, it is
-linked from docs/SUBMISSION.md, and deleting a file this ticket was not asked to
-delete is worse than the duplication.
+One consequence needs a person, and it is in docs/SUBMISSION.md as well. The
+World track names a feedback document as a deliverable in its own right, so a
+document that is complete but outside the repository has to reach the judges
+some other way. Root either attaches it to the submission or puts it back.
 
 ### The premium floor is 0.5 percent a year, not DESIGN's 3 percent
 

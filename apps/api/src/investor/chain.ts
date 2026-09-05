@@ -1,6 +1,6 @@
 import { Contract, JsonRpcProvider, type InterfaceAbi } from 'ethers';
 
-import { NOTE_ABI, VAULT_ABI } from './abi.js';
+import { COVER_POOL_ABI, NOTE_ABI, VAULT_ABI } from './abi.js';
 import type { SeriesConfig } from './config.js';
 
 /// The reads the investor endpoints make, behind one interface.
@@ -35,6 +35,22 @@ export interface HolderState {
   frozen: bigint;
   /// The vault subscription, which is the money at risk rather than the paper.
   subscription: bigint;
+  /// The note's internal KYC register: 1 is GRANTED, 0 is NOT_GRANTED. Null
+  /// where there is no note to ask, which is not the same as being refused.
+  kycStatus: number | null;
+}
+
+/// What the CoverPool knows about a series. The vault holds the money and the
+/// pool holds the policies, so the exposure and the term are only here.
+export interface CoverPoolSeriesState {
+  /// False when the series was never registered in the pool, which reads back
+  /// as a zeroed struct and must not be reported as a series at zero capacity.
+  registered: boolean;
+  activeExposure: bigint;
+  exposureCovered: bigint;
+  /// Seconds. The demo series is 365 days.
+  term: number;
+  status: number;
 }
 
 export interface CouponEntitlement {
@@ -48,6 +64,7 @@ export interface ChainReader {
   vaultSeries(series: SeriesConfig): Promise<VaultSeriesState>;
   note(series: SeriesConfig): Promise<NoteState | null>;
   holder(series: SeriesConfig, address: string): Promise<HolderState>;
+  coverPoolSeries(series: SeriesConfig): Promise<CoverPoolSeriesState | null>;
   couponFor(series: SeriesConfig, couponId: string, address: string): Promise<CouponEntitlement | null>;
 }
 
@@ -67,6 +84,15 @@ export class EthersChainReader implements ChainReader {
   private noteAt(series: SeriesConfig): Contract | null {
     if (series.note === undefined) return null;
     return new Contract(series.note.address, NOTE_ABI as unknown as InterfaceAbi, this.provider);
+  }
+
+  private coverPoolAt(series: SeriesConfig): Contract | null {
+    if (series.coverPool === undefined) return null;
+    return new Contract(
+      series.coverPool.address,
+      COVER_POOL_ABI as unknown as InterfaceAbi,
+      this.provider,
+    );
   }
 
   async vaultSeries(series: SeriesConfig): Promise<VaultSeriesState> {
@@ -115,18 +141,40 @@ export class EthersChainReader implements ChainReader {
 
   async holder(series: SeriesConfig, address: string): Promise<HolderState> {
     const note = this.noteAt(series);
-    const [balance, frozen] =
+    const [balance, frozen, kycStatus] =
       note === null
-        ? [0n, 0n]
+        ? [0n, 0n, null]
         : await Promise.all([
             note.getFunction('balanceOf')(address) as Promise<bigint>,
             note.getFunction('getFrozenTokens')(address) as Promise<bigint>,
+            note.getFunction('getKycStatusFor')(address).then(Number) as Promise<number>,
           ]);
     const subscription = (await this.vault(series).getFunction('subscriptionOf')(
       series.seriesId,
       address,
     )) as bigint;
-    return { balance, frozen, subscription };
+    return { balance, frozen, subscription, kycStatus };
+  }
+
+  async coverPoolSeries(series: SeriesConfig): Promise<CoverPoolSeriesState | null> {
+    const pool = this.coverPoolAt(series);
+    if (pool === null) return null;
+    const terms = (await pool.getFunction('seriesOf')(series.seriesId)) as {
+      term: bigint;
+      status: bigint;
+      activeExposure: bigint;
+      exposureCovered: bigint;
+    };
+    const term = Number(terms.term);
+    return {
+      // registerSeries refuses a zero term, so a zero term here can only mean
+      // the series was never registered in this pool.
+      registered: term > 0,
+      activeExposure: terms.activeExposure,
+      exposureCovered: terms.exposureCovered,
+      term,
+      status: Number(terms.status),
+    };
   }
 
   async couponFor(

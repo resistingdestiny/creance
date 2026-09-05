@@ -107,14 +107,18 @@ export async function readSeries(
   config: InvestorConfig,
   series: SeriesConfig,
 ): Promise<SeriesView> {
-  const [vault, note] = await Promise.all([reader.vaultSeries(series), reader.note(series)]);
+  const [vault, note, coverPool] = await Promise.all([
+    reader.vaultSeries(series),
+    reader.note(series),
+    reader.coverPoolSeries(series),
+  ]);
   const holders = await Promise.all(
     series.holders.map(async (holder) => ({
       config: holder,
       state: await reader.holder(series, holder.address),
     })),
   );
-  return buildSeriesView({ series, network: config.network, vault, note, holders });
+  return buildSeriesView({ series, network: config.network, vault, note, holders, coverPool });
 }
 
 /** Every coupon declared on the series, with what was paid for it. */

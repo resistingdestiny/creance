@@ -27,5 +27,19 @@ export const NOTE_ABI = [
   'function getMaturityDate() view returns (uint256)',
   'function balanceOf(address account) view returns (uint256)',
   'function getFrozenTokens(address account) view returns (uint256)',
+  'function getKycStatusFor(address account) view returns (uint256)',
   'function getCouponFor(uint256 couponId, address account) view returns (tuple(uint256 tokenBalance, uint8 decimals, uint256 nominalValue, uint256 nominalValueDecimals, bool recordDateReached, tuple(uint256 recordDate, uint256 executionDate, uint256 startDate, uint256 endDate, uint256 fixingDate, uint256 rate, uint8 rateDecimals, uint8 rateStatus) coupon, tuple(uint256 numerator, uint256 denominator, bool recordDateReached) couponAmount, bool isDisabled))',
+] as const;
+
+/// CoverPool, the policy registry. The investor screen needs two things from
+/// it that live nowhere else: the sum of the limits of the policies currently
+/// bound against the series, which is what "capacity used" measures against the
+/// principal, and the series term, which the vault does not store.
+///
+/// `seriesOf` returns the whole terms struct in one call, so the exposure and
+/// the term cost one round trip rather than two. A series that was never
+/// registered in the pool reads back as a zeroed struct, and a zero term is how
+/// that is told apart from a registered series with no policies bound.
+export const COVER_POOL_ABI = [
+  'function seriesOf(bytes32 seriesId) view returns (tuple(bytes32 group, int64 attachmentShock, int64 levelLine, int64 exhaustionShock, uint8 payoutMode, uint32 waitingPeriod, uint32 term, uint32 gracePeriod, uint32 claimWindowFromObservation, uint32 claimWindowFromSeparation, uint8 lookbackMonths, uint8 status, uint8 statusBeforeWindow, uint256 activeExposure, uint256 exposureCovered, uint32 firstOpenMonth, uint32 lastOpenMonth, uint32 lastObservedMonth, uint64 windowEndsAt))',
 ] as const;

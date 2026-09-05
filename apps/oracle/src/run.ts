@@ -31,9 +31,21 @@ import { toMonthIndex, transactionUrl, type SubmitResult, type Submitter } from 
  * Two invariants hold across every mode.
  *
  * Publish before submit, always. The on chain call carries the HCS sequence
- * number, so the message has to exist before the number does. A run that dies
- * between the two leaves a message on the topic with no submission, which is
- * the recoverable direction: the retry reads `observationOf` and resubmits.
+ * number, so the message has to exist before the number does.
+ *
+ * The store row is written between the two, not after both. That ordering is
+ * the whole recovery story: an HCS message cannot be retracted, so the row is
+ * the only record that stops a later run publishing the period a second time,
+ * and it therefore has to be durable before anything that can throw runs. A run
+ * that dies in the contract call leaves a row with `hcs_seq` set and
+ * `submit_tx` null, and the next run over the same window republishes nothing
+ * and does the contract call alone: see `resumeSubmit`.
+ *
+ * One window is left and it cannot be closed from here: a process killed
+ * between the topic receipt and the row write leaves a message with no row. The
+ * fix for that is to read the topic back through the mirror node before
+ * republishing a period, which is a T26 job because it needs the runs table to
+ * know which periods a previous run was in the middle of.
  *
  * Nothing is retried by rollback. An HCS message cannot be retracted and the
  * contract reverts on a duplicate, so idempotence is a read before each write:
@@ -227,9 +239,19 @@ export async function runPipeline(options: PipelineOptions): Promise<RunSummary>
         throw new Error(`${groupKey} has no observation for ${period} after a passing QA run`);
       }
 
-      if (await options.writer.has(groupKey, period, options.mode)) {
+      // A stored row means the message is already on the topic and must never
+      // be published again. It does not mean the period is finished: a run that
+      // died between the publish and the contract call leaves the row with
+      // submit_tx null, and this is where that period gets its chain call.
+      const existing = await options.writer.get(groupKey, period, options.mode);
+      if (existing !== undefined) {
         skippedCount += 1;
-        log(`${period}  ${groupKey.padEnd(32)} already published in ${options.mode} mode`);
+        const resumed = await resumeSubmit(options, existing, now(), log);
+        if (resumed !== null) {
+          submittedCount += 1;
+        } else {
+          log(`${period}  ${groupKey.padEnd(32)} already published in ${options.mode} mode`);
+        }
         continue;
       }
 
@@ -311,19 +333,6 @@ async function publishOne(args: PublishArgs): Promise<PublishedObservation> {
       `seq ${receipt.sequenceNumber}  ${bytes.byteLength} bytes`,
   );
 
-  const submission = await maybeSubmit(args, receipt.sequenceNumber, digest, series?.seriesId);
-  if (submission.result !== null) {
-    log(
-      `${observation.period}  ${observation.groupKey.padEnd(32)} submitted ${submission.result.hash} ` +
-        `gas ${submission.result.gasUsed}` +
-        (submission.result.claimsOpened === null
-          ? ''
-          : `  CLAIMS OPENED reserved ${submission.result.claimsOpened.reserved}`),
-    );
-  } else if (submission.skipped !== null) {
-    log(`${observation.period}  ${observation.groupKey.padEnd(32)} no chain call: ${submission.skipped}`);
-  }
-
   const record: ObservationRecord = {
     group_key: observation.groupKey,
     period: observation.period,
@@ -340,7 +349,11 @@ async function publishOne(args: PublishArgs): Promise<PublishedObservation> {
     hcs_topic: topicId,
     hcs_seq: receipt.sequenceNumber,
     hcs_tx: receipt.transactionId,
-    submit_tx: submission.result?.hash ?? null,
+    // Null until the contract call returns. The row is written now, with the
+    // receipt in hand, because the message on the topic cannot be retracted:
+    // a row is the only thing that stops a later run publishing the period
+    // again, so it has to exist before anything that can throw runs.
+    submit_tx: null,
     revises_seq: null,
     mode: options.mode,
     replay: options.mode !== 'live',
@@ -350,6 +363,33 @@ async function publishOne(args: PublishArgs): Promise<PublishedObservation> {
     written_at: `${args.now.toISOString().slice(0, 19)}Z`,
   };
   await options.writer.write(record);
+
+  const submission = await maybeSubmit(
+    options,
+    {
+      groupKey: observation.groupKey,
+      period: observation.period,
+      status: message.status,
+      odi: observation.odi,
+      ebar: observation.ebar,
+      sourceHash: digest,
+      hcsSequence: receipt.sequenceNumber,
+    },
+    series?.seriesId,
+    args.now,
+  );
+  if (submission.result !== null) {
+    await options.writer.write({ ...record, submit_tx: submission.result.hash });
+    log(
+      `${observation.period}  ${observation.groupKey.padEnd(32)} submitted ${submission.result.hash} ` +
+        `gas ${submission.result.gasUsed}` +
+        (submission.result.claimsOpened === null
+          ? ''
+          : `  CLAIMS OPENED reserved ${submission.result.claimsOpened.reserved}`),
+    );
+  } else if (submission.skipped !== null) {
+    log(`${observation.period}  ${observation.groupKey.padEnd(32)} no chain call: ${submission.skipped}`);
+  }
 
   const live = options.topicId !== null && options.topicId !== undefined;
   return {
@@ -380,51 +420,118 @@ async function publishOne(args: PublishArgs): Promise<PublishedObservation> {
  * return so a run log says why a month was published and not submitted rather
  * than leaving a reader to guess.
  */
+/**
+ * Exactly what a chain call would carry, taken from the message that was
+ * published rather than recomputed.
+ *
+ * The retry path depends on the distinction. A resubmission has to send the
+ * values the topic already carries, because the on chain observation and the
+ * HCS message it names are one statement; if the source were revised between
+ * the two attempts, recomputing would put a number on chain that no message
+ * supports.
+ */
+interface SubmitCandidate {
+  groupKey: string;
+  period: Period;
+  status: string;
+  odi: number | null;
+  ebar: number | null;
+  sourceHash: string;
+  hcsSequence: number;
+}
+
 async function maybeSubmit(
-  args: PublishArgs,
-  hcsSequence: number,
-  digest: string,
+  options: PipelineOptions,
+  candidate: SubmitCandidate,
   seriesId: string | undefined,
+  now: Date,
 ): Promise<{ result: SubmitResult | null; skipped: string | null }> {
-  const { observation, options } = args;
   const submitter = options.submitter;
   if (submitter === null) return { result: null, skipped: 'chain submission is off for this run' };
   if (seriesId === undefined) {
-    return { result: null, skipped: `${observation.groupKey} has no cover series registered` };
+    return { result: null, skipped: `${candidate.groupKey} has no cover series registered` };
   }
-  if (observation.status !== 'final' || observation.ebar === null) {
-    return { result: null, skipped: `status is ${observation.status}, only final months settle` };
+  if (candidate.status !== 'final' || candidate.ebar === null) {
+    return { result: null, skipped: `status is ${candidate.status}, only final months settle` };
   }
 
-  const monthIndex = toMonthIndex(observation.period);
+  const monthIndex = toMonthIndex(candidate.period);
   const nowMonth = periodIndex(
-    `${args.now.getUTCFullYear()}-${String(args.now.getUTCMonth() + 1).padStart(2, '0')}`,
+    `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`,
   );
   if (monthIndex > nowMonth) {
-    return { result: null, skipped: `${observation.period} has not started yet` };
+    return { result: null, skipped: `${candidate.period} has not started yet` };
   }
 
   const state = await submitter.seriesState(seriesId);
   if (!state.acceptsObservations) {
     return { result: null, skipped: `the series is ${state.statusName}` };
   }
-  if (await submitter.hasObservation(seriesId, observation.period)) {
-    return { result: null, skipped: `${observation.period} is already on chain` };
+  if (await submitter.hasObservation(seriesId, candidate.period)) {
+    return { result: null, skipped: `${candidate.period} is already on chain` };
   }
   if (state.lastObservedMonth !== 0 && monthIndex <= state.lastObservedMonth) {
     return {
       result: null,
-      skipped: `the series has already observed a month at or after ${observation.period}`,
+      skipped: `the series has already observed a month at or after ${candidate.period}`,
     };
   }
 
   const result = await submitter.submit({
     seriesId,
-    period: observation.period,
-    odi: observation.odi,
-    ebar: observation.ebar,
-    hcsSequence,
-    sourceHash: digest,
+    period: candidate.period,
+    odi: candidate.odi,
+    ebar: candidate.ebar,
+    hcsSequence: candidate.hcsSequence,
+    sourceHash: candidate.sourceHash,
   });
   return { result, skipped: null };
+}
+
+/**
+ * Finish a period whose message reached the topic on an earlier run but whose
+ * chain call did not.
+ *
+ * This is the state docs/INDEX-SPEC.md section 5 calls resuming at `submit`:
+ * the message is published and unretractable, the row exists with `hcs_seq`
+ * set and `submit_tx` null, and the retry does the contract call alone. Without
+ * it a run that died between the two halves would leave the period published
+ * and never settled, and every later run would skip it as already published.
+ *
+ * Everything sent comes from the stored record, so the resubmission carries the
+ * sequence number and the source hash of the message actually on the topic.
+ */
+async function resumeSubmit(
+  options: PipelineOptions,
+  existing: ObservationRecord,
+  now: Date,
+  log: (line: string) => void,
+): Promise<SubmitResult | null> {
+  if (existing.submit_tx !== null || existing.hcs_seq === null) return null;
+  if (options.submitter === null) return null;
+  const series = seriesForGroup(options.config, existing.group_key);
+  if (series === undefined) return null;
+
+  const submission = await maybeSubmit(
+    options,
+    {
+      groupKey: existing.group_key,
+      period: existing.period,
+      status: existing.status,
+      odi: existing.message.odi,
+      ebar: existing.message.ebar,
+      sourceHash: existing.message.source_hash,
+      hcsSequence: existing.hcs_seq,
+    },
+    series.seriesId,
+    now,
+  );
+  if (submission.result === null) return null;
+
+  await options.writer.write({ ...existing, submit_tx: submission.result.hash });
+  log(
+    `${existing.period}  ${existing.group_key.padEnd(32)} resubmitted ${submission.result.hash} ` +
+      `gas ${submission.result.gasUsed} for the message already at sequence ${existing.hcs_seq}`,
+  );
+  return submission.result;
 }

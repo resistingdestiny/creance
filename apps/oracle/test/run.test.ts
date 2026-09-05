@@ -153,6 +153,69 @@ describe('the replay of real history for the demo series', () => {
     expect(submitter.calls).toHaveLength(0);
   });
 
+  it('does not republish a period whose contract call threw on an earlier run', async () => {
+    // The partial failure that matters: the message is on the topic and cannot
+    // be retracted, and then the chain call fails. A retry must not put a
+    // second message for that period on the settlement topic.
+    const writer = new MemoryObservationWriter();
+    const firstPublisher = new DryRunPublisher();
+    const failing = new DryRunSubmitter();
+    failing.submit = async () => {
+      throw new Error('the relay timed out');
+    };
+    await expect(
+      runPipeline(base({ writer, publisher: firstPublisher, submitter: failing, periods: ['2025-01'] })),
+    ).rejects.toThrow(/the relay timed out/);
+
+    // The message went out, and the store knows about it even though the run
+    // threw after the receipt.
+    expect(firstPublisher.published).toHaveLength(1);
+    const orphan = await writer.get('computer_math', '2025-01', 'replay');
+    expect(orphan?.hcs_seq).toBe(1);
+    expect(orphan?.submit_tx).toBeNull();
+
+    const secondPublisher = new DryRunPublisher();
+    const working = new DryRunSubmitter();
+    const second = await runPipeline(
+      base({ writer, publisher: secondPublisher, submitter: working, periods: ['2025-01'] }),
+    );
+    expect(secondPublisher.published).toHaveLength(0);
+    expect(second.publishedCount).toBe(0);
+    expect(second.skippedCount).toBe(1);
+  });
+
+  it('finishes the contract call for a period that was published but never settled', async () => {
+    const writer = new MemoryObservationWriter();
+    const failing = new DryRunSubmitter();
+    failing.submit = async () => {
+      throw new Error('the relay timed out');
+    };
+    await expect(
+      runPipeline(base({ writer, submitter: failing, periods: ['2025-01'] })),
+    ).rejects.toThrow(/the relay timed out/);
+
+    const working = new DryRunSubmitter();
+    const second = await runPipeline(
+      base({ writer, publisher: new DryRunPublisher(), submitter: working, periods: ['2025-01'] }),
+    );
+    expect(second.submittedCount).toBe(1);
+    expect(working.calls).toHaveLength(1);
+    // It resubmits the message that is on the topic, not a recomputed one: the
+    // sequence number and the source hash are the stored message's.
+    expect(working.calls[0]?.period).toBe(202501);
+    expect(working.calls[0]?.hcsSequence).toBe(1n);
+    const settled = await writer.get('computer_math', '2025-01', 'replay');
+    expect(settled?.submit_tx).toBe('dry-run-202501');
+    expect(`0x${settled?.message.source_hash}`).toBe(working.calls[0]?.sourceHash);
+
+    // And a third run has nothing left to do at all.
+    const third = await runPipeline(
+      base({ writer, publisher: new DryRunPublisher(), submitter: new DryRunSubmitter(), periods: ['2025-01'] }),
+    );
+    expect(third.publishedCount).toBe(0);
+    expect(third.submittedCount).toBe(0);
+  });
+
   it('does not resubmit a period the contract already holds', async () => {
     const submitter = new DryRunSubmitter();
     submitter.hasObservation = async () => true;

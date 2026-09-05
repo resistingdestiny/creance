@@ -16,6 +16,7 @@
     "testnet:audit": "tsx --env-file-if-exists=../../.env scripts/testnet/audit.ts",
     "testnet:bind-backdated": "tsx --env-file-if-exists=../../.env scripts/testnet/bind-backdated.ts",
     "testnet:claim": "tsx --env-file-if-exists=../../.env scripts/testnet/claim.ts",
+    "demo:seed": "tsx --env-file-if-exists=../../.env scripts/testnet/demo-seed/run.ts",
     "test:testnet": "pnpm run testnet:bind && pnpm run testnet:x402 && pnpm run testnet:agentify && pnpm run testnet:audit",
     "typecheck": "tsc --noEmit"
   },

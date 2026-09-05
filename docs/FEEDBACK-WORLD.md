@@ -228,20 +228,94 @@ The failure is the right failure: everything except the proof itself is exercise
 by it. Any integrator can do the same before their feature flag lands, and it is
 a better first day than waiting for an approval.
 
+### The staging simulator has no Selfie Check option, so the credential cannot be simulated
+
+Date: 5 September 2026. Tool: `https://simulator.worldcoin.org`.
+
+What we were doing: opening the widget with `selfieCheckLegacy`,
+`environment: staging`, and completing the request in the simulator the widget
+itself links to under "Testing in staging?".
+
+What we expected: to be able to answer a Selfie Check request in the simulator,
+because the integration guide names the simulator as the development tool for
+staging.
+
+What happened: the simulator's request sheet offers exactly four verification
+levels, Orb, Secure Document, Document and Device. There is no Selfie or Face
+option. So a `selfieCheckLegacy` request opened in staging can only be answered
+with a credential it did not ask for, and any backend checking the returned
+`identifier` will refuse the result. Testing Selfie Check therefore needs the
+Sandbox App on a phone; there is no desktop path.
+
+That is a reasonable state of affairs for a beta credential, and it is not said
+anywhere. It cost us the whole desktop test loop, and it belongs on the Selfie
+Check page in one sentence: "The staging simulator cannot complete a Selfie
+Check. Use the Sandbox App."
+
+### The whole flow runs end to end in staging, with the simulator standing in
+
+Date: 5 September 2026.
+
+Because of the finding above we ran the flow with the simulator's Orb credential
+and, for one diagnostic run only, widened the accepted identifiers. Everything
+except the credential itself is the shipping path.
+
+What happened, in order: the API signed an `rp_context`; the widget opened and
+World's staging bridge accepted the signed request, which is itself proof that
+the signature was good; the simulator produced a proof; the widget handed it to
+our server action, which posted it to the API; the API forwarded it to
+`POST /api/v4/verify/{rp_id}`, World confirmed it, our checks on action,
+environment, signal hash and credential identifier passed, and the eligibility
+credential was issued. The screen reached "You're verified".
+
+With the shipping configuration, which accepts only `selfie` and `face`, the
+same live proof is refused with our own 403 and World is never the one that
+says no. That is the credential-identifier check working against a real, valid
+proof rather than a fixture, and it is worth saying that we could only test it
+because the simulator returns the wrong credential.
+
+### The same identity verified the same action twice, and World issued both
+
+Date: 5 September 2026.
+
+This was the largest unknown going in, because two documented error codes,
+`nullifier_replayed` and `max_verifications_reached`, imply a repeat
+verification of one action can be refused, while the integration guide says the
+backend owns uniqueness. Our product verifies the same action at purchase and
+again at claim, so the answer decides the design.
+
+What happened: the same simulator identity completed the same action twice, back
+to back, and both times a proof came back and both times our API answered 201.
+No `nullifier_replayed`, no `max_verifications_reached`. On the legacy 3.0 path,
+in staging, repeat verification of one action is allowed.
+
+Two caveats we are explicit about. The credential was Orb rather than Selfie
+Check, for the reason above, and we could not read the two nullifiers back out
+to confirm they were identical, so "the same person gets the same nullifier" is
+still to be shown on the device run. What is settled is that the second attempt
+is not refused, which is the half that would have forced a redesign.
+
+Suggestion: say on the credentials or migration page whether repeat verification
+of one action is supported for legacy proofs, and if there is a per-action
+verification cap, say where it is configured. Two error codes implying a rule
+nobody documents is worse than either the rule or the codes alone.
+
 ### What is left for the device run, and why it matters
 
 These need the Sandbox App on a phone and are the five results we would most
 like to record. Each is written so that whoever runs them knows what to look
 for.
 
-1. The raw IDKit result, logged before it is forwarded. Specifically
+1. A Selfie Check proof at all, which is the one thing the simulator cannot
+   produce. With it, the raw IDKit result logged before it is forwarded, and
+   specifically
    `protocol_version`, `environment`, `responses[0].identifier` and whether
    `max_age` is present. `environment` is the answer to the contradiction above,
    from the client side rather than the server side.
-2. The same action verified twice by the same account, back to back. Whether the
-   second returns a proof with an identical nullifier, or fails
-   `nullifier_replayed`, or fails `max_verifications_reached`. This is the most
-   consequential unknown in the whole integration and section 4 says why.
+2. The same action verified twice by the same Sandbox account, reading both
+   nullifiers back to confirm they are identical. Staging has already shown that
+   the second attempt is not refused; what is left is whether the identifier is
+   the same one.
 3. A request with `require_user_presence: true`. Whether the camera check runs
    and whether `user_presence_completed` comes back true.
 4. A second purchase on the same series with the same account, to see our own

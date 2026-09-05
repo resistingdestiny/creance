@@ -159,6 +159,17 @@ export function decideClaim(
   );
 }
 
+/** What C9 prints: the sentences, and the line under "What you can do". */
+export interface ClaimantDecision {
+  readonly lines: string[];
+  /**
+   * Whether a corrected packet would be worth submitting, and why. Never empty
+   * on a decline: the claim screen either says what would change the answer or
+   * why nothing would (docs/CLAIMS.md).
+   */
+  readonly why: string | null;
+}
+
 /**
  * The sentences behind one decision, for the claimant's own screen.
  *
@@ -166,12 +177,15 @@ export function decideClaim(
  * C9 falls back to the reason codes rather than failing. The caller must
  * already have proved the claim belongs to this browser.
  */
-export async function decisionSentences(claimId: string): Promise<string[]> {
-  if (adminToken() === null) return [];
+export async function decisionForClaimant(claimId: string): Promise<ClaimantDecision> {
+  if (adminToken() === null) return { lines: [], why: null };
   try {
     const detail = await fetchAdminClaim(claimId);
-    return detail.reason_lines.map((entry) => entry.line);
+    return {
+      lines: detail.reason_lines.map((entry) => entry.line),
+      why: detail.resubmit?.why ?? null,
+    };
   } catch {
-    return [];
+    return { lines: [], why: null };
   }
 }

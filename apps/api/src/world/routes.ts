@@ -18,8 +18,8 @@ import { verifySelfieCheck, type IdKitResult } from './verify.js';
 /// call, and the x402 gate covers the index feed, the quote and the bind.
 ///
 /// The credential the second endpoint mints is the one DESIGN.md 3.6 describes
-/// and apps/api/src/credentials.ts already issues and verifies. T11 replaces
-/// only how it is earned: a Selfie Check that World confirmed, rather than the
+/// and apps/api/src/credentials.ts signs and verifies. This module owns only
+/// how it is earned: a Selfie Check that World confirmed, rather than the
 /// labelled interim issuer in apps/api/src/routes/ops.ts.
 
 export const worldRoutes: FastifyPluginAsync<{ services: Services }> = async (app, options) => {

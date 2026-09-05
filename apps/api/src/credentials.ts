@@ -3,13 +3,14 @@ import { exportJWK, generateKeyPair, importJWK, jwtVerify, SignJWT, type JWK } f
 import { AppError } from './errors.js';
 import { newId } from './ids.js';
 
-/// The eligibility credential, and the interim issuer that mints one.
+/// The eligibility credential: the shape, the signing and the verification.
 ///
 /// DESIGN.md 3.6: a short-lived JWT carrying the nullifier hash, the occupation
-/// group, the wallet and a thirty-minute expiry. T11 builds the World Selfie
-/// Check that earns one; until then this module both issues and verifies, so
-/// that /v1/bind can take a credential today and T11 replaces the issuer rather
-/// than discovering it. The interim issuer is recorded in docs/DECISIONS.md.
+/// group, the wallet and a thirty-minute expiry. What earns one is a World
+/// Selfie Check, verified in apps/api/src/world; this module knows nothing
+/// about how it was earned, which is why swapping the issuer changed no line
+/// here. The labelled interim issuer in routes/ops.ts mints the same claims for
+/// the testnet bind script and the Steward, which have no camera.
 ///
 /// EdDSA over Ed25519, not a shared HMAC secret. Three reasons: the Steward and
 /// the Bazantic gateway can verify a credential they are carrying without

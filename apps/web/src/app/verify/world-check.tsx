@@ -6,6 +6,7 @@ import {
   orbLegacy,
   proofOfHuman,
   selfieCheckLegacy,
+  type IDKitDebugReport,
   type IDKitErrorCodes,
   type IDKitResult,
   type Preset,
@@ -26,7 +27,14 @@ import type { WorldRequestContextView } from '../../lib/worker-api';
  *
  * `open` and `autoClose` are left at their defaults, as are the polling values.
  *
+ * There is no transport configuration and no surface branch here. IDKit detects
+ * World App itself and uses the native transport, where no QR code is shown, and
+ * the preset, the signed rp_context and the server side verify are the same in
+ * both surfaces. That is why the Mini App surface is one provider and some copy
+ * rather than a second integration.
+ *
  * https://docs.world.org/world-id/idkit/reference
+ * https://docs.world.org/world-id/idkit/mini-apps
  */
 
 const PRESETS: Record<string, (opts: { signal: string }) => Preset> = {
@@ -39,6 +47,29 @@ const PRESETS: Record<string, (opts: { signal: string }) => Preset> = {
 export function presetFor(name: string, signal: string): Preset {
   const build = PRESETS[name] ?? selfieCheckLegacy;
   return build({ signal });
+}
+
+/**
+ * Which transport carried a failed request, on the console of the device that
+ * ran it.
+ *
+ * `bridge` is the QR and polling path, `mini_app` is the native path inside
+ * World App, and on the native path the report also carries a `mini_app` object
+ * whose `minikit_subscribed` says whether the provider ever installed. There is
+ * no remote debugger for the World App webview, so a line on the device's own
+ * console is the diagnosis.
+ *
+ * Only the error path gets a report. The managed widget hands one to `onError`
+ * and hands `onSuccess` nothing but the result, and `getDebugReport` exists on
+ * the hook rather than on the component, so a successful native check cannot
+ * report its own transport without dropping to the hook. Recorded in the
+ * feedback for World.
+ *
+ * https://docs.world.org/world-id/idkit/mini-apps
+ */
+export function reportTransport(report: IDKitDebugReport | undefined): void {
+  if (report === undefined) return;
+  console.info('idkit transport', report.transport, report.mini_app ?? {});
 }
 
 export function WorldCheck({
@@ -78,7 +109,10 @@ export function WorldCheck({
       onOpenChange={onOpenChange}
       handleVerify={handleVerify}
       onSuccess={onSuccess}
-      onError={onError}
+      onError={(code, report) => {
+        reportTransport(report);
+        onError(code);
+      }}
     />
   );
 }

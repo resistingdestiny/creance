@@ -352,6 +352,35 @@ describe('POST /v1/claims', () => {
     expect(response.json().code).toBe('credential_missing');
   });
 
+  it('serves the claimant a status with no employer, no name and no date in it', async () => {
+    await seed(harness);
+    const submitted = await app.inject({
+      method: 'POST',
+      url: '/v1/claims',
+      headers: { authorization: `Bearer ${await claimCredential(app)}` },
+      payload: await packet(),
+    });
+    const claimId = submitted.json().claim_id as string;
+
+    const response = await app.inject({ method: 'GET', url: `/v1/claims/${claimId}` });
+    expect(response.statusCode, response.body).toBe(200);
+    const body = response.json();
+    expect(body).toMatchObject({
+      claim_id: claimId,
+      policy_id: CLAIM_POLICY_ID,
+      status: 'submitted',
+      decision: null,
+      reasons: [],
+      payout: null,
+    });
+    // A claim id is public: the claims topic carries it. So this response is
+    // what a stranger who read one off the topic is allowed to know.
+    expect(response.body).not.toContain('Northgate');
+    expect(response.body).not.toContain('Alex Mercer');
+    expect(response.body).not.toContain('2026-03-13');
+    expect(response.body).not.toContain(CLAIM_NULLIFIER);
+  });
+
   it('refuses an eligibility credential presented in place of a claim credential', async () => {
     await seed(harness);
     const eligibility = await app.inject({

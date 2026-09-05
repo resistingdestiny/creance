@@ -9,7 +9,7 @@ import { findSeries } from '../config.js';
 import type { VerifiedClaimCredential } from '../credentials.js';
 import type { ClaimEvidenceRow, ClaimRow, PolicyRow, SeriesRow } from '../db/types.js';
 import { AppError } from '../errors.js';
-import { newId } from '../ids.js';
+import { hasPrefix, newId } from '../ids.js';
 import type { Services } from '../services.js';
 import { seriesRowFrom } from '../series.js';
 import { rfc3339 } from '../views.js';
@@ -255,6 +255,75 @@ export const claimRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
       });
     },
   );
+};
+
+/**
+ * GET /v1/claims/:id
+ *
+ * What the claimant's own screen polls while the Adjuster is deciding, and
+ * what it reads afterwards. Free, like `GET /v1/policy/:id`, and bound by the
+ * same rule: a claim id is public, because the claims topic carries it in every
+ * `claim_packet` and `claim_decision` message, so this response has to be safe
+ * to hand to a stranger who read one off the topic.
+ *
+ * So it carries the status, the decision, the reason codes, whether a corrected
+ * packet would be worth submitting, the amount and the two hashes, and none of
+ * the employer, the name, the separation date, the file names or the nullifier.
+ *
+ * The sentences are the one thing a claim screen needs that is not here.
+ * `reason_lines` carry dates and sometimes an employer's name, so they are
+ * served from the admin payload and from nowhere free. See docs/DECISIONS.md.
+ */
+export const claimReadRoutes: FastifyPluginAsync<{ services: Services }> = async (
+  app,
+  options,
+) => {
+  const { services } = options;
+
+  app.get<{ Params: { id: string } }>('/v1/claims/:id', async (request, reply) => {
+    if (!hasPrefix(request.params.id, 'claim')) {
+      throw new AppError(400, 'bad_id_prefix', 'Not a claim id', 'A claim id starts with clm_.');
+    }
+    const claim = await services.repository.claim(request.params.id);
+    if (claim === null) {
+      throw new AppError(404, 'claim_not_found', 'Claim not found', 'No claim with that id.');
+    }
+    return reply.send({
+      claim_id: claim.claimId,
+      policy_id: claim.policyId,
+      series_id: claim.seriesId,
+      status: claim.status,
+      decision: claim.decision,
+      reasons: claim.reasons,
+      resubmit: claim.resubmit === null ? null : { allowed: claim.resubmit.allowed },
+      amount:
+        claim.amount === null
+          ? null
+          : {
+              amount: claim.amount,
+              asset: services.config.settlementToken.tokenId,
+              decimals: services.config.settlementToken.decimals,
+            },
+      packet_hash: claim.packetHash,
+      decision_hash: claim.decisionHash,
+      claim_deadline: claim.claimDeadline === null ? null : rfc3339(claim.claimDeadline),
+      submitted_at: claim.submittedAt === null ? null : rfc3339(claim.submittedAt),
+      decided_at: claim.decidedAt === null ? null : rfc3339(claim.decidedAt),
+      paid_at: claim.paidAt === null ? null : rfc3339(claim.paidAt),
+      hcs: {
+        topic_id: services.config.claimsTopicId === '' ? null : services.config.claimsTopicId,
+        packet_sequence_number: claim.hcsSubmittedSeq,
+        decision_sequence_number: claim.hcsDecisionSeq,
+      },
+      payout:
+        claim.paidTx === null
+          ? null
+          : {
+              transaction: claim.paidTx,
+              hashscan: `https://hashscan.io/testnet/transaction/${claim.paidTx}`,
+            },
+    });
+  });
 };
 
 /** The credential, from the header or the body. The header wins, as at bind. */

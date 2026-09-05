@@ -2404,3 +2404,216 @@ renames a prop is a class of failure worth one line of configuration to avoid.
 `@worldcoin/idkit-core/hashing`. The same symbols are documented from three
 different packages across three pages; these are the paths the integration guide
 shows and they need no extra direct dependency.
+## T25, the Adjuster, 5 September 2026
+
+### The model extracts and the code decides, with nothing in between
+
+DESIGN.md 3.9 says the Adjuster "extracts fields from the documents with a
+vision-capable model" and then "checks" a list of things. The two halves are kept
+strictly apart: the model returns a closed, schema-validated record of what one
+document says, and a pure function turns that plus the cover, the series terms
+and the observed open months into a decision. No rule outcome, no amount and no
+confidence is ever produced by the model, and there is no `approve` field in the
+extraction schema for an injected instruction to land in.
+
+The cost is one more type and one more mapping. The benefit is that the whole
+adjudication is testable with no network and no key, reproducible from a fixture,
+and explicable line by line when somebody asks why a claim was declined. It is
+also the defence that does the most work against a hostile document: the
+statement is never in the prompt, so a document cannot be written to agree with
+something the model has not read.
+
+### Four rule statuses, not two
+
+DESIGN.md 3.9 implies a rule passes or fails. The engine reports four: `pass`,
+`fail_hard` which declines, `fail_soft` which refers, and `not_evaluated` when
+the inputs for the rule are not present. A rule whose inputs are missing and
+which is reported as a pass is the failure mode that turns a missing check into
+an approval, so the status carries `required` beside it and the auto-approval
+predicate refuses to approve past a required rule that could not be evaluated.
+
+### The loss window has three outcomes and the third is a hold
+
+DESIGN.md 3.2 says the loss window is "the two months after" the separation.
+DESIGN.md 3.9, CoverPool and the backlog all say the separation month or one of
+the two months before the first open month, which is a lookback rather than a
+lookforward. The contract is the source of truth and the contract is what
+`payClaim` checks, so the Adjuster reads `openMonths(seriesId)` and
+`SeriesTerms.lastObservedMonth` off the chain and evaluates `open(m) ||
+open(m+1) || open(m+2)`.
+
+The third outcome is the one that matters. A false predicate means two different
+things: some month of the window has not been observed yet, or every month has
+been observed and none opened. The first is a hold, not a decline. The claim
+refers with `loss_window_not_yet_open`, waits `under_review`, and is re-decided
+by a later pass; the claim window is defined as 60 days from the separation or 30
+days from the opening observation, whichever is later, precisely so the wait
+cannot cost the claimant their deadline. Rendering that hold as a decline would
+refuse a valid claim on camera.
+
+`claim_deadline` comes from `CoverPool.claimDeadline` and is never recomputed in
+TypeScript, because two implementations of "whichever ends later" is how the
+screen and the chain end up disagreeing.
+
+### The auto-approval limit and the confidence threshold are ours, not the chain's
+
+Neither number exists in `SeriesTerms`, in the `series` table before this ticket,
+or anywhere in the configuration. They are added as two columns on `series` with
+defaults, and as `AUTO_APPROVAL_LIMIT` and `AUTO_APPROVAL_CONFIDENCE` for what a
+new row takes. The limit defaults to the full 5,000 demo cover in minor units,
+which is DESIGN.md 9 item 7's proposal; the confidence defaults to 0.900, which
+DESIGN.md does not fix and somebody had to pick.
+
+They are deliberately not on chain. `SeriesTerms` freezes the trigger and the
+windows, which are the terms a policyholder is owed and which nothing off chain
+may contradict. How much of the adjudication we automate is not owed to anybody:
+it is an operational choice that should be changeable without a redeploy, per
+series, and a chain sync never writes it back over an operator's change.
+
+### `full_name` joins the attestation, so the name rule can be evaluated at all
+
+DESIGN.md 3.9 asks the documents to agree with the attestation "on employer, name
+and date". The claims table created in T07 carries the employer and the date and
+no name, so the name rule could only ever have been reported `not_evaluated`,
+which caps the confidence at 0.85 and means nothing auto-approves. That would
+have made DESIGN.md 3.9's strongest fraud check, whether the letter is about this
+person at all, permanently dead.
+
+So `claimant_name_enc` and `name_hash` are added to `claims` in the T25
+migration, encrypted at rest beside `employer_name_enc` and hashed rather than
+carried in the clear. T13 owns the write path and the form field. Until it lands,
+a claim with no name still decides: the rule reports `not_evaluated`, the
+confidence renormalises over the remaining weights and records that it did, and
+the claim refers to a person. The decision record shows which of the two was in
+force, per claim, forever.
+
+### The name component is weighted by the model's reading confidence
+
+The rubric's employer term is the model's own reading confidence scaled by how
+well the two names matched. The name term is defined the same way, rather than a
+flat 1.0 on an exact match. A name transcribed off a blurred signature block is
+weaker evidence than one printed in an address line, and there is no reason for
+the two fields to be treated differently. It also keeps packet A's arithmetic at
+0.940 rather than 0.950, which is the number the fixture asserts to three
+decimals.
+
+### The confidence caps are applied as a minimum and always recorded
+
+Each cap is recorded in `caps_applied` whenever its condition holds, whether or
+not it actually bound. A reviewer reading a record then sees why a packet could
+not have auto-approved, rather than only that it did not. Every cap sits below
+the 0.900 default threshold, which is the point: a cap is a statement that a
+packet is not auto-approvable, expressed in the same number the threshold reads,
+so there is one gate and not two.
+
+### A near match on an employer name is containment as well as a ratio
+
+Comparing two employer names by the Sorensen-Dice coefficient alone puts
+"Northgate Systems (UK) Ltd" against "Northgate Systems Ltd" at 0.80, which is
+below the 0.90 near-match line and would therefore decline it. That is a real
+person's real uncertainty about their own employer's legal name and it is not
+fraud. So a containment test sits beside the ratio: when one normalised name is
+the other plus a qualifier, and the shorter has at least two words, it is a near
+match and the claim refers. One shared word is a coincidence; two is a name.
+
+### The indexed payout mode refers rather than guessing an amount
+
+`payClaim` compares the amount for equality and not for "at most", so an amount
+the Adjuster computes differently from the contract is a bug and not a discount.
+The demo series pays `full`, so the expected payout is the cover limit exactly.
+The indexed mode needs the qualifying month's ODI and only works on a shock
+opening, which this build does not compute, so rule R31 refers an indexed series
+to a person rather than inventing a number.
+
+### Decline reasons carry both a code and a composed sentence
+
+The API returns machine codes so that a copy change never needs an API deploy.
+Several of the sentences the claim screen shows only mean anything with the dates
+filled in, and templating them in the web app would put half a sentence in the
+Adjuster and half in the app. So the decision carries `reasons[]` and
+`reason_lines[]` in parallel. The codes are canonical and go to the topic, the
+record and the queue; the lines are presentation, are shown verbatim, and never
+reach the topic because they carry dates and sometimes an employer name.
+
+The price is that a copy change now needs an Adjuster deploy rather than a web
+deploy. That is smaller than the price of the same sentence existing in two
+places and drifting.
+
+### The Adjuster is an admin client and publishes the topic itself
+
+The API is the only writer of the database, which is what the migration comments
+say, so the Adjuster reads the queue over HTTP with a bearer token and posts its
+decision to the same endpoint a human posts to. Building the machine path on a
+different route from the human path would leave the human path untested at the
+moment it is needed.
+
+The one thing it does hold is the claims topic's submit key, because that key is
+the adjuster account's and the API does not have it. It builds its own Hiero
+client, publishes the decision hash, and hands the sequence number to the API
+with the decision. The hash reaches the topic before the decision reaches the
+row, so a claim that is decided is always a claim whose decision is already
+public and a payout can never reference a sequence number that does not exist.
+
+To do that it imports `claimDecisionMessage` and `encodeTopicMessage` from
+`apps/api/src/audit`, which makes `@creance/api` a workspace dependency of
+`@creance/adjuster`. Writing the fixed version 1 message a second time in the
+agent is how two writers end up disagreeing about a field name on an append-only
+topic, which cannot be fixed afterwards.
+
+### The API recomputes the decision hash it is given
+
+`POST /v1/admin/claims/:id/decide` canonicalises the posted record with JCS,
+hashes it, and refuses the request when the `decision_hash` beside it differs.
+The CLAIMS role signs over that hash, so a record whose hash was computed over
+something else would put a signature on a decision nobody can reproduce.
+Recomputing costs one canonicalisation and makes the stored preimage and the
+published hash the same thing by construction.
+
+### The admin endpoints stay out of the Bazantic document
+
+`recipes/bazantic/openapi.yaml` describes what an agent may buy over x402. The
+review queue is internal, gated by a bearer token, and is not a Bazantic
+operation, so none of the four admin routes is documented there. The generated
+document and its test are unchanged.
+
+### A timeout never decides a claim
+
+An overdue claim, meaning one that has been waiting for a person for more than a
+working day, is flagged and sorted to the top of the queue. It is never declined
+and never approved by the passage of time. A time-gated transition is right for
+money already committed on chain, such as the reserve releasing when the window
+closes, and wrong for an adjudication, because the deadline in this design is on
+the claimant's filing and not on our review.
+
+### The decision moves the cover with it
+
+A decision writes the claim and the policy status in one transaction: approved,
+declined or under_review. A claim that says approved beside a policy that still
+says claims_open is a state nothing downstream can act on. The payout status
+stays T13's, because it belongs after the authorisation is signed.
+
+### Evidence is sealed with a per-file data key under an environment key
+
+The `claim_evidence` columns created in T07 describe an envelope and there was no
+implementation of one. Each file gets a fresh 256 bit data key; the file is
+encrypted with AES-256-GCM under it, giving `enc_iv` and `enc_tag`; the data key
+is wrapped under a key encryption key from the environment and stored in
+`enc_dek`, carrying its own nonce and tag inside its bytes because the row's iv
+and tag belong to the file. `enc_kek_id` names the wrapping key so a rotation is
+a new id beside the old one.
+
+The stored hash is over the plaintext, because that is what a claimant can
+recompute from the file on their own machine and it is what reaches the topic.
+The admin evidence route checks it again on the way out: a file whose bytes no
+longer match what the topic carries is a broken store, and a silent mismatch
+would be adjudicated as if it were fine.
+
+### The fixture documents are rendered by a committed script
+
+The two packets need documents that are clearly synthetic, small enough to
+commit and reproducible. `pnpm --filter @creance/adjuster fixtures` renders them
+from the text in `fixtures/letters.ts` with an eighty line PDF writer in
+`apps/adjuster/src/pdf.ts`, rather than adding a rendering dependency to a
+workspace whose job is adjudication. A one page text-only PDF is what the model
+reads best: it converts each page to an image and extracts the text alongside it,
+so a text page gives it both layers.

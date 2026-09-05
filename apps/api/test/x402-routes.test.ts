@@ -236,6 +236,19 @@ describe('the x402 gate', () => {
         (await built.app.inject({ method: 'GET', url: '/.well-known/jwks.json' })).statusCode,
       ).toBe(200);
     });
+
+    // The replay badge sat at GET /v1/index/replay until T12 merged this gate.
+    // The route map pattern is a glob, `GET /v1/index/*`, so it matched, and a
+    // configured gate answered the badge with a 402. The endpoint moved out
+    // from under the prefix rather than being carved out of the glob. T26's
+    // health endpoint has the same constraint.
+    it('does not meter the oracle run state, which is not an index reading', async () => {
+      const built = await harness();
+      const response = await built.app.inject({ method: 'GET', url: '/v1/replay' });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ mode: 'live', running: false });
+    });
   });
 
   describe('a paid request', () => {

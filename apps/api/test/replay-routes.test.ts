@@ -40,7 +40,7 @@ const RUNNING: ReplayState = {
 async function get(options: Parameters<typeof replayRoutes>[1]) {
   const app = Fastify();
   await app.register(replayRoutes, options);
-  const response = await app.inject({ method: 'GET', url: '/v1/index/replay' });
+  const response = await app.inject({ method: 'GET', url: '/v1/replay' });
   await app.close();
   return response;
 }
@@ -95,7 +95,7 @@ describe('the badge the web app shows', () => {
   });
 });
 
-describe('GET /v1/index/replay', () => {
+describe('GET /v1/replay', () => {
   it('serves the state and the badge', async () => {
     const response = await get({ read: () => RUNNING });
     expect(response.statusCode).toBe(200);

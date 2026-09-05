@@ -4,13 +4,18 @@ import { badgeFor, readReplayState, replayStatePath, type ReplayState } from './
 
 /// The replay state endpoint.
 ///
-///     GET /v1/index/replay
+///     GET /v1/replay
 ///
 /// One route, no chain access and no database. The oracle writes its run state
 /// to a JSON file and this serves it, so the web app can show the REPLAY badge
 /// while the demo clock is walking and say which scenario is running when one
 /// is. T21's GET /health and T26's GET /v1/index/health both include the same
 /// state; both should call `readReplayState` rather than this endpoint.
+///
+/// The path is deliberately not under /v1/index/. The x402 gate meters
+/// `GET /v1/index/*`, so a badge served from there would answer 402 as soon as
+/// payments are configured. T26's health endpoint has to follow the same rule.
+/// See docs/DECISIONS.md.
 ///
 /// Self contained on purpose, in its own directory, registered from server.ts
 /// with one line exactly as `investorRoutes` is. Nothing here writes.
@@ -38,7 +43,7 @@ export const replayRoutes: FastifyPluginAsync<ReplayPluginOptions> = async (
   const path = options.statePath ?? replayStatePath();
   const read = options.read ?? ((): ReplayState => readReplayState(path));
 
-  app.get('/v1/index/replay', async (_request, reply) => reply.send(buildReplayView(read())));
+  app.get('/v1/replay', async (_request, reply) => reply.send(buildReplayView(read())));
 };
 
 export { badgeFor, idleReplayState, parseReplayState, readReplayState, replayStatePath } from './state.js';

@@ -52,6 +52,12 @@ COPY --chown=node:node data/bls data/bls
 # The commit this image was built from. GET /health returns it, and that is the
 # line in MISSION's definition of done.
 ARG GIT_SHA=unknown
+# The RUN is not decoration. podman 4.9.3 does not treat a change of build
+# argument as invalidating a later ENV layer, so a rebuild at a new commit
+# reuses the old ENV and the image reports a commit that is not its own. A RUN
+# carrying the value in its command text has that value in its cache key, so it
+# and everything after it rebuild. Measured; see docs/harness-notes.md.
+RUN echo "$GIT_SHA" > /repo/.git-sha
 ENV GIT_SHA=$GIT_SHA
 
 # main.ts defaults to 127.0.0.1, which is right on a laptop and answers nobody

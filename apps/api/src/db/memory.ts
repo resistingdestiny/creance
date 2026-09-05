@@ -238,6 +238,15 @@ export class MemoryRepository implements Repository {
     return updated;
   }
 
+  async recordDecisionSequence(claimId: string, sequenceNumber: number): Promise<ClaimRow | null> {
+    const existing = this.fullClaims.get(claimId);
+    if (existing === undefined || existing.decisionHash === null) return null;
+    if (existing.hcsDecisionSeq !== null) return null;
+    const updated = { ...existing, hcsDecisionSeq: sequenceNumber };
+    this.fullClaims.set(claimId, updated);
+    return updated;
+  }
+
   async updatePayment(paymentId: string, patch: Partial<PaymentRow>): Promise<void> {
     const existing = this.paymentRows.get(paymentId);
     if (existing === undefined) return;

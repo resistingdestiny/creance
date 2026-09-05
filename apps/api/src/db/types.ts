@@ -387,6 +387,15 @@ export interface Repository {
    * decision and the loser is told so rather than overwriting.
    */
   recordDecision(input: RecordDecisionInput): Promise<ClaimRow>;
+  /**
+   * Record where a decision reached the claims topic, and nothing else.
+   *
+   * A human decision is stored with its record and its hash, and the API cannot
+   * publish it because the claims topic's submit key is the adjuster account's.
+   * The Adjuster publishes it and writes the sequence number back through this,
+   * which touches no other column and cannot reopen a decided claim.
+   */
+  recordDecisionSequence(claimId: string, sequenceNumber: number): Promise<ClaimRow | null>;
   updatePayment(
     paymentId: string,
     patch: Partial<

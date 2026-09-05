@@ -522,6 +522,16 @@ export class PostgresRepository implements Repository {
     }
   }
 
+  async recordDecisionSequence(claimId: string, sequenceNumber: number): Promise<ClaimRow | null> {
+    const { rows } = await this.pool.query(
+      `UPDATE claims SET hcs_decision_seq = $2
+        WHERE claim_id = $1 AND decision_hash IS NOT NULL AND hcs_decision_seq IS NULL
+      RETURNING *`,
+      [claimId, sequenceNumber],
+    );
+    return rows[0] === undefined ? null : toClaim(rows[0]);
+  }
+
   async updatePayment(paymentId: string, patch: Partial<PaymentRow>): Promise<void> {
     const columns: Record<string, unknown> = {};
     if (patch.status !== undefined) columns['status'] = patch.status;

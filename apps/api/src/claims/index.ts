@@ -8,6 +8,7 @@ import { AppError } from '../errors.js';
 import type { ClaimRow, ClaimStatus } from '../db/types.js';
 import type { Services } from '../services.js';
 import { openEvidence } from './evidence.js';
+import { hashRecord, reviewerRecord } from './record.js';
 import { requireAdmin, type AdminActor } from './token.js';
 import { adminClaimSummary, adminClaimView } from './view.js';
 
@@ -131,6 +132,57 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
     },
   );
 
+  app.get<{ Querystring: { limit?: string } }>(
+    '/v1/admin/claims/unpublished',
+    async (request, reply) => {
+      requireAdmin(request, services.adminTokens);
+      const limit = Math.min(Math.max(Number(request.query.limit ?? '20') || 20, 1), 100);
+      const claims = await unpublishedDecisions(services, limit);
+      return reply.send({
+        count: claims.length,
+        claims: claims.map((claim) => ({
+          claim_id: claim.claimId,
+          policy_id: claim.policyId,
+          decision: claim.decision,
+          decision_hash: claim.decisionHash,
+        })),
+      });
+    },
+  );
+
+  app.post<{ Params: { claimId: string }; Body: { hcs_decision_seq?: unknown } }>(
+    '/v1/admin/claims/:claimId/published',
+    async (request, reply) => {
+      requireAdmin(request, services.adminTokens);
+      const sequence = request.body?.hcs_decision_seq;
+      if (typeof sequence !== 'number' || !Number.isInteger(sequence) || sequence < 1) {
+        throw new AppError(
+          400,
+          'bad_sequence',
+          'Bad sequence number',
+          'hcs_decision_seq is the whole number the topic receipt carried.',
+        );
+      }
+      const stored = await services.repository.recordDecisionSequence(
+        request.params.claimId,
+        sequence,
+      );
+      if (stored === null) {
+        throw new AppError(
+          409,
+          'decision_not_publishable',
+          'Nothing to record',
+          'That claim has no decision hash waiting for a sequence number.',
+        );
+      }
+      return reply.send({
+        claim_id: stored.claimId,
+        decision_hash: stored.decisionHash,
+        hcs_decision_seq: stored.hcsDecisionSeq,
+      });
+    },
+  );
+
   app.post<{ Params: { claimId: string }; Body: DecideBody }>(
     '/v1/admin/claims/:claimId/decide',
     async (request, reply) => {
@@ -179,7 +231,30 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
       }
 
       guardHardRules(claim, record, decision, actor);
-      const decisionHash = verifyHash(record, body.decision_hash);
+
+      // A reviewer posts a decision and a sentence. The record is composed here
+      // rather than left null, because the CLAIMS role signs over the decision
+      // hash and a decision with no preimage behind its hash is a decision
+      // nothing can pay.
+      const asset = {
+        id: services.config.settlementToken.tokenId,
+        decimals: services.config.settlementToken.decimals,
+      };
+      const decidedAt = new Date().toISOString();
+      const composed =
+        record ??
+        reviewerRecord({
+          claim,
+          decision,
+          reasons: reasons.length > 0 ? reasons : ['reviewer_decision'],
+          note: reason,
+          actor: actor.name,
+          amount: decision === 'approve' ? await payableAmount(services, claim) : null,
+          asset,
+          decidedAt,
+        });
+      const decisionHash =
+        record === null ? hashRecord(composed) : verifyHash(record, body.decision_hash);
 
       const status: ClaimStatus =
         decision === 'approve' ? 'approved' : decision === 'decline' ? 'declined' : 'under_review';
@@ -191,13 +266,14 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
         reasons: reasons.length > 0 ? reasons : reason === '' ? [] : ['reviewer_decision'],
         confidence: typeof body.confidence === 'string' ? body.confidence : null,
         decisionHash,
-        decisionRecord: record,
+        decisionRecord: composed,
         hcsDecisionSeq:
           typeof body.hcs_decision_seq === 'number' ? body.hcs_decision_seq : null,
-        amount: amountOf(record),
-        decidedBy: typeof record?.['actor'] === 'string' ? (record['actor'] as string) : actor.name,
+        amount: amountOf(composed),
+        decidedBy:
+          typeof composed['actor'] === 'string' ? (composed['actor'] as string) : actor.name,
         reviewer: actor.canOverride && record === null ? actor.name : null,
-        decidedAt: new Date().toISOString(),
+        decidedAt,
       });
 
       request.log.info(
@@ -221,6 +297,40 @@ export const adminClaimRoutes: FastifyPluginAsync<{ services: Services }> = asyn
     },
   );
 };
+
+/**
+ * The claims whose decision hash has not reached the topic yet.
+ *
+ * A human decision is stored with its record and its hash, but the API cannot
+ * publish it: the claims topic's submit key is the adjuster account's. So the
+ * Adjuster sweeps this list at the end of a pass and publishes what it finds,
+ * which is what keeps "every decision is on a public topic" true for the human
+ * half of the queue as well as the machine half.
+ */
+export async function unpublishedDecisions(
+  services: Services,
+  limit: number,
+): Promise<ClaimRow[]> {
+  const statuses: ClaimStatus[] = ['under_review', 'approved', 'declined'];
+  const found: ClaimRow[] = [];
+  for (const status of statuses) {
+    for (const claim of await services.repository.claimsByStatus(status, limit)) {
+      if (claim.decisionHash !== null && claim.hcsDecisionSeq === null) found.push(claim);
+    }
+  }
+  return found.slice(0, limit);
+}
+
+/** What this claim would pay, from the cover limit and the payout mode. */
+async function payableAmount(services: Services, claim: ClaimRow): Promise<string | null> {
+  if (claim.amount !== null) return claim.amount;
+  const [policy, series] = await Promise.all([
+    services.repository.policy(claim.policyId),
+    services.repository.series(claim.seriesId),
+  ]);
+  if (policy === null || series === null || series.payoutMode !== 'full') return null;
+  return policy.coverLimit;
+}
 
 async function loadClaim(
   services: Services,

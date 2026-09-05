@@ -168,7 +168,12 @@ try {
       config.settlementToken.decimals,
       new Date(startAt * 1000).toISOString(),
       new Date(endsAt * 1000).toISOString(),
-      new Date(startAt * 1000).toISOString().slice(0, 10),
+      // The waiting period, not the start. `POST /v1/bind` stores start plus
+      // the series' waiting period here and the screens read it as the first
+      // day a separation can qualify, so storing the start made Home offer a
+      // claim from a date on which no claim could be paid. Found on the T16
+      // run and recorded in docs/harness-notes.md.
+      new Date(payableFrom * 1000).toISOString().slice(0, 10),
       Number(values.start?.slice(0, 4)) * 100 + Number(values.start?.slice(5, 7)),
       receipt.topicId,
       receipt.sequenceNumber,

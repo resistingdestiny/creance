@@ -98,3 +98,20 @@ A service, not code. The testnet facilitator at
 build takes. No API key and no account: its own documentation says testnet is
 open access. Its `GET /supported` is where the Hedera fee payer account comes
 from.
+
+## The Hedera Harness
+
+https://github.com/hedera-dev/hedera-harness, branch `dev` at 2.0.0-rc.4
+
+Not a dependency of this build and not vendored into this repository. The T20
+contribution is a pull request to that project, developed in a fork cloned
+outside this tree, so nothing came from the harness into here. MIT licensed.
+
+What went the other way is one piece of this build's own code. The transaction
+id conversion in `hashscanTransactionUrl` in `packages/client`, which turns the
+SDK's `0.0.x@sss.nnn` into the `0.0.x-sss-nnn` the mirror node and HashScan
+accept, is rewritten in the pull request as `normalizeTransactionId` in the
+harness's own style, with the mirror form passing through and an unrecognised
+value throwing. It is four lines of regular expression either way and neither
+copy was pasted from the other, but it is the same idea and it is recorded here
+because the pull request carries it into somebody else's repository.

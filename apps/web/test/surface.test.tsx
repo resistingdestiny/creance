@@ -101,3 +101,28 @@ describe('the MiniKit provider', () => {
     expect(screen.getByTestId('surface').textContent).toBe('browser');
   });
 });
+
+/**
+ * What the SDK's own link builder produces, pinned.
+ *
+ * The quick actions page publishes `?app_id={app_id}&path={path}` with the path
+ * "url encoded", once. `MiniKit.getMiniAppUrl` encodes it and then appends it to
+ * a query serialiser that encodes it again, so the two do not agree. The API
+ * publishes the documented form; this test is here so a release that changes the
+ * helper's answer fails rather than passing quietly.
+ *
+ * https://docs.world.org/mini-apps/sharing/quick-actions
+ */
+describe("the SDK's own mini app link", () => {
+  const appId = 'app_1ff11ea9d0eb0d3ea0e9e17e0f7d2d3f';
+
+  it('encodes the path twice, where the documented schema encodes it once', () => {
+    expect(MiniKit.getMiniAppUrl(appId, '/cover/index/computer_math')).toBe(
+      `https://world.org/mini-app?app_id=${appId}&path=%252Fcover%252Findex%252Fcomputer_math`,
+    );
+  });
+
+  it('launches on the same host the API publishes', () => {
+    expect(MiniKit.getMiniAppUrl(appId)).toBe(`https://world.org/mini-app?app_id=${appId}`);
+  });
+});

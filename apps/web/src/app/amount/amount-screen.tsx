@@ -6,7 +6,8 @@ import { AmountSlider } from '../../components/amount-slider';
 import { AppFrame } from '../../components/app-frame';
 import { PillButton } from '../../components/pill-button';
 import { TextLink } from '../../components/text-link';
-import { continueToVerify, priceCover, type PriceResult } from '../purchase-actions';
+import type { PriceResult } from '../../lib/worker-model';
+import { continueToVerify, priceCover } from '../purchase-actions';
 
 /**
  * "Cover amount", "{premium} a month" and the sentence that says when it pays,

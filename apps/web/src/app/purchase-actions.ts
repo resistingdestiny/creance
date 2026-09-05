@@ -13,7 +13,16 @@ import {
   type PurchaseSession,
 } from '../lib/purchase-session';
 import { DEMO_ACCOUNT } from '../lib/wallet';
-import { coverAmount, paysOutSentence, premiumAmount } from '../lib/worker-model';
+import {
+  bindMessage,
+  coverAmount,
+  paysOutSentence,
+  premiumAmount,
+  priceFailure,
+  type PayResult,
+  type PriceResult,
+  type VerifyResult,
+} from '../lib/worker-model';
 import { bindPolicy, requestQuote, toMinorUnits, waitForSerial } from '../lib/worker-api';
 
 /**
@@ -42,15 +51,6 @@ export async function chooseOccupation(formData: FormData): Promise<void> {
   }
   await updatePurchase({ group, limit: AMOUNT_DEFAULT, quoteId: null });
   redirect('/amount');
-}
-
-export interface PriceResult {
-  readonly limit: string;
-  readonly premium: string;
-  readonly sentence: string;
-  readonly usedPercent: number;
-  readonly full: boolean;
-  readonly error: string | null;
 }
 
 /**
@@ -89,33 +89,9 @@ export async function priceCover(limit: number): Promise<PriceResult> {
   }
 }
 
-function priceFailure(limit: number, cause: unknown): PriceResult {
-  const empty = { limit: String(limit), premium: '', sentence: '', usedPercent: 0 };
-  if (cause instanceof ApiError && cause.code === 'insufficient_capacity') {
-    return {
-      ...empty,
-      full: true,
-      error: 'This series is full. Choose a smaller amount or try again later.',
-    };
-  }
-  if (cause instanceof ApiError && cause.code === 'no_capacity_for_group') {
-    return { ...empty, full: true, error: 'There is no cover behind this occupation yet.' };
-  }
-  return {
-    ...empty,
-    full: false,
-    error: "We couldn't get a price. Check that the API is running, then try again.",
-  };
-}
-
 /** Amount screen: "Continue". */
 export async function continueToVerify(): Promise<void> {
   redirect('/verify');
-}
-
-export interface VerifyResult {
-  readonly ok: boolean;
-  readonly error: string | null;
 }
 
 /**
@@ -151,11 +127,6 @@ export async function verifyPerson(): Promise<VerifyResult> {
 /** Verify screen: "Continue". */
 export async function continueToPay(): Promise<void> {
   redirect('/pay');
-}
-
-export interface PayResult {
-  readonly ok: boolean;
-  readonly error: string | null;
 }
 
 /**
@@ -214,27 +185,6 @@ async function repriceAndBind(session: PurchaseSession): Promise<PayResult> {
     return { ok: true, error: null };
   } catch (cause) {
     return { ok: false, error: bindMessage(cause) };
-  }
-}
-
-/**
- * What a bind failure says. Every message names what happened and what to do
- * next, without apology, which is the sheet's rule for every error here.
- */
-export function bindMessage(cause: unknown): string {
-  if (!(cause instanceof ApiError)) return "Your payment didn't go through. Nothing was taken. Try again.";
-  switch (cause.code) {
-    case 'already_covered':
-      return 'You already have cover for this occupation. One person, one cover.';
-    case 'insufficient_capacity':
-      return 'This series is full. Choose a smaller amount or try again later.';
-    case 'series_not_open_for_binding':
-      return 'This series is not taking new cover.';
-    case 'credential_expired':
-    case 'credential_consumed':
-      return 'That check has expired. Verify again and the price is unchanged.';
-    default:
-      return "Your payment didn't go through. Nothing was taken. Try again.";
   }
 }
 

@@ -14,6 +14,7 @@
  *   distance under 0.05 reads as sitting on the line.
  */
 
+import { ApiError } from './api';
 import { formatIndexValue, formatMoney, formatWholeMoney } from './format';
 import { occupationLabel } from './occupations';
 import type { IndexPoint } from '../components/index-chart';
@@ -215,4 +216,77 @@ export function nextPaymentLine(policy: PolicyView, formatDay: (iso: string) => 
   const premium = premiumAmount(policy.premium);
   if (policy.next_payment_due === null) return premium;
   return `${premium} on ${formatDay(policy.next_payment_due)}`;
+}
+
+/**
+ * What the Amount, Verify and Pay screens get back from a server action.
+ *
+ * The wording lives here rather than in the actions module, because a 'use
+ * server' file may export nothing but async functions and because a message a
+ * person reads is worth a test.
+ */
+
+export interface PriceResult {
+  readonly limit: string;
+  readonly premium: string;
+  readonly sentence: string;
+  readonly usedPercent: number;
+  readonly full: boolean;
+  readonly error: string | null;
+}
+
+export interface VerifyResult {
+  readonly ok: boolean;
+  readonly error: string | null;
+}
+
+export interface PayResult {
+  readonly ok: boolean;
+  readonly error: string | null;
+}
+
+/**
+ * A price that could not be taken. Every message says what happened and what to
+ * do next, without apology, which is the sheet's rule for every error here.
+ *
+ * "This series is full" is the one string on these screens that is in neither
+ * sheet: the copy deck has nothing for a series at capacity, and a screen that
+ * says nothing about it would leave a disabled button unexplained.
+ */
+export function priceFailure(limit: number, cause: unknown): PriceResult {
+  const empty = { limit: String(limit), premium: '', sentence: '', usedPercent: 0 };
+  if (cause instanceof ApiError && cause.code === 'insufficient_capacity') {
+    return {
+      ...empty,
+      full: true,
+      error: 'This series is full. Choose a smaller amount or try again later.',
+    };
+  }
+  if (cause instanceof ApiError && cause.code === 'no_capacity_for_group') {
+    return { ...empty, full: true, error: 'There is no cover behind this occupation yet.' };
+  }
+  return {
+    ...empty,
+    full: false,
+    error: "We couldn't get a price. Check that the API is running, then try again.",
+  };
+}
+
+/** What a bind failure says, switched on the problem document's own code. */
+export function bindMessage(cause: unknown): string {
+  const fallback = "Your payment didn't go through. Nothing was taken. Try again.";
+  if (!(cause instanceof ApiError)) return fallback;
+  switch (cause.code) {
+    case 'already_covered':
+      return 'You already have cover for this occupation. One person, one cover.';
+    case 'insufficient_capacity':
+      return 'This series is full. Choose a smaller amount or try again later.';
+    case 'series_not_open_for_binding':
+      return 'This series is not taking new cover.';
+    case 'credential_expired':
+    case 'credential_consumed':
+      return 'That check has expired. Verify again and the price is unchanged.';
+    default:
+      return fallback;
+  }
 }

@@ -160,6 +160,47 @@ export function openEvidence(keys: EvidenceKeys, row: SealedRow, ciphertext: Buf
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
 
+/// A single attestation field, sealed under the key encryption key directly.
+///
+/// The claim row has one bytea per field and no room for a nonce column, so the
+/// blob is self describing: a one byte key id length, the key id, the nonce,
+/// the tag, then the ciphertext. That makes a rotation a new id beside the old
+/// one, exactly as it is for a file.
+
+export function sealField(keys: EvidenceKeys, plaintext: string): Buffer {
+  const kek = keys.keks.get(keys.activeKekId);
+  if (kek === undefined) throw new Error('the active evidence key is not loaded');
+  const id = Buffer.from(keys.activeKekId, 'utf8');
+  if (id.byteLength > 255) throw new Error('an evidence key id is at most 255 bytes');
+  const iv = randomBytes(IV_BYTES);
+  const cipher = createCipheriv(CIPHER, kek, iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  return Buffer.concat([Buffer.from([id.byteLength]), id, iv, cipher.getAuthTag(), ciphertext]);
+}
+
+export function openField(keys: EvidenceKeys, blob: Buffer): string {
+  const idLength = blob[0] ?? 0;
+  const id = blob.subarray(1, 1 + idLength).toString('utf8');
+  const kek = keys.keks.get(id);
+  if (kek === undefined) {
+    throw new AppError(
+      503,
+      'evidence_key_missing',
+      'Evidence key missing',
+      `This deployment holds no key named ${id}, so it cannot open that field.`,
+    );
+  }
+  const at = 1 + idLength;
+  const iv = blob.subarray(at, at + IV_BYTES);
+  const tag = blob.subarray(at + IV_BYTES, at + IV_BYTES + TAG_BYTES);
+  const decipher = createDecipheriv(CIPHER, kek, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([
+    decipher.update(blob.subarray(at + IV_BYTES + TAG_BYTES)),
+    decipher.final(),
+  ]).toString('utf8');
+}
+
 /// The object half of the store: the local filesystem under `var/`. It is
 /// behind an interface so that a deployment with a bucket swaps one class and
 /// the routes do not change.

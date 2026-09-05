@@ -133,7 +133,7 @@ Buying cover writes to Hedera testnet: `/pay` settles the first month's premium,
 
 The check on `/verify` is a World Selfie Check. Fill in `WORLD_APP_ID`, `WORLD_RP_ID` and `WORLD_RP_SIGNING_KEY` from the World Developer Portal and the screen runs IDKit with the `selfieCheckLegacy` preset, the signal bound to the wallet id and an `rp_context` signed by the API; the completed result goes to the API, which forwards it to World and issues the eligibility credential on the strength of it. Scan the code with the World ID Sandbox App. Leave those variables blank and the API's labelled interim issuer runs instead, which mints the same credential without a check, and the screen says so.
 
-One person holds one active cover per series. That rule is a unique index in the database and a check before the pay step, so a second purchase with the same World ID is refused before anybody is asked to pay. Selfie Check is a medium-assurance credential: World says so itself, and it means someone holding two World ID accounts could hold two covers. See [docs/FEEDBACK-WORLD.md](docs/FEEDBACK-WORLD.md).
+One person holds one active cover per series. That rule is a unique index in the database and a check before the pay step, so a second purchase with the same World ID is refused before anybody is asked to pay. Selfie Check is a medium-assurance credential: World [says so itself](https://docs.world.org/world-id/credentials/11), and it means someone holding two World ID accounts could hold two covers.
 
 Workspaces are named under the `@creance` scope. Every one of them extends [tsconfig.base.json](tsconfig.base.json), which sets TypeScript to strict.
 
@@ -340,8 +340,7 @@ Setting `WORLD_ACTION_ELIGIBILITY` and `WORLD_ACTION_CLAIM` to a single
 registered action makes the two nullifiers identical and restores the stronger
 sentence, "the same live person bought the cover and collects it", with no code
 change. `GET /healthz` reports `world.continuity`, which says which of the two is
-running. See [docs/DECISIONS.md](docs/DECISIONS.md) and
-[docs/FEEDBACK-WORLD.md](docs/FEEDBACK-WORLD.md).
+running. See [docs/DECISIONS.md](docs/DECISIONS.md) under T11 and T13.
 
 The claim's camera check cannot be automated, so a labelled demo path,
 `POST /v1/demo/claim-presence`, sits behind `DEMO_ELIGIBILITY_ISSUER` for the

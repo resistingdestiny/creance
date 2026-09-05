@@ -3141,3 +3141,55 @@ bound on most months for most groups and overridden the hazard entirely, which
 is exactly the flattening the formula of record exists to avoid. The floor is
 therefore a statement about the least a policy is worth writing rather than a
 number that does any work.
+
+## T19, the Bazantic gateway and the recipes, 5 September 2026
+
+### The OpenAPI document is validated by swagger-parser, in the test suite
+
+"Validated" had no tooling behind it before this ticket. It has one now:
+`@apidevtools/swagger-parser` 13, a development dependency of `apps/api`, run in
+`apps/api/test/openapi.test.ts` against the committed `openapi.yaml` rather than
+against the object the generator returns, because the file is what an importer
+is handed.
+
+It was chosen over a linter because the question this document has to answer is
+"will an importer accept it", not "is it stylish". swagger-parser resolves every
+`$ref` and validates the document against the OpenAPI 3.0 schema, and it also
+refuses a path template that declares a parameter the operation does not, which
+is the failure a hand-extended generator grows first. A style linter would have
+had opinions about descriptions and none about that.
+
+### The recipes read the frozen trigger parameters from the index, not the series
+
+The obvious place to read a series' frozen shock attachment and level line is
+`GET /v1/series/{seriesId}`. It does not carry them: it answers the vault, the
+note, the holders, the pool and the coupons, all read from the chain, and the
+trigger lines live on the index instead.
+
+So the renewal recipe reads them from `trigger` on `GET /v1/index/{group}` and
+from the `attachment_shock` and `level_line` fields on the observation messages
+on the index topic, which makes the mirror node load bearing for a second
+reason: the number on the topic is the one the contract compares against. The
+series read stays in the recipe for what it does answer, the capacity, the term
+and the coupon.
+
+### The 402 body is documented as its own schema
+
+The three metered operations answered `Problem` in the document and something
+richer in reality: the same RFC 9457 fields plus `price`, `x402_version`,
+`scheme`, `network`, `pay_to` and `facilitator`. An agent that reads this
+document and never reads this repository has to be able to find the price in the
+body it actually gets, so the extra fields are now a `PaymentRequired` schema.
+
+Written out field by field rather than composed with `allOf`. The document
+avoids `allOf`, `anyOf` and `oneOf` throughout, and a test enforces it, because
+those are where importers disagree.
+
+### The buy recipe stops at bind and says so
+
+The premium schedule is not part of it. The Steward creates the following
+months' premiums as Scheduled Transactions outside x402, because the `exact`
+scheme requires a bare transfer and refuses one wrapped in a `ScheduleCreate`
+(docs/DECISIONS.md under T09, and step 7 of docs/demo/steward.txt). A recipe that
+implied it had arranged a year of payments would misdescribe the one part of the
+flow that is genuinely unusual, so both recipes name the boundary instead.

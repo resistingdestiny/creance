@@ -1241,3 +1241,43 @@ repository is on 2.87.0, so two copies of the SDK are on disk; the README warns
 that mixing them breaks the SDK's `instanceof` checks, so every file that
 touches x402 imports `PrivateKey` and the rest from `@x402/hedera` rather than
 from the SDK directly, and nothing has been seen to break.
+
+## T18, the audit trail, 5 September 2026
+
+### The mirror node has two shapes for one topic message and they are not interchangeable
+
+`GET /api/v1/topics/{id}/messages/{sequenceNumber}` answers with the message
+object itself, at the top level. `GET /api/v1/topics/{id}/messages?sequencenumber=eq:{n}`
+answers with `{"messages": [...], "links": {...}}` and the same message inside
+the list. Both are 200 and both are documented under the same heading in the
+REST reference, so a client that starts on one and moves to the other for the
+sake of a filter gets `undefined` where the body should be, with no error.
+`MirrorClient` in `packages/client` uses the query form for every read, so one
+code path serves both the single message and the window.
+
+Measured, payments topic 0.0.10366471 on 5 September 2026:
+
+    /topics/0.0.10366471/messages/18          -> {"consensus_timestamp": "...", "sequence_number": 18, "message": "..."}
+    /topics/0.0.10366471/messages?sequencenumber=eq:18 -> {"messages": [ ... ], "links": {"next": null}}
+
+### `sequencenumber` takes the comparison operators, which is how a window is read
+
+The reference names `sequencenumber` as a filter without saying what a value may
+look like. It takes the same `operator:value` form the timestamp filters take:
+
+    GET /topics/0.0.10366471/messages?limit=3&order=asc&sequencenumber=gte:18
+    -> sequence numbers 18, 19, 20
+
+That is what makes the second half of a policy receipt findable. A bind writes
+two messages and only the first sequence number is stored, so the audit trail
+reads forward from it with `gte:` rather than guessing that the next message on
+a shared topic is the one it wants.
+
+### A transaction id on a topic message comes in two forms, and only one resolves
+
+The coupon run writes `transactionId` in the mirror form,
+`0.0.10366450-1788556746-724064738`. The x402 settlement writes `tx` in the SDK
+form the facilitator returns, `0.0.7162784@1788602397.120605122`. Both are
+correct for their writer and only the first resolves on HashScan, so the reader
+converts before it builds a link, as the T08 note above says. A trail assembled
+from a topic has to expect both forms rather than the one its own writer uses.

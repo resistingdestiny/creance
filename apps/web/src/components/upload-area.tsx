@@ -33,7 +33,20 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / MEGABYTE).toFixed(1)} MB`;
 }
 
-export function UploadArea({ files = [] }: { files?: readonly UploadedFile[] }) {
+export function UploadArea({
+  files = [],
+  name,
+  onSelect,
+  busy = false,
+}: {
+  files?: readonly UploadedFile[];
+  /** The field name, when the area sits inside a form that submits the files. */
+  name?: string;
+  /** Called with the chosen files, for a screen that submits them itself. */
+  onSelect?: (chosen: FileList) => void;
+  /** A file is on its way up. The label says so and the input is closed. */
+  busy?: boolean;
+}) {
   const [over, setOver] = useState(false);
 
   return (
@@ -56,7 +69,12 @@ export function UploadArea({ files = [] }: { files?: readonly UploadedFile[] }) 
         <input
           accept="image/jpeg,image/png,application/pdf"
           className="sr-only"
+          disabled={busy}
           multiple
+          name={name}
+          onChange={(event) => {
+            if (event.target.files !== null) onSelect?.(event.target.files);
+          }}
           type="file"
         />
         Add a file

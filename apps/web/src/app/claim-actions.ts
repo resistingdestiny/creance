@@ -117,16 +117,6 @@ export async function addEvidence(formData: FormData): Promise<ClaimStepResult> 
   return { ok: true, error: null };
 }
 
-/** C3, removing a file that was added by mistake. */
-export async function removeEvidence(filename: string): Promise<ClaimStepResult> {
-  const session = await readClaim();
-  if (session === null) redirect('/home');
-  await updateClaim({
-    evidence: session.evidence.filter((file) => file.filename !== filename),
-  });
-  return { ok: true, error: null };
-}
-
 /** C3, "Continue". At least one document, which is the API's own rule. */
 export async function continueToConfirm(): Promise<ClaimStepResult> {
   const session = await readClaim();

@@ -335,6 +335,18 @@ rule is one pure function, its inputs and its result are printed in the run and
 published in the journal entry, and a cycle that decides to hold still journals
 and still exits 0.
 
+That is what a run on live data usually does. The three month trend at the
+newest published month has not been rising in recent readings, so `pnpm
+steward:run` on its own pays for the index, prints the three months it read,
+journals a hold and stops before the quote. Nothing is wrong with that run: it
+is the rule working. To watch the buy path, put the vantage on a month whose
+trend does rise, which is the same labelled replay the demo clock uses:
+
+    pnpm steward:run --as-of 2025-05 --cadence demo
+
+The journal entry records `replay: true` for such a cycle, so a reader can tell
+a labelled vantage from a live one.
+
 Months two onwards are not x402. The Hedera exact scheme requires a bare
 `TransferTransaction` and forbids one wrapped in a `ScheduleCreateTransaction`,
 so the first premium is the paid request and the rest are Scheduled Transactions

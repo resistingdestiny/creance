@@ -48,6 +48,7 @@ export interface OracleConfig {
 }
 
 const DEFAULT_RECORD = '../../../contracts/deployments/testnet.json';
+const DEFAULT_RESOURCES = '../../../docs/hedera.testnet.json';
 const DEFAULT_STATE = '../../../var/oracle/replay-state.json';
 const DEFAULT_OBSERVATIONS = '../../../var/oracle/observations.json';
 
@@ -56,6 +57,12 @@ interface DeploymentFile {
   collateralVault?: { address: string };
   coverPool?: { address: string };
   series?: { id: string; label: string; group: string };
+}
+
+/** docs/hedera.testnet.json, what `pnpm hedera:setup` wrote on day 0. */
+interface ResourcesFile {
+  accounts?: Record<string, { accountId: string; evmAddress: string }>;
+  topics?: Record<string, { topicId: string }>;
 }
 
 function fromHere(relative: string): string {
@@ -80,6 +87,7 @@ function required(value: string | undefined, name: string): string {
 
 export interface LoadOptions {
   recordPath?: string;
+  resourcesPath?: string;
   environment?: NodeJS.ProcessEnv;
 }
 
@@ -91,6 +99,14 @@ export function loadOracleConfig(options: LoadOptions = {}): OracleConfig {
   if (record === undefined) {
     throw new Error(`no deployment record at ${recordPath}: run pnpm contracts:deploy first`);
   }
+  // The topic id and the oracle account id are public, and `pnpm hedera:setup`
+  // already wrote both to docs/hedera.testnet.json. Reading them from there
+  // means a clone with only the operator key in its environment can run,
+  // because the oracle key derives from the operator key. The environment still
+  // wins, so a judge can point the worker somewhere else.
+  const resourcesPath =
+    options.resourcesPath ?? vars.CREANCE_HEDERA_RESOURCES ?? fromHere(DEFAULT_RESOURCES);
+  const resources = readJson<ResourcesFile>(resourcesPath);
 
   const network = record.network ?? vars.HEDERA_NETWORK ?? 'testnet';
   if (network !== 'testnet') {
@@ -110,8 +126,14 @@ export function loadOracleConfig(options: LoadOptions = {}): OracleConfig {
     network,
     rpcUrl: vars.HEDERA_RPC_URL?.trim() || 'https://testnet.hashio.io/api',
     mirrorUrl: vars.HEDERA_MIRROR_URL?.trim() || 'https://testnet.mirrornode.hedera.com/api/v1',
-    topicId: required(vars.HEDERA_TOPIC_INDEX, 'HEDERA_TOPIC_INDEX'),
-    accountId: required(vars.HEDERA_ORACLE_ID, 'HEDERA_ORACLE_ID'),
+    topicId: required(
+      vars.HEDERA_TOPIC_INDEX ?? resources?.topics?.index?.topicId,
+      'HEDERA_TOPIC_INDEX',
+    ),
+    accountId: required(
+      vars.HEDERA_ORACLE_ID ?? resources?.accounts?.oracle?.accountId,
+      'HEDERA_ORACLE_ID',
+    ),
     coverPoolAddress: required(
       vars.HEDERA_COVERPOOL_ADDRESS ?? record.coverPool?.address,
       'HEDERA_COVERPOOL_ADDRESS',

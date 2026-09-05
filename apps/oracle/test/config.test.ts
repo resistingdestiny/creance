@@ -6,6 +6,7 @@ import { findSeries, loadOracleConfig, seriesForGroup } from '../src/config.js';
 /// series, every command in this workspace stops working and the test says so
 /// before a run does.
 const RECORD = new URL('../../../contracts/deployments/testnet.json', import.meta.url).pathname;
+const RESOURCES = new URL('../../../docs/hedera.testnet.json', import.meta.url).pathname;
 
 const MINIMAL = {
   HEDERA_TOPIC_INDEX: '0.0.10366470',
@@ -37,10 +38,29 @@ describe('oracle configuration', () => {
     expect(seriesForGroup(config, 'legal')).toBeUndefined();
   });
 
+  it('falls back to the day 0 resources for the topic and the oracle account', () => {
+    const config = loadOracleConfig({
+      recordPath: RECORD,
+      resourcesPath: RESOURCES,
+      environment: {},
+    });
+    expect(config.topicId).toBe('0.0.10366470');
+    expect(config.accountId).toBe('0.0.10366447');
+  });
+
+  it('lets the environment win over the resources file', () => {
+    const config = loadOracleConfig({
+      recordPath: RECORD,
+      resourcesPath: RESOURCES,
+      environment: { HEDERA_TOPIC_INDEX: '0.0.999' },
+    });
+    expect(config.topicId).toBe('0.0.999');
+  });
+
   it('names the variable that is missing rather than failing later', () => {
-    expect(() => loadOracleConfig({ recordPath: RECORD, environment: {} })).toThrow(
-      /HEDERA_TOPIC_INDEX/,
-    );
+    expect(() =>
+      loadOracleConfig({ recordPath: RECORD, resourcesPath: '/nope.json', environment: {} }),
+    ).toThrow(/HEDERA_TOPIC_INDEX/);
   });
 
   it('refuses a record for any network but testnet', () => {

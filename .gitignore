@@ -18,3 +18,4 @@ typechain-types/
 contracts/types/
 .playwright-mcp/
 .claude/worktrees/
+.scratch/

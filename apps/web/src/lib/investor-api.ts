@@ -19,6 +19,10 @@
 
 import { apiBaseUrl, type Money } from './api';
 
+// The money envelope and the origin now live in ./api, which every screen's
+// client is built on. They are re-exported here because these two names are
+// what the investor and receipt screens already read.
+export { apiBaseUrl };
 export type { Money };
 
 export interface HolderView {

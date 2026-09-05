@@ -59,12 +59,12 @@ key and `DATABASE_URL` filled in and nothing else.
 | Database | `createdb creance` then `pnpm api:migrate` | 3 seconds, prints `applied 001_init, 002_adjuster, 003_claims` |
 | Unit tests, optional | `pnpm test` | 83 seconds |
 | Boot | `pnpm dev` | the API answers `GET /health` after 10 seconds, the web app is ready in 2 |
-| Worker flow | a browser at http://localhost:3000 | 106 seconds to a bound policy |
+| Worker flow | a browser at http://localhost:3000 | under two minutes to a bound policy, most of it waiting on testnet |
 | Steward flow | `pnpm steward:run --as-of 2025-05 --cadence demo` | 38 seconds to a bound policy and three premium schedules |
 | Oracle replay | `pnpm oracle:preflight` then `pnpm oracle:replay --dry-run --interval-ms 250` | 6 seconds, then 12 |
 
-Three minutes and 44 seconds of wall clock from `git clone` to all three flows
-done, skipping the optional unit suite. The two things that stretch it are a
+Under four minutes of wall clock from `git clone` to all three flows done,
+skipping the optional unit suite. The two things that stretch it are a
 cold pnpm store and the demo clock at its real cadence, which is ten seconds a
 month by design and is what the video shows.
 

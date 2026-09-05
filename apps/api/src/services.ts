@@ -7,6 +7,13 @@ import { createPool, PostgresRepository } from './db/postgres.js';
 import { migrate } from './db/migrate.js';
 import type { GroupRow, Repository } from './db/types.js';
 import { EthersChainGateway, type ChainGateway } from './chain/cover-pool.js';
+import {
+  FileObjectStore,
+  loadEvidenceKeys,
+  type EvidenceKeys,
+  type ObjectStore,
+} from './claims/evidence.js';
+import { loadAdminTokens, type AdminTokens } from './claims/token.js';
 import { SdkHederaGateway, type HederaGateway } from './chain/hedera.js';
 import { seriesRowFrom } from './series.js';
 import { loadX402Config } from './x402/config.js';
@@ -39,6 +46,11 @@ export interface Services {
   thresholds: Map<string, Thresholds>;
   /** The x402 gate, or null when this deployment serves the routes open. */
   x402: X402Gate | null;
+  /** The bearer tokens the review queue is behind. */
+  adminTokens: AdminTokens;
+  /** The key encryption keys, or null when this deployment stores no evidence. */
+  evidenceKeys: EvidenceKeys | null;
+  evidenceStore: ObjectStore;
   gitSha: string;
   startedAt: Date;
 }
@@ -53,6 +65,9 @@ export interface BuildServicesOptions {
   indexData?: IndexData | null;
   thresholds?: Map<string, Thresholds>;
   x402?: X402Gate | null;
+  adminTokens?: AdminTokens;
+  evidenceKeys?: EvidenceKeys | null;
+  evidenceStore?: ObjectStore;
   /** Skip the archive load, which costs a second and is not wanted in tests. */
   loadIndex?: boolean;
   /** Run migrations and backfill the index before serving. */
@@ -125,6 +140,9 @@ export async function buildServices(options: BuildServicesOptions = {}): Promise
     issuer,
     indexData,
     x402,
+    adminTokens: options.adminTokens ?? loadAdminTokens(),
+    evidenceKeys: options.evidenceKeys !== undefined ? options.evidenceKeys : loadEvidenceKeys(),
+    evidenceStore: options.evidenceStore ?? new FileObjectStore(),
     thresholds: options.thresholds ?? frozenThresholds(),
     gitSha: process.env.GIT_SHA ?? 'unknown',
     startedAt: new Date(),

@@ -970,6 +970,125 @@ of the two font modules in `next.config.ts`. Rebuilt and measured both ways:
 with A active there is no Geist file in the output, with B active there is no
 Inter file.
 
+## T07, the API, 5 September 2026
+
+### The account that holds BINDER_ROLE cannot write to the index topic
+
+docs/HEDERA.md's topic table and the T07 acceptance disagree. The acceptance
+asks for the bind receipt on the index topic; the index topic's submit key is
+the oracle's. The api account holds BINDER_ROLE, CLAIMS_ROLE and the payments
+topic submit key, and nothing more. A `TopicMessageSubmitTransaction` to the
+index topic signed by the api key fails, so this is a design constraint and not
+a runtime discovery: the receipt goes to the payments topic. See
+docs/DECISIONS.md.
+
+### The policy NFT's supply and freeze keys belong to the operator, not the API
+
+Same shape of gap, on the token side. `pnpm hedera:setup` created CPOL with the
+operator key as treasury, admin, supply and freeze key. The API is the process
+that mints a policy receipt, so it needs the operator key too, not only the api
+key. Two keys in one process is worth saying out loud, because a reader of
+DESIGN.md 4 would reasonably expect the api account to own everything the API
+does.
+
+### `hcsReceiptSeq` forces the receipt to be published before the bind
+
+`CoverPool.bind` takes the HCS sequence number as an input. A bind therefore
+publishes first and calls second, and a revert leaves a message on a public
+settlement topic describing a policy that was never registered. HCS has no
+retraction. The T04 note anticipated this and proposed passing zero; the API
+passes the real sequence number and writes a second message resolving the first,
+because a receipt that is never resolved is worse than two messages.
+
+Measured on testnet: the two messages landed at sequences 3 and 4 for the first
+policy and 5 and 6 for the second, on topic
+[0.0.10366471](https://hashscan.io/testnet/topic/0.0.10366471).
+
+### A second policy for the same holder needs the unfreeze, and it is a mirror read
+
+docs/DECISIONS.md's "The policy NFT collection has no default freeze" says a
+second policy for the same holder needs an unfreeze first. There is no cheap way
+to ask the network whether an account is frozen for a token: the SDK has no
+query for it, so the answer comes from the mirror node's
+`/accounts/{id}/tokens?token.id={token}`, whose `freeze_status` reads `FROZEN`
+or `UNFROZEN`. That read is on the bind path, which means a bind depends on the
+mirror node being current for a fact the network already knows.
+
+Proven both ways on testnet against
+[0.0.10366458](https://hashscan.io/testnet/account/0.0.10366458): the first bind
+found no relationship freeze and minted serial 1; the second found `FROZEN`,
+unfroze, minted serial 2, transferred and froze again.
+
+### The premium the formula of record produces is not DESIGN's demo number
+
+DESIGN.md 3.4 gives the demo premium as "around 15 to 30 a month" for a 5,000
+limit. docs/DECISIONS.md's "Premium is a guide price from the index multiplied
+by a capacity term" supersedes DESIGN's frequency formula, and it prices from
+the distance to the level line, which moves every month. Computed from the
+committed archive at zero utilisation, for a 5,000 limit:
+
+| Month | ebar | Distance to the line | Rate | Monthly premium |
+|---|---|---|---|---|
+| 2026-03 | -0.80 | 0.12 | 524 bps | 21.83 |
+| 2026-04 | -0.60 | -0.08, open on the level form | 1210 bps | 50.42 |
+| 2026-05 | -0.63 | -0.05, open on the level form | 1063 bps | 44.29 |
+| 2026-06 | -1.00 | 0.32 | 248 bps | 10.33 |
+| 2026-07 | -1.37 | 0.69 | 96 bps | 4.00 |
+
+So DESIGN's 15 to 30 is right for March 2026, the month before claims open, and
+wrong for the archive's latest month, which is what a clone quotes today. The
+number is not a constant and the copy deck's 28.00 placeholder should stay
+interpolated at runtime, which DESIGN.md already says.
+
+### The Hedera SDK's TokenMintTransaction takes metadata as bytes, and the cap is bytes
+
+Already recorded from T03 as a day 0 finding, confirmed from the API side:
+`setMetadata([Buffer])` is the shape, one entry per serial, and 100 bytes is the
+limit. The policy metadata is `{"p":"pol_<ulid>","s":"<series>"}`, 60 bytes, so
+a longer series label would still fit and a second field would not.
+
+### A ULID with a four character prefix is exactly 30 bytes, which fits bytes32
+
+`ethers.encodeBytes32String` takes at most 31 bytes. `pol_` plus a 26 character
+ULID is 30, with one byte to spare, so a policy id round trips between the JSON,
+the database and the chain with no lookup table and a HashScan event log decodes
+to something a person can read. A UUID would not have fitted, which is why the
+ids are ULIDs.
+
+### The mirror node's NFT metadata is base64, and its `/tokens/{id}/nfts/{serial}` answers 404 before it answers 200
+
+Consistent with the T03 note on topic messages: the entity endpoints 404 while
+the mirror catches up, so both the NFT read and the topic message read after a
+bind are polls. Measured on testnet at roughly one to three seconds behind
+consensus for both.
+
+### The Node PostgreSQL driver returns numeric as a string, which is what this build wants
+
+`numeric(78,0)` comes back from `pg` as a JavaScript string rather than a
+number, which is the behaviour every amount in this system depends on. It is not
+a setting and it is easy to read as a bug, so it is written down: a `pg` type
+parser that "fixes" it by returning a number would silently truncate every
+amount over 2^53.
+
+### Flipping the last base64url character of a JWT signature does not always break it
+
+Found by a test of this build's own, which failed about one run in four and
+passed the rest. The test forged a credential by flipping the final character of
+the signature segment and expected `jwtVerify` to refuse it. Sometimes it did
+not.
+
+An Ed25519 signature is 64 bytes and its base64url form is 86 characters. Those
+encode 516 bits for 512 bits of signature, so the last character carries four
+significant bits and two that the decoder discards. For sixteen of the
+sixty-four possible final characters the flip lands entirely in the discarded
+bits, the signature decodes to the same 64 bytes, and the token verifies
+normally.
+
+Nothing is wrong with `jose` here; the test was wrong. It is worth writing down
+because "flip a character to corrupt it" is the obvious way to write this test
+and it is subtly unsound for any base64 payload whose length is not a multiple
+of three bytes. Decode, flip a byte, re-encode.
+
 ## T17, web investor screens, 5 September 2026
 
 ### The ATS internal KYC register is a uint, and the docs only ever show it as a word
@@ -1026,6 +1145,195 @@ names" and does not say which trailing punctuation ends a token
 2026-09-05). A colon does not, because a colon is the variant separator, so
 `shadow:` reads as the start of a variant and the base utility is emitted. The
 comment was reworded. The test caught it, which is the argument for having it.
+## T08, x402 and Blocky402, 5 September 2026
+
+### The Fastify middleware prices a route before the request body exists
+
+`@x402/fastify`'s `paymentMiddleware` registers its work on Fastify's
+`onRequest` hook, and a route's `price` may be a function of the request
+context, which carries an `adapter.getBody()`. Those two do not compose.
+Fastify parses the body after `onRequest`, in the parsing phase, so
+`getBody()` inside a price function returns `undefined` on every request. A
+route whose price depends on the body cannot be priced from the route map.
+
+Measured with a route configured as
+
+    'POST /probe-body': { accepts: { price: async (ctx) => {
+        console.log(ctx.adapter.getBody?.());   // undefined, every time
+        return '$0.01';
+    } } }
+
+against a POST carrying `{"quote_id":"quote_abc"}`.
+
+`POST /v1/bind` charges the first month's premium, which is per quote and
+identified by the quote id in the body, so this is exactly the case that does
+not work. The endpoint gets its own gate in `apps/api/src/x402/bind.ts`, driving
+the same `x402ResourceServer` object, so the wire format, the facilitator and
+the settlement path are the library's and only the ordering is ours. The
+alternative, moving the quote id into the query string, would have changed the
+API shape to suit a hook's ordering.
+
+The adapter interface's own JSDoc says "Fastify automatically parses JSON
+bodies", which is true and is not the same claim.
+
+### The settle hook is handed the request context from before the route matched
+
+`x402HTTPResourceServer` builds an `enrichedContext` carrying `routePattern`
+and uses it to price the route, but the Fastify middleware stores the
+unenriched `context` on the request and passes that one to settlement. So a
+`afterSettle` hook reading `transportContext.request.routePattern` finds it
+undefined and has only the concrete path. Recognising which route a settlement
+belongs to has to be done by method and path, which is what
+`apps/api/src/x402/gate.ts` does.
+
+### The client refuses its own network's non-default token, and caps a payment at a dollar
+
+`x402Client`'s spend controls default to "only assets `findDefaultAsset`
+recognises, capped at `$1` each". On `hedera:testnet` the only recognised asset
+is USDC `0.0.429274`. This build settles in its own HTS token
+`0.0.10366463`, and a first premium is more than a dollar, so both defaults
+refuse the payment before it reaches the facilitator, in the client, with no
+network call to look at. `packages/client/src/x402/payer.ts` sets
+`spendControls.allowedAssets` to the settlement token and turns the dollar cap
+off, and takes a ceiling in minor units instead.
+
+The server half needs the matching setting: `new ExactHederaScheme({
+defaultAssets: { 'hedera:testnet': { asset, decimals } } })`, or a `"$0.01"`
+price converts against USDC and advertises the wrong token.
+
+### The facilitator settles an arbitrary HTS token, not only USDC
+
+The package ships USDC as the network default and its README points at the
+Circle faucet, which reads as though the default were a constraint. It is not.
+Blocky402's testnet facilitator verified and settled a transfer of this build's
+own token `0.0.10366463` with no configuration on its side: the asset travels in
+the payment requirements and the facilitator checks the transfer against them.
+Confirmed by a real settlement, `0.0.7162784@1788600927.143349211`, which moved
+10000 minor units of `0.0.10366463` from `0.0.10366451` to `0.0.10366450` with
+the network fee of 1379442 tinybars paid by `0.0.7162784`.
+
+### The settlement field is `transaction`, and `payer` is the wallet
+
+Two disagreements between the x402 Hedera scheme specification and Blocky402's
+own API reference, both resolved by running it. The settle response carries the
+Hedera transaction id under `transaction`, which is Blocky402's spelling; the
+scheme specification calls the same field `transactionId`. And `payer` carries
+the paying wallet `0.0.10366451`, not the sponsoring fee payer that the scheme
+specification's example shows there. This build reads both keys for the
+transaction id and stores its own idea of the payer beside whatever the
+facilitator returned.
+
+### HashScan will not resolve the transaction id the facilitator returns
+
+The facilitator returns `0.0.7162784@1788600927.143349211`. HashScan's
+transaction route wants `0.0.7162784-1788600927-143349211`, and so does the
+mirror node's `/transactions/{id}`. Pasting the `@` form returns nothing at all
+rather than an error, which is a bad thing to discover in front of a judge.
+`hashscanTransactionUrl` in `packages/client` does the conversion.
+
+### The packages moved a minor version during the event
+
+The prep reading was against 2.24.0, published 2026-08-27. The registry served
+2.25.0 for all four packages on 5 September. Nothing in the shapes above
+changed. `@x402/hedera` 2.25.0 pins `@hiero-ledger/sdk` 2.85.0 while this
+repository is on 2.87.0, so two copies of the SDK are on disk; the README warns
+that mixing them breaks the SDK's `instanceof` checks, so every file that
+touches x402 imports `PrivateKey` and the rest from `@x402/hedera` rather than
+from the SDK directly, and nothing has been seen to break.
+
+## T18, the audit trail, 5 September 2026
+
+### The mirror node has two shapes for one topic message and they are not interchangeable
+
+`GET /api/v1/topics/{id}/messages/{sequenceNumber}` answers with the message
+object itself, at the top level. `GET /api/v1/topics/{id}/messages?sequencenumber=eq:{n}`
+answers with `{"messages": [...], "links": {...}}` and the same message inside
+the list. Both are 200 and both are documented under the same heading in the
+REST reference, so a client that starts on one and moves to the other for the
+sake of a filter gets `undefined` where the body should be, with no error.
+`MirrorClient` in `packages/client` uses the query form for every read, so one
+code path serves both the single message and the window.
+
+Measured, payments topic 0.0.10366471 on 5 September 2026:
+
+    /topics/0.0.10366471/messages/18          -> {"consensus_timestamp": "...", "sequence_number": 18, "message": "..."}
+    /topics/0.0.10366471/messages?sequencenumber=eq:18 -> {"messages": [ ... ], "links": {"next": null}}
+
+### `sequencenumber` takes the comparison operators, which is how a window is read
+
+The reference names `sequencenumber` as a filter without saying what a value may
+look like. It takes the same `operator:value` form the timestamp filters take:
+
+    GET /topics/0.0.10366471/messages?limit=3&order=asc&sequencenumber=gte:18
+    -> sequence numbers 18, 19, 20
+
+That is what makes the second half of a policy receipt findable. A bind writes
+two messages and only the first sequence number is stored, so the audit trail
+reads forward from it with `gte:` rather than guessing that the next message on
+a shared topic is the one it wants.
+
+### A transaction id on a topic message comes in two forms, and only one resolves
+
+The coupon run writes `transactionId` in the mirror form,
+`0.0.10366450-1788556746-724064738`. The x402 settlement writes `tx` in the SDK
+form the facilitator returns, `0.0.7162784@1788602397.120605122`. Both are
+correct for their writer and only the first resolves on HashScan, so the reader
+converts before it builds a link, as the T08 note above says. A trail assembled
+from a topic has to expect both forms rather than the one its own writer uses.
+
+## T20, the Hedera Harness, 5 September 2026
+
+### The mirror node rejects the SDK transaction id form, it does not answer nothing
+
+The T08 note above says pasting the `@` form "returns nothing at all rather than
+an error". That is true of HashScan's transaction route and false of the mirror
+node's REST API, which was read again on 5 September 2026 while building the
+Harness contribution:
+
+    GET /transactions/0.0.10362512-1788608475-314442638   200
+    GET /transactions/0.0.10362512@1788608475.314442638   400
+      {"_status":{"messages":[{"message":"Invalid Transaction id. Please use
+       \"shard.realm.num-sss-nnn\" format where sss are seconds and nnn are
+       nanoseconds"}]}}
+
+Both forms are still a trap for the same reason, because an id copied out of an
+app's receipt panel is in the `@` form and the app author has no reason to
+suspect it, but the failure mode differs by reader: the mirror node says exactly
+what is wrong, HashScan renders an empty page. The Harness PR normalises before
+it reads and treats a 400 as the caller's mistake rather than as lag, since a
+malformed request never comes right by waiting.
+
+### Tier 3.5 verifies effects through a mirror node the harness has no code for
+
+hedera-harness at `dev`, 2.0.0-rc.4, read on 5 September 2026. `src/types.ts`
+describes CHAIN as "verify txs via mirror node" and
+`docs/authoring-a-recipe.md` as verifying "against the mirror node rather than
+UI toasts", but no file under `src/` reads it: the only `fetch` in the tree is
+the dev-server health probe in `src/validation/devServer.ts`. What ships instead
+is `prompts/validator.md`, which hands the evaluator agent five endpoints and
+the sentence "Poll up to ~30s for mirror lag". Two of those endpoints are wrong
+for the question the prompt asks of them. `GET /api/v1/topics/{topicId}/messages`
+is listed for verifying a message landed, and it answers 200 with an empty list
+for a topic that was never created, so thirty seconds of polling it cannot
+distinguish a typo in a topic id from a message still in flight. Nothing in the
+prompt mentions the two transaction id forms.
+
+### A freshly created account's mirror node visibility is a race, not a delay
+
+`provisionChainSigner` returns as soon as `AccountCreateTransaction` has a
+receipt, and the scaffold it hands that account to resolves the account id from
+the EVM alias through the mirror node. Whether the first read finds it is a
+coin toss. Two runs of the same script, minutes apart on 5 September 2026:
+
+    account 0.0.10377496   GET /accounts/0.0.10377496 -> 404, then 200 after 946ms
+    account 0.0.10377504   GET /accounts/0.0.10377504 -> 200 on the first read
+
+The one that intermittently loses is worse than one that always loses, because
+the failure reads as a flaky app rather than as a missing wait. The same is true
+of the topic message read, which was 404 on the first attempt in every run
+measured and 200 roughly a second later. Waiting for the account before the run
+goes on is what the Harness PR changes.
+
 ## T12, the oracle worker, 5 September 2026
 
 Measured against Hedera testnet on 5 September 2026, during the replay of real

@@ -71,3 +71,47 @@ else: no screen renders them and no layout depends on them.
 `icon-16.png`, `icon-32.png` and `icon-180.png`. The other three are the
 install sizes and the source mark, kept for the web manifest a later ticket
 adds, and nothing in the build references them today.
+
+## The x402 packages, version 2.25.0
+
+https://github.com/x402-foundation/x402
+
+`@x402/core`, `@x402/hedera`, `@x402/fastify` and `@x402/fetch` are
+dependencies. No source was copied. The API registers `ExactHederaScheme` from
+`@x402/hedera/exact/server` with `x402ResourceServer` and puts
+`paymentMiddleware` from `@x402/fastify` in front of two routes; the payer in
+`packages/client` registers the client half of the same scheme with
+`wrapFetchWithPaymentFromConfig`. Apache-2.0.
+
+The wiring in `apps/api/src/x402/gate.ts` follows the shape of the quick start
+in the `@x402/fastify` README and of the client setup in the `@x402/hedera`
+README, which are four and six lines respectively; everything around them,
+including the per-quote gate on `POST /v1/bind`, the settlement records and the
+payments topic message, is this build's.
+
+## Blocky402
+
+https://blocky402.com/docs/testnet/
+
+A service, not code. The testnet facilitator at
+`https://api.testnet.blocky402.com` verifies and settles every payment this
+build takes. No API key and no account: its own documentation says testnet is
+open access. Its `GET /supported` is where the Hedera fee payer account comes
+from.
+
+## The Hedera Harness
+
+https://github.com/hedera-dev/hedera-harness, branch `dev` at 2.0.0-rc.4
+
+Not a dependency of this build and not vendored into this repository. The T20
+contribution is a pull request to that project, developed in a fork cloned
+outside this tree, so nothing came from the harness into here. MIT licensed.
+
+What went the other way is one piece of this build's own code. The transaction
+id conversion in `hashscanTransactionUrl` in `packages/client`, which turns the
+SDK's `0.0.x@sss.nnn` into the `0.0.x-sss-nnn` the mirror node and HashScan
+accept, is rewritten in the pull request as `normalizeTransactionId` in the
+harness's own style, with the mirror form passing through and an unrecognised
+value throwing. It is four lines of regular expression either way and neither
+copy was pasted from the other, but it is the same idea and it is recorded here
+because the pull request carries it into somebody else's repository.

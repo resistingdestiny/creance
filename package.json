@@ -11,8 +11,10 @@
   },
   "scripts": {
     "test": "vitest run && pnpm --filter @creance/contracts run test:hardhat",
-    "test:testnet": "pnpm --filter @creance/contracts run test:testnet",
-    "dev": "pnpm --filter @creance/web dev",
+    "test:testnet": "pnpm --filter @creance/contracts run test:testnet && pnpm --filter @creance/api run test:testnet",
+    "dev": "pnpm --parallel --filter @creance/web --filter @creance/api dev",
+    "api:migrate": "pnpm --filter @creance/api run migrate",
+    "api:openapi": "pnpm --filter @creance/api run openapi",
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
     "oracle:once": "pnpm --filter @creance/oracle once",

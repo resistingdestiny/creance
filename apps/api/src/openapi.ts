@@ -1,0 +1,756 @@
+/// The OpenAPI document for recipes/bazantic/openapi.yaml.
+///
+/// Built here, in code, and written out by scripts/openapi.ts, with a test that
+/// regenerates it and compares. A hand-maintained spec beside a running API
+/// drifts within a day, and this one is imported into somebody else's product.
+///
+/// OpenAPI 3.0.3 rather than 3.1, and nothing exotic in the schemas: no top
+/// level `oneOf` in a request body, no recursive `$ref`, money as an object of
+/// three strings and one integer, dates as `string` with `format: date`. Every
+/// importer accepts 3.0, and 3.1's JSON Schema alignment buys this document
+/// nothing.
+///
+/// The three paid operations carry their 402 and their payment headers, because
+/// an agent reading this document has to be able to find out what a call will
+/// cost before it makes one. The gate is live: an unpaid call to any of them
+/// comes back 402 with the requirements in `PAYMENT-REQUIRED`.
+
+export const PUBLIC_ORIGIN = 'https://creance.co';
+
+/** The operations the Bazantic gateway imports. */
+export const OPERATIONS = [
+  'GET /v1/index/{group}',
+  'POST /v1/quote',
+  'POST /v1/bind',
+  'GET /v1/policy/{policyId}',
+  'GET /v1/audit/{policyId}',
+  'GET /v1/series/{seriesId}',
+  'GET /v1/series/{seriesId}/coupons',
+] as const;
+
+const MONEY = {
+  type: 'object',
+  required: ['amount', 'asset', 'decimals', 'display'],
+  properties: {
+    amount: {
+      type: 'string',
+      description: 'An integer in the asset smallest unit. 28.00 TUSD is 28000000.',
+      example: '28000000',
+    },
+    asset: { type: 'string', description: 'The HTS token id.', example: '0.0.10366463' },
+    decimals: { type: 'integer', example: 6 },
+    display: {
+      type: 'string',
+      description: 'For a human reading the JSON. Never parsed.',
+      example: '28.00',
+    },
+  },
+};
+
+const PROBLEM = {
+  type: 'object',
+  description: 'RFC 9457 problem document. Every non-2xx response has this shape.',
+  required: ['type', 'title', 'status', 'code', 'request_id', 'retryable'],
+  properties: {
+    type: { type: 'string', format: 'uri' },
+    title: { type: 'string' },
+    status: { type: 'integer' },
+    detail: { type: 'string' },
+    instance: { type: 'string' },
+    code: {
+      type: 'string',
+      description: 'The machine-readable reason. Switch on this, never on detail.',
+      example: 'insufficient_capacity',
+    },
+    request_id: { type: 'string' },
+    retryable: { type: 'boolean' },
+  },
+};
+
+const GROUP_KEYS = [
+  'management_business_financial',
+  'professional_related',
+  'service',
+  'sales_related',
+  'office_admin_support',
+  'farming_fishing_forestry',
+  'construction_extraction',
+  'installation_maintenance_repair',
+  'production',
+  'transportation_material_moving',
+  'computer_math',
+  'legal',
+  'arts_design_ent_media',
+  'business_financial_ops',
+  'education_training_library',
+];
+
+const PAYMENT_SIGNATURE_HEADER = {
+  name: 'PAYMENT-SIGNATURE',
+  in: 'header',
+  required: false,
+  description:
+    'x402 version 2 payment payload, network hedera:testnet, scheme exact. Required: an unpaid call is refused with 402.',
+  schema: { type: 'string' },
+};
+
+const PAYMENT_RESPONSE_HEADER = {
+  description:
+    'x402 version 2 settlement receipt, carrying the facilitator transaction id.',
+  schema: { type: 'string' },
+};
+
+function paymentRequired(price: string): Record<string, unknown> {
+  return {
+    description: `Payment required. Price ${price}.`,
+    headers: {
+      'PAYMENT-REQUIRED': {
+        description: 'x402 version 2 payment requirements for this resource.',
+        schema: { type: 'string' },
+      },
+    },
+    content: { 'application/problem+json': { schema: { $ref: '#/components/schemas/Problem' } } },
+  };
+}
+
+function problemResponse(description: string): Record<string, unknown> {
+  return {
+    description,
+    content: { 'application/problem+json': { schema: { $ref: '#/components/schemas/Problem' } } },
+  };
+}
+
+export interface DocumentOptions {
+  version: string;
+  /** The local server, for a judge running the API from a clean clone. */
+  localUrl?: string;
+}
+
+export function buildOpenApiDocument(options: DocumentOptions): Record<string, unknown> {
+  const servers: Record<string, unknown>[] = [
+    { url: PUBLIC_ORIGIN, description: 'Creance, Hedera testnet only.' },
+  ];
+  if (options.localUrl !== undefined) {
+    servers.push({ url: options.localUrl, description: 'A local run from a clean clone.' });
+  }
+
+  return {
+    openapi: '3.0.3',
+    info: {
+      title: 'Creance',
+      version: options.version,
+      description: [
+        'Parametric occupation cover funded by Displacement Bond Notes, on Hedera testnet.',
+        '',
+        'A worker buys cover against their occupation being displaced. Claims open when',
+        'the Occupation Displacement Index says the occupation is being displaced, and a',
+        'payout also needs proof that the person lost their job. Investors fund the',
+        'payouts and earn the premiums as coupons.',
+        '',
+        'Testnet only. No mainnet endpoints, no real funds.',
+        '',
+        'Money: every amount is an integer string in the settlement asset smallest unit,',
+        'with the asset and its decimals beside it. Never parse `display`.',
+        '',
+        'Errors: RFC 9457 `application/problem+json`, with a `code` to switch on and a',
+        '`retryable` boolean for an agent retry loop.',
+        '',
+        'Payment: the three metered operations are x402 version 2, scheme `exact`,',
+        'network `hedera:testnet`, settled through the Blocky402 testnet facilitator.',
+        'An unpaid call is refused with 402 and the requirements in the',
+        '`PAYMENT-REQUIRED` header; every settlement is written to the payments topic.',
+      ].join('\n'),
+      license: { name: 'MIT' },
+    },
+    servers,
+    tags: [
+      { name: 'index', description: 'The Occupation Displacement Index.' },
+      { name: 'cover', description: 'Quoting and binding a policy.' },
+      { name: 'series', description: 'The Displacement Bond Note series.' },
+      { name: 'audit', description: 'The trail on the Hedera Consensus Service topics.' },
+    ],
+    paths: {
+      '/v1/index/{group}': {
+        get: {
+          tags: ['index'],
+          operationId: 'getIndex',
+          summary: 'The metered index feed for an occupation group',
+          description: [
+            'The latest published observation, the last twenty-four months and the',
+            'trigger status, with the source series and the source file hash so a',
+            'reader can recompute the number from the cited rows.',
+            '',
+            'Price: 0.01 TUSD, smallest unit `10000`, asset `0.0.10366463`, decimals 6.',
+          ].join('\n'),
+          parameters: [
+            {
+              name: 'group',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', enum: GROUP_KEYS },
+              example: 'computer_math',
+            },
+            PAYMENT_SIGNATURE_HEADER,
+          ],
+          responses: {
+            '200': {
+              description: 'The reading, its history and the trigger status.',
+              headers: { 'PAYMENT-RESPONSE': PAYMENT_RESPONSE_HEADER },
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/IndexReading' } },
+              },
+            },
+            '400': problemResponse('`group_unknown`: not one of the fifteen groups.'),
+            '402': paymentRequired('0.01 TUSD'),
+            '503': problemResponse('`index_unavailable`: no observation published yet.'),
+          },
+        },
+      },
+      '/v1/quote': {
+        post: {
+          tags: ['cover'],
+          operationId: 'createQuote',
+          summary: 'Price cover for an occupation and a limit',
+          description: [
+            'The binding price, with the capacity behind it checked against the series',
+            'principal. A quote takes no capacity hold and is valid for fifteen minutes.',
+            '',
+            'Capacity is committed per occupation, so a group with no Displacement Bond',
+            'Note series behind it answers `no_capacity_for_group` rather than quoting a',
+            'price nobody can buy.',
+            '',
+            'Price: 0.05 TUSD, smallest unit `50000`, asset `0.0.10366463`, decimals 6.',
+            'An eligibility credential also satisfies the gate, because it is the output',
+            'of a live biometric check and is a stronger anti-abuse signal than the fee.',
+          ].join('\n'),
+          parameters: [PAYMENT_SIGNATURE_HEADER],
+          security: [{}, { eligibilityCredential: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/QuoteRequest' } },
+            },
+          },
+          responses: {
+            '201': {
+              description: 'The quote.',
+              headers: { 'PAYMENT-RESPONSE': PAYMENT_RESPONSE_HEADER },
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Quote' } } },
+            },
+            '400': problemResponse('`group_unknown` or `limit_out_of_range`.'),
+            '402': paymentRequired('0.05 TUSD'),
+            '409': problemResponse(
+              '`no_capacity_for_group`, `insufficient_capacity` or `series_not_open_for_binding`.',
+            ),
+          },
+        },
+      },
+      '/v1/bind': {
+        post: {
+          tags: ['cover'],
+          operationId: 'bindPolicy',
+          summary: 'Bind a quoted policy',
+          description: [
+            'Registers the policy in CoverPool, writes a receipt to the payments topic',
+            'and mints the policy NFT to the holder wallet.',
+            '',
+            'The body is a quote id and nothing else: the amount, the wallet and the',
+            'limit all come from the quote and from the eligibility credential, so a',
+            'request cannot influence its own price.',
+            '',
+            'An eligibility credential is required. An agent gets one from its',
+            'principal, after that person completes a World Selfie Check; the agent',
+            'never performs the check itself, and the NFT is always minted to the',
+            'principal wallet named in the credential.',
+            '',
+            'Price: the first month premium, taken from the quote. There is no static',
+            'price for this operation.',
+          ].join('\n'),
+          parameters: [PAYMENT_SIGNATURE_HEADER],
+          security: [{ eligibilityCredential: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/BindRequest' } },
+            },
+          },
+          responses: {
+            '201': {
+              description: 'The bound policy.',
+              headers: { 'PAYMENT-RESPONSE': PAYMENT_RESPONSE_HEADER },
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Policy' } } },
+            },
+            '401': problemResponse('`credential_missing` or `credential_invalid`.'),
+            '402': paymentRequired('the first month premium from the quote'),
+            '403': problemResponse('`credential_expired`.'),
+            '409': problemResponse(
+              '`already_covered`, `credential_consumed`, `quote_consumed`, `wallet_mismatch`, `group_mismatch`, `series_mismatch` or `insufficient_capacity`.',
+            ),
+            '410': problemResponse('`quote_expired`.'),
+            '502': problemResponse('`chain_write_failed`: the pool refused the write.'),
+          },
+        },
+      },
+      '/v1/policy/{policyId}': {
+        get: {
+          tags: ['cover'],
+          operationId: 'getPolicy',
+          summary: 'A policy by its id',
+          description: [
+            'Free. The response carries the cover, the dates, the NFT serial, the HCS',
+            'receipt sequence number and the bind transaction, and nothing that',
+            'identifies the person.',
+          ].join('\n'),
+          parameters: [
+            {
+              name: 'policyId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', pattern: '^pol_[0-9A-HJKMNP-TV-Z]{26}$' },
+              example: 'pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E',
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'The policy.',
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Policy' } } },
+            },
+            '400': problemResponse('`bad_id_prefix`: that is not a policy id.'),
+            '404': problemResponse('`policy_not_found`.'),
+          },
+        },
+      },
+      '/v1/audit/{policyId}': {
+        get: {
+          tags: ['audit'],
+          operationId: 'getAudit',
+          summary: 'The audit trail for a policy, from the HCS topics',
+          description: [
+            'Free. Every message the payments topic and the claims topic carry for',
+            'this policy, read back from the mirror node rather than from our',
+            'database, each with its sequence number, its consensus timestamp and a',
+            'HashScan link.',
+            '',
+            'The `source` on an entry says where it came from. `topic` is a message',
+            'read back off the topic. `awaiting_mirror` is published and not yet',
+            'visible on the mirror node, which lags consensus by seconds.',
+            '`not_yet_on_topic` is a row with no message, which is what a settled',
+            'payment whose publish failed looks like. `mirror_unavailable` is the',
+            'mirror node not answering.',
+            '',
+            'Nothing here identifies a person. Claim entries carry hashes only.',
+          ].join('\n'),
+          parameters: [
+            {
+              name: 'policyId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', pattern: '^pol_[0-9A-HJKMNP-TV-Z]{26}$' },
+              example: 'pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E',
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'The trail.',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/AuditTrail' } },
+              },
+            },
+            '400': problemResponse('`bad_id_prefix`: that is not a policy id.'),
+            '404': problemResponse('`policy_not_found`.'),
+          },
+        },
+      },
+      '/v1/series/{seriesId}': {
+        get: {
+          tags: ['series'],
+          operationId: 'getSeries',
+          summary: 'A Displacement Bond Note series',
+          description:
+            'The principal, the reserve, the paid claims and the noteholder positions, read from the chain. Free.',
+          parameters: [
+            {
+              name: 'seriesId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' },
+              example: 'ODI-COMP-2026-01',
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'The series.',
+              content: { 'application/json': { schema: { type: 'object' } } },
+            },
+            '404': problemResponse('`series_not_found`.'),
+          },
+        },
+      },
+      '/v1/series/{seriesId}/coupons': {
+        get: {
+          tags: ['series'],
+          operationId: 'getSeriesCoupons',
+          summary: 'Every coupon declared on a series, with what was paid',
+          description: 'Free.',
+          parameters: [
+            {
+              name: 'seriesId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' },
+              example: 'ODI-COMP-2026-01',
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'The coupons.',
+              content: { 'application/json': { schema: { type: 'object' } } },
+            },
+            '404': problemResponse('`series_not_found`.'),
+          },
+        },
+      },
+    },
+    components: {
+      securitySchemes: {
+        eligibilityCredential: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: [
+            'A short-lived eligibility credential, EdDSA over Ed25519, thirty minutes,',
+            'carrying the nullifier, the occupation group, the series and the wallet.',
+            'Verify it against GET /.well-known/jwks.json. An agent gets one from its',
+            'principal after that person completes a World Selfie Check.',
+          ].join(' '),
+        },
+      },
+      schemas: {
+        Money: MONEY,
+        Problem: PROBLEM,
+        AuditTrail: {
+          type: 'object',
+          description:
+            'The audit trail for one policy. DESIGN.md 3.7: verifiable independently of this API, because every entry names the topic, the sequence number and the transaction.',
+          required: ['policy_id', 'summary', 'entries'],
+          properties: {
+            policy_id: { type: 'string', example: 'pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E' },
+            series_id: { type: 'string', example: 'ODI-COMP-2026-01' },
+            group: { type: 'string', enum: GROUP_KEYS },
+            status: { type: 'string', example: 'bound' },
+            summary: {
+              type: 'object',
+              properties: {
+                payments_topic: { $ref: '#/components/schemas/AuditLink' },
+                claims_topic: { $ref: '#/components/schemas/AuditLink' },
+                policy_nft: {
+                  type: 'object',
+                  properties: {
+                    token_id: { type: 'string', nullable: true, example: '0.0.10366468' },
+                    serial: { type: 'integer', nullable: true, example: 6 },
+                    hashscan: { type: 'string', nullable: true },
+                  },
+                },
+                bind_transaction: { $ref: '#/components/schemas/AuditLink' },
+                cover_pool: { $ref: '#/components/schemas/AuditLink' },
+                entries: { type: 'integer', example: 4 },
+                entries_on_topic: { type: 'integer', example: 4 },
+              },
+            },
+            entries: { type: 'array', items: { $ref: '#/components/schemas/AuditEntry' } },
+          },
+        },
+        AuditLink: {
+          type: 'object',
+          nullable: true,
+          description: 'An id and the HashScan page for it.',
+          properties: {
+            id: { type: 'string', example: '0.0.10366471' },
+            hashscan: {
+              type: 'string',
+              example: 'https://hashscan.io/testnet/topic/0.0.10366471',
+            },
+          },
+        },
+        AuditEntry: {
+          type: 'object',
+          required: ['kind', 'source'],
+          properties: {
+            kind: {
+              type: 'string',
+              description:
+                'The message kind. `policy` is the receipt the bind quoted and its outcome, `settlement` an x402 payment, `premium` a scheduled monthly premium, `coupon` a note coupon, `payout` a claim payment, `claim_packet` and `claim_decision` the two claims topic hashes, `unknown` a kind written by something newer than this reader.',
+              enum: [
+                'policy',
+                'settlement',
+                'premium',
+                'coupon',
+                'payout',
+                'claim_packet',
+                'claim_decision',
+                'unknown',
+              ],
+            },
+            source: {
+              type: 'string',
+              enum: ['topic', 'awaiting_mirror', 'not_yet_on_topic', 'mirror_unavailable'],
+            },
+            at: { type: 'string', format: 'date-time', nullable: true },
+            amount: { $ref: '#/components/schemas/Money' },
+            hcs: {
+              type: 'object',
+              nullable: true,
+              properties: {
+                topic_id: { type: 'string', example: '0.0.10366471' },
+                sequence_number: { type: 'integer', nullable: true, example: 18 },
+                consensus_at: { type: 'string', format: 'date-time', nullable: true },
+                hashscan: { type: 'string' },
+              },
+            },
+            tx: { $ref: '#/components/schemas/AuditLink' },
+            detail: {
+              type: 'object',
+              description:
+                'The fields this kind carries, named one by one per kind and never a copy of the message.',
+              additionalProperties: true,
+            },
+          },
+        },
+        QuoteRequest: {
+          type: 'object',
+          required: ['group', 'limit', 'wallet'],
+          properties: {
+            group: { type: 'string', enum: GROUP_KEYS, example: 'computer_math' },
+            limit: {
+              type: 'string',
+              description:
+                'The cover limit in the settlement asset smallest unit. 1,000 to 10,000 in steps of 500.',
+              example: '5000000000',
+            },
+            wallet: {
+              type: 'string',
+              description: 'The policyholder Hedera account id.',
+              example: '0.0.10366453',
+            },
+            series_id: {
+              type: 'string',
+              description: 'Optional. When absent the API picks the active series for the group.',
+              example: 'ODI-COMP-2026-01',
+            },
+          },
+        },
+        Quote: {
+          type: 'object',
+          required: ['quote_id', 'series_id', 'group', 'limit', 'premium', 'expires_at'],
+          properties: {
+            quote_id: { type: 'string', example: 'qte_01K4YBB2R9F3M0N7X5T8W1C4Q6' },
+            series_id: { type: 'string', example: 'ODI-COMP-2026-01' },
+            group: { type: 'string', enum: GROUP_KEYS },
+            wallet: { type: 'string', example: '0.0.10366453' },
+            limit: { $ref: '#/components/schemas/Money' },
+            premium: { $ref: '#/components/schemas/Money' },
+            annual_rate_bps: { type: 'integer', example: 672 },
+            pricing_basis: {
+              type: 'object',
+              description: 'Every assumption behind the rate, so nothing has to be taken on trust.',
+            },
+            term_months: { type: 'integer', example: 12 },
+            waiting_period_days: { type: 'integer', example: 60 },
+            cover_starts: { type: 'string', format: 'date' },
+            cover_ends: { type: 'string', format: 'date' },
+            claims_payable_from: { type: 'string', format: 'date' },
+            first_payment_due: { type: 'string', format: 'date' },
+            pays_from: { type: 'string', example: '0.0.10366453' },
+            attachment_shock: {
+              type: 'string',
+              description: 'Percentage points, as a decimal string.',
+              example: '2.00',
+            },
+            level_line: {
+              type: 'string',
+              description: 'Percentage points. Often negative, which is correct.',
+              example: '-0.68',
+            },
+            payout_mode: { type: 'string', enum: ['full', 'indexed'] },
+            capacity: {
+              type: 'object',
+              properties: {
+                free_before: { type: 'string' },
+                free_after: { type: 'string' },
+                used_pct: { type: 'integer' },
+              },
+            },
+            expires_at: { type: 'string', format: 'date-time' },
+            issued_via: { type: 'string', enum: ['x402', 'credential', 'open'] },
+          },
+        },
+        BindRequest: {
+          type: 'object',
+          required: ['quote_id'],
+          properties: {
+            quote_id: { type: 'string', example: 'qte_01K4YBB2R9F3M0N7X5T8W1C4Q6' },
+            eligibility: {
+              type: 'string',
+              description:
+                'The eligibility credential, when a client cannot set the Authorization header. Sending both is refused unless they are identical.',
+            },
+          },
+        },
+        Policy: {
+          type: 'object',
+          required: ['policy_id', 'series_id', 'status', 'limit', 'premium'],
+          properties: {
+            policy_id: { type: 'string', example: 'pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E' },
+            series_id: { type: 'string', example: 'ODI-COMP-2026-01' },
+            group: { type: 'string', enum: GROUP_KEYS },
+            status: {
+              type: 'string',
+              enum: [
+                'binding',
+                'bound',
+                'active',
+                'payment_failed',
+                'lapsed',
+                'claims_open',
+                'claimed',
+                'under_review',
+                'approved',
+                'paid',
+                'declined',
+                'expired',
+                'void',
+              ],
+            },
+            limit: { $ref: '#/components/schemas/Money' },
+            premium: { $ref: '#/components/schemas/Money' },
+            cover_starts: { type: 'string', format: 'date' },
+            cover_ends: { type: 'string', format: 'date' },
+            claims_payable_from: { type: 'string', format: 'date' },
+            next_payment_due: { type: 'string', format: 'date', nullable: true },
+            paid_through: { type: 'string', example: '2026-09' },
+            holder_account: { type: 'string', example: '0.0.10366453' },
+            nft: {
+              type: 'object',
+              properties: {
+                token_id: { type: 'string', nullable: true, example: '0.0.10366468' },
+                serial: { type: 'integer', nullable: true, example: 3 },
+              },
+            },
+            hcs_receipt: {
+              type: 'object',
+              description:
+                'The payments topic message that records the bind. Verify it on the mirror node at GET /topics/{topic_id}/messages?sequencenumber=eq:{sequence_number}.',
+              properties: {
+                topic_id: { type: 'string', nullable: true, example: '0.0.10366471' },
+                sequence_number: { type: 'integer', nullable: true, example: 41 },
+              },
+            },
+            chain: {
+              type: 'object',
+              properties: {
+                cover_pool: { type: 'string' },
+                bind_transaction: { type: 'string', nullable: true },
+                hashscan: { type: 'string', nullable: true },
+              },
+            },
+            premium_schedule: {
+              type: 'object',
+              properties: { status: { type: 'string' }, href: { type: 'string' } },
+            },
+          },
+        },
+        IndexReading: {
+          type: 'object',
+          required: ['group', 'as_of', 'reading', 'trigger', 'history'],
+          properties: {
+            group: { type: 'string', enum: GROUP_KEYS },
+            group_label: { type: 'string', example: 'Computer and mathematical' },
+            series_id: { type: 'string', nullable: true, example: 'ODI-COMP-2026-01' },
+            as_of: { type: 'string', example: '2026-07' },
+            reading: { $ref: '#/components/schemas/Observation' },
+            trigger: {
+              type: 'object',
+              properties: {
+                attachment_shock: { type: 'string', example: '2.00' },
+                level_line: { type: 'string', example: '-0.68' },
+                open: { type: 'boolean' },
+                open_reason: {
+                  type: 'string',
+                  nullable: true,
+                  enum: ['shock', 'level', 'both', null],
+                },
+                shock_margin: {
+                  type: 'string',
+                  nullable: true,
+                  description: 'The ODI less the shock attachment.',
+                },
+                level_margin: {
+                  type: 'string',
+                  nullable: true,
+                  description: 'The smoothed excess less the level line.',
+                },
+              },
+            },
+            headline: {
+              type: 'object',
+              nullable: true,
+              description:
+                'Whichever form is nearer its line, chosen here so two screens cannot choose differently.',
+              properties: {
+                form: { type: 'string', enum: ['shock', 'level'] },
+                distance: { type: 'string', example: '-0.08' },
+                on_the_line: { type: 'boolean' },
+                open: { type: 'boolean' },
+              },
+            },
+            history: {
+              type: 'array',
+              description: 'Up to twenty-four months, oldest first.',
+              items: { $ref: '#/components/schemas/Observation' },
+            },
+            source: {
+              type: 'object',
+              properties: {
+                series: { type: 'string', nullable: true, example: 'bls:LNU04032215' },
+                hash: {
+                  type: 'string',
+                  nullable: true,
+                  description:
+                    'sha256 over the source rows the observation was computed from, in canonical JSON.',
+                },
+                model_version: { type: 'string' },
+                replay: { type: 'boolean' },
+              },
+            },
+            publication: {
+              type: 'object',
+              description:
+                'Where the observation was published. Null until the index oracle publishes it.',
+              properties: {
+                topic_id: { type: 'string', nullable: true },
+                sequence_number: { type: 'integer', nullable: true },
+                submit_transaction: { type: 'string', nullable: true },
+              },
+            },
+            updated_at: { type: 'string', format: 'date-time' },
+          },
+        },
+        Observation: {
+          type: 'object',
+          description:
+            'One month. Every index value is a decimal string in percentage points, never a JSON number, because on chain they are int64 scaled by 1e4.',
+          properties: {
+            period: { type: 'string', example: '2026-07' },
+            u_g: { type: 'string', nullable: true, example: '4.10' },
+            u_all: { type: 'string', nullable: true, example: '4.50' },
+            e: { type: 'string', nullable: true, example: '-0.40' },
+            ebar: { type: 'string', nullable: true, example: '-0.60' },
+            odi: { type: 'string', nullable: true, example: '0.30' },
+            open: { type: 'boolean' },
+            open_reason: { type: 'string', nullable: true, enum: ['shock', 'level', 'both', null] },
+          },
+        },
+      },
+    },
+  };
+}

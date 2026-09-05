@@ -1020,6 +1020,160 @@ only a prefixed name reaches the browser bundle. Both are in `.env.example` with
 the same default, and both must be set to `https://creance.co` before the
 production build runs, not after.
 
+## T07, the API, 5 September 2026
+
+### The bind receipt goes to the payments topic, not the index topic
+
+The acceptance for T07 asks for the receipt on the index topic. It cannot go
+there: the index topic's submit key is the oracle's, and the api account cannot
+write to it. Creating a fifth topic would be a change to `pnpm hedera:setup` in
+the contracts workspace, outside this ticket's scope, and would give the read
+side two places to look for a settlement record.
+
+So the receipt goes to the payments topic, whose submit key the api account
+holds. T14 already writes versioned messages there with a `kind` field, so a
+`{"v":1,"kind":"policy",...}` message sits beside the coupons and the premiums
+and one reader parses all three. The policy id travels in the message, so the
+link from a payment to a policy exists in the direction that matters.
+
+### A bind writes two topic messages, not one
+
+`BindParams.hcsReceiptSeq` is an input to `CoverPool.bind`, so the receipt has
+to be on the topic before the contract call. A call that then reverts would
+leave a message on a public settlement record claiming a policy that does not
+exist, and a message cannot be withdrawn.
+
+So the first message carries `status: "binding"` and the second carries
+`status: "bound"` or `status: "failed"` with the reason, the bind transaction
+and the NFT serial, and quotes the first message's sequence number in
+`receiptSeq`. A reader takes the second message as the outcome and the first
+only as the sequence number the chain recorded. The alternative, a single
+message written after the bind, cannot exist: its sequence number is the thing
+the bind needs.
+
+### The policy NFT is minted and frozen with the operator key
+
+The CPOL collection's treasury, admin, supply and freeze keys are all the
+operator's, set that way by `pnpm hedera:setup`. The api account, which holds
+BINDER_ROLE, cannot mint a serial or freeze a holder against it.
+
+The two ways out were a `TokenUpdate` rotating the supply and freeze keys to the
+api key, signed by the operator admin key, or letting the API process hold the
+operator key. The API process holds the operator key. This is testnet only, the
+operator key already funds every account in the build and is already required by
+`pnpm contracts:deploy`, and a key rotation on the collection would have to be
+undone before any later ticket that mints outside the API. The API pays for the
+mint from the api account and adds the operator signature only where the token's
+own keys demand it, so the fee accounting still reads as the API's.
+
+If this ever leaves testnet the rotation is the answer, and it is one
+transaction.
+
+### Every account key is derived from the operator key, including the API's
+
+`HEDERA_API_KEY` is in the example environment and may be left blank. When it is
+blank the API derives the key with HKDF-SHA256 over the operator key and the
+label `creance/testnet/api`, which is exactly what `pnpm hedera:setup` did when
+it created the account. A clone that has the operator key therefore has every
+account, and no derived secret is ever written down. An explicit value wins,
+which is what a rotation would look like.
+
+The derivation moved from `contracts/scripts/hedera/derive.ts` to
+`packages/client/src/hedera/keys.ts` so that the API can use it without pulling
+Hardhat into its dependency graph. The contracts module re-exports it, so there
+is one implementation and the day 0 setup and the API cannot derive different
+keys for the same role.
+
+### The API writes the observations table until the oracle exists
+
+docs/INDEX-SPEC.md section 6.4 of the API note says the API never writes
+`observations` and the oracle never writes anything else. That is the end state.
+Today the oracle is T12 and does not exist, nothing has been published to the
+index topic, and `GET /v1/index/:group` has to answer.
+
+So the API loads the whole history from the committed archive under `data/bls`
+at boot, through `packages/index-model`, and writes it into `observations` with
+`ON CONFLICT DO NOTHING`, because the first published value settles forever. The
+rows carry no HCS sequence number and no on-chain submission id, which is
+honest: nothing was published. When T12 arrives it becomes the writer and this
+becomes the path a clone takes before it has ever run the oracle.
+
+### The observations table follows INDEX-SPEC, not the API note
+
+Two shapes were on offer: the API note's `observations`, keyed on
+`(series_id, period)`, and docs/INDEX-SPEC.md section 10's, keyed on
+`(group_key, period, status)`. The second one is used, because the oracle owns
+this table and the specification the oracle is built to is the one that has to
+be satisfied. The consequence is that a revision arrives as a second row with
+`status = 'revised'` beside the value that settled, rather than as an update.
+
+A and L are not columns on it. They are frozen at issuance, they live in the
+published calibration and on chain in `SeriesTerms`, and the API reads them
+from the calibration so that all fifteen groups have them and not only the one
+with a series behind it.
+
+### The interim eligibility issuer, replaced by T11
+
+`POST /v1/demo/eligibility` mints an eligibility credential without a World
+Selfie Check. It exists so that `POST /v1/bind` can take a real credential and
+enforce every rule around it today, rather than being built twice. It is
+labelled in its own response body, it is not in the Bazantic OpenAPI document,
+and `DEMO_ELIGIBILITY_ISSUER=false` turns it off.
+
+T11 replaces the issuer and nothing else: the credential shape, the JWKS, the
+audience check, the single-use `jti` and the wallet, group and series checks at
+bind are all already here and already tested.
+
+The credential is EdDSA over Ed25519 rather than an HMAC over a shared secret,
+so that the Steward and the Bazantic gateway can verify a credential they are
+carrying without holding a key that could also mint one. The public half is at
+`GET /.well-known/jwks.json`.
+
+### A quote takes no capacity hold
+
+A quote reports the capacity as it stands and expires in fifteen minutes;
+`POST /v1/bind` rechecks it under a row lock and against the chain, and
+`CoverPool.bind` rechecks it again. Holding capacity would mean expiring holds,
+and a hold that leaks is a series that cannot be filled. With one series and
+three policyholders in the demo, a contended failure at bind is the better
+trade.
+
+### The premium comes from the DECISIONS formula, and it is not 15 to 30
+
+The price is the guide rate from the distance to the level line multiplied by
+the capacity term, which is the formula of record. Priced against the archive's
+latest month, July 2026, the demo series quotes 96 basis points, which is 4.00 a
+month for a 5,000 limit and not the 15 to 30 DESIGN.md 3.4 gives as the demo
+number. The premium is a function of the month, and across the demo window it
+runs from 4.00 in July 2026 to 50.42 in April 2026. The numbers are in
+docs/harness-notes.md.
+
+### The first premium is written as uncollected
+
+There is no x402 gate in this ticket, so `POST /v1/bind` cannot collect the
+first premium. It writes a `payments` row with `status = 'uncollected'` and a
+null `facilitator_tx` all the same, so that T08 settles a row that already
+exists rather than adding a second write path. The row carries the payments
+topic sequence number of the bind receipt, which is the link the audit trail
+needs.
+
+### Plain SQL migrations, not an ORM
+
+apps/oracle writes `observations`, `runs` and `source_files` in the same
+database from T12. A schema owned by one application's model classes is a
+schema the other has to guess at, so the schema is plain SQL files applied in
+name order and recorded in `schema_migrations`, and the typed access is hand
+written queries behind a repository interface. The interface has a memory
+implementation so that `pnpm test` needs no database, and it enforces the two
+rules that matter, the one active policy per nullifier per series and the
+capacity check, so those are tested rather than assumed.
+
+### recordPremium has a wrapper and no caller
+
+`CoverPool.recordPremium(policyId, period)` is on the chain gateway, because
+T09 needs it and writing it here cost nothing. Nothing in T07 calls it: a
+premium has to settle before it can be recorded, and nothing settles until T08.
+
 ## T17, web investor screens, 5 September 2026
 
 ### The web app reads the API on the server, so there is no CORS plugin and no proxy
@@ -1159,6 +1313,307 @@ short dated maturity demonstration is read through the same screen. It is not
 linked from anywhere: the endpoint has no series list to build a link from, and
 the demonstration is a demonstration. The label on the screen is always the
 series' own, so the two can never be confused.
+## T08, x402 gating, 5 September 2026
+
+### The three metered prices are 0.01 and 0.05 TUSD, and the bind is the quote's premium
+
+DESIGN.md 3.7 fixes the index feed at "0.01 in the settlement asset or the HBAR
+equivalent" and calls the quote fee "a small fee" without naming it. It is
+0.05. The settlement asset is TUSD (0.0.10366463, six decimals), so the wire
+amounts are 10000 and 50000, and both are configurable through
+`X402_PRICE_INDEX` and `X402_PRICE_QUOTE`.
+
+The HBAR alternative is not taken. Blocky402's testnet facilitator settles an
+arbitrary HTS token, proved by a real settlement of TUSD, so nothing forces the
+fallback; an HTS token in the settlement path is a named criterion for the
+Hedera prize; and the Hedera exact scheme's own Money conversion refuses HBAR,
+so pricing in HBAR would mean the explicit tinybar form everywhere for no gain.
+
+`POST /v1/bind` has no price of its own. It costs the first month's premium
+from the quote, which is a different number for every quote.
+
+### The bind gate is a route handler, not an entry in the payment map
+
+The other two endpoints are gated by `paymentMiddleware` from `@x402/fastify`
+and its route map. `POST /v1/bind` is not, because its price depends on the
+quote id in the request body and the middleware runs on Fastify's `onRequest`
+hook, which is before the body is parsed. A dynamic price function there is
+handed an undefined body. The measurement is in docs/harness-notes.md.
+
+So `apps/api/src/x402/bind.ts` does the same sequence in the route handler, but
+against the same `x402ResourceServer` object: the same requirements builder, the
+same facilitator client, the same verify and settle calls, the same lifecycle
+hooks and therefore the same `payments` row and the same topic message. What is
+ours is the ordering, and the ordering is the library's `authorization` flow:
+price, verify, bind, settle.
+
+The alternative was moving the quote id into the query string so the price
+function could reach it. An API shape should not be decided by a hook's
+ordering.
+
+### The x402 settlement message on the payments topic, version 1
+
+The payments topic already carries `kind: "coupon"` from T14 and
+`kind: "policy"` from T07. A settled x402 payment is a third kind, fixed here
+and versioned, because T18 builds the read side from it.
+
+    {"v":1,"kind":"settlement","endpoint":"GET /v1/index/:group","x402":2,
+     "scheme":"exact","network":"hedera:testnet","payer":"0.0.10366451",
+     "payTo":"0.0.10366450","amount":"10000","asset":"0.0.10366463","decimals":6,
+     "tx":"0.0.7162784@1788602043.272119725",
+     "facilitator":"api.testnet.blocky402.com","ref":"qte_01M1...",
+     "at":"2026-09-05T09:54:13.000Z"}
+
+`endpoint` is the route with its parameter rather than the concrete path, so
+the messages group. `amount` is an integer string in the asset's minor units and
+`decimals` travels with it, matching the coupon message, so a reader can render
+the figure without knowing our token. `tx` is the facilitator's own transaction
+id and it is the whole point of the message: a message is written only after the
+facilitator reported a settled transfer, and a settlement with no transaction id
+is logged rather than published. `ref` is the quote id or the policy id the
+payment bought, and there is nothing else on the message: the topic is public,
+so no nullifier, no credential and no wallet beyond the account that paid, which
+is already visible in the transfer.
+
+The row carries the topic id and the sequence number, so a payment points at its
+own receipt.
+
+### A settlement that fails after the bind leaves the policy bound and the premium failed
+
+Settling after the handler is what makes a reverted bind free. The other side of
+it is a bind that succeeded and a settlement that then failed: the policy is in
+CoverPool, the exposure is committed and neither can be withdrawn.
+
+The request still answers 201 with the policy, because the cover is real and
+telling the caller otherwise would send them to retry a bind that would be
+refused as `already_covered`. The `payments` row goes to `failed`, the failure
+is logged with the facilitator's own `errorMessage`, which is the Hedera receipt
+status, and nothing is published to the payments topic, because the audit trail
+may not carry a payment that did not happen.
+
+The policy status is not changed. `payment_failed` and `lapse` belong to the
+premium schedule watcher, which is T09's, and a policy whose first premium never
+settled reaches the same place by that route: `paidThroughMonth` is the month it
+started in and the next unpaid month lapses it after the grace period.
+
+### The first premium settled over x402 does not call recordPremium
+
+The open question T07 left. It does not, and it should not:
+`CoverPool.bind` already sets `paidThroughMonth` to the month the policy starts
+in, so `recordPremium(policyId, period)` for that same month is a no-op by its
+own `if (m > p.paidThroughMonth)` guard.
+
+`recordPremium` gets its first caller in T09, from the premium schedule watcher,
+for month two onwards.
+
+### A settled payment whose topic message fails is a row, not a lost payment
+
+The publish is retried three times with a doubling delay and every failure is
+logged with the facilitator transaction id. If all three fail the `payments` row
+is still `settled` and carries the transaction id, with a null `hcs_seq`, so the
+reconciliation list is a query rather than a hunt through the log. The retries
+are in process and do not survive a restart, which is the same trade the bind
+receipt already makes; what does survive is the row.
+
+### The payer sets its spend controls rather than taking the defaults
+
+`@x402/core`'s client refuses, before any network call, an asset it does not
+recognise as a network default, and caps a payment at one dollar. On
+`hedera:testnet` the only recognised asset is USDC, and a first premium is more
+than a dollar, so both defaults would refuse every payment this build makes.
+`packages/client/src/x402/payer.ts` allows the settlement token explicitly and
+takes a ceiling in minor units, which is a real control rather than an
+inherited one: the server names the price and the payer refuses anything above
+its own ceiling.
+
+### Blocky402's testnet facilitator was used as it is, with no self-hosting
+
+DESIGN.md section 8 offers self-hosting Blocky402 with Docker if the testnet
+instance is unavailable. It was not needed: `https://api.testnet.blocky402.com`
+answered `GET /health` and advertised `exact` on `hedera:testnet` with fee payer
+0.0.7162784 throughout, and settled every payment this ticket made. No API key
+and no account, which its own testnet documentation says is deliberate.
+
+## T18, the audit trail, 5 September 2026
+
+### The audit endpoint answers from the topic, and says where every entry came from
+
+DESIGN.md 3.7 asks for an audit trail "verifiable independently of our
+database". An endpoint that reads its own rows and formats them is not that, so
+`GET /v1/audit/:policyId` uses the database only as the index into the topics:
+the rows carry the sequence numbers, the mirror node carries the messages, and
+the message body is what the response reports.
+
+That leaves four honest answers rather than one, and each entry says which it
+is in `source`:
+
+    topic               read back from the mirror node, body and all
+    awaiting_mirror     published, sequence number known, the mirror node has
+                        not caught up; it lags consensus by seconds
+    not_yet_on_topic    a row and no message, which is exactly the settled
+                        payment whose publish failed, above
+    mirror_unavailable  the mirror node could not be read at all
+
+A trail that quietly showed a database row as a topic message would be worse
+than no trail, because the whole claim being made is that the reader does not
+have to trust us.
+
+### The entries are free, so the fields of each message kind are named one by one
+
+The endpoint is free, like `GET /v1/policy/:id`, and for the same reason it is
+a whitelist rather than a copy of the message. Each kind contributes named
+fields under `detail`. The holder's EVM address is on two of the messages the
+payments topic carries and is dropped by exactly this; the nullifier is on no
+message anywhere. The Hedera account ids that remain, the payer and the holder,
+are already visible in the transfers on chain.
+
+`detail` is an object rather than the kind's fields spread over the top level,
+because five kinds put five different things behind names like `amount` and
+`at`. Keeping them one level down means the top of every entry is the same
+shape whatever the kind, which is what a list renderer needs.
+
+### The premium, payout and claim messages are fixed now, before their flows exist
+
+Acceptance line one names four kinds of payments topic entry and two claims
+topic entries. Three of them have writers: `coupon` from T14, `policy` from T07
+and `settlement` from T08. The recurring premium belongs to T09's watcher loop,
+the payout to T13's `payClaim`, and the two claims messages to T13 and T25.
+None of those flows exists yet.
+
+So this ticket settles the shapes rather than leaving three later tickets to
+invent them: `apps/api/src/audit/messages.ts` builds them, publishes them
+through T08's outbox and tests them, and the ticket that grows the flow calls
+the helper. Version 1 of each:
+
+    premium        policy, period (YYYYMM), scheduleId, tx, amount, asset,
+                   decimals, payer, at
+    payout         policy, claimId, packetHash, decisionHash, amount, asset,
+                   decimals, tx, at
+    claim_packet   policy, claimId, packetHash, evidence (sha256 per file), at
+    claim_decision policy, claimId, decisionHash, decision, at
+
+An append-only topic cannot be corrected afterwards, which is what makes
+agreeing the field names cheaper now than later.
+
+### The claims publisher takes the key it is given
+
+The claims topic's submit key is the adjuster account's, not the api account's,
+so this API cannot write that topic at all. The publishers therefore take a
+writer rather than reaching for a global one: apps/adjuster builds a client
+with its own key and hands it in. The API reads the claims topic and never
+writes it.
+
+### A payout is written as a payments row as well, so the trail can find it
+
+`claims` has `hcs_submitted_seq` and `hcs_decision_seq`, the two claims topic
+pointers, and no column for a payout message on the payments topic. Rather than
+adding one, T13 writes the payout as a `payments` row with the policy id as its
+`ref`, which is what a payout is: a payment. The audit trail then picks it up
+through the same path as every other payment, with a sequence number of its
+own, and `claims.paid_tx` stays what it is, the on-chain transaction.
+
+### An uncollected first premium points at the binding receipt, so the reader checks the kind
+
+`POST /v1/bind` writes the first premium as `uncollected` and sets its
+`hcs_seq` to the binding receipt's sequence number, because at that moment the
+receipt is the only message on the topic; the settlement hook overwrites the
+pointer when the transfer settles. So a payments row's sequence number is only
+a payment message once the payment has settled.
+
+The audit trail reads the message and looks at its `kind` rather than trusting
+the pointer: anything that is not a payment leaves the entry on the row, marked
+`not_yet_on_topic`, and the policy receipt is not reported twice.
+
+### Timestamps are normalised, because the coupon writer stamps a consensus timestamp
+
+The settlement, policy, premium and payout messages carry an RFC 3339 instant.
+The coupon message carries `paidAt` as the consensus timestamp of the transfer,
+`seconds.nanos`, which is the form the mirror node handed the coupon run. Both
+are read here and both come out of the endpoint as RFC 3339 UTC, the form every
+other endpoint uses. The `policy` binding message carries no written-at field at
+all, so its entry uses the consensus timestamp the mirror node reports, which
+is the better answer anyway.
+
+### The parser lives in packages/client and tolerates a writer newer than itself
+
+Three writers live in apps/api and contracts and this ticket does not move
+them. The reader is one parser in `packages/client/src/audit.ts`, which apps/api
+and apps/web both import, with a test that round-trips each writer's own output
+and a second test against messages read back off the live topic.
+
+It refuses to throw on anything. An unknown `kind` comes back as `unknown` with
+its fields, and a `v` above 1 is read through its version 1 fields, because a
+topic is append-only and shared: a later ticket adds a kind, and every deployed
+reader has to keep rendering the history around it.
+
+### The receipt screen's copy, chosen here because there is no deck for it
+
+docs/DESIGN-TOKENS.md section 8 puts "View receipt" on the paid state and has
+no screen behind it. The screen is built from the components the sheet already
+specifies, a surface group of list rows in the 390 frame, and the words follow
+the section 8 voice rules: payment, payout, receipt, and never bind, settle,
+parametric or nullifier.
+
+    Receipt
+    Every payment on this cover, written to Hedera as it happened.
+    Cover / Covered          Reference / pol_...FXA8
+    Cover receipt            View on HashScan
+    Payments
+      Price quote            5 September 2026 - Recorded on Hedera
+      Cover requested        Cover started        First payment
+      Monthly payment        Payout               Coupon
+      Claim sent             Claim decision
+    View every payment on HashScan
+
+An entry the API could not find on the topic reads "Not recorded yet", one it
+is still waiting for reads "Recording on Hedera", and one it could not check
+reads "Cannot reach Hedera". A receipt that showed a payment as recorded when
+the message never arrived would be the one lie this screen must not tell.
+Dates are en-GB in UTC, per the T10 decision.
+
+## T20, the Harness contribution, 5 September 2026
+
+### The contribution is the mirror node read the harness promises and does not ship
+
+Of everything in docs/harness-notes.md, the candidate chosen is the mirror node.
+Tier 3.5 CHAIN says it "verifies effects via mirror node" in src/types.ts and in
+docs/authoring-a-recipe.md, and the validator prompt tells the evaluator agent to
+treat the mirror node as keyless ground truth, but the harness ships no
+mirror-node code at all: the only fetch in src/ is the dev-server health probe.
+So an endpoint list and the sentence "poll up to ~30s for mirror lag" is the
+whole of it, and four things our notes measured are left to a non-deterministic
+agent to rediscover on every run: entity endpoints answer 404 for a second or
+two after consensus and then 200 (T03 and T07 notes), /topics/{id}/messages
+answers 200 with an empty list for a topic that does not exist so it cannot
+answer existence at all (T03 note), the SDK's transaction id form is rejected
+where the mirror form resolves (T08 and T18 notes), and the error text a real
+Hashio outage emits matches none of the patterns in src/evalInfra.ts (T04 note),
+so a transient outage is graded as an app defect and burns the repair budget,
+which is the same defect class the maintainers fixed for the missing browser in
+1.2.1. The other candidates were rejected as duplicates or as too thin: the
+association and ED25519 points our notes carry are already open PRs #15 and #16
+against the same files, the HOL Guard validator is open issue #8, and the DER
+secret-pattern gap in src/specDefaults.ts is real but is a four-line regex change
+with no developer-experience story to show. The PR targets dev rather than
+master because dev is 2.0.0-rc.4 and every maintainer merge since 26 August went
+there, so a PR against master would be against code that has already moved:
+schema v3, Claude as the default agent, @hiero-ledger/sdk and playwright shipped
+with the harness, src/evalInfra.ts and src/preflight.ts. It is
+https://github.com/hedera-dev/hedera-harness/pull/39, and it adds
+src/validation/mirrorNode.ts with 18 offline tests, makes provisionChainSigner
+wait for the ephemeral signer on the mirror node before the run is graded,
+extends the infrastructure classifier, and corrects the validator prompt.
+
+### The harness fork is not vendored into this repository
+
+The contribution lives in the fork at
+https://github.com/resistingdestiny/hedera-harness, cloned outside this
+repository. Nothing from the harness is copied in and this repository does not
+depend on it, so T20 touches only the four documentation files in its scope. The
+one piece of our own code that crossed over is the transaction id conversion
+that hashscanTransactionUrl in packages/client already does, rewritten there as
+normalizeTransactionId; it is recorded in docs/STARTERS.md.
+
 ## T12, the oracle worker, 5 September 2026
 
 ### The replay publishes to the index topic, not to a second replay topic

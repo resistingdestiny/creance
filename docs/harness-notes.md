@@ -1736,6 +1736,30 @@ gone from `.env.example`, and `deploy/deploy.sh` refuses a configuration file
 that carries it. The API still reads a blank value as `unknown`, so any
 remaining path to the failure is legible rather than silent.
 
+### `.env.example` cannot be copied verbatim: a blank there is a value, not an absence
+
+Copying `.env.example` unedited into a deployment and starting the API gives
+
+    Error: no deployment record at : run pnpm contracts:deploy first
+
+`loadApiConfig` reads `process.env.CREANCE_DEPLOYMENT_RECORD ?? <the default>`,
+and `??` only falls back on `undefined`. A file that carries the name with an
+empty value hands the process an empty string, which is a path, so the documented
+default never applies. The comment beside it in `.env.example` says the value
+defaults to `contracts/deployments/testnet.json` and that you set it only to
+point somewhere else, so the file and the code disagree about what blank means.
+
+The same shape is all over that function: `HEDERA_COVERPOOL_ADDRESS`,
+`HEDERA_SETTLEMENT_TOKEN_ID`, `HEDERA_SERIES_ID` and the topic ids all read
+`process.env.X ?? <the record>`, and a blank line for any of them shadows the
+deployment record the same way. It is not specific to the deployment and it is
+not new here, so nothing in T21 changed it: fixing two of a dozen would suggest a
+blank file works right up until the next one. What T21 does is stop relying on
+it. `deploy/README.md` says the production file is `.env.example` filled in, and
+`GIT_SHA` was removed from `.env.example` outright rather than left blank, which
+is the one case where a blank line would have overridden a value baked into an
+image rather than a value read from a committed file.
+
 ### podman does not invalidate an `ENV` layer when its build argument changes
 
 The Dockerfile reference is explicit that an `ARG` whose value changes

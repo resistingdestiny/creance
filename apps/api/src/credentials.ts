@@ -49,6 +49,40 @@ export interface VerifiedCredential extends EligibilityClaims {
   expiresAt: number;
 }
 
+/**
+ * The claim credential: what a completed claim-time check earns.
+ *
+ * The same signing key, the same thirty minutes and a different audience, so a
+ * credential minted for a claim can never be replayed at a bind and a bind
+ * credential can never open a claim. It names the policy rather than a series,
+ * because the claim's Selfie Check is bound to the policy id as its signal
+ * (DESIGN.md 3.9 item 1) and the credential has to carry what the proof was
+ * bound to. `presence` is on it because a claim needs a fresh liveness check
+ * and the packet endpoint refuses one without it.
+ */
+export interface ClaimCredentialClaims {
+  nullifier: string;
+  policy_id: string;
+  series_id: string;
+  group: string;
+  wallet: string;
+  wallet_evm: string;
+  scope: 'claim';
+  world: {
+    action: string;
+    environment: string;
+    credential: string;
+    verified_at: number;
+    presence: boolean;
+  };
+}
+
+export interface VerifiedClaimCredential extends ClaimCredentialClaims {
+  jti: string;
+  issuedAt: number;
+  expiresAt: number;
+}
+
 export interface IssuerOptions {
   issuer: string;
   ttlSeconds: number;
@@ -115,14 +149,31 @@ export class CredentialIssuer {
     claims: EligibilityClaims,
     at: Date = new Date(),
   ): Promise<{ token: string; jti: string; issuedAt: Date; expiresAt: Date }> {
+    return await this.sign(claims, ELIGIBILITY_AUDIENCE, claims.nullifier, at);
+  }
+
+  /** The same credential for the other half of the flow, in its own audience. */
+  async issueClaim(
+    claims: ClaimCredentialClaims,
+    at: Date = new Date(),
+  ): Promise<{ token: string; jti: string; issuedAt: Date; expiresAt: Date }> {
+    return await this.sign(claims, CLAIM_AUDIENCE, claims.nullifier, at);
+  }
+
+  private async sign(
+    claims: EligibilityClaims | ClaimCredentialClaims,
+    audience: string,
+    nullifier: string,
+    at: Date,
+  ): Promise<{ token: string; jti: string; issuedAt: Date; expiresAt: Date }> {
     const jti = newId('credential', at.getTime());
     const issuedAt = Math.floor(at.getTime() / 1000);
     const expiresAt = issuedAt + this.options.ttlSeconds;
     const token = await new SignJWT({ ...claims })
       .setProtectedHeader({ alg: ALGORITHM, kid: this.kid, typ: 'JWT' })
       .setIssuer(this.options.issuer)
-      .setAudience(ELIGIBILITY_AUDIENCE)
-      .setSubject(`wid:${claims.nullifier}`)
+      .setAudience(audience)
+      .setSubject(`wid:${nullifier}`)
       .setJti(jti)
       .setIssuedAt(issuedAt)
       .setNotBefore(issuedAt)
@@ -142,14 +193,23 @@ export class CredentialIssuer {
    * audience check is what stops a claim credential being replayed at bind.
    */
   async verify(token: string): Promise<VerifiedCredential> {
-    let payload;
+    return readClaims(await this.open(token, ELIGIBILITY_AUDIENCE));
+  }
+
+  /** The claim half. A bind credential presented here fails the audience check. */
+  async verifyClaim(token: string): Promise<VerifiedClaimCredential> {
+    return readClaimCredential(await this.open(token, CLAIM_AUDIENCE));
+  }
+
+  private async open(token: string, audience: string): Promise<RawPayload> {
     try {
-      ({ payload } = await jwtVerify(token, this.publicKeyForVerify(), {
+      const { payload } = await jwtVerify(token, this.publicKeyForVerify(), {
         issuer: this.options.issuer,
-        audience: ELIGIBILITY_AUDIENCE,
+        audience,
         algorithms: [ALGORITHM],
         clockTolerance: 5,
-      }));
+      });
+      return payload as RawPayload;
     } catch (error) {
       const code = (error as { code?: string }).code;
       if (code === 'ERR_JWT_EXPIRED') {
@@ -157,17 +217,16 @@ export class CredentialIssuer {
           403,
           'credential_expired',
           'Check expired',
-          'That eligibility credential has expired. Verify again.',
+          'That credential has expired. Verify again.',
         );
       }
       throw new AppError(
         401,
         'credential_invalid',
         'Credential invalid',
-        'That eligibility credential did not verify against this API.',
+        'That credential did not verify against this API.',
       );
     }
-    return readClaims(payload);
   }
 
   private publicKeyForVerify(): Parameters<typeof jwtVerify>[1] {
@@ -187,6 +246,7 @@ interface RawPayload {
   series_id?: unknown;
   wallet?: unknown;
   wallet_evm?: unknown;
+  policy_id?: unknown;
   world?: unknown;
 }
 
@@ -223,6 +283,47 @@ export function readClaims(payload: RawPayload): VerifiedCredential {
   };
 }
 
+/** The claim credential's own shape check. Same discipline, different fields. */
+export function readClaimCredential(payload: RawPayload): VerifiedClaimCredential {
+  const jti = str(payload.jti);
+  const nullifier = str(payload.nullifier);
+  if (jti === null || nullifier === null || !/^\d+$/.test(nullifier)) throw malformed();
+  const policyId = str(payload.policy_id);
+  const group = str(payload.group);
+  const seriesId = str(payload.series_id);
+  const wallet = str(payload.wallet);
+  const walletEvm = str(payload.wallet_evm);
+  if (
+    policyId === null ||
+    group === null ||
+    seriesId === null ||
+    wallet === null ||
+    walletEvm === null
+  ) {
+    throw malformed();
+  }
+  const world = (payload.world ?? {}) as Record<string, unknown>;
+  return {
+    jti,
+    nullifier,
+    policy_id: policyId,
+    group,
+    series_id: seriesId,
+    wallet,
+    wallet_evm: walletEvm,
+    scope: 'claim',
+    issuedAt: Number(payload.iat ?? 0),
+    expiresAt: Number(payload.exp ?? 0),
+    world: {
+      action: str(world['action']) ?? '',
+      environment: str(world['environment']) ?? '',
+      credential: str(world['credential']) ?? '',
+      verified_at: Number(world['verified_at'] ?? 0),
+      presence: world['presence'] === true,
+    },
+  };
+}
+
 function str(value: unknown): string | null {
   return typeof value === 'string' && value !== '' ? value : null;
 }
@@ -232,6 +333,6 @@ function malformed(): AppError {
     401,
     'credential_invalid',
     'Credential invalid',
-    'That credential verified but does not carry the claims a bind needs.',
+    'That credential verified but does not carry the claims this step needs.',
   );
 }

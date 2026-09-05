@@ -30,6 +30,22 @@ export interface DeploymentRecord {
   /// The short dated series T14 opened to reach maturity inside the event. It
   /// is not the demo series and nothing else reads it.
   maturityDemo?: MaturityDemoRecord;
+  /// The short window series T24 opened so that a claim window can close on
+  /// camera. The demo series' window runs to 5 October, past the event. Not the
+  /// demo series, and nothing else reads it.
+  demoRelease?: DemoReleaseRecord;
+}
+
+/// What `pnpm --filter @creance/contracts demo:release` proved on testnet.
+export interface DemoReleaseRecord {
+  series: string;
+  at: string;
+  windowSeconds: number;
+  principalFunded: string;
+  principalRemaining: string;
+  reservedOnOpen: string;
+  released: string;
+  links: Record<string, string>;
 }
 
 export interface ContractRecord {

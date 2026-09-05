@@ -1146,3 +1146,86 @@ prose rather than merely implied by it.
 
 It needs `X402_ENABLED` on, `DATABASE_URL`, the operator key, and a steward
 account holding TUSD. It spends 0.01 TUSD a run.
+
+## T24, the demonstration seed and the reserve release, 5 September 2026
+
+`pnpm demo:seed` makes everything DESIGN.md section 7 needs true on testnet and
+then reads it back. It creates nothing that already exists: the accounts, the
+tokens, the topics, the contracts and the demo series are shared and are read,
+not rebuilt. What it owns is the per demonstration half, and a second run of it
+binds nothing, issues nothing and pays nothing.
+
+### What the seed bound
+
+Two policies on ODI-COMP-2026-01, both 1,000 TUSD of cover from 2025-12-01 at
+28.00 a month, both claimable from 2026-01-30, one for each committed packet.
+The backdated start is a stated demonstration artefact and is said out loud in
+the video: `CoverPool.bind` does not validate `startAt` and the BINDER role is
+trusted to say when cover began.
+
+| | Packet A, the redundancy that pays | Packet B, the resignation that declines |
+|---|---|---|
+| policy | `pol_01M1SHFJF69J17D50JST8KW6SA` | `pol_01M1SHG6Z0RDEVCR6MH2H11H8V` |
+| holder | policyholder-1 [0.0.10366453](https://hashscan.io/testnet/account/0.0.10366453) | policyholder-3 [0.0.10366458](https://hashscan.io/testnet/account/0.0.10366458) |
+| bind | [0xe718516e…9a39](https://hashscan.io/testnet/transaction/0xe718516e7c66be52d19f5127ee2d604f533880995056b31a9fd1015ccc2b9a39) | [0x4bb4e925…211f](https://hashscan.io/testnet/transaction/0x4bb4e925c9a7cc8028317117735c8017597652da8c3d3922ee42d9fa83b3211f) |
+| policy receipt | [0.0.10366468 serial 26](https://hashscan.io/testnet/token/0.0.10366468/26) | [0.0.10366468 serial 27](https://hashscan.io/testnet/token/0.0.10366468/27) |
+| binding receipt | payments topic sequence 181 | sequence 183 |
+| bind gas | 207,324 | 207,324 |
+| letter | `packet-a/letter.pdf`, 1,499 bytes, `sha256:c92a8440…88f5` | `packet-b/letter.pdf`, 1,247 bytes, `sha256:ad1ef466…f289fe` |
+
+The noteholders were already on the note and in the vault, so `pnpm ats:issue`
+and `pnpm coupons:pay` both reported that there was nothing to do: investor-1
+[0.0.10366460](https://hashscan.io/testnet/account/0.0.10366460) and investor-2
+[0.0.10366462](https://hashscan.io/testnet/account/0.0.10366462) hold 50 units
+each of note [0.0.10368240](https://hashscan.io/testnet/contract/0.0.10368240)
+and are subscribed for 50,000 TUSD each, `principalFunded` 100,000,000,000.
+
+The series after the seed: status ClaimsOpen, `activeExposure` 25,000,000,000,
+`reservedOf` 1,000,000,000, `principalRemaining` 98,000,000,000, window ending
+2026-10-05T09:04:51Z, `lastObservedMonth` 202604. May 2026 has never been
+published or submitted, which is what makes the opening in shot 5 a real one.
+
+### The reserve release, on a series whose window can close
+
+The demo series cannot close inside the event: its window runs thirty days from
+the observation that opened it, to 5 October 2026, the terms are frozen at
+registration and there is no setter. `pnpm --filter @creance/contracts
+demo:release` shows the release for real on `T24-REL-1788637816`, a series
+carrying every term the demo series carries except that its claim window is 120
+seconds from the observation instead of thirty days. It is a demonstration and
+not the demo series, the same way maturity is shown on the short dated series
+`pnpm coupons:mature` opens.
+
+Two policies of 10 TUSD each were bound against a 30 TUSD principal, the month
+2026-04 was opened on the level form, one claim was paid and the window was
+allowed to end.
+
+| Step | Where | Result |
+|---|---|---|
+| registerSeries | [0x82ac5576…11b0](https://hashscan.io/testnet/transaction/0x82ac5576b2877ce6e59ae7347f399661ed40378637ea29d28b62b4afafad11b0) | claim window 120 seconds from the observation, 60 from the separation |
+| subscribe | [0x53152463…17db](https://hashscan.io/testnet/transaction/0x53152463c345a6cb399d825811221ec290d6ebc880645680d6dae003faaf17db) | `principalFunded` 30,000,000 |
+| bind, twice | [0xa36447bc…d734](https://hashscan.io/testnet/transaction/0xa36447bc2a7e5a435a2b7bebb87961be42fd6bbc3759b170252a18deed5dd734), [0xac603f61…2010](https://hashscan.io/testnet/transaction/0xac603f614e0f41b461c582a8c0c8efaac5ecac019fded85a1a5d0c0d3eeb2010) | `activeExposure` 20,000,000 |
+| submitObservation 2026-04 | [0xa386ba54…0f03](https://hashscan.io/testnet/transaction/0xa386ba5472e8c829e380406786ad5b3f7b735197bfe93206b83ef30f5ad80f03) | opens on the level form, `reservedOf` 20,000,000 |
+| payClaim | [0x33c8d257…dbdf](https://hashscan.io/testnet/transaction/0x33c8d25757afacbbf33e547f1a13c9e642f15498f5493a02f50746dc38bcdbdf) | 10,000,000 paid, `reservedOf` 10,000,000 |
+| closeWindow, 48,502 gas | [0xeea998bc…ca99](https://hashscan.io/testnet/transaction/0xeea998bc033793c0ba038a65541eb090b0791d6777207c9c81980a9cee20ca99) | `Released` 10,000,000, `reservedOf` 0, status back to Active |
+
+`principalRemaining` ends at 20,000,000, which is the 30,000,000 funded less the
+10,000,000 that was paid to a person. It is not a fee and it is not a haircut.
+The unclaimed half of the reserve went back to the vault rather than staying
+locked against a window that had ended.
+
+The window end is the observation term and not the separation term, because the
+month that opened is history: `startOfMonth(2026-05) + 60 seconds` is long past,
+so the `max` in `submitObservation` picks `block.timestamp + 120`. That is the
+same reason the demo series' own window is thirty days from the observation.
+
+### Reproducing it
+
+    pnpm api:migrate
+    pnpm demo:seed
+    pnpm demo:seed status
+    pnpm --filter @creance/contracts demo:release
+
+The first `demo:seed` binds what is missing; the second run of it prints
+"nothing bound", which is the check that it is idempotent. `demo:release` opens a
+new series every time it runs and never touches the demo series.

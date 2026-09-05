@@ -2228,3 +2228,49 @@ because this is a failure that only appears when payments are configured, which
 is not the state most tests run in.
 
 https://docs.x402.org/servers/quickstart
+
+## T24, the demonstration seed and the shot list, 5 September 2026
+
+### `closeWindow` emits no `Released` event when the reserve was spent
+
+The last beat of DESIGN.md section 7 is the unclaimed reserve going back to the
+noteholders, and the first run of `pnpm --filter @creance/contracts demo:release`
+produced a `closeWindow` that succeeded, cost 45,063 gas and released nothing.
+
+The cause is the contract behaving correctly and the run asking the wrong
+question. `CoverPool.closeWindow` reads `vault.reservedOf(seriesId)` and calls
+`vault.release` only when the remainder is greater than zero, so a series where
+one policy was bound, its limit reserved and then paid out in full closes with a
+remainder of zero, emits `WindowClosed(seriesId, 0, lastOpenPeriod)` and never
+touches the vault. A consumer waiting for `Released` to confirm that a window
+closed will wait forever on a series that paid out everything it reserved.
+`WindowClosed` is the event to watch, and its `released` argument is where the
+number is.
+
+The run now binds two policies and claims on one of them, which is the shape the
+demonstration actually has: the reserve is taken against every exposed limit
+when a month opens, and what the claims do not use comes back.
+
+### `pnpm exec` did not load the environment file that `pnpm run` loads
+
+The root `pnpm demo:seed` was first written as `pnpm --filter @creance/api exec
+tsx --env-file-if-exists=../../<the environment file> scripts/...`, on the
+grounds that it needs no new line in the package's own manifest. `pnpm --filter
+@creance/api exec pwd` prints the package directory, and the file is two levels
+above it, so the relative path is right. tsx still reported it as not found and
+the script ran with no credentials.
+
+The identical tsx command line, declared as a script in the package manifest and
+invoked through `pnpm --filter @creance/api run`, finds the same file from the
+same directory and reaches both the database and testnet. The cause was not
+established, and the working form is the one every other testnet command in this
+repository already uses, so `pnpm demo:seed` delegates to a package script.
+Anyone reaching for `pnpm exec` to avoid adding a line should check that the
+environment actually arrived before believing a run that does nothing.
+
+### `--filter` and a stage argument pass through, `--plan` does not need quoting
+
+`pnpm demo:seed status` and `pnpm demo:seed --plan` both reach the script
+through two layers of pnpm without any argument escaping. This is written down
+because the surrounding commands are all single word scripts and it was not
+obvious that a positional stage survives the hop; it does.

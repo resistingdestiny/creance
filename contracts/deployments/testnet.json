@@ -438,5 +438,23 @@
       "principalPaid": "10000000",
       "principalRemaining": "20000000"
     }
+  },
+  "demoRelease": {
+    "series": "T24-REL-1788637816",
+    "at": "2026-09-05T19:52:58.609Z",
+    "windowSeconds": 120,
+    "principalFunded": "30000000",
+    "principalRemaining": "20000000",
+    "reservedOnOpen": "20000000",
+    "released": "10000000",
+    "links": {
+      "registerSeries": "https://hashscan.io/testnet/transaction/0x82ac5576b2877ce6e59ae7347f399661ed40378637ea29d28b62b4afafad11b0",
+      "subscribe": "https://hashscan.io/testnet/transaction/0x53152463c345a6cb399d825811221ec290d6ebc880645680d6dae003faaf17db",
+      "bind1": "https://hashscan.io/testnet/transaction/0xa36447bc2a7e5a435a2b7bebb87961be42fd6bbc3759b170252a18deed5dd734",
+      "bind2": "https://hashscan.io/testnet/transaction/0xac603f614e0f41b461c582a8c0c8efaac5ecac019fded85a1a5d0c0d3eeb2010",
+      "submitObservation": "https://hashscan.io/testnet/transaction/0xa386ba5472e8c829e380406786ad5b3f7b735197bfe93206b83ef30f5ad80f03",
+      "payClaim": "https://hashscan.io/testnet/transaction/0x33c8d25757afacbbf33e547f1a13c9e642f15498f5493a02f50746dc38bcdbdf",
+      "closeWindow": "https://hashscan.io/testnet/transaction/0xeea998bc033793c0ba038a65541eb090b0791d6777207c9c81980a9cee20ca99"
+    }
   }
 }

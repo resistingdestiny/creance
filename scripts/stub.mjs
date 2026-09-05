@@ -14,7 +14,6 @@ const commands = {
   'adjuster:run': 'decide the pending claims once',
   'contracts:deploy': 'deploy CoverPool and CollateralVault to Hedera testnet and verify them',
   'ats:issue': 'issue the demo Displacement Bond Note series through the ATS SDK',
-  'demo:seed': 'seed the demo series, policyholders, investors and claim packets',
 };
 
 const name = process.argv[2];

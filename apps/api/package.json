@@ -6,7 +6,10 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "tsx --env-file-if-exists=../../.env src/main.ts",
+    "migrate": "tsx --env-file-if-exists=../../.env src/db/cli.ts",
+    "openapi": "tsx scripts/openapi.ts",
     "test": "vitest run",
+    "test:testnet": "vitest run --config vitest.testnet.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

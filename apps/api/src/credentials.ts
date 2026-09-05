@@ -23,6 +23,9 @@ export const ELIGIBILITY_AUDIENCE = 'urn:creance:bind';
 export const CLAIM_AUDIENCE = 'urn:creance:claim';
 export const ALGORITHM = 'EdDSA';
 
+/** Whatever `jose` hands back for a key, without naming a DOM type. */
+type SigningKey = Awaited<ReturnType<typeof importJWK>>;
+
 export interface EligibilityClaims {
   nullifier: string;
   group: string;
@@ -62,17 +65,17 @@ export interface IssuerOptions {
  */
 export async function loadSigningKey(
   options: IssuerOptions,
-): Promise<{ privateKey: CryptoKey; publicJwk: JWK; kid: string; ephemeral: boolean }> {
+): Promise<{ privateKey: SigningKey; publicJwk: JWK; kid: string; ephemeral: boolean }> {
   const kid = options.kid ?? 'elig-1';
   if (options.signingJwk !== undefined && options.signingJwk !== '') {
     const jwk = JSON.parse(Buffer.from(options.signingJwk, 'base64').toString('utf8')) as JWK;
-    const privateKey = (await importJWK(jwk, ALGORITHM)) as CryptoKey;
+    const privateKey = await importJWK(jwk, ALGORITHM);
     const publicJwk = publicHalf(jwk, kid);
     return { privateKey, publicJwk, kid, ephemeral: false };
   }
   const pair = await generateKeyPair(ALGORITHM, { crv: 'Ed25519', extractable: true });
   const publicJwk = { ...(await exportJWK(pair.publicKey)), kid, alg: ALGORITHM, use: 'sig' };
-  return { privateKey: pair.privateKey as CryptoKey, publicJwk, kid, ephemeral: true };
+  return { privateKey: pair.privateKey as SigningKey, publicJwk, kid, ephemeral: true };
 }
 
 /**
@@ -83,13 +86,14 @@ export async function loadSigningKey(
  * route, and there is a test that asserts the served document has no `d`.
  */
 export function publicHalf(jwk: JWK, kid: string): JWK {
-  const { d: _private, ...rest } = jwk;
+  const rest: JWK = { ...jwk };
+  delete rest.d;
   return { ...rest, kid, alg: ALGORITHM, use: 'sig' };
 }
 
 export class CredentialIssuer {
   private constructor(
-    private readonly privateKey: CryptoKey,
+    private readonly privateKey: SigningKey,
     readonly publicJwk: JWK,
     readonly kid: string,
     readonly ephemeral: boolean,

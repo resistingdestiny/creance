@@ -134,9 +134,10 @@ export function registerErrorHandling(app: FastifyInstance): void {
         error.issues,
       );
     }
-    const fastify = typeof error.code === 'string' ? FASTIFY_CODES[error.code] : undefined;
+    const raw = error as { code?: unknown; message?: unknown };
+    const fastify = typeof raw.code === 'string' ? FASTIFY_CODES[raw.code] : undefined;
     if (fastify !== undefined) {
-      return sendProblem(reply, fastify.status, fastify.code, fastify.title, describe(error));
+      return sendProblem(reply, fastify.status, fastify.code, fastify.title, describe(raw));
     }
     // Anything unrecognised is ours. Log the real error against the request id
     // and tell the caller nothing beyond that it was not their fault.
@@ -152,7 +153,7 @@ export function registerErrorHandling(app: FastifyInstance): void {
 }
 
 /** Fastify's own messages are safe to pass on; they name a field, not a secret. */
-function describe(error: { message?: string }): string {
+function describe(error: { message?: unknown }): string {
   return typeof error.message === 'string' && error.message !== ''
     ? error.message
     : 'The request could not be read.';

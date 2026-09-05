@@ -125,7 +125,7 @@ export function decodeJsonMessage<T>(message: MirrorTopicMessage): T {
   return JSON.parse(decodeMessage(message)) as T;
 }
 
-export interface PollOptions {
+export interface MirrorPollOptions {
   attempts?: number;
   delayMs?: number;
 }
@@ -138,7 +138,7 @@ export interface PollOptions {
 export async function pollMirror<T>(
   description: string,
   read: () => Promise<T | null>,
-  { attempts = 20, delayMs = 1500 }: PollOptions = {},
+  { attempts = 20, delayMs = 1500 }: MirrorPollOptions = {},
 ): Promise<T> {
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {

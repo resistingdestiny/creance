@@ -40,6 +40,30 @@ export interface IndexData {
 
 const FROM: Period = '2000-03';
 
+export interface Thresholds {
+  attachmentShock: number;
+  levelLine: number;
+}
+
+/**
+ * The frozen trigger parameters, by group.
+ *
+ * They are not columns on `observations`: the schema keeps the value and the
+ * openness, and A and L are frozen at issuance in the published calibration and
+ * on chain in `SeriesTerms`. Reading them from the calibration keeps one source
+ * for every group, including the fourteen with no series behind them yet.
+ */
+export function frozenThresholds(): Map<string, Thresholds> {
+  const map = new Map<string, Thresholds>();
+  for (const [groupKey, parameters] of frozenParameters()) {
+    map.set(groupKey, {
+      attachmentShock: parameters.attachmentShock,
+      levelLine: parameters.levelLine,
+    });
+  }
+  return map;
+}
+
 /** Load the archive and evaluate every bindable group at its frozen parameters. */
 export function loadIndexData(): IndexData {
   const dataset = loadDataset();

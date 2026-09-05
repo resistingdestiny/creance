@@ -3,8 +3,9 @@
 Everything the ETHGlobal submission form and the partner prize pages ask for, in
 one place. Entries marked "Root pending" need a person: an account setting, a
 browser session on somebody else's site, a camera or a video editor. Entries
-marked with a ticket are still build work. The evidence behind each ticked line
-in docs/PRIZES.md lives there, not here.
+marked with a ticket are still build work. The prize acceptance checklist, with
+an evidence link on every ticked line, is kept with the event record rather than
+in this repository, so nothing here is duplicated from it.
 
 ## Repository
 
@@ -49,23 +50,25 @@ The shot list they follow is T24.
 ## Hedera evidence
 
 Contract addresses, token ids, topic ids and the transactions behind each prize
-line are in docs/HEDERA.md and linked line by line in docs/PRIZES.md. Nothing is
-duplicated here.
+line are in docs/HEDERA.md, and the prize checklist links them line by line.
+Nothing is duplicated here.
 
 ## World
 
-- docs/FEEDBACK-WORLD.md is complete, with all four sections the prize asks for
-  and a dated entry per finding.
+- The feedback document is complete, with all four sections the prize asks for
+  and a dated entry per finding. It is kept with the event record rather than in
+  this repository. **Root pending**: the World track names it as a deliverable,
+  so Root attaches it to the submission or puts it back in the repository.
 - Staging app id: `app_8569aa8d1bbfb24b1243e86d4fc34adc`. RP id:
   `rp_d6ae9b4ff2018a15`.
 - Actions: `occupation-cover-eligibility` at purchase and
   `occupation-cover-claim` at claim. Two registered actions means two
   nullifiers, so `GET /health` reports `world.continuity` as false and the
-  continuity sentence is the weaker one. docs/FEEDBACK-WORLD.md says exactly
-  what that costs.
+  continuity sentence is the weaker one. docs/DECISIONS.md under T11 and T13
+  says exactly what that costs.
 - Sandbox App: Root pending. The staging simulator cannot complete a Selfie
   Check, so the credential needs a phone and a face. What is left to run, and
-  why each item matters, is listed in docs/FEEDBACK-WORLD.md under "What is left
+  why each item matters, is listed in the feedback document under "What is left
   for the device run".
 
 ## Bazantic

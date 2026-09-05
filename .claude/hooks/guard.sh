@@ -10,8 +10,19 @@ fi
 deny(){ echo "guard: blocked. $1" >&2; exit 2; }
 
 echo "$cmd" | grep -qiE 'mainnet' && deny "mainnet is out of scope for this project; testnet only."
-echo "$cmd" | grep -qE 'git push[^|;&]*( --force| -f | \+)' && deny "force pushes are not allowed."
-echo "$cmd" | grep -qE 'git push[^|;&]* (origin )?(main|master)( |$)' && deny "no direct pushes to main; the controller merges pull requests."
+# Tidying your own ticket branch before review is expected, so --force-with-lease
+# onto a t/... branch is allowed. Every other force, and anything aimed at the
+# default branch, is not.
+if echo "$cmd" | grep -qE '(^|[;&| ])git push'; then
+  echo "$cmd" | grep -qE 'git push[^|;&]* (origin )?(main|master)( |$)' && deny "no direct pushes to main; the controller merges pull requests."
+  if echo "$cmd" | grep -qE '( --force| -f | \+)'; then
+    if echo "$cmd" | grep -q -- '--force-with-lease' && echo "$cmd" | grep -qE ' t/[A-Za-z0-9._-]+'; then
+      : # allowed: rewriting your own unmerged ticket branch
+    else
+      deny "only --force-with-lease onto your own t/... ticket branch is allowed."
+    fi
+  fi
+fi
 echo "$cmd" | grep -qE '(^|[;&| ])(printenv|env)([;&| ]|$)' && deny "do not print the environment; secrets live there."
 echo "$cmd" | grep -qE '\$\{?(CLAUDE_CODE_OAUTH_TOKEN|GH_TOKEN|[A-Z_]*_KEY|[A-Z_]*SECRET)' && deny "do not echo secrets; read them through process.env in code."
 echo "$cmd" | grep -qE 'rm -rf? +(/|~|\$HOME|\.\.)( |$)' && deny "destructive rm."

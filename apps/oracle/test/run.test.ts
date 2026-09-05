@@ -1,0 +1,292 @@
+import {
+  datasetFrom,
+  loadDataset,
+  periodRange,
+  seriesIdFor,
+  type Dataset,
+  type Period,
+  type SourceObservation,
+} from '@creance/index-model';
+import { describe, expect, it } from 'vitest';
+
+import { loadOracleConfig } from '../src/config.js';
+import { addressOfKey, verifyMessage } from '../src/message.js';
+import { DryRunPublisher } from '../src/publisher.js';
+import { QaFailed, periodsUsed, runPipeline } from '../src/run.js';
+import { MemoryObservationWriter } from '../src/store.js';
+import { DryRunSubmitter, NULL_ODI } from '../src/submitter.js';
+
+/// The pipeline is exercised against the committed archive with the chain
+/// adapters swapped for the dry run pair, so the compute, QA, message, source
+/// hash and encoding paths are all real and only the two network calls are not.
+/// `pnpm test` stays chain-free; the testnet run has its own command.
+
+const RECORD = new URL('../../../contracts/deployments/testnet.json', import.meta.url).pathname;
+const CONFIG = loadOracleConfig({
+  recordPath: RECORD,
+  environment: { HEDERA_TOPIC_INDEX: '0.0.10366470', HEDERA_ORACLE_ID: '0.0.10366447' },
+});
+const KEY = 'b2'.repeat(32);
+const DATASET = loadDataset();
+
+/// The replay window of DESIGN.md 3.4, and the two months it opens on.
+const REPLAY: Period[] = periodRange('2025-01', '2026-07');
+
+function base(overrides: Record<string, unknown> = {}) {
+  return {
+    mode: 'replay' as const,
+    dataset: DATASET,
+    periods: REPLAY,
+    groups: ['computer_math'],
+    config: CONFIG,
+    publisher: new DryRunPublisher(),
+    submitter: new DryRunSubmitter(),
+    writer: new MemoryObservationWriter(),
+    keyHex: KEY,
+    now: () => new Date('2026-09-05T12:00:00Z'),
+    ...overrides,
+  };
+}
+
+describe('the source hash window', () => {
+  it('commits to the six calendar months a period is computed from', () => {
+    expect(periodsUsed('2026-04')).toEqual([
+      '2026-04',
+      '2026-03',
+      '2026-02',
+      '2025-04',
+      '2025-03',
+      '2025-02',
+    ]);
+  });
+});
+
+describe('the replay of real history for the demo series', () => {
+  it('walks nineteen months, publishes sixteen and opens in April and May 2026', async () => {
+    const summary = await runPipeline(base());
+    expect(summary.periods).toHaveLength(19);
+    expect(summary.publishedCount).toBe(19);
+
+    const rows = summary.periods.flatMap((period) => period.published);
+    const statuses = rows.filter((row) => row.status === 'final');
+    expect(statuses).toHaveLength(16);
+    expect(rows.filter((row) => row.status === 'no_source').map((row) => row.period)).toEqual([
+      '2025-10',
+    ]);
+    expect(
+      rows.filter((row) => row.status === 'insufficient_history').map((row) => row.period),
+    ).toEqual(['2025-11', '2025-12']);
+
+    const open = rows.filter((row) => row.open);
+    expect(open.map((row) => row.period)).toEqual(['2026-04', '2026-05']);
+    expect(open.map((row) => row.openReason)).toEqual(['level', 'level']);
+  });
+
+  it('reproduces the published numbers the demo turns on', async () => {
+    const summary = await runPipeline(base());
+    const april = summary.periods
+      .flatMap((period) => period.published)
+      .find((row) => row.period === '2026-04');
+    expect(april?.message).toMatchObject({
+      series: 'ODI-COMP-2026-01',
+      group: 'computer_math',
+      u_g: 3.5,
+      u_all: 4,
+      e: -0.5,
+      ebar: -0.6,
+      odi: 0.3,
+      level_line: -0.68,
+      attachment_shock: 2,
+      open: true,
+      open_reason: 'level',
+      status: 'final',
+    });
+  });
+
+  it('keeps every message signed, canonical and under a kilobyte', async () => {
+    const summary = await runPipeline(base());
+    for (const row of summary.periods.flatMap((period) => period.published)) {
+      expect(row.bytes).toBeLessThan(1024);
+      expect(verifyMessage(row.message, addressOfKey(KEY))).toBe(true);
+    }
+  });
+
+  it('submits only the sixteen final months, in ascending order', async () => {
+    const submitter = new DryRunSubmitter();
+    const summary = await runPipeline(base({ submitter }));
+    expect(summary.submittedCount).toBe(16);
+    expect(submitter.calls.map((call) => call.period)).toEqual([
+      202501, 202502, 202503, 202504, 202505, 202506, 202507, 202508, 202509, 202601, 202602,
+      202603, 202604, 202605, 202606, 202607,
+    ]);
+    // The gap months are published and never settled.
+    expect(submitter.calls.some((call) => call.period === 202510)).toBe(false);
+
+    const april = submitter.calls.find((call) => call.period === 202604);
+    expect(april).toMatchObject({ odi: 3000n, ebar: -6000n });
+    expect(april?.hcsSequence).toBeGreaterThan(0n);
+  });
+
+  it('names why each unsettled month stayed off chain', async () => {
+    const summary = await runPipeline(base());
+    const reasons = summary.periods
+      .flatMap((period) => period.published)
+      .filter((row) => row.submit === null)
+      .map((row) => row.submitSkipped);
+    expect(reasons).toEqual([
+      'status is no_source, only final months settle',
+      'status is insufficient_history, only final months settle',
+      'status is insufficient_history, only final months settle',
+    ]);
+  });
+
+  it('is idempotent: a second run publishes nothing and submits nothing', async () => {
+    const writer = new MemoryObservationWriter();
+    await runPipeline(base({ writer }));
+    const submitter = new DryRunSubmitter();
+    const second = await runPipeline(base({ writer, submitter }));
+    expect(second.publishedCount).toBe(0);
+    expect(second.skippedCount).toBe(19);
+    expect(submitter.calls).toHaveLength(0);
+  });
+
+  it('does not resubmit a period the contract already holds', async () => {
+    const submitter = new DryRunSubmitter();
+    submitter.hasObservation = async () => true;
+    const summary = await runPipeline(base({ submitter }));
+    expect(summary.submittedCount).toBe(0);
+    expect(
+      summary.periods
+        .flatMap((period) => period.published)
+        .some((row) => row.submitSkipped?.includes('already on chain')),
+    ).toBe(true);
+  });
+
+  it('refuses to submit behind the last month the series observed', async () => {
+    // 2026-04 is month index 24315, so a series that has already observed it
+    // must decline every month up to and including it.
+    const submitter = new DryRunSubmitter({ lastObservedMonth: 24315 });
+    const summary = await runPipeline(base({ submitter }));
+    expect(submitter.calls.map((call) => call.period)).toEqual([202605, 202606, 202607]);
+    expect(summary.submittedCount).toBe(3);
+  });
+
+  it('publishes and never submits for a series that is not Active', async () => {
+    const submitter = new DryRunSubmitter({ status: 4, statusName: 'Matured', acceptsObservations: false });
+    const summary = await runPipeline(base({ submitter }));
+    expect(summary.publishedCount).toBe(19);
+    expect(summary.submittedCount).toBe(0);
+  });
+
+  it('publishes without a chain call at all when the submitter is off', async () => {
+    const summary = await runPipeline(base({ submitter: null }));
+    expect(summary.publishedCount).toBe(19);
+    expect(summary.submittedCount).toBe(0);
+    expect(summary.periods[0]?.published[0]?.submitSkipped).toBe(
+      'chain submission is off for this run',
+    );
+  });
+});
+
+describe('the live path over every bindable group', () => {
+  it('publishes one message per group and settles only the registered series', async () => {
+    const submitter = new DryRunSubmitter();
+    const summary = await runPipeline(
+      base({ mode: 'live', periods: ['2026-07'], groups: null, submitter }),
+    );
+    expect(summary.publishedCount).toBe(15);
+    expect(summary.submittedCount).toBe(1);
+    expect(submitter.calls).toHaveLength(1);
+    const unsettled = summary.periods[0]?.published.filter((row) => row.submit === null) ?? [];
+    expect(unsettled).toHaveLength(14);
+    expect(unsettled.every((row) => row.submitSkipped?.includes('no cover series registered'))).toBe(
+      true,
+    );
+    // Only the group with a series names one; the rest publish with series null.
+    expect(summary.periods[0]?.published.filter((row) => row.seriesLabel !== null)).toHaveLength(1);
+  });
+
+  it('refuses to settle a month that has not happened yet', async () => {
+    const submitter = new DryRunSubmitter();
+    const summary = await runPipeline(
+      base({ periods: ['2026-07'], submitter, now: () => new Date('2026-06-15T00:00:00Z') }),
+    );
+    expect(summary.submittedCount).toBe(0);
+    expect(summary.periods[0]?.published[0]?.submitSkipped).toMatch(/has not started yet/);
+  });
+});
+
+describe('the QA gates stop a run before anything is published', () => {
+  it('publishes nothing and submits nothing when a rate is corrupted', async () => {
+    const computer = seriesIdFor('computer_math');
+    const rows: SourceObservation[] = (DATASET.allSeries.get(computer) ?? []).map((row) =>
+      row.period === '2026-04' ? { ...row, value: 55, raw: '55.0' } : row,
+    );
+    const series = new Map(DATASET.allSeries);
+    series.set(computer, rows);
+    const corrupted: Dataset = datasetFrom(series, DATASET.source, DATASET.archive, DATASET.map);
+
+    const publisher = new DryRunPublisher();
+    const submitter = new DryRunSubmitter();
+    const writer = new MemoryObservationWriter();
+    await expect(
+      runPipeline(base({ dataset: corrupted, periods: ['2026-04'], publisher, submitter, writer })),
+    ).rejects.toBeInstanceOf(QaFailed);
+
+    expect(publisher.published).toHaveLength(0);
+    expect(submitter.calls).toHaveLength(0);
+    expect(await writer.all()).toHaveLength(0);
+  });
+
+  it('stops the walk at the first bad period, keeping what came before', async () => {
+    const computer = seriesIdFor('computer_math');
+    const series = new Map(DATASET.allSeries);
+    series.set(
+      computer,
+      (DATASET.allSeries.get(computer) ?? []).filter((row) => row.period !== '2026-03'),
+    );
+    const corrupted = datasetFrom(series, DATASET.source, DATASET.archive, DATASET.map);
+
+    const publisher = new DryRunPublisher();
+    await expect(
+      runPipeline(
+        base({ dataset: corrupted, periods: periodRange('2026-01', '2026-04'), publisher }),
+      ),
+    ).rejects.toThrow(/completeness/);
+    expect(publisher.published).toHaveLength(2);
+  });
+});
+
+describe('a month with no evaluable ODI', () => {
+  it('publishes odi null and sends the smallest int64 on chain', async () => {
+    // The archive starts in 2000-01, so the smoothed excess starts in 2000-03
+    // and the base period twelve months behind 2001-01 has none. The month is
+    // final, carries an ebar, and the shock form cannot be evaluated at all.
+    // The same shape returns in 2026-10, twelve months after the collection gap.
+    const noBase: Period = '2001-01';
+    const submitter = new DryRunSubmitter();
+    const summary = await runPipeline(base({ periods: [noBase], submitter }));
+    const row = summary.periods[0]?.published[0];
+    expect(row?.status).toBe('final');
+    expect(row?.message.odi).toBeNull();
+    expect(row?.message.ebar).not.toBeNull();
+    expect(submitter.calls[0]?.odi).toBe(NULL_ODI);
+  });
+});
+
+describe('the demo clock cadence', () => {
+  it('dwells the remainder of the interval and never between the last two', async () => {
+    const waits: number[] = [];
+    await runPipeline(
+      base({
+        periods: periodRange('2025-01', '2025-04'),
+        intervalMs: 10_000,
+        sleep: async (ms: number) => {
+          waits.push(ms);
+        },
+      }),
+    );
+    expect(waits).toHaveLength(3);
+    for (const wait of waits) expect(wait).toBeLessThanOrEqual(10_000);
+  });
+});

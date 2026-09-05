@@ -182,6 +182,26 @@ did. The shipped SDK agrees with the sandbox page and not with the OpenAPI:
 to the verify schema, or say in the schema description that it is accepted and
 what it means.
 
+### The Portal's signing key signs a context the message layout recovers
+
+Date: 5 September 2026. Page: `https://docs.world.org/world-id/idkit/signatures`.
+
+What we were doing: proving the RP signing chain with the real key from the
+Portal, without a phone, because `invalid_rp_signature` is the error we least
+want to meet live.
+
+What happened: the API signed a real `rp_context` for
+`occupation-cover-eligibility`, the message was rebuilt from the published
+81 byte layout, and the signature recovered to exactly the signer address the
+Portal shows. The last 32 bytes of the message equalled `hash_to_field` of the
+action string, which is the check that turns a future signature rejection into a
+five second diagnosis. So the layout on the signatures page is right, the SDK
+implements it, and a real Portal key works through both.
+
+This is worth saying because it is the one part of a Selfie Check integration
+that can be fully proved before any human is involved, and nothing in the docs
+suggests doing it.
+
 ### The proof format error is specific and useful
 
 Date: 5 September 2026. A syntactically valid request with a made-up proof
@@ -196,6 +216,17 @@ string answers:
 That is a good error: it names the field, the expected encodings and the failing
 credential. `invalid_format` is not in the documented per-proof code list, so it
 is an undocumented code doing a documented job well.
+
+### The whole server path runs against the live endpoint without a proof
+
+Date: 5 September 2026.
+
+A synthetic result posted through our own `POST /v1/world/verify` reached
+World's real endpoint under the real `rp_id`, came back
+`all_verifications_failed`, and was mapped to the one sentence a person sees.
+The failure is the right failure: everything except the proof itself is exercised
+by it. Any integrator can do the same before their feature flag lands, and it is
+a better first day than waiting for an approval.
 
 ### What is left for the device run, and why it matters
 

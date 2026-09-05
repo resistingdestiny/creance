@@ -40,6 +40,9 @@ const services = await buildServices({
   repository: pool === null ? new MemoryRepository() : new PostgresRepository(pool),
   prepareDatabase: false,
   loadIndex: false,
+  // No consensus client: this job writes no topic message, and an open SDK
+  // client keeps the process alive after the work is done.
+  hedera: null,
   chain: new EthersChainGateway(
     config.coverPoolAddress,
     config.vaultAddress,

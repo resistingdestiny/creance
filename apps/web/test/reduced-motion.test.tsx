@@ -3,7 +3,14 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+// Home carries the tab bar, which routes. Nothing here navigates.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  redirect: vi.fn(),
+}));
+
 import { DisplayNumber } from '../src/components/display-number.js';
+import { HomeScreen } from '../src/app/home/home-screen.js';
 
 /**
  * The count-up is the one piece of motion that CSS cannot switch off, because
@@ -139,5 +146,64 @@ describe('the negative display value', () => {
     const text = screen.getByTestId('display-number').textContent ?? '';
     expect(text).toBe('-7,500');
     expect(text.charCodeAt(0)).toBe(0x002d);
+  });
+});
+
+/**
+ * The orchestrated moment is two things at once. The slide is CSS and is turned
+ * off by `motion-reduce:animate-none`, so it is asserted as a class; the
+ * count-up is a value changing and has to be skipped, so it is asserted as an
+ * absent animation frame.
+ */
+describe('the orchestrated moment after payment', () => {
+  function home(bound: boolean) {
+    return (
+      <HomeScreen
+        bound={bound}
+        cover={1000}
+        indexCaption="Points from opening claims."
+        indexValue="0.69, falling"
+        nextPayment="0.86 on 5 October"
+        occupation="Computer and mathematical"
+      />
+    );
+  }
+
+  it('slides the card up and counts the amount up, once, after a payment', async () => {
+    stubMatchMedia(false);
+    const frames = vi.spyOn(globalThis, 'requestAnimationFrame');
+
+    await act(async () => {
+      render(home(true));
+    });
+
+    expect(screen.getByTestId('home-card').className).toContain('cover-card-enter');
+    expect(frames).toHaveBeenCalled();
+  });
+
+  it('replaces both with an instant state change under reduced motion', async () => {
+    stubMatchMedia(true);
+    const frames = vi.spyOn(globalThis, 'requestAnimationFrame');
+
+    await act(async () => {
+      render(home(true));
+    });
+
+    expect(screen.getByTestId('home-card').className).toContain('motion-reduce:animate-none');
+    expect(screen.getByTestId('display-number').textContent).toBe('1,000');
+    expect(frames).not.toHaveBeenCalled();
+  });
+
+  it('does nothing on a plain visit to Home', async () => {
+    stubMatchMedia(false);
+    const frames = vi.spyOn(globalThis, 'requestAnimationFrame');
+
+    await act(async () => {
+      render(home(false));
+    });
+
+    expect(screen.getByTestId('home-card').className).not.toContain('cover-card-enter');
+    expect(screen.getByTestId('display-number').textContent).toBe('1,000');
+    expect(frames).not.toHaveBeenCalled();
   });
 });

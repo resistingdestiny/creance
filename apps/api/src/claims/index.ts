@@ -400,7 +400,12 @@ export async function unpublishedDecisions(
   services: Services,
   limit: number,
 ): Promise<ClaimRow[]> {
-  const statuses: ClaimStatus[] = ['under_review', 'approved', 'declined'];
+  // `paid` is in the list because an approval is paid in the same request it
+  // arrives in, so an approved claim is usually already past `approved` by the
+  // time the sweep runs. Leaving it out made a reviewer's approval the one
+  // decision whose hash never reached the topic, which was found on the first
+  // testnet run and is recorded in docs/harness-notes.md.
+  const statuses: ClaimStatus[] = ['under_review', 'approved', 'declined', 'paid'];
   const found: ClaimRow[] = [];
   for (const status of statuses) {
     for (const claim of await services.repository.claimsByStatus(status, limit)) {

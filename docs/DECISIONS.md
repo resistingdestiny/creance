@@ -2919,3 +2919,45 @@ and reads as broken. The image's command is therefore the schedule itself: run
 `pnpm run oracle:schedule`, sleep a day, repeat. The container stays up, the
 restart policy means what it says, and T26 changes the body of that one npm
 script without touching the image or the compose file.
+
+## T22, wrap-up documentation and evidence, 5 September 2026
+
+### The wrap-up write-ups are not repository documents
+
+DESIGN.md section 4 lists `docs/ARCHITECTURE.md`, `docs/PRICING.md`,
+`docs/PRIZES.md` and `docs/FEEDBACK-WORLD.md` in the repository's `docs/` tree.
+None of the four is in it. The repository holds product documentation, and all
+four exist to serve the event rather than the product: one restates the build
+for a judge who has the code in front of them, one publishes actuarial
+assumptions for a prize line, one is the prize checklist itself, and one is
+feedback about somebody else's product. All four are written and kept with the
+event record instead. `.gitignore` names them so none of them comes back by
+accident.
+
+What a reader of the repository gets instead is one paragraph at the top of
+README.md's Layout section saying how the five applications, the two packages
+and the contracts fit together, and the two documents that were already carrying
+the load: docs/HEDERA.md for every id and the transaction that proved it, and
+this file for every place the build differs from the brief.
+
+One consequence needs a person, and it is in docs/SUBMISSION.md as well. The
+World track names a feedback document as a deliverable in its own right, so a
+document that is complete but outside the repository has to reach the judges
+some other way. Root either attaches it to the submission or puts it back.
+
+### The premium floor is 0.5 percent a year, not DESIGN's 3 percent
+
+DESIGN.md 3.4 sets the floor at "3 percent of the cover limit". The formula of
+record, in "Premium is a guide price from the index multiplied by a capacity
+term" above, uses `max(0.005, ...)`, which is 0.5 percent a year, and that is
+what `PRICING.floorRate` has always been. The difference was never called out
+and is called out now, because a stated assumption that is not the one the code
+runs is the worst kind.
+
+The 0.5 percent floor never binds. The flat tail of the fitted hazard prices at
+`0.047 * 0.167 * 0.60 * 1.30`, which is 61 basis points, so the cheapest quote
+the formula can produce is already above the floor. A 3 percent floor would have
+bound on most months for most groups and overridden the hazard entirely, which
+is exactly the flattening the formula of record exists to avoid. The floor is
+therefore a statement about the least a policy is worth writing rather than a
+number that does any work.

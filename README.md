@@ -90,6 +90,19 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
 
 ## Layout
 
+Five applications, two shared packages and one Hardhat project. `apps/api` is
+the integration point: it prices and binds cover, meters three of its routes
+with x402, verifies World proofs, serves the claims and audit reads, and is the
+only thing that talks to Postgres. `apps/web` renders every screen and reads
+that API on the server. `apps/oracle` turns the published BLS series into the
+index, publishes each observation to the index topic and submits it to
+CoverPool, which is what opens a month for an occupation group. `apps/steward`
+buys cover as an agent and `apps/adjuster` decides claims as one, and both reach
+the API over HTTP like any other client. `contracts` holds CoverPool and
+CollateralVault, which hold the policies, the capacity and the money. Everything
+on chain is Hedera testnet, and every account, token, topic and contract id is
+in [docs/HEDERA.md](docs/HEDERA.md).
+
     apps/web            worker, investor and admin screens, and the demo clock
     apps/web/src/app    the worker flow: / then /occupation, /amount, /verify, /pay, /home, /cover/index
     apps/web/src/app/invest  the investor overview at /invest and subscribe at /invest/subscribe
@@ -120,7 +133,7 @@ Buying cover writes to Hedera testnet: `/pay` settles the first month's premium,
 
 The check on `/verify` is a World Selfie Check. Fill in `WORLD_APP_ID`, `WORLD_RP_ID` and `WORLD_RP_SIGNING_KEY` from the World Developer Portal and the screen runs IDKit with the `selfieCheckLegacy` preset, the signal bound to the wallet id and an `rp_context` signed by the API; the completed result goes to the API, which forwards it to World and issues the eligibility credential on the strength of it. Scan the code with the World ID Sandbox App. Leave those variables blank and the API's labelled interim issuer runs instead, which mints the same credential without a check, and the screen says so.
 
-One person holds one active cover per series. That rule is a unique index in the database and a check before the pay step, so a second purchase with the same World ID is refused before anybody is asked to pay. Selfie Check is a medium-assurance credential: World says so itself, and it means someone holding two World ID accounts could hold two covers. See [docs/FEEDBACK-WORLD.md](docs/FEEDBACK-WORLD.md).
+One person holds one active cover per series. That rule is a unique index in the database and a check before the pay step, so a second purchase with the same World ID is refused before anybody is asked to pay. Selfie Check is a medium-assurance credential: World [says so itself](https://docs.world.org/world-id/credentials/11), and it means someone holding two World ID accounts could hold two covers.
 
 Workspaces are named under the `@creance` scope. Every one of them extends [tsconfig.base.json](tsconfig.base.json), which sets TypeScript to strict.
 
@@ -327,8 +340,7 @@ Setting `WORLD_ACTION_ELIGIBILITY` and `WORLD_ACTION_CLAIM` to a single
 registered action makes the two nullifiers identical and restores the stronger
 sentence, "the same live person bought the cover and collects it", with no code
 change. `GET /healthz` reports `world.continuity`, which says which of the two is
-running. See [docs/DECISIONS.md](docs/DECISIONS.md) and
-[docs/FEEDBACK-WORLD.md](docs/FEEDBACK-WORLD.md).
+running. See [docs/DECISIONS.md](docs/DECISIONS.md) under T11 and T13.
 
 The claim's camera check cannot be automated, so a labelled demo path,
 `POST /v1/demo/claim-presence`, sits behind `DEMO_ELIGIBILITY_ISSUER` for the

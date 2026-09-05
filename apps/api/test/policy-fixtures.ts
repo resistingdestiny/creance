@@ -21,12 +21,13 @@ import type { HederaGateway, MintedPolicyNft, TopicReceipt } from '../src/chain/
 import {
   MemoryObjectStore,
   loadEvidenceKeys,
+  sealField,
   type EvidenceKeys,
 } from '../src/claims/evidence.js';
 import type { AdminTokens } from '../src/claims/token.js';
 import { CredentialIssuer } from '../src/credentials.js';
 import { MemoryRepository } from '../src/db/memory.js';
-import type { GroupRow, ObservationRow } from '../src/db/types.js';
+import type { ClaimRow, GroupRow, ObservationRow } from '../src/db/types.js';
 import { buildServer } from '../src/server.js';
 import type { Services } from '../src/services.js';
 
@@ -304,6 +305,59 @@ export function observation(overrides: Partial<ObservationRow> = {}): Observatio
     submitTx: null,
     replay: false,
     ...overrides,
+  };
+}
+
+/// The committed packet A, as a claim row.
+///
+/// One builder, so the review queue's tests and the submission's tests agree
+/// about what a submitted claim looks like and a new column is filled in once.
+
+export const CLAIM_ID = 'clm_01K4YBA1Q7F0M3X8T5W2D6C9E4';
+export const CLAIM_POLICY_ID = 'pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E';
+export const CLAIM_NULLIFIER = '308127544618763950125321744193216571892261741436541721317481123';
+
+export function claimRow(patch: Partial<ClaimRow> = {}): ClaimRow {
+  return {
+    claimId: CLAIM_ID,
+    policyId: CLAIM_POLICY_ID,
+    seriesId: 'ODI-COMP-2026-01',
+    nullifier: CLAIM_NULLIFIER,
+    claimNullifier: null,
+    groupKey: 'computer_math',
+    status: 'submitted',
+    employerNameEnc: sealField(TEST_EVIDENCE_KEYS, 'Northgate Systems Ltd'),
+    claimantNameEnc: sealField(TEST_EVIDENCE_KEYS, 'Alex Mercer'),
+    jobTitle: 'Software Engineer',
+    separationDate: '2026-03-13',
+    separationType: 'redundancy',
+    attestationMethod: 'eip191',
+    attestationVerified: true,
+    statementAccepted: true,
+    verifiedAt: '2026-09-05T11:56:00Z',
+    worldAction: 'occupation-cover-claim',
+    worldPresence: true,
+    packetHash: 'sha256:abc',
+    packetManifest: null,
+    decision: null,
+    reasons: [],
+    confidence: null,
+    reviewer: null,
+    decidedBy: null,
+    decisionHash: null,
+    decisionRecord: null,
+    amount: null,
+    qualifyingMonth: 202604,
+    claimDeadline: '2026-10-05T00:00:00Z',
+    authorisation: null,
+    authorisationDeadline: null,
+    hcsSubmittedSeq: 11,
+    hcsDecisionSeq: null,
+    paidTx: null,
+    submittedAt: '2026-09-05T11:58:00Z',
+    decidedAt: null,
+    paidAt: null,
+    ...patch,
   };
 }
 

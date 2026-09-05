@@ -1,7 +1,9 @@
 import pg from 'pg';
 
 import { AppError } from '../errors.js';
+import { ENVELOPE_ALGORITHM } from '../claims/evidence.js';
 import {
+  alreadyClaimed,
   alreadyCovered,
   claimNotDecidable,
   credentialConsumed,
@@ -12,8 +14,10 @@ import {
 import { ACTIVE_POLICY_STATUSES } from './types.js';
 import type {
   ClaimEvidenceRow,
+  ClaimPaidInput,
   ClaimRow,
   ClaimStatus,
+  NewClaimInput,
   CredentialRow,
   GroupRow,
   ObservationRow,
@@ -450,6 +454,171 @@ export class PostgresRepository implements Repository {
     return Number(rows[0]?.['n'] ?? 0);
   }
 
+  /**
+   * The submitted claim, its evidence and the cover, in one transaction.
+   *
+   * The two partial unique indexes are the enforcement point for "one claim per
+   * person per series, ever", so the insert is allowed to fail on them and the
+   * violation is turned into the refusal a person reads. Checking first and
+   * inserting after would be a race with a second tab.
+   */
+  async insertClaim(input: NewClaimInput): Promise<ClaimRow> {
+    const { claim } = input;
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `INSERT INTO claims (claim_id, policy_id, series_id, nullifier, claim_nullifier,
+                             credential_jti, group_key, status,
+                             employer_name_enc, employer_hash, claimant_name_enc, name_hash,
+                             job_title, separation_date, separation_type,
+                             attestation_message_hash, attestation_sig, attestation_method,
+                             attestation_verified, statement_accepted,
+                             world_action, world_presence, verified_at,
+                             packet_hash, packet_manifest, qualifying_month, claim_deadline,
+                             submitted_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+                 $21,$22,$23,$24,$25,$26,$27,$28)
+         RETURNING *`,
+        [
+          claim.claimId,
+          claim.policyId,
+          claim.seriesId,
+          claim.nullifier,
+          claim.claimNullifier,
+          input.credentialJti,
+          claim.groupKey,
+          claim.status,
+          claim.employerNameEnc,
+          input.employerHash,
+          claim.claimantNameEnc,
+          input.nameHash,
+          claim.jobTitle,
+          claim.separationDate,
+          claim.separationType,
+          input.attestationMessageHash,
+          input.attestationSignature,
+          claim.attestationMethod,
+          claim.attestationVerified,
+          claim.statementAccepted,
+          claim.worldAction,
+          claim.worldPresence,
+          claim.verifiedAt,
+          claim.packetHash,
+          claim.packetManifest === null ? null : JSON.stringify(claim.packetManifest),
+          claim.qualifyingMonth,
+          claim.claimDeadline,
+          claim.submittedAt,
+        ],
+      );
+      for (const file of input.evidence) {
+        await client.query(
+          `INSERT INTO claim_evidence (evidence_id, claim_id, kind, filename, content_type,
+                                       size_bytes, sha256, object_key, enc_alg,
+                                       enc_iv, enc_tag, enc_dek, enc_kek_id, uploaded_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+          [
+            file.evidenceId,
+            file.claimId,
+            file.kind,
+            file.filename,
+            file.contentType,
+            file.sizeBytes,
+            file.sha256,
+            file.objectKey,
+            ENVELOPE_ALGORITHM,
+            file.encIv,
+            file.encTag,
+            file.encDek,
+            file.encKekId,
+            file.uploadedAt,
+          ],
+        );
+      }
+      await client.query(
+        "UPDATE policies SET status = 'claimed', updated_at = now() WHERE policy_id = $1",
+        [claim.policyId],
+      );
+      await client.query('COMMIT');
+      return toClaim(rows[0] as Row);
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      if (isUniqueViolation(error, 'claims_one_per_nullifier_series')) throw alreadyClaimed();
+      if (isUniqueViolation(error, 'claims_one_per_claim_nullifier_series')) throw alreadyClaimed();
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async claimsAwaitingPacket(limit: number): Promise<ClaimRow[]> {
+    const { rows } = await this.pool.query(
+      `SELECT * FROM claims
+        WHERE packet_hash IS NOT NULL AND hcs_submitted_seq IS NULL AND status <> 'void'
+        ORDER BY submitted_at ASC NULLS LAST, created_at ASC LIMIT $1`,
+      [limit],
+    );
+    return rows.map(toClaim);
+  }
+
+  async recordPacketSequence(claimId: string, sequenceNumber: number): Promise<ClaimRow | null> {
+    const { rows } = await this.pool.query(
+      `UPDATE claims SET hcs_submitted_seq = $2
+        WHERE claim_id = $1 AND packet_hash IS NOT NULL AND hcs_submitted_seq IS NULL
+      RETURNING *`,
+      [claimId, sequenceNumber],
+    );
+    return rows[0] === undefined ? null : toClaim(rows[0]);
+  }
+
+  async recordAuthorisation(
+    claimId: string,
+    authorisation: string,
+    deadline: string,
+  ): Promise<void> {
+    await this.pool.query(
+      'UPDATE claims SET authorisation = $2, authorisation_deadline = $3 WHERE claim_id = $1',
+      [claimId, authorisation, deadline],
+    );
+  }
+
+  /**
+   * The payout, once `payClaim` has returned.
+   *
+   * The WHERE clause makes it idempotent on `paid_tx`: a retry of a payout that
+   * already succeeded matches nothing and the stored row is handed back, so one
+   * transfer is never written as two.
+   */
+  async markClaimPaid(input: ClaimPaidInput): Promise<ClaimRow | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `UPDATE claims
+            SET status = 'paid', amount = $2, paid_tx = $3, paid_at = $4
+          WHERE claim_id = $1 AND paid_tx IS NULL
+        RETURNING *`,
+        [input.claimId, input.amount, input.paidTx, input.paidAt],
+      );
+      const row = rows[0];
+      if (row === undefined) {
+        await client.query('ROLLBACK');
+        return await this.claim(input.claimId);
+      }
+      await client.query(
+        "UPDATE policies SET status = 'paid', updated_at = now() WHERE policy_id = $1",
+        [text(row, 'policy_id')],
+      );
+      await client.query('COMMIT');
+      return toClaim(row);
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async claimEvidence(claimId: string): Promise<ClaimEvidenceRow[]> {
     const { rows } = await this.pool.query(
       'SELECT * FROM claim_evidence WHERE claim_id = $1 ORDER BY uploaded_at ASC',
@@ -818,6 +987,7 @@ function toClaim(row: Row): ClaimRow {
     policyId: text(row, 'policy_id'),
     seriesId: text(row, 'series_id'),
     nullifier: text(row, 'nullifier'),
+    claimNullifier: maybeText(row, 'claim_nullifier'),
     groupKey: text(row, 'group_key'),
     status: text(row, 'status') as ClaimStatus,
     employerNameEnc: bytes(row, 'employer_name_enc'),
@@ -829,6 +999,8 @@ function toClaim(row: Row): ClaimRow {
     attestationVerified: row['attestation_verified'] === true,
     statementAccepted: row['statement_accepted'] === true,
     verifiedAt: maybeInstant(row, 'verified_at'),
+    worldAction: maybeText(row, 'world_action'),
+    worldPresence: row['world_presence'] === true,
     packetHash: maybeText(row, 'packet_hash'),
     packetManifest: (row['packet_manifest'] as Record<string, unknown> | null) ?? null,
     decision: maybeText(row, 'decision') as ClaimRow['decision'],
@@ -841,10 +1013,14 @@ function toClaim(row: Row): ClaimRow {
     amount: maybeText(row, 'amount'),
     qualifyingMonth: row['qualifying_month'] === null ? null : Number(row['qualifying_month']),
     claimDeadline: maybeInstant(row, 'claim_deadline'),
+    authorisation: maybeText(row, 'authorisation'),
+    authorisationDeadline: maybeInstant(row, 'authorisation_deadline'),
     hcsSubmittedSeq: row['hcs_submitted_seq'] === null ? null : Number(row['hcs_submitted_seq']),
     hcsDecisionSeq: row['hcs_decision_seq'] === null ? null : Number(row['hcs_decision_seq']),
+    paidTx: maybeText(row, 'paid_tx'),
     submittedAt: maybeInstant(row, 'submitted_at'),
     decidedAt: maybeInstant(row, 'decided_at'),
+    paidAt: maybeInstant(row, 'paid_at'),
   };
 }
 

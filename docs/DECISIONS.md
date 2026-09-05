@@ -2919,3 +2919,25 @@ and reads as broken. The image's command is therefore the schedule itself: run
 `pnpm run oracle:schedule`, sleep a day, repeat. The container stays up, the
 restart policy means what it says, and T26 changes the body of that one npm
 script without touching the image or the compose file.
+
+## T22, wrap-up documentation and evidence, 5 September 2026
+
+### The architecture and pricing write-ups are not repository documents
+
+DESIGN.md section 4 lists `docs/ARCHITECTURE.md` and `docs/PRICING.md` in the
+repository's `docs/` tree. Neither was created. The repository holds product
+documentation, and both of those exist to serve the event rather than the
+product: one restates the build for a judge who has the code in front of them,
+the other publishes actuarial assumptions for a prize line. Both are written up
+and kept with the event record instead.
+
+What a reader of the repository gets instead is one paragraph at the top of
+README.md's Layout section saying how the five applications, the two packages
+and the contracts fit together, and the two documents that were already carrying
+the load: docs/HEDERA.md for every id and the transaction that proved it, and
+this file for every place the build differs from the brief.
+
+docs/PRIZES.md stays where it is. It was created by an earlier ticket, it is
+linked from docs/SUBMISSION.md, and deleting a file this ticket was not asked to
+delete is worse than the duplication.
+

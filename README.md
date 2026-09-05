@@ -132,7 +132,7 @@ Run all of these from the repository root.
 | `pnpm --filter @creance/api claims:close-windows` | Reads every registered series and calls `closeWindow` on the ones whose claim window has ended, so the unclaimed reserve returns to the vault. Permissionless: any funded account can run it. It refuses before the deadline and prints when it will work, rather than sending a transaction that reverts. Add `--dry-run` to read and report only. |
 | `pnpm --filter @creance/api testnet:claim` | Submits one proof of loss packet to a running API over HTTP, exactly as the web app will: a claim credential, an attestation signed by the policy wallet with its own key, and one of the committed documents. Options: `--policy pol_...` (required), `--packet a\|b`, `--holder ROLE`, `--url`, `--wait`. Then run `pnpm adjuster:run`. See [Claims](#claims). |
 | `pnpm api:openapi` | Regenerates [recipes/bazantic/openapi.yaml](recipes/bazantic/openapi.yaml) and the JSON beside it from the routes. A test fails if the committed files differ. |
-| `pnpm demo:seed` | Seeds the demo series, policyholders, investors and claim packets. |
+| `pnpm demo:seed` | Makes everything the demonstration of [docs/DEMO.md](docs/DEMO.md) needs true on Hedera testnet, by composing the commands below rather than repeating them: two policies bound with a backdated start so a separation in the loss window can be claimed, the noteholders on the note and in the vault, and the two committed claim packets fingerprinted and window checked against the cover they will be claimed on. Idempotent and stage based like `pnpm ats:issue`: a second run binds nothing and issues nothing, and it prints an id block with a HashScan link for everything the shot list needs. Stages: `status policies investors packets verify`. Add `--plan` to print what a run would do and stop, or `pnpm demo:seed scenario` to print the shot list. Needs `DATABASE_URL`, `ADMIN_TOKEN`, `EVIDENCE_KEK` and the operator credentials. |
 
 Both oracle commands read `data/bls` first, the snapshot of the raw BLS files committed at kick-off, which is verified against its `PROVENANCE.txt` hashes before anything is computed. That makes the published tables reproducible from a clean clone with no network and no credentials. `--source cache` reads whatever a previous live fetch left under `var/cache/bls`, and `--source api` fetches from the BLS Public Data API and caches the raw responses there. The API path works without a key, on the v1 endpoint, at 25 requests a day; set `BLS_API_KEY` in `.env` to use v2 and its higher allowance. Both paths send `BLS_CONTACT` as the User-Agent, because BLS refuses a client that does not identify itself.
 
@@ -596,6 +596,31 @@ employers and documents rendered by a script. One is a clean redundancy that
 auto-approves at a confidence of 0.940; one is a resignation that is declined in
 under a second, without the document ever being read. Both are asserted by
 `pnpm test`.
+
+## Demo
+
+    pnpm api:migrate
+    pnpm demo:seed
+
+That is the whole setup. It binds the two policies the two claim packets are
+claimed on, leaves the note and the noteholder positions where they already are,
+checks both letters against the cover they will be claimed on, and prints an id
+block with a HashScan link for every id the demonstration needs. Run it twice: a
+second run should bind nothing, which is the run that matters on the day.
+
+[docs/DEMO.md](docs/DEMO.md) is the shot list: nine shots with their timings,
+the command for each, what has to be true before it and what has to be legible
+on screen, plus the recording procedure and the Bazantic screen recording. The
+same sequence is committed as data and printed by `pnpm demo:seed scenario`.
+
+Two things in it are worth knowing before you run anything. The demonstration
+opens May 2026 live on camera, and a month can only be submitted once, so
+`pnpm demo:seed status` reports whether it is still in hand and never spends it.
+And the claim window on the demo series runs to 5 October 2026, so `closeWindow`
+cannot execute on it inside the event; `pnpm --filter @creance/contracts
+demo:release` shows the release for real on a series opened for the purpose with
+its claim window measured in seconds, and the shot list says so out loud rather
+than working around it.
 
 ## Audit trail
 

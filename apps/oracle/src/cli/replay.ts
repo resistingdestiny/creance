@@ -10,6 +10,7 @@ import { JsonObservationWriter, MemoryObservationWriter, type ObservationWriter 
 import { CoverPoolSubmitter, DryRunSubmitter, type Submitter } from '../submitter.js';
 import { readInteger, readPeriod, readSource, readString, type SourcePreference } from './args.js';
 import { printHeader, printSummary } from './common.js';
+import { reportQaFailure } from './failure.js';
 
 /**
  * `pnpm oracle:replay`. The demo clock.
@@ -266,8 +267,16 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((error: unknown) => {
     if (error instanceof QaFailed) {
-      console.error(`\nthe run failed closed: nothing further was published or submitted`);
-      for (const gate of error.report.failures) console.error(`  ${gate.gate}: ${gate.detail}`);
+      // Echo the window the operator actually asked for, so the suggested
+      // command can be pasted rather than filled in.
+      let from: Period = DEFAULT_FROM;
+      try {
+        from = parseArgs(process.argv.slice(2)).from;
+      } catch {
+        // Unparseable arguments cannot have reached a QA failure, but the
+        // reporter must not be the thing that throws.
+      }
+      reportQaFailure(error, `pnpm oracle:replay --from ${from}`);
     } else {
       console.error(error instanceof Error ? error.message : String(error));
     }

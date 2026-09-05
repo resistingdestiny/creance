@@ -89,14 +89,66 @@ export interface RunSummary {
   skippedCount: number;
 }
 
-/** A QA failure. The run stops here and nothing further reaches the topic. */
+/**
+ * A QA failure. Raised before anything is published, so a run that hits one has
+ * put nothing on the topic and made no contract call.
+ *
+ * `lastPassing` is the newest period before the failure whose gates all pass, or
+ * null when the very first period fails. It is what the operator needs to hear:
+ * a window that spans a legitimate anomaly has a longest usable prefix, and the
+ * command that runs it is `--to <lastPassing>`.
+ */
 export class QaFailed extends Error {
-  constructor(readonly report: QaReport) {
+  constructor(
+    readonly report: QaReport,
+    readonly lastPassing: Period | null = null,
+  ) {
     super(
       `QA failed for ${report.period}: ${report.failures.map((gate) => `${gate.gate}, ${gate.detail}`).join('; ')}`,
     );
     this.name = 'QaFailed';
   }
+}
+
+/**
+ * Gate every period in the window before any of them is published.
+ *
+ * The gates are pure, so running all of them costs a fraction of one HCS
+ * submit, and the alternative is worse than slow: gating period by period as
+ * the walk proceeds means a window that fails in the middle has already put its
+ * first half on the settlement topic, and an HCS message cannot be retracted.
+ * A replay from 2019-01 is exactly that case, because April 2020 moves every
+ * white collar group past five standard deviations and trips the jump gate.
+ *
+ * docs/INDEX-SPEC.md section 8 says a failed gate fails the run closed and a
+ * human looks before anything reaches the topic. Checking first is what makes
+ * that true for a multi period run rather than only for a single one.
+ */
+export function precheckWindow(
+  dataset: Dataset,
+  observations: ReadonlyMap<string, readonly Observation[]>,
+  periods: readonly Period[],
+  calibration = loadCalibration(),
+): { reports: Map<Period, QaReport>; failure: QaFailed | null } {
+  const reports = new Map<Period, QaReport>();
+  let failure: QaFailed | null = null;
+  let lastPassing: Period | null = null;
+  for (const period of periods) {
+    const report = runQaGates({
+      dataset,
+      observations,
+      period,
+      calibration,
+      map: dataset.map,
+    });
+    reports.set(period, report);
+    if (report.passed) {
+      if (failure === null) lastPassing = period;
+    } else if (failure === null) {
+      failure = new QaFailed(report, lastPassing);
+    }
+  }
+  return { reports, failure };
 }
 
 export interface PipelineOptions {
@@ -149,6 +201,13 @@ export async function runPipeline(options: PipelineOptions): Promise<RunSummary>
     last,
   );
 
+  // Gate the whole window first. Nothing below this line runs unless every
+  // period in the run passes, so a window that cannot finish publishes nothing.
+  const { reports, failure } = precheckWindow(options.dataset, observations, periods, calibration);
+  if (failure !== null) throw failure;
+  log(`qa         ${periods.length} periods gated, all pass`);
+  log('');
+
   const outcomes: PeriodOutcome[] = [];
   let publishedCount = 0;
   let submittedCount = 0;
@@ -157,13 +216,9 @@ export async function runPipeline(options: PipelineOptions): Promise<RunSummary>
   for (const period of periods) {
     const startedAt = Date.now();
 
-    const qa = runQaGates({ dataset: options.dataset, observations, period, calibration, map });
-    log(`${period}  qa ${qa.passed ? 'pass' : 'FAIL'}`);
+    const qa = reports.get(period) as QaReport;
+    log(`${period}  qa pass`);
     log(formatReport(qa));
-    if (!qa.passed) {
-      options.state?.advance(period, false);
-      throw new QaFailed(qa);
-    }
 
     const published: PublishedObservation[] = [];
     for (const groupKey of groups) {

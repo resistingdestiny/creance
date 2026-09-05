@@ -198,7 +198,7 @@ function jump(input: QaInput): GateResult {
       bad.length === 0
         ? `${checked} groups within ${JUMP_SIGMAS} sd of the trailing ${JUMP_WINDOW_MONTHS} months` +
           (abstained.length === 0 ? '' : `; abstained on ${abstained.join(', ')}`)
-        : `jump: ${bad.join(', ')}`,
+        : bad.join(', '),
   };
 }
 

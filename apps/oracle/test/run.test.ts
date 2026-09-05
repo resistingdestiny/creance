@@ -1,5 +1,8 @@
 import {
+  addMonths,
   datasetFrom,
+  evaluateDataset,
+  frozenParameters,
   loadDataset,
   periodRange,
   seriesIdFor,
@@ -12,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { loadOracleConfig } from '../src/config.js';
 import { addressOfKey, verifyMessage } from '../src/message.js';
 import { DryRunPublisher } from '../src/publisher.js';
-import { QaFailed, periodsUsed, runPipeline } from '../src/run.js';
+import { QaFailed, periodsUsed, precheckWindow, runPipeline } from '../src/run.js';
 import { MemoryObservationWriter } from '../src/store.js';
 import { DryRunSubmitter, NULL_ODI } from '../src/submitter.js';
 
@@ -247,13 +250,98 @@ describe('the QA gates stop a run before anything is published', () => {
     );
     const corrupted = datasetFrom(series, DATASET.source, DATASET.archive, DATASET.map);
 
+    // The failure is at 2026-03, in the middle of the window. Nothing at all is
+    // published, including the two months before it that pass their own gates:
+    // an HCS message cannot be retracted, so a window that cannot finish must
+    // not put its first half on the settlement topic.
     const publisher = new DryRunPublisher();
     await expect(
       runPipeline(
         base({ dataset: corrupted, periods: periodRange('2026-01', '2026-04'), publisher }),
       ),
     ).rejects.toThrow(/completeness/);
-    expect(publisher.published).toHaveLength(2);
+    expect(publisher.published).toHaveLength(0);
+  });
+});
+
+/** Await a pipeline run that must fail its gates, and hand back the failure. */
+async function catchQaFailure(run: Promise<unknown>): Promise<QaFailed> {
+  try {
+    await run;
+  } catch (error) {
+    if (error instanceof QaFailed) return error;
+    throw error;
+  }
+  throw new Error('the run was expected to fail its QA gates and did not');
+}
+
+describe('the whole window is gated before anything is published', () => {
+  /// pnpm oracle:replay --from 2019-01 is the command acceptance item 2 names.
+  /// April 2020 moves every white collar group past five standard deviations,
+  /// so the jump gate stops the run, which is what INDEX-SPEC section 8 asks
+  /// for. What matters is that it stops before the topic, not after fifteen
+  /// months of it.
+  const PANDEMIC = periodRange('2019-01', '2020-06');
+
+  it('publishes nothing when a later period in the window fails', async () => {
+    const publisher = new DryRunPublisher();
+    const submitter = new DryRunSubmitter();
+    const writer = new MemoryObservationWriter();
+    await expect(
+      runPipeline(base({ periods: PANDEMIC, publisher, submitter, writer })),
+    ).rejects.toBeInstanceOf(QaFailed);
+    expect(publisher.published).toHaveLength(0);
+    expect(submitter.calls).toHaveLength(0);
+    expect(await writer.all()).toHaveLength(0);
+  });
+
+  it('names the failing period and the longest window that would run', async () => {
+    const error = await catchQaFailure(runPipeline(base({ periods: PANDEMIC })));
+    expect(error.report.period).toBe('2020-04');
+    expect(error.report.failures.map((gate) => gate.gate)).toEqual(['jump']);
+    expect(error.lastPassing).toBe('2020-03');
+  });
+
+  it('runs the window it suggests', async () => {
+    const summary = await runPipeline(base({ periods: periodRange('2019-01', '2020-03') }));
+    expect(summary.publishedCount).toBe(15);
+    expect(summary.periods.every((period) => period.qa.passed)).toBe(true);
+  });
+
+  it('reports no usable prefix when the first period fails', async () => {
+    const computer = seriesIdFor('computer_math');
+    const series = new Map(DATASET.allSeries);
+    series.set(
+      computer,
+      (DATASET.allSeries.get(computer) ?? []).map((row) =>
+        row.period === '2026-04' ? { ...row, value: 55, raw: '55.0' } : row,
+      ),
+    );
+    const corrupted = datasetFrom(series, DATASET.source, DATASET.archive, DATASET.map);
+    const error = await catchQaFailure(
+      runPipeline(base({ dataset: corrupted, periods: periodRange('2026-04', '2026-05') })),
+    );
+    expect(error.report.period).toBe('2026-04');
+    expect(error.lastPassing).toBeNull();
+  });
+
+  it('gates every period exactly once and hands the reports back', async () => {
+    const observations = evaluateDataset(
+      DATASET,
+      frozenParameters(),
+      addMonths('2019-01', -25),
+      '2020-06',
+    );
+    const { reports, failure } = precheckWindow(DATASET, observations, PANDEMIC);
+    expect(reports.size).toBe(PANDEMIC.length);
+    expect(failure?.report.period).toBe('2020-04');
+    expect(failure?.lastPassing).toBe('2020-03');
+    // Every period is gated, including the ones after the failure, so an
+    // operator sees the whole picture rather than one month at a time.
+    expect([...reports.keys()]).toEqual(PANDEMIC);
+    expect([...reports].filter(([, report]) => !report.passed).map(([period]) => period)).toEqual([
+      '2020-04',
+    ]);
   });
 });
 

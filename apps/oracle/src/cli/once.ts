@@ -6,6 +6,7 @@ import { QaFailed, runPipeline } from '../run.js';
 import { StateFile } from '../state.js';
 import { readPeriod, readSource, readString, type SourcePreference } from './args.js';
 import { groupsFor, printHeader, printSummary, wire } from './common.js';
+import { reportQaFailure } from './failure.js';
 
 /**
  * `pnpm oracle:once`. One live run for one period.
@@ -135,8 +136,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((error: unknown) => {
     if (error instanceof QaFailed) {
-      console.error(`\nthe run failed closed: nothing was published and nothing was submitted`);
-      for (const gate of error.report.failures) console.error(`  ${gate.gate}: ${gate.detail}`);
+      reportQaFailure(error, 'pnpm oracle:once');
     } else {
       console.error(error instanceof Error ? error.message : String(error));
     }

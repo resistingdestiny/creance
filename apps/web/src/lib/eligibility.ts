@@ -1,34 +1,39 @@
-import { issueEligibility } from './worker-api';
+import { issueEligibility, verifyWorldCheck } from './worker-api';
 import type { WalletAccount } from './wallet';
 
 /**
  * How the purchase flow earns an eligibility credential, behind one interface.
  *
- * DESIGN.md 3.6 is the real thing: IDKit with the selfieCheckLegacy preset, the
- * signal set to the wallet id, an rp_context signed by the backend, the whole
- * IDKit result forwarded to World's verify endpoint, and a thirty minute JWT
- * back. That is T11's ticket.
+ * DESIGN.md 3.6 is the real thing and it is what ships: IDKit with the
+ * selfieCheckLegacy preset, the signal set to the wallet id, an rp_context
+ * signed by the backend, the whole IDKit result forwarded to World's verify
+ * endpoint, and a thirty minute JWT back. That is `worldIssuer`, and it holds
+ * no World configuration of its own: the API signs the request context and
+ * checks the result, so nothing here needs an app id beyond knowing whether
+ * one exists.
  *
- * There is no World app id in this environment (WORLD_APP_ID is blank in
- * .env.example), so what ships today is the interim issuer the API already
- * carries, POST /v1/demo/eligibility, which mints the same credential without a
- * Selfie Check. The screen says so plainly rather than imitating the IDKit
- * widget, and everything else in the flow is unchanged: the credential is single
- * use, it carries the nullifier, the group and the wallet, and /v1/bind checks
- * it the same way whichever issuer minted it.
+ * `demoIssuer` stays for a clone with no World app in its environment, and for
+ * the testnet bind script and the Steward, neither of which has a camera. It is
+ * labelled everywhere it shows.
  *
- * T11 replaces this file's `demoIssuer` with a World-backed implementation of
- * the same interface. Nothing else in the web app knows which one it got.
+ * Nothing else in the web app knows which issuer it got. The credential is
+ * single use, it carries the nullifier, the group and the wallet, and /v1/bind
+ * checks it the same way whichever issuer minted it.
  *
- * https://docs.world.org/world-id/id/cloud
+ * https://docs.world.org/world-id/idkit/credentials
  */
 
 export interface EligibilityRequest {
   readonly group: string;
   /** The signal a check is bound to is the wallet's account id (DESIGN.md 3.6). */
   readonly wallet: WalletAccount;
-  /** A decimal integer string. The World ID nullifier hash, in the real flow. */
-  readonly nullifier: string;
+  /**
+   * The completed IDKit result, forwarded whole. The World path needs it; the
+   * nullifier comes out of the proof inside the API and never reaches here.
+   */
+  readonly proof?: unknown;
+  /** A decimal integer string, the interim issuer's stand-in for a nullifier. */
+  readonly nullifier?: string;
 }
 
 export interface EligibilityCredential {
@@ -45,10 +50,35 @@ export interface EligibilityIssuer {
   issue(request: EligibilityRequest): Promise<EligibilityCredential>;
 }
 
+/** The Selfie Check. The result goes to the API, which forwards it to World. */
+export const worldIssuer: EligibilityIssuer = {
+  kind: 'world',
+  async issue(request) {
+    if (request.proof === undefined) {
+      throw new Error('the World issuer needs the IDKit result to forward');
+    }
+    const issued = await verifyWorldCheck({
+      group: request.group,
+      wallet: request.wallet.accountId,
+      wallet_evm: request.wallet.evmAddress,
+      result: request.proof,
+    });
+    return {
+      credential: issued.eligibility,
+      expiresAt: issued.expires_at,
+      seriesId: issued.series_id,
+      issuer: issued.issuer,
+    };
+  },
+};
+
 /** The interim issuer. Labelled everywhere it shows, as the demo wallet is. */
 export const demoIssuer: EligibilityIssuer = {
   kind: 'demo',
   async issue(request) {
+    if (request.nullifier === undefined) {
+      throw new Error('the interim issuer needs a nullifier to mint against');
+    }
     const issued = await issueEligibility({
       group: request.group,
       wallet: request.wallet.accountId,
@@ -65,12 +95,35 @@ export const demoIssuer: EligibilityIssuer = {
 };
 
 /**
- * The issuer in use. There is one today; the World path needs an app id in the
- * environment before it can be built, so asking for it now would fail loudly
- * rather than quietly minting a credential nobody checked a face for.
+ * Whether this deployment has a World ID app to run a check against.
+ *
+ * The framework reads environment files from the application directory and the
+ * one environment file in this repository sits at the root, so it is loaded the
+ * same way apps/web/src/lib/payer.ts loads it. Only ever on the server: the
+ * browser never learns the app id from here, it gets it with the signed request
+ * context.
+ *
+ * https://nodejs.org/api/process.html#processloadenvfilepath
+ */
+export function worldAppId(): string | null {
+  const direct = process.env.WORLD_APP_ID;
+  if (direct !== undefined && direct.trim() !== '') return direct.trim();
+  try {
+    process.loadEnvFile('../../.env');
+  } catch {
+    return null;
+  }
+  const loaded = process.env.WORLD_APP_ID;
+  return loaded !== undefined && loaded.trim() !== '' ? loaded.trim() : null;
+}
+
+/**
+ * The issuer in use. The World path the moment there is an app id to run it
+ * against; the interim one otherwise, rather than a screen that offers a check
+ * nothing can answer.
  */
 export function activeIssuer(): EligibilityIssuer {
-  return demoIssuer;
+  return worldAppId() === null ? demoIssuer : worldIssuer;
 }
 
 /** True while the credential comes from the interim issuer. The screen says so. */

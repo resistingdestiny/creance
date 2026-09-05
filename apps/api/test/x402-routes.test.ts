@@ -319,6 +319,42 @@ describe('the x402 gate', () => {
         else process.env.ORACLE_STATE_PATH = previous;
       }
     });
+    // The one route this gate exempts by name. It sits under the metered
+    // prefix, which is where docs/INDEX-SPEC.md section 9 puts it, and the
+    // route map pattern matches one non-empty segment, so `health` matches as
+    // readily as `computer_math`. An operations endpoint that answers 402 to an
+    // operator is not an operations endpoint, and this is the test that says
+    // the exemption is still there.
+    it('does not meter the index health endpoint, which is operations and not a reading', async () => {
+      const previous = {
+        state: process.env.ORACLE_STATE_PATH,
+        runs: process.env.ORACLE_RUNS_PATH,
+      };
+      process.env.ORACLE_STATE_PATH = join(tmpdir(), 'no-such-creance-state.json');
+      process.env.ORACLE_RUNS_PATH = join(tmpdir(), 'no-such-creance-runs.json');
+      try {
+        const built = await harness();
+        const response = await built.app.inject({ method: 'GET', url: '/v1/index/health' });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.headers['payment-required']).toBeUndefined();
+        expect(response.json()).toMatchObject({ status: 'never_run', mode: 'live' });
+      } finally {
+        if (previous.state === undefined) delete process.env.ORACLE_STATE_PATH;
+        else process.env.ORACLE_STATE_PATH = previous.state;
+        if (previous.runs === undefined) delete process.env.ORACLE_RUNS_PATH;
+        else process.env.ORACLE_RUNS_PATH = previous.runs;
+      }
+    });
+
+    // Fastify matches a static segment before a parameter, so the reading route
+    // never sees `health`. The gate exempts the path and the router keeps the
+    // two apart; both have to hold, and this is the second one.
+    it('still meters a reading for a group, which is what the exemption must not widen', async () => {
+      const built = await harness();
+      const response = await built.app.inject({ method: 'GET', url: '/v1/index/computer_math' });
+      expect(response.statusCode).toBe(402);
+    });
   });
 
   describe('a paid request', () => {

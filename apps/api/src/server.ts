@@ -9,6 +9,7 @@ import { agentDocsRoutes } from './routes/agent-docs.js';
 import { auditRoutes } from './routes/audit.js';
 import { bindRoutes } from './routes/bind.js';
 import { indexRoutes } from './routes/index-feed.js';
+import { indexHealthRoutes } from './routes/index-health.js';
 import { opsRoutes } from './routes/ops.js';
 import { policyRoutes } from './routes/policy.js';
 import { quoteRoutes } from './routes/quote.js';
@@ -63,6 +64,7 @@ export async function buildServer(
   await app.register(investorRoutes);
   await app.register(replayRoutes);
   await app.register(opsRoutes, { services });
+  await app.register(indexHealthRoutes, { services });
   await app.register(indexRoutes, { services });
   await app.register(quoteRoutes, { services });
   await app.register(bindRoutes, { services });

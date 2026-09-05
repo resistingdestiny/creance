@@ -17,8 +17,15 @@ function tempCache(): string {
   return mkdtempSync(join(tmpdir(), 'creance-bls-'));
 }
 
+interface ResponseRow {
+  year: string;
+  period: string;
+  value: string;
+  footnotes: Record<string, string>[];
+}
+
 function response(seriesIds: string[], from: string, to: string) {
-  const data = [];
+  const data: ResponseRow[] = [];
   for (let year = Number(to.slice(0, 4)); year >= Number(from.slice(0, 4)); year -= 1) {
     for (let month = 12; month >= 1; month -= 1) {
       const period = `${year}-${String(month).padStart(2, '0')}`;

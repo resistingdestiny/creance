@@ -29,6 +29,12 @@ import {
  * the Sandbox App has no Selfie Check (docs/FEEDBACK-WORLD.md section 3), so a
  * host with no World app mints a credential that says on its face that no
  * camera ran, and the screen says so in ink-2 the way the purchase screen does.
+ *
+ * It is offered a second time after a failed check, on a deployment that does
+ * have a World app. That is the state the Sandbox App leaves a claim in today:
+ * the widget opens, the Selfie Check cannot be completed, and without a way
+ * through, a demo on the real app id could never reach a payout. The offer is
+ * labelled and it is the person's choice, so nothing is quietly downgraded.
  */
 
 /** Loaded only where a check runs, so the SDK stays out of every other route. */
@@ -130,7 +136,7 @@ export function ConfirmScreen({
               Waiting for the World app
             </p>
           ) : null}
-          {demo ? (
+          {demo || state === 'failed' ? (
             <p className="text-secondary text-ink-2">
               Demo check. Testnet only. This records a live person check without running a World
               Selfie Check, because a camera cannot be automated.
@@ -154,6 +160,11 @@ export function ConfirmScreen({
               {copy.button}
             </PillButton>
           )}
+          {!demo && state === 'failed' ? (
+            <PillButton className="w-full" onClick={demoCheck} variant="secondary">
+              Use the demo check
+            </PillButton>
+          ) : null}
           <TextLink href="/claim/proof">Back</TextLink>
         </div>
 

@@ -1,0 +1,338 @@
+// @vitest-environment jsdom
+
+import { cleanup, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+/**
+ * The seven screens of the worker flow, against their own copy.
+ *
+ * Every string the copy deck fixes is asserted here, because "exactly as the
+ * copy deck" is the acceptance and a paraphrase is the easiest thing in this
+ * ticket to ship by accident. The figures come from the recorded testnet
+ * responses in worker-fixtures.ts.
+ *
+ * The screens are rendered with their props. The routes above them fetch, and
+ * what they fetch is tested through worker-model.
+ */
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  redirect: vi.fn(),
+}));
+
+vi.mock('../src/app/purchase-actions.js', () => ({
+  beginPurchase: vi.fn(),
+  chooseOccupation: vi.fn(),
+  continueToPay: vi.fn(),
+  continueToVerify: vi.fn(),
+  payAndBind: vi.fn(),
+  priceCover: vi.fn(),
+  startAgain: vi.fn(),
+  verifyPerson: vi.fn(),
+}));
+
+const { AmountScreen } = await import('../src/app/amount/amount-screen.js');
+const { IndexScreen } = await import('../src/app/cover/index/index-screen.js');
+const { HomeScreen } = await import('../src/app/home/home-screen.js');
+const { OccupationPicker } = await import('../src/app/occupation/occupation-picker.js');
+const { PayScreen } = await import('../src/app/pay/pay-screen.js');
+const { VerifyScreen } = await import('../src/app/verify/verify-screen.js');
+const { OCCUPATIONS } = await import('../src/lib/occupations.js');
+const {
+  bandLabelFor,
+  chartDescription,
+  chartPoints,
+  chartThreshold,
+  headlineReading,
+  lineIsNegative,
+  whatWouldHaveHappened,
+} = await import('../src/lib/worker-model.js');
+const { INDEX } = await import('./worker-fixtures.js');
+
+afterEach(cleanup);
+
+describe('the occupation picker', () => {
+  it('lists the fifteen rows in the addendum order', () => {
+    render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('What do you do?');
+    const rows = screen.getAllByRole('button').filter((node) => node.textContent !== 'Continue');
+    expect(rows).toHaveLength(1);
+    expect(screen.getByText('Office and administrative support')).toBeTruthy();
+    expect(screen.getByText('Farming, fishing and forestry')).toBeTruthy();
+  });
+
+  it('offers only the occupation with a series behind it', () => {
+    render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
+    const selectable = screen
+      .getAllByRole('button')
+      .filter((node) => node.textContent !== 'Continue');
+    expect(selectable[0]?.textContent).toContain('Computer and mathematical');
+  });
+
+  it('says why the other fourteen cannot be chosen', () => {
+    render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
+    expect(screen.getAllByText(/No cover behind this occupation yet\./)).toHaveLength(14);
+  });
+
+  it('carries the honest line for the two that have never opened since 2010', () => {
+    render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
+    expect(
+      screen.getAllByText(/Claims have never opened for this occupation since 2010\./),
+    ).toHaveLength(2);
+  });
+
+  it('disables Continue until a row is chosen', () => {
+    const { unmount } = render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
+    expect(screen.getByRole('button', { name: 'Continue' })).toHaveProperty('disabled', true);
+    unmount();
+    render(<OccupationPicker chosen="computer_math" rows={OCCUPATIONS} />);
+    expect(screen.getByRole('button', { name: 'Continue' })).toHaveProperty('disabled', false);
+  });
+
+  it('has a search field labelled as the copy deck writes it', () => {
+    render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
+    expect(screen.getByLabelText('Search occupations')).toBeTruthy();
+  });
+});
+
+describe('the cover amount screen', () => {
+  const price = {
+    limit: '1,000',
+    premium: '0.86',
+    sentence:
+      'Pays out if the index for Computer and mathematical rises 2 points above its trend. Full payout at 4 points.',
+    usedPercent: 6,
+    full: false,
+    error: null,
+  };
+
+  it('writes the premium as "{premium} a month"', () => {
+    render(<AmountScreen initial={price} limit={1000} occupation="Computer and mathematical" />);
+    expect(screen.getByTestId('amount-premium').textContent).toBe('0.86 a month');
+  });
+
+  it('carries the interpolated sentence, the link and the primary', () => {
+    render(<AmountScreen initial={price} limit={1000} occupation="Computer and mathematical" />);
+    expect(screen.getByText(price.sentence)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'How the index works' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
+  });
+
+  it('runs the slider over the offered range in steps of 500', () => {
+    render(<AmountScreen initial={price} limit={1000} occupation="Computer and mathematical" />);
+    const slider = screen.getByRole('slider');
+    expect(slider.getAttribute('min')).toBe('1000');
+    expect(slider.getAttribute('max')).toBe('10000');
+    expect(slider.getAttribute('step')).toBe('500');
+  });
+
+  it('stops at a series with no capacity and says why', () => {
+    render(
+      <AmountScreen
+        initial={{ ...price, premium: '', sentence: '', full: true, error: 'This series is full. Choose a smaller amount or try again later.' }}
+        limit={1000}
+        occupation="Computer and mathematical"
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Continue' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('status').textContent).toContain('This series is full.');
+  });
+});
+
+describe('the verify screen', () => {
+  it('carries the copy deck strings and says the check is the interim one', () => {
+    render(<VerifyScreen alreadyVerified={false} interim />);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+      "Confirm you're a real person.",
+    );
+    expect(
+      screen.getByText('One person, one cover. This stops bots and duplicate accounts.'),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Verify with World ID' })).toBeTruthy();
+    expect(screen.getByText(/Interim check\. Testnet only\./)).toBeTruthy();
+  });
+
+  it('does not claim a Selfie Check it did not run', () => {
+    render(<VerifyScreen alreadyVerified={false} interim />);
+    expect(screen.getByText(/without running a World Selfie Check yet/)).toBeTruthy();
+  });
+
+  it('shows the verified state when the credential is already held', () => {
+    render(<VerifyScreen alreadyVerified interim />);
+    expect(screen.getByRole('status').textContent).toBe("You're verified");
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
+  });
+});
+
+describe('the pay sheet', () => {
+  function renderSheet() {
+    return render(
+      <PayScreen
+        cover="1,000"
+        occupation="Computer and mathematical"
+        paysFrom="0.0.10366453"
+        premium="0.86"
+        walletLabel="Demo wallet. Testnet only."
+      />,
+    );
+  }
+
+  it('is titled as the copy deck titles it and names the outcome on the button', () => {
+    renderSheet();
+    expect(screen.getByRole('dialog', { name: 'Confirm your cover' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pay 0.86' })).toBeTruthy();
+  });
+
+  it('carries the five rows in order', () => {
+    renderSheet();
+    const sheet = screen.getByRole('dialog');
+    for (const label of [
+      'Cover',
+      'Occupation',
+      'Monthly payment',
+      'First payment today',
+      'Pays from',
+    ]) {
+      expect(within(sheet).getByText(label)).toBeTruthy();
+    }
+  });
+
+  it('pays from the wallet account id, labelled as a demo', () => {
+    renderSheet();
+    expect(screen.getByText('0.0.10366453')).toBeTruthy();
+    expect(screen.getByText('Demo wallet. Testnet only.')).toBeTruthy();
+  });
+
+  it('says what the press does before the press', () => {
+    renderSheet();
+    expect(screen.getByText(/The first payment leaves the wallet above as soon as you press/)).toBeTruthy();
+  });
+});
+
+describe('home', () => {
+  function renderHome(bound: boolean) {
+    return render(
+      <HomeScreen
+        bound={bound}
+        cover={1000}
+        indexCaption="Points from opening claims."
+        indexValue="0.69, falling"
+        nextPayment="0.86 on 5 October"
+        occupation="Computer and mathematical"
+      />,
+    );
+  }
+
+  it('shows the card, the state and the two rows', () => {
+    renderHome(false);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Cover');
+    expect(screen.getByText('Covered')).toBeTruthy();
+    expect(screen.getByText('Next payment')).toBeTruthy();
+    expect(screen.getByText('0.86 on 5 October')).toBeTruthy();
+    // "Index" twice: the row label and the tab bar.
+    expect(screen.getAllByText('Index')).toHaveLength(2);
+    expect(screen.getByText('0.69, falling')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'See the index' })).toBeTruthy();
+  });
+
+  it('renders the cover amount with a thousands separator', () => {
+    renderHome(false);
+    expect(screen.getByTestId('display-number').textContent).toBe('1,000');
+  });
+
+  it('runs the orchestrated moment only on arriving from the pay sheet', () => {
+    const { unmount } = renderHome(false);
+    expect(screen.getByTestId('home-card').className).not.toContain('cover-card-enter');
+    unmount();
+    renderHome(true);
+    const card = screen.getByTestId('home-card');
+    expect(card.className).toContain('cover-card-enter');
+    // The slide is a CSS animation, so reduced motion switches it off in CSS
+    // and not in a script.
+    expect(card.className).toContain('motion-reduce:animate-none');
+  });
+
+  it('drops the query that fires the moment, so a reload is not a second one', () => {
+    renderHome(true);
+    expect(window.location.pathname).toBe('/home');
+    expect(window.location.search).toBe('');
+  });
+});
+
+describe('the index tab', () => {
+  function renderIndex(overrides: Partial<Parameters<typeof IndexScreen>[0]> = {}) {
+    const reading = headlineReading(INDEX);
+    return render(
+      <IndexScreen
+        bandLabel={bandLabelFor(INDEX)}
+        description={chartDescription(INDEX)}
+        distance={reading?.distance ?? null}
+        months={whatWouldHaveHappened(INDEX)}
+        negativeLine={lineIsNegative(INDEX)}
+        neverOpened={false}
+        occupation="Computer and mathematical"
+        open={reading?.open ?? false}
+        points={chartPoints(INDEX)}
+        sentence={reading?.detail ?? null}
+        threshold={chartThreshold(INDEX)}
+        {...overrides}
+      />,
+    );
+  }
+
+  it('carries the three sentences from the copy deck', () => {
+    renderIndex();
+    expect(
+      screen.getByText("It counts unemployment in your occupation, compared with everyone else's."),
+    ).toBeTruthy();
+    expect(
+      screen.getByText('It is smoothed over three months, so one bad month does not move it.'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText('It is compared with a year ago, so it shows change, not level.'),
+    ).toBeTruthy();
+  });
+
+  it("carries the addendum's second explanation block", () => {
+    renderIndex();
+    expect(
+      screen.getByText(
+        "Claims open in two ways. A sudden jump past this occupation's trigger line, or staying worse than anything in the decade before AI.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it('explains a negative line where the occupation has one', () => {
+    renderIndex();
+    expect(
+      screen.getByText(
+        'People in this occupation are usually unemployed less than average. The trigger is about getting worse than their own normal, not about being above zero.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('shows the backtest strip and its two item key', () => {
+    renderIndex();
+    expect(screen.getByRole('heading', { name: 'What would have happened' })).toBeTruthy();
+    expect(screen.getByText('No payout')).toBeTruthy();
+    expect(screen.getByText('Paid out')).toBeTruthy();
+  });
+
+  it('says so where claims have never opened since 2010', () => {
+    const { unmount } = renderIndex();
+    expect(screen.queryByText(/never paid for this occupation since 2010/)).toBeNull();
+    unmount();
+    renderIndex({ neverOpened: true });
+    expect(
+      screen.getByText('This cover has never paid for this occupation since 2010.'),
+    ).toBeTruthy();
+  });
+
+  it('never puts a signed index value on the screen', () => {
+    const { container } = renderIndex();
+    const shown = container.textContent ?? '';
+    expect(shown).not.toContain('-0.68');
+    expect(shown).not.toContain('-1.37');
+    expect(shown).toContain('Pays out within 0.68 of average');
+  });
+});

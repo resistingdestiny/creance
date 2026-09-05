@@ -162,6 +162,29 @@
     z-index: 10;
   }
 
+  /* docs/DESIGN-TOKENS.md section 6, the one orchestrated moment: the card
+     slides up into Home over 420ms ease-out, once, after a payment confirms.
+
+     It is a CSS animation rather than a scripted transition so that
+     prefers-reduced-motion replaces it with an instant state change, which is
+     what the sheet asks for. The utility `motion-reduce:animate-none` on the
+     element turns it off, and the card is then simply in place on the first
+     paint instead of being moved there a frame later. The count-up beside it
+     is the one piece of this moment CSS cannot express, and DisplayNumber
+     skips it under the same preference. */
+  .cover-card-enter {
+    animation: cover-card-enter 420ms ease-out both;
+  }
+
+  @keyframes cover-card-enter {
+    from {
+      transform: translateY(40px);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
   /* Gallery only: shows the padded hit area of a text link so a reviewer can
      see that it clears 44px. Never used by a product screen. */
   .debug-hit-area {

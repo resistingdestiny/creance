@@ -1,15 +1,19 @@
 import { AppFrame } from '../components/app-frame';
 import { PillButton, PillLink } from '../components/pill-button';
+import { beginPurchase } from './purchase-actions';
 
 /**
- * A holding page in the product voice. The purchase flow is T15's, the index
- * page is T16's and the landing page has no owner yet, so this says what the
- * product is, in the sheet's copy, and does nothing else.
+ * Start, the first screen of the worker flow, in the copy deck's own words
+ * (docs/DESIGN-TOKENS.md section 8).
+ *
+ * "Get a quote" starts a purchase and moves to the occupation picker. The
+ * purchase is a server side session from this press onward, because the
+ * eligibility credential it will hold is a bearer token that binds a policy.
  *
  * It does not link to /gallery. The gallery is the review surface for T10 and
  * is deliberately unlinked.
  */
-export default function Home() {
+export default function Start() {
   return (
     <AppFrame>
       <main className="flex min-h-dvh flex-col justify-between px-5 py-10">
@@ -22,9 +26,11 @@ export default function Home() {
           </p>
         </div>
         <div className="flex flex-col gap-3">
-          <PillButton disabled>Get a quote</PillButton>
-          {/* The only wire out of this holding page. The investor screens are
-              T17's and they are real; the quote is T15's and is not. */}
+          <form action={beginPurchase}>
+            <PillButton className="w-full" type="submit">
+              Get a quote
+            </PillButton>
+          </form>
           <PillLink href="/invest" variant="secondary">
             I want to invest
           </PillLink>

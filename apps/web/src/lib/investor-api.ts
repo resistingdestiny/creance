@@ -17,13 +17,13 @@
  * into a string.
  */
 
-export interface Money {
-  readonly amount: string;
-  readonly asset: string;
-  readonly decimals: number;
-  /** For a human reading the API response. Never parsed, never rendered. */
-  readonly display: string;
-}
+import { apiBaseUrl, type Money } from './api';
+
+// The money envelope and the origin now live in ./api, which every screen's
+// client is built on. They are re-exported here because these two names are
+// what the investor and receipt screens already read.
+export { apiBaseUrl };
+export type { Money };
 
 export interface HolderView {
   readonly role: string;
@@ -140,15 +140,6 @@ export interface CouponsView {
 
 /** The demo series. Every investor screen shows this one unless asked otherwise. */
 export const DEFAULT_SERIES_ID = 'ODI-COMP-2026-01';
-
-/**
- * Where the API is. `pnpm api:dev` listens on 127.0.0.1:3210 with no
- * configuration at all, so the default is the same address and a judge who
- * runs the two commands in the README needs no environment file for this.
- */
-export function apiBaseUrl(value: string | undefined = process.env.CREANCE_API_URL): string {
-  return (value ?? 'http://127.0.0.1:3210').replace(/\/+$/, '');
-}
 
 /** The API is unreachable or answered with a problem document. */
 export class InvestorApiError extends Error {

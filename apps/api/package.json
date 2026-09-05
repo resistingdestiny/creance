@@ -8,6 +8,7 @@
     "dev": "tsx --env-file-if-exists=../../.env src/main.ts",
     "migrate": "tsx --env-file-if-exists=../../.env src/db/cli.ts",
     "openapi": "tsx scripts/openapi.ts",
+    "claims:close-windows": "tsx --env-file-if-exists=../../.env scripts/close-windows.ts",
     "test": "vitest run",
     "testnet:bind": "tsx --env-file-if-exists=../../.env scripts/testnet/bind.ts",
     "testnet:x402": "tsx --env-file-if-exists=../../.env scripts/testnet/x402.ts",

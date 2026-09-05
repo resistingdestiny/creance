@@ -7,6 +7,7 @@ import {
   CLAIM_AUTHORISATION_TYPES,
   digestToBytes32,
 } from '../src/chain/authorisation.js';
+import { closeWindows } from '../src/claims/close-windows.js';
 import { hashRecord } from '../src/claims/record.js';
 import type { ClaimRow, PolicyRow } from '../src/db/types.js';
 import { nullifierToBytes32, toBytes32 } from '../src/ids.js';
@@ -21,7 +22,7 @@ import {
   POLICYHOLDER_1,
 } from './policy-fixtures.js';
 
-/// The approval, the authorisation and the payout.
+/// The approval, the authorisation and the payout, and the window job.
 ///
 /// The chain is recorded, so nothing here reaches testnet, but the signature is
 /// a real EIP-712 signature over the real domain and is recovered with ethers
@@ -276,5 +277,51 @@ describe('an approved claim is paid', () => {
     expect(response.statusCode).toBe(201);
     expect(response.json().payout).toBeUndefined();
     expect(harness.chain.claims).toHaveLength(0);
+  });
+});
+
+describe('the claim window job', () => {
+  let harness: Harness;
+
+  beforeEach(async () => {
+    harness = await buildTestServer();
+  });
+
+  afterEach(async () => {
+    await harness.app.close();
+  });
+
+  it('refuses before the window ends, and says when it will work', async () => {
+    harness.chain.set({ status: 'claims_open' });
+    const [result] = await closeWindows(harness.services, {
+      now: new Date('2026-09-05T00:00:00Z'),
+    });
+    expect(result?.closed).toBe(false);
+    expect(result?.reason).toBe('window_not_over');
+    // The demo series' window ends after the event, which is why the path is
+    // proved here and not on it.
+    expect(result?.windowEndsAt).toBe(Math.floor(Date.parse('2026-10-05T09:04:51Z') / 1000));
+    expect(harness.chain.closed).toHaveLength(0);
+  });
+
+  it('closes the window once block time is past it, and follows the chain into the row', async () => {
+    harness.chain.set({ status: 'claims_open' });
+    const [result] = await closeWindows(harness.services, {
+      now: new Date('2026-10-06T00:00:00Z'),
+    });
+    expect(result?.closed).toBe(true);
+    expect(result?.transactionHash).toBe(`0x${'ba'.repeat(32)}`);
+    expect(harness.chain.closed).toEqual([CONFIG.series[0]!.seriesId]);
+    expect((await harness.repository.series('ODI-COMP-2026-01'))?.status).toBe('active');
+  });
+
+  it('does nothing to a series that is not in a claim window', async () => {
+    harness.chain.set({ status: 'active' });
+    const [result] = await closeWindows(harness.services, {
+      now: new Date('2026-10-06T00:00:00Z'),
+    });
+    expect(result?.closed).toBe(false);
+    expect(result?.reason).toBe('series_not_in_claim_window');
+    expect(harness.chain.closed).toHaveLength(0);
   });
 });

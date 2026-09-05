@@ -21,3 +21,6 @@ typechain-types/
 
 # Hardhat 3 typechain output, regenerated on every build.
 contracts/types/
+
+# Scratch files a builder leaves inside a package while working something out.
+.scratch/

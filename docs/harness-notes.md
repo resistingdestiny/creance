@@ -1,9 +1,186 @@
 # Harness notes
 
-Every place where Hedera documentation and Hedera behaviour disagreed, with the
-page, the date it was read and what testnet actually did. Each entry was
-reproduced on testnet before it was written down. This file is the raw material
-for the Hedera Harness contribution, so it is a deliverable, not a diary.
+Every place where documentation and behaviour disagreed, with the page, the date
+it was read and what actually happened. Most entries are Hedera and were
+reproduced on testnet before they were written down; the index model's source
+data is the one non-Hedera section, and its entries were reproduced against the
+live BLS endpoints and the committed archive. This file is the raw material for
+the Hedera Harness contribution, so it is a deliverable, not a diary.
+
+## T02, the index model, 4 September 2026
+
+The index reads the BLS Public Data API and the BLS flat file server, not
+Hedera, so these are source-side rather than chain-side. Every measurement below
+was reproduced from this repository on 5 September 2026, and where the number
+differs from what was first written down on 4 September the newer measurement is
+the one recorded.
+
+### The v1 endpoint needs its trailing slash, and v2 does not
+
+The v1 signature page writes the URL as
+`https://api.bls.gov/publicAPI/v1/timeseries/data/`, with the slash, and never
+says the slash is load bearing.
+https://www.bls.gov/developers/api_signature.htm
+
+It is. Measured with the same POST body against both versions:
+
+    POST https://api.bls.gov/publicAPI/v1/timeseries/data   -> HTTP 404, HTML
+    POST https://api.bls.gov/publicAPI/v1/timeseries/data/  -> HTTP 200, JSON
+    POST https://api.bls.gov/publicAPI/v2/timeseries/data   -> HTTP 200, JSON
+
+Without the slash v1 answers with a Tomcat error page, `HTTP Status 404 - Not
+Found`, so the failure is not a JSON body at all and a client that goes straight
+to `JSON.parse` dies on `<`. v2 tolerates the missing slash, which is how the
+mistake survives a copy from a v2 example into a v1 client.
+
+Both endpoints are written with the slash in `ENDPOINTS`, and the failure path
+checks the HTTP status and the parse before it reads the body's status field.
+
+### A rejected request still comes back as HTTP 200
+
+The FAQs describe the response's `status` field, and the signature pages show
+`"status": "REQUEST_SUCCEEDED"` in every sample, but nothing says the HTTP status
+code is not the one to branch on.
+https://www.bls.gov/developers/api_faqs.htm
+
+Measured on 5 September 2026, once the keyless daily allowance for this host was
+spent:
+
+    HTTP 200
+    {"status":"REQUEST_NOT_PROCESSED","responseTime":0,
+     "message":["Request could not be serviced, as the daily threshold for total
+     number of requests allocated to the user with registration key  has been
+     reached."],"Results":{}}
+
+A status-code-only check treats that as a good fetch and then finds no series in
+it, which downstream is indistinguishable from an occupation whose unemployment
+rate never moves. So `describeFailure` treats any body whose `status` is not
+`REQUEST_SUCCEEDED` as a failure, retries with backoff on the body rather than
+on the code, and `assertComplete` refuses a response that is missing a series or
+a month it asked for.
+
+The registration key in that message is empty because the request was keyless.
+The keyless v1 allowance is 25 requests a day and it is pooled across everything
+sharing the address, so a spent allowance is a normal operating condition and
+not a bug. The disk cache under `var/cache/bls` is what makes a second run of the
+day possible; `--source archive` needs no network at all.
+
+### The public site refuses a client with no descriptive User-Agent
+
+The BLS site policies page asks automated users to identify themselves and says
+access may be blocked otherwise. https://www.bls.gov/bls/pss.htm
+
+What that means in practice, measured 5 September 2026:
+
+    GET https://download.bls.gov/pub/time.series/ln/ln.series
+      default curl agent                  -> HTTP 403
+      "creance-index (+https://creance.co)" -> HTTP 200
+
+    GET https://www.bls.gov/schedule/news_release/empsit.htm
+      empty User-Agent                    -> HTTP 403
+      "creance-index (+https://creance.co)" -> HTTP 200
+
+This corrects what was written on 4 September, which said `www.bls.gov` answers
+403 to servers as such and that the release calendar therefore cannot be fetched
+at all. The gate is the User-Agent, not the client being a server: with a
+descriptive agent the release calendar page answers 200 from this host. The
+release calendar is still not fetched by the oracle, because a scraped HTML
+schedule is a worse input than a committed one, but the reason is a choice and
+not a block.
+
+Every request this package makes sends `BLS_CONTACT` as its User-Agent, and
+defaults to `creance-index (+https://creance.co)` when it is unset.
+
+### v1 returns Results as an object, and the signature page shows an array
+
+The v1 signature page's sample response nests the payload as
+`"Results": [ { "series": [ ... ] } ]`, an array holding one object.
+https://www.bls.gov/developers/api_signature.htm
+
+Every real v1 response this build has seen returns
+`"Results": { "series": [ ... ] }`, an object. The six committed archive files
+under `data/bls/api` are keyless v1 responses and all six have the object form,
+as does every live response measured since. The v2 page shows the object form.
+`parseBlsResponse` accepts the object form and rejects anything else loudly
+rather than returning an empty series list.
+
+### October 2025 was never collected, so the smoothing window has a permanent hole
+
+The CPS documentation describes the monthly series as continuous and gives no
+gap convention. https://www.bls.gov/cps/documentation.htm
+
+Every LN series in the archive carries this for October 2025:
+
+    {"year":"2025","period":"M10","periodName":"October","value":"-",
+     "footnotes":[{"code":"9",
+       "text":"Data unavailable due to the 2025 lapse in appropriations."}]}
+
+The value is the string `-`, not a number and not an absent row, so a parser
+that coerces will read it as 0 and publish an occupation with no unemployment.
+The month was never collected, so it is not a revision that will later arrive.
+
+What we do: `-` is treated as absent, never as a value and never interpolated,
+and the three month smoothing window does not slide over the hole. The
+consequence is stated rather than hidden: the smoothed excess is undefined for
+October, November and December 2025, and the year on year form is therefore
+undefined for October, November and December 2026. The alternative reading, in
+which the window hops the gap and takes the last three available months, is
+implemented only as a test that asserts the code does not take it, because
+sliding the window would change the definition of the index after issuance and
+would open computer and mathematical in December 2025 when the strict reading
+does not.
+
+### The archive stops at July 2026, so the August 2026 opening is live only
+
+`data/bls/PROVENANCE.txt` records the latest source period at fetch as 2026 M07,
+so `pnpm oracle:backtest` reports arts, design, entertainment, sports and media
+as last open in February 2026 and every acceptance number in docs/INDEX.md is a
+statement about the archive.
+
+On the live path on 4 September 2026 that group's August 2026 observation was
+u_g 7.4 against u_all 4.3, a smoothed excess of 2.17 against a level line of
+1.32, which opens on the level form. Nothing in the archive shows it.
+
+Re-running the live fetch on 5 September 2026 was not possible from this host:
+the keyless v1 allowance was already spent, so `pnpm oracle:backtest --source
+api` failed as it should, with
+
+    BLS v1 request failed after 4 attempts: status REQUEST_NOT_PROCESSED
+
+What we do: the backtest and the backfill default to `--source archive`, so the
+published tables are reproducible by anyone with the repository and no network,
+and the live months are reached through `--source api` with the cache behind it.
+A number that appears in docs/INDEX.md is an archive number, and the demo
+narrative says which months the archive can and cannot show.
+
+### The hazard table reproduces where it prices and drifts in its flat tail
+
+The pre-event pricing work fitted `h(d) = 0.047 + 0.613 * exp(-d / 0.22)` to a
+seven bucket empirical hazard measured on the archive. Recomputing that table
+from the archive with this package, four of the seven buckets reproduce and
+three do not:
+
+    distance to line      pre-event   recomputed   sample
+    at or past the line     65.6         65.6        32
+    0 to 0.25 points        30.0         30.0        20
+    0.25 to 0.5 points      12.2         12.2        74
+    0.5 to 1 point           3.6          2.9       720
+    1 to 2 points            4.7          4.7      1644
+    2 to 4 points            4.7          4.6      1524
+    more than 4 points       4.8          4.1       684
+
+The sample counts are identical in all seven buckets, so the bucketing agrees
+and only the count of months that went on to open differs, by five months in the
+0.5 to 1 bucket and five in the tail. The three that diverge are all beyond half
+a point, where the curve is flat and the shock form is setting the floor.
+
+What we do: nothing to the price. `HAZARD_FIT` is frozen at the published
+constants, and the guide rate is read off the fitted curve, not off the table, so
+a tenth of a point of drift in the flat region does not move a quoted rate. The
+three buckets that do move the price, the ones inside half a point, reproduce
+exactly. The table is printed by `pnpm oracle:backtest` from the archive on every
+run, so the divergence is visible rather than asserted, and the floor of 0.047
+stays a stated judgment rather than a refitted measurement.
 
 ## T03, Hedera resources, 4 September 2026
 

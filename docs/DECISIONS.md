@@ -3,6 +3,190 @@
 Every deviation from DESIGN.md, and every choice DESIGN.md left open that later
 work depends on. One row per decision, with the reason.
 
+## Before kick-off
+
+These were settled before the first commit, from the design work and the
+adversarial review of the archive. They are recorded here because later tickets
+depend on them and there is no other copy.
+
+### The typeface is Option A, Inter Tight for display and numbers, Inter for text
+
+Affects T10 and T15. Option B, Geist, is dropped.
+
+The whole scale in docs/DESIGN-TOKENS.md, including every tracking value, was
+specified against Inter Tight. Swapping the family would mean retuning the
+display sizes for no gain, and the hero only holds together at 104px because of
+Inter Tight's tighter tracking.
+
+### The marketing surface may use a dark ground, the product may not
+
+Affects T10, T15 and T17.
+
+The landing page is a different job from the app: it argues, the app reassures.
+The token sheet's light only rule stays binding for every worker and investor
+screen. See the addendum for the two tokens this adds.
+
+### One elevation token exists, and only the landing hero card may use it
+
+Affects T10. Everywhere else depth is hairline and grouping, as specified.
+
+A card floating over a dark ground needs separation that a hairline cannot give.
+Permitting it once, by name, is safer than leaving builders to invent shadows.
+
+### The headline index figure is whichever form is nearer its line, chosen server side
+
+Affects T15 and T16. It is returned as a field.
+
+The index has two forms and two thresholds. One number cannot say which is
+nearer to opening, and for the demo series it is the level form. If two screens
+chose independently they would eventually disagree. This resolves the open item
+in the web note.
+
+### A consumer is never shown a signed index value
+
+Affects T15, T16 and T17. Position is expressed as points better or worse than
+average, the headline is the distance to a payout, and a distance under 0.05
+reads as sitting on the line rather than 0.0 points away.
+
+A negative level line is correct and unreadable. Framing the same number as a
+distance removes the sign without changing the maths.
+
+### Premium is a guide price from the index multiplied by a capacity term
+
+Affects T02, T04 and T07.
+
+    guide rate  = max(0.005, h(d) * 0.167 * 0.60 * 1.30)
+    market rate = guide * (1 + utilisation), capped at three times guide
+
+where h is the fitted hazard on the distance to the level line.
+
+The formula in DESIGN.md section 3.4 puts thirteen of the fifteen offered
+occupations on the floor, because the per series attachment deliberately
+equalises shock risk. Only proximity to the level line differentiates, so the
+guide price must be conditioned on it.
+
+### Capacity is committed per occupation at subscription, not allocated pro rata
+
+Affects T04, T06 and T07. Cover cannot be bound for an occupation with no
+capacity behind it, and the picker says so rather than quoting a price nobody
+can buy.
+
+Pro rata allocation collapses the capacity term to a single pool number, which
+would make the market half of the price meaningless. The cost is per series
+accounting and the risk of thin series, which is a real market behaviour rather
+than a bug.
+
+### The product is called Creance
+
+Affects every ticket. The investor instrument keeps the descriptive name
+Displacement Bond Note, and the index keeps the name Occupation Displacement
+Index.
+
+Root's decision, taken before the first commit so the repository has no rename
+in its history. DESIGN.md always treated the project name and the instrument
+name as separate, and the instrument name describes what the security is, which
+is worth keeping in front of judges on the tokenization track.
+
+### The canonical public origin is https://creance.co
+
+Affects T21, T11 and T19. Local development stays on localhost, and
+`PUBLIC_SITE_URL` in the environment carries the production origin.
+
+The origin is baked into three things that are painful to change later: the
+World Developer Portal's allowed origins and the rp_context the backend signs,
+the x402 resource URLs an agent pays against, and the Bazantic gateway's base
+URL. Fixing it before anything is built avoids a rename across all three mid
+event. Note for whoever builds the web app: framework public environment
+variables are inlined at build time, so the origin must be present in the
+environment before the production build runs, not after.
+
+### The level line is computed per calendar month, not once per series
+
+Affects T02, T12 and T26. The October 2025 collection gap has a stated rule,
+tested both ways. An opening on the shock form alone requires that the base
+period was not itself an open month.
+
+An adversarial review against the committed archive found that the level form
+opens on seasonality rather than displacement (every education opening falls in
+August, every farming opening between February and April), that the gap has two
+honest readings which settle different months for computer and mathematical, and
+that the shock form has base effects in both directions. See
+docs/INDEX-FINDINGS.md section 6.
+
+Overtaken in part by later work. The T02 section below freezes the single line
+per series for version 1 and publishes the month matched line beside it, and the
+T04 decision "The level line on chain is one value per series, not one per
+calendar month" is what the deployed contract does.
+
+### A replay window that crosses January 2026 is recomputed on pre revision values
+
+Affects T24.
+
+Not seasonally adjusted household data is not revised after first print, which
+is why the backtest is trustworthy, but January 2026 is the one exception found
+and the demo window crosses it.
+
+## T02, the index model, 4 September 2026
+
+### The series universe is fifteen bindable series plus the all-occupation rate
+
+INDEX-SPEC section 3's resolution procedure now names the fifteen bindable
+series plus LNU04000000, sixteen in all, and the example mapping row uses the
+group key `office_admin_support`.
+
+The spec still said "the eleven A-13 group labels", which predates DESIGN.md
+section 3.3 and INDEX-FINDINGS section 1. The catalogue publishes no armed
+forces series, and the picker carries the ten sub-groups plus five detailed
+groups, so eleven names nothing that exists. `office_admin` is not the key the
+rest of the system uses.
+
+### A period's availability is two independent checks, and the published ODI is computed from the published ebar values
+
+INDEX-SPEC section 4 replaces "a period needs months t-14 through t present"
+with a level check on t, t-1 and t-2 and a shock check on those plus t-12, t-13
+and t-14, and defines the published ODI as
+`pub(pub(ebar_t) - pub(ebar_t-12))`.
+
+Read literally, the fifteen month rule makes April 2026 uncomputable, because it
+demands October 2025, which the source never collected. That is the month the
+demo turns on. Splitting the checks publishes the level form when the shock form
+is not evaluable, which is the honest reading and the only one that survives the
+gap. The ODI definition was left open and the two paths differ on 1,006 of the
+4,530 historical values, so the message and a reader's recomputation would
+disagree about one time in four and a half.
+
+### The completeness gate counts sixteen series, not twelve
+
+INDEX-SPEC section 8 is corrected.
+
+The trigger universe is the fifteen bindable series plus LNU04000000. Twelve was
+never the size of any list in the design.
+
+### Version 1 freezes the single level line per series, and publishes the month matched line beside it
+
+The month matched line required by the pre kick-off decision above is
+implemented and tested as a second calibration mode, and both open month tables
+are published side by side in docs/INDEX.md. Which one a future version binds is
+Root's call.
+
+The two are not equivalent and the difference is a product decision, not an
+implementation detail. Under month matched lines, computer_math has been level
+open in 21 of the computable months since April 2023 rather than opening in
+April 2026, which rewrites the demo narrative, the pricing and the copy. The
+acceptance line, the reference vectors and the DESIGN.md section 3.4 demo all
+assume the single line, so version 1 ships it and the comparison is published
+rather than buried.
+
+### The October 2025 gap rule is the strict calendar window
+
+The hop-over reading is implemented only as a test that asserts the
+implementation does not take it.
+
+Sliding the smoothing window over a hole changes the definition of the index
+after issuance. The two readings settle different months: hop-over opens
+computer_math in December 2025 and strict does not. Strict is the one that can
+be defended to a noteholder.
+
 ## T03, Hedera resources, 4 September 2026
 
 ### The SDK is @hiero-ledger/sdk, never @hashgraph/sdk

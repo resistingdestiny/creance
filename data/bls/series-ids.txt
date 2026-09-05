@@ -1,0 +1,33 @@
+# BLS LN series pulled into api/ (monthly, not seasonally adjusted, unemployment rate)
+# Majors and aggregate
+LNU04000000  all occupations
+LNU04032215  Management, professional, and related (top level)
+LNU04032216  Management, business, and financial operations
+LNU04032217  Professional and related
+LNU04032218  Service
+LNU04032219  Sales and office (top level)
+LNU04032220  Sales and related
+LNU04032221  Office and administrative support
+LNU04032222  Natural resources, construction, and maintenance (top level)
+LNU04032223  Farming, fishing, and forestry
+LNU04032224  Construction and extraction
+LNU04032225  Installation, maintenance, and repair
+LNU04032226  Production, transportation and material moving (top level)
+LNU04032227  Production
+LNU04032228  Transportation and material moving
+# Detailed occupation groups
+LNU04034019  Management
+LNU04034020  Business and financial operations
+LNU04034021  Computer and mathematical
+LNU04034022  Architecture and engineering
+LNU04034023  Life, physical, and social science
+LNU04034024  Community and social services
+LNU04034025  Legal
+LNU04034026  Education, training, and library
+LNU04034027  Arts, design, entertainment, sports, and media
+LNU04034028  Healthcare practitioner and technical
+LNU04034029  Healthcare support
+LNU04034030  Protective service
+LNU04034031  Food preparation and serving related
+LNU04034032  Building and grounds cleaning and maintenance
+LNU04034033  Personal care and service

@@ -3193,3 +3193,24 @@ scheme requires a bare transfer and refuses one wrapped in a `ScheduleCreate`
 (docs/DECISIONS.md under T09, and step 7 of docs/demo/steward.txt). A recipe that
 implied it had arranged a year of payments would misdescribe the one part of the
 flow that is genuinely unusual, so both recipes name the boundary instead.
+
+### The quote is paid, and a credential does not stand in for the payment
+
+The OpenAPI document said an eligibility credential also satisfied the x402 gate
+on `POST /v1/quote`, "a stronger anti-abuse signal than the fee". It never did.
+The gate is an `onRequest` hook over a route map of prices and it does not read
+the `Authorization` header, so an unpaid quote carrying a valid credential is
+refused with the same 402 and the same 50000. Measured on a running API and now
+pinned by a test in `apps/api/test/x402-routes.test.ts`.
+
+The claim was wrong, so it was removed rather than made true. DESIGN.md 3.7
+makes the quote a plain paid call, and building a bypass would have changed what
+the fee is for: it meters the pricing engine, which costs the same to run for a
+verified person as for anyone else, and the credential is a single-use token
+that `POST /v1/bind` consumes. Spending it on a quote would buy a free price and
+then need a second Selfie Check to bind.
+
+The operation's `security` block went with it. `[{}, { eligibilityCredential:
+[] }]` reads as "no auth, or a credential", which describes an authorisation
+choice this operation does not offer. The bind keeps its
+`[{ eligibilityCredential: [] }]`, where it is true.

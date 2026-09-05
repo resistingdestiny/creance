@@ -52,3 +52,22 @@ dependencies. They are the libraries the ATS SDK itself verifies credentials
 with, so a credential this build signs is one the SDK would accept.
 `contracts/ats/credential.ts` calls `createEcdsaCredential` and `verifyVc`; no
 source was copied.
+
+## The web app
+
+Nothing. No starter kit, no scaffold and no sample code. `apps/web` was created
+by hand from the framework's own documentation, and every component in
+docs/DESIGN-TOKENS.md was built from the token sheet during the event.
+
+## The Creance mark and its icon sizes
+
+Not a starter and not code, listed so the disclosure is complete. Every file in
+`apps/web/public` was drawn before kick-off: `favicon.ico`, `icon-16.png`,
+`icon-32.png`, `icon-180.png`, `icon-192.png`, `icon-512.png` and
+`creance-mon.svg`. They are the browser icon and the metadata icons and nothing
+else: no screen renders them and no layout depends on them.
+
+`apps/web/src/app/layout.tsx` points the icon metadata at `favicon.ico`,
+`icon-16.png`, `icon-32.png` and `icon-180.png`. The other three are the
+install sizes and the source mark, kept for the web manifest a later ticket
+adds, and nothing in the build references them today.

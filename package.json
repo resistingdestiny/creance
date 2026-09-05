@@ -12,7 +12,7 @@
   "scripts": {
     "test": "vitest run && pnpm --filter @creance/contracts run test:hardhat",
     "test:testnet": "pnpm --filter @creance/contracts run test:testnet",
-    "dev": "node scripts/stub.mjs dev",
+    "dev": "pnpm --filter @creance/web dev",
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
     "oracle:once": "node scripts/stub.mjs oracle:once",

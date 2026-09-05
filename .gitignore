@@ -7,6 +7,8 @@ node_modules/
 .claude/worktrees/
 dist/
 .next/
+*.tsbuildinfo
+next-env.d.ts
 coverage/
 artifacts/
 cache/
@@ -14,8 +16,11 @@ typechain-types/
 *.log
 .DS_Store
 
+# Browser session dumps written by the Playwright tooling during a review.
+.playwright-mcp/
+
 # Hardhat 3 typechain output, regenerated on every build.
 contracts/types/
-.playwright-mcp/
-.claude/worktrees/
+
+# Scratch files a builder leaves inside a package while working something out.
 .scratch/

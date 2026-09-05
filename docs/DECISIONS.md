@@ -1824,15 +1824,21 @@ health reading is not an index reading and must not sit under the metered
 prefix. `GET /v1/health` or a carve-out proved by a test, and the first is
 smaller.
 
-### The HKDF key derivation is copied into apps/oracle rather than imported
+### The HKDF key derivation is copied into apps/oracle, then imported once T07 landed
 
 `contracts/scripts/hedera/derive.ts` holds the same loop. Importing it would
 drag Hardhat and its plugins into the dependency graph of a worker that makes
 one contract call. The oracle reads `HEDERA_ORACLE_KEY` first and derives from
-`HEDERA_OPERATOR_KEY` only as a fallback, so the copy is on the path a clone
-with one key takes, not the normal one. T07 moves the same code to
-`packages/client`; when that lands, `apps/oracle/src/keys.ts` should import it
-and the copy should go.
+`HEDERA_OPERATOR_KEY` only as a fallback, so the copy was on the path a clone
+with one key takes, not the normal one.
+
+T07 has since moved the same code to `packages/client/src/hedera/keys.ts`, and
+merging main into this branch made that package a dependency the oracle already
+had. The copy is gone: `apps/oracle/src/keys.ts` now imports `roleKeyHex` and
+`normaliseRawKeyHex` from there and re-exports them, and holds only the
+environment reading that is the oracle's own. Two implementations of a key
+derivation is two chances to derive a different account for the same operator
+key, and this one signs settlement values.
 
 ### The replay proof run stopped at April 2026, and the demo needs a fresh series
 

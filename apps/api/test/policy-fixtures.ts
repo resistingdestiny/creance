@@ -223,6 +223,8 @@ export async function buildTestServices(
     hedera,
     issuer,
     indexData: null,
+    // No gate: the paid path has its own file and its own testnet command.
+    x402: null,
     thresholds: new Map([['computer_math', { attachmentShock: 2, levelLine: -0.68 }]]),
     gitSha: 'testsha',
     startedAt: new Date('2026-09-05T00:00:00Z'),

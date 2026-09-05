@@ -18,8 +18,9 @@ import { buildQuoteView, type QuoteView } from '../views.js';
 /// POST /v1/quote
 ///
 /// The binding price for a limit in a group, with the capacity behind it
-/// checked against the series principal. DESIGN.md 3.7 makes this a paid call;
-/// T08 puts the x402 gate in front of it and nothing here changes then.
+/// checked against the series principal. DESIGN.md 3.7 makes this a paid call
+/// and the x402 gate in apps/api/src/x402 is in front of it, so this handler
+/// runs only once the payment has been verified.
 ///
 /// A quote takes no capacity hold. It reports capacity as it stands and
 /// /v1/bind rechecks under a row lock and against the chain. Holding capacity
@@ -175,8 +176,16 @@ export async function quote(
   });
 }
 
-/** How the caller satisfied the gate. T08 makes `x402` the agent's answer. */
+/**
+ * How the caller satisfied the gate.
+ *
+ * The x402 middleware verifies the payment before this handler runs, so a
+ * `PAYMENT-SIGNATURE` header on a request that reached here is a payment that
+ * the facilitator accepted, and it outranks a bearer token: an agent that pays
+ * and also carries a credential bought this quote.
+ */
 function issuedVia(request: Pick<FastifyRequest, 'headers'>): QuoteRow['issuedVia'] {
+  if (typeof request.headers['payment-signature'] === 'string') return 'x402';
   return typeof request.headers.authorization === 'string' ? 'credential' : 'open';
 }
 

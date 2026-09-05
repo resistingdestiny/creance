@@ -8,6 +8,7 @@ import { opsRoutes } from './routes/ops.js';
 import { policyRoutes } from './routes/policy.js';
 import { quoteRoutes } from './routes/quote.js';
 import { buildServices, type BuildServicesOptions, type Services } from './services.js';
+import { registerX402 } from './x402/gate.js';
 
 /// The server.
 ///
@@ -44,6 +45,10 @@ export async function buildServer(
   });
 
   registerErrorHandling(app);
+
+  // Before the routes: the gate is an onRequest hook and it has to be in place
+  // when a paid route is matched. DESIGN.md 3.7.
+  if (services.x402 !== null) registerX402(app, services.x402);
 
   await app.register(investorRoutes);
   await app.register(opsRoutes, { services });

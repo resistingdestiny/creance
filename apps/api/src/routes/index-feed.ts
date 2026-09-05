@@ -11,8 +11,9 @@ import { periodLabel, points, rfc3339 } from '../views.js';
 /// GET /v1/index/:group
 ///
 /// The latest reading, the last twenty-four months and the trigger status, from
-/// the `observations` table. DESIGN.md 3.7 makes this a metered feed; T08 puts
-/// the x402 gate in front of it and nothing about the payload changes then.
+/// the `observations` table. DESIGN.md 3.7 makes this a metered feed and the
+/// x402 gate in apps/api/src/x402 is in front of it, priced per call; nothing
+/// about this payload changes because of that.
 ///
 /// Every index value is a decimal string, never a JSON number. The thresholds
 /// are `int64` scaled by 1e4 on chain and a float round trip through JSON is

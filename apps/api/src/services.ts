@@ -7,6 +7,8 @@ import type { GroupRow, Repository } from './db/types.js';
 import { EthersChainGateway, type ChainGateway } from './chain/cover-pool.js';
 import { SdkHederaGateway, type HederaGateway } from './chain/hedera.js';
 import { seriesRowFrom } from './series.js';
+import { loadX402Config } from './x402/config.js';
+import { X402Gate } from './x402/gate.js';
 import {
   allObservationRows,
   frozenThresholds,
@@ -31,6 +33,8 @@ export interface Services {
   indexData: IndexData | null;
   /** The frozen A and L per group, which are not columns on observations. */
   thresholds: Map<string, Thresholds>;
+  /** The x402 gate, or null when this deployment serves the routes open. */
+  x402: X402Gate | null;
   gitSha: string;
   startedAt: Date;
 }
@@ -43,6 +47,7 @@ export interface BuildServicesOptions {
   issuer?: CredentialIssuer;
   indexData?: IndexData | null;
   thresholds?: Map<string, Thresholds>;
+  x402?: X402Gate | null;
   /** Skip the archive load, which costs a second and is not wanted in tests. */
   loadIndex?: boolean;
   /** Run migrations and backfill the index before serving. */
@@ -93,6 +98,19 @@ export async function buildServices(options: BuildServicesOptions = {}): Promise
         ? null
         : loadIndexData();
 
+  const x402Config = loadX402Config(config);
+  const x402 =
+    options.x402 !== undefined
+      ? options.x402
+      : x402Config === null
+        ? null
+        : new X402Gate({
+            config: x402Config,
+            repository,
+            hedera,
+            paymentsTopicId: config.paymentsTopicId,
+          });
+
   return {
     config,
     repository,
@@ -100,6 +118,7 @@ export async function buildServices(options: BuildServicesOptions = {}): Promise
     hedera,
     issuer,
     indexData,
+    x402,
     thresholds: options.thresholds ?? frozenThresholds(),
     gitSha: process.env.GIT_SHA ?? 'unknown',
     startedAt: new Date(),

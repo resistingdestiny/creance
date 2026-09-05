@@ -2608,6 +2608,25 @@ The admin evidence route checks it again on the way out: a file whose bytes no
 longer match what the topic carries is a broken store, and a silent mismatch
 would be adjudicated as if it were fine.
 
+### A human decision gets a composed record, and the Adjuster puts it on the topic
+
+The acceptance asks for a decision endpoint that takes one plain sentence. A
+decision with only a sentence has no decision record, so it has no
+`decisionHash`, so the CLAIMS role has nothing to sign over and the claim cannot
+be paid. That is a hole in the flow rather than a simplification, so the API
+composes the record for a human decision: the same shape, `actor` as
+`reviewer:<name>`, `engine.model` null, the rule results carried forward, and a
+`human` block carrying the review time, the soft rules the reviewer decided
+against and the hash of their sentence. The sentence is never in the record.
+
+The API cannot publish that hash, because the claims topic's submit key is the
+adjuster account's. So two small endpoints were added beside the four the
+acceptance names: `GET /v1/admin/claims/unpublished` lists the decisions whose
+hash has not reached the topic, and `POST /v1/admin/claims/:id/published` records
+where one landed and touches no other column. The Adjuster sweeps them at the end
+of every pass. Without it, "every decision is on a public topic" would be true of
+the machine's decisions and quietly false of the human's.
+
 ### The fixture documents are rendered by a committed script
 
 The two packets need documents that are clearly synthetic, small enough to

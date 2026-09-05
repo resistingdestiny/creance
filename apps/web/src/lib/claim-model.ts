@@ -73,8 +73,10 @@ export function separationLabel(value: string | null): string {
 export function evidenceKind(filename: string): string {
   const name = filename.toLowerCase();
   if (/p45|record.?of.?employment|\broe\b/.test(name)) return 'p45';
-  if (/termination|redundan|dismiss|layoff|notice/.test(name)) return 'termination_letter';
+  // "benefit-determination" ends in "termination", so the benefit test runs
+  // first rather than relying on a boundary that a hyphen does not give.
   if (/benefit|determination|unemploy/.test(name)) return 'benefit_determination';
+  if (/termination|redundan|dismiss|layoff|notice/.test(name)) return 'termination_letter';
   if (/pay.?(slip|statement|stub)|final.?pay/.test(name)) return 'final_pay_statement';
   return 'other';
 }

@@ -75,14 +75,11 @@ services:
       # something on 3210; Caddy proxies to whatever it is set to.
       - '127.0.0.1:${API_PORT:-3210}:3210'
     healthcheck:
-      # Node 22 has fetch, so this needs nothing installed in the image.
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://127.0.0.1:3210/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
+      # A script in the image, not an inline `node -e`: podman-compose flattens
+      # an exec form test into one shell string and mangles the quoting, so
+      # anything with parentheses in it fails with a shell syntax error and the
+      # service never turns healthy. See docs/harness-notes.md.
+      test: ['CMD', 'node', '/repo/apps/api/scripts/healthcheck.mjs']
       interval: 10s
       timeout: 5s
       retries: 12

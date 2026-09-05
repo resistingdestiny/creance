@@ -1775,6 +1775,28 @@ on which one the host has. The lesson generalises: a compose substitution that
 has to come from the deploy command rather than from the operator's
 configuration needs a name that configuration never uses.
 
+### podman-compose flattens an exec form health check and loses the quoting
+
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3210/health')..."]
+
+is an exec form test, which the compose specification says is run without a
+shell. podman-compose 1.0.6 joins the array back into one string and hands it to
+`/bin/sh -c`, and the quotes do not survive the trip:
+
+    podman inspect creance_api_1 --format '{{json .State.Health}}'
+    ..."ExitCode":1,"Output":"/bin/sh: 1: Syntax error: \"(\" unexpected"
+
+The container answered `GET /health` with 200 throughout. Only the check was
+broken, and the symptom is a service stuck at `starting` with a rising failing
+streak, which reads like a slow boot rather than a mangled command. Anything
+depending on `condition: service_healthy` waits forever.
+
+The fix is a health check with no shell metacharacters in it at all:
+`apps/api/scripts/healthcheck.mjs` does the fetch and the compose test is
+`['CMD', 'node', '/repo/apps/api/scripts/healthcheck.mjs']`. That works on both
+runtimes, whether or not the array is flattened.
+
 ### A configuration file value keeps an inline comment
 
 A value written as `FOO=bar   # trailing note` reaches the process as

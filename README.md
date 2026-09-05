@@ -56,6 +56,8 @@ Run all of these from the repository root.
 | `pnpm coupons:mature` | Runs a maturity redemption on Hedera testnet, on a short dated series opened for the purpose because the demo series matures in 2027: opens the series and a matching note, subscribes both noteholders, waits, then burns each holding through ATS and returns the principal from the vault. Stages: `status fund open bond subscribe wait redeem payout`. |
 | `pnpm api:dev` | Runs the API alone on port 3210, reading Hedera testnet and the local database. Endpoints: `POST /v1/quote`, `POST /v1/bind`, `GET /v1/policy/:id`, `GET /v1/audit/:id`, `GET /v1/index/:group`, `GET /v1/series/:id`, `GET /v1/series/:id/coupons`, `GET /v1/replay`, `GET /healthz` and `GET /.well-known/jwks.json`. The index, quote and bind routes are paid: see [Payment flow](#payment-flow). `GET /v1/replay` is the oracle's run state, which is what puts the REPLAY badge on the web app; it sits outside `/v1/index/` because everything under that prefix is metered. Set `PORT` to move it, and `X402_ENABLED=false` to serve them open. |
 | `pnpm api:migrate` | Creates the API schema and seeds the fifteen occupation groups. Idempotent. |
+| `pnpm --filter @creance/api claims:close-windows` | Reads every registered series and calls `closeWindow` on the ones whose claim window has ended, so the unclaimed reserve returns to the vault. Permissionless: any funded account can run it. It refuses before the deadline and prints when it will work, rather than sending a transaction that reverts. Add `--dry-run` to read and report only. |
+| `pnpm --filter @creance/api testnet:claim` | Submits one proof of loss packet to a running API over HTTP, exactly as the web app will: a claim credential, an attestation signed by the policy wallet with its own key, and one of the committed documents. Options: `--policy pol_...` (required), `--packet a\|b`, `--holder ROLE`, `--url`, `--wait`. Then run `pnpm adjuster:run`. See [Claims](#claims). |
 | `pnpm api:openapi` | Regenerates [recipes/bazantic/openapi.yaml](recipes/bazantic/openapi.yaml) and the JSON beside it from the routes. A test fails if the committed files differ. |
 | `pnpm demo:seed` | Seeds the demo series, policyholders, investors and claim packets. |
 
@@ -255,6 +257,87 @@ the due dates seconds apart, so a whole chain is visible inside one run.
 
 A full run against testnet, with every link, is in
 [docs/demo/steward.txt](docs/demo/steward.txt).
+
+## Claims
+
+A payout needs two keys. The index key is the group's index being open, which
+CoverPool decides and stores. The loss key is an approved proof of loss, and this
+is how one is submitted.
+
+    POST /v1/world/rp-context   purpose: claim, signal: the policy id
+    POST /v1/world/verify       purpose: claim, and a claim credential comes back
+    POST /v1/claims             the packet: the attestation, the documents, the statement
+    GET  /v1/claims/{claimId}   the claimant's own status, free and carrying nothing personal
+
+The packet is the four parts of DESIGN.md 3.9. A fresh Selfie Check with
+`require_user_presence` on the claim action, bound to the policy id as its
+signal, which earns a short lived credential in its own audience. An attestation
+signed by the wallet that holds the cover, naming the employer, the job title,
+the occupation, the last day of work and how it ended, ending with the sentence
+the person ticks: "Everything here is true. I understand that a false claim is
+fraud." At least one document, encrypted at rest, with only its SHA-256 reaching
+the claims topic. And the statement itself, recorded as accepted or not.
+
+The endpoint enforces the identity leg and nothing below it: a live person check
+was completed, the check was made for the claim action, the cover is open for
+claims, and no earlier claim exists for this person in this series. Everything
+else is adjudication, and adjudication produces a decision with a reason a person
+can act on rather than a validation error they cannot. So a resignation is
+accepted here and declined by the Adjuster a second later, with a record and a
+hash on a public topic.
+
+The claims topic's submit key is the adjuster account's, so the API writes the
+packet hash into the row and the Adjuster puts it on the topic at the start of
+its next pass, before it decides anything. A packet hash on the topic, then the
+decision hash that answers it, then a payout that references both.
+
+**On approve, the payout runs in the same request.** The API asks CoverPool what
+the claim pays, signs an EIP-712 authorisation over the policy id, the claim id,
+the nullifier, the packet hash, the decision hash, the payee, the amount, the
+separation timestamp and a thirty minute deadline, and calls `payClaim`. The
+money moves inside that call or not at all. The authorisation is stored first, so
+a payout that reverts for an environmental reason can be retried by anybody with
+the same signature until its deadline, and the whole step is idempotent on the
+transaction id.
+
+**On decline, the reasons come back.** There is no chain call at all: a decline
+is a hash on the claims topic and reasons in the claimant's own answer.
+
+**When claims are not open**, the API says so with the current reading, read from
+the chain rather than from a cached row:
+
+    Claims aren't open.
+    Your occupation is 1.20 better than average. Claims open within 0.68 of
+    average. We'll tell you here if that changes.
+
+### One person, one claim, and what our configuration costs that
+
+Purchase and claim run two registered World actions here,
+`occupation-cover-eligibility` and `occupation-cover-claim`. A nullifier is
+scoped to the app and the action, so the same person gets a different number at
+each step and the claim's check cannot be compared with the purchase's.
+
+So the sentence this build is entitled to is the weaker one: **both were live
+people, the claimant controls the wallet that holds the cover, and one person
+claims once.** The wallet leg is real, because the attestation is signed by the
+policy's own EVM address and the API recovers it. One claim per person per
+series is enforced on the claim's own nullifier, with its own unique index.
+
+Setting `WORLD_ACTION_ELIGIBILITY` and `WORLD_ACTION_CLAIM` to a single
+registered action makes the two nullifiers identical and restores the stronger
+sentence, "the same live person bought the cover and collects it", with no code
+change. `GET /healthz` reports `world.continuity`, which says which of the two is
+running. See [docs/DECISIONS.md](docs/DECISIONS.md) and
+[docs/FEEDBACK-WORLD.md](docs/FEEDBACK-WORLD.md).
+
+The claim's camera check cannot be automated, so a labelled demo path,
+`POST /v1/demo/claim-presence`, sits behind `DEMO_ELIGIBILITY_ISSUER` for the
+scripts and the seed. It says what it is in its own response and the credential
+it mints records `credential: demo-issuer`, so nothing downstream can claim a
+camera ran when one did not.
+
+One payout and one decline are on testnet, with every link, in
+[docs/HEDERA.md](docs/HEDERA.md).
 
 ## The review queue
 

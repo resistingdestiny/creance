@@ -1,0 +1,10 @@
+{
+  "label": "Synthetic shock, computer and mathematical, spring 2026",
+  "group": "computer_math",
+  "note": "The real April 2026 opening is on the level form, which is the slow grind the index was built to catch. This scenario raises the published computer and mathematical rate for February, March and April 2026 so the same months open on the shock form instead, and shows what an abrupt dislocation looks like on the same screen. The other fifteen series, the all-occupation rate and every other month are the real archive, so the QA gates run exactly as they do on a live month. Nothing here is BLS data and nothing here settles: a scenario never writes the index topic and never calls the contract.",
+  "overrides": [
+    { "period": "2026-02", "u_g": 6.0 },
+    { "period": "2026-03", "u_g": 5.6 },
+    { "period": "2026-04", "u_g": 5.3 }
+  ]
+}

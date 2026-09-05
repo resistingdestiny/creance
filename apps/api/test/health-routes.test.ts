@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { idleReplayState, type ReplayState } from '../src/replay/state.js';
 import { opsRoutes } from '../src/routes/ops.js';
+import { buildServices } from '../src/services.js';
 import { buildTestServer, buildTestServices } from './policy-fixtures.js';
 
 /// GET /health is the deployment's own answer to "which commit is live and is
@@ -70,6 +71,28 @@ describe('GET /health', () => {
     const health = (await app.inject({ method: 'GET', url: '/health' })).json();
     const healthz = (await app.inject({ method: 'GET', url: '/healthz' })).json();
     expect({ ...healthz, time: null }).toEqual({ ...health, time: null });
+  });
+
+  it('reads a blank GIT_SHA as unknown, because .env.example ships it empty', async () => {
+    const fixture = await buildTestServices();
+    const previous = process.env.GIT_SHA;
+    process.env.GIT_SHA = '  ';
+    try {
+      const services = await buildServices({
+        config: fixture.services.config,
+        repository: fixture.repository,
+        chain: fixture.chain,
+        hedera: null,
+        x402: null,
+        indexData: null,
+        issuer: fixture.services.issuer,
+        loadIndex: false,
+      });
+      expect(services.gitSha).toBe('unknown');
+    } finally {
+      if (previous === undefined) delete process.env.GIT_SHA;
+      else process.env.GIT_SHA = previous;
+    }
   });
 
   it('is served by the real server on both paths', async () => {

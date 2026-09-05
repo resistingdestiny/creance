@@ -144,7 +144,10 @@ export async function buildServices(options: BuildServicesOptions = {}): Promise
     evidenceKeys: options.evidenceKeys !== undefined ? options.evidenceKeys : loadEvidenceKeys(),
     evidenceStore: options.evidenceStore ?? new FileObjectStore(),
     thresholds: options.thresholds ?? frozenThresholds(),
-    gitSha: process.env.GIT_SHA ?? 'unknown',
+    // Blank counts as absent. `.env.example` ships `GIT_SHA=` empty, so a clone
+    // running from source would otherwise report an empty string, and the
+    // uptime check cannot tell that apart from a deployment that lost its SHA.
+    gitSha: process.env.GIT_SHA?.trim() || 'unknown',
     startedAt: new Date(),
   };
 }

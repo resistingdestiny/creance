@@ -1111,3 +1111,23 @@ months and the gate now runs on whatever those months collected, with a floor of
 twelve values. This is a specification bug that only shows up against real data
 with a real hole in it, and it is the kind of thing a fixture-only test suite
 never finds.
+
+### The keyless BLS allowance is 25 requests a day and it runs out
+
+Confirmed again on 5 September 2026, the second time this build has hit it. The
+API answers HTTP 200 with `"status":"REQUEST_NOT_PROCESSED"` and the message
+"the daily threshold for total number of requests allocated to the user with
+registration key has been reached", with the key name left blank because there
+is no key. The status code is 200, so a client that only checks the code treats
+an exhausted allowance as data.
+
+Two things worked as they should. The client retried four times and then failed
+with the source's own sentence rather than a stack trace, and `pnpm oracle:once`
+failed before the compute step, so nothing was published and nothing was
+submitted. The fallback is `--source archive` or `--source cache`: the same
+pipeline over the committed snapshot, and the source hash in every message says
+which rows were used.
+
+The allowance is pooled across everything sharing the address, so a second
+process on the same host spends it too. Register a key before relying on the
+live path on demonstration day.

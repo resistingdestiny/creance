@@ -656,3 +656,49 @@ already judged against. May 2026 also opens on the level form and was left
 unsubmitted, so it is still available. A demo replay from scratch needs either a
 fresh series registered by the admin or a publish-only run with `--no-submit`;
 docs/DECISIONS.md records the choice.
+
+## The index topic: the live path over every group, 5 September 2026
+
+`pnpm oracle:once --source archive --period 2026-07 --no-submit` published one
+signed observation per bindable group for July 2026, sequences 17 to 31 on
+[0.0.10366470](https://hashscan.io/testnet/topic/0.0.10366470). Fifteen
+messages, 536 to 561 bytes each, all `final` and all closed. This is the shape
+the monthly loop has: the completeness gate needs all sixteen series, one
+message goes out per bindable group, and only the groups with a cover series
+registered in CoverPool reach the chain, which today is computer and
+mathematical alone.
+
+Two flags on that command need their reasons.
+
+`--source archive` rather than the live API, because the keyless BLS allowance
+was already spent for the day. The archive carries the same published July 2026
+rows and the source hash in each message says which rows were used, so the
+messages are the ones the live fetch would have produced.
+
+`--no-submit` deliberately, so that `lastObservedMonth` stays at 2026-04. A July
+submission would have moved it past May 2026, which also opens on the level
+form, and `submitObservation` reverts `PeriodNotAfterLast` for anything at or
+before the last observed month. May is left available for a demo take. The
+submission path itself is not untested: the replay above ran it thirteen times
+through the same code.
+
+Running the same command a second time published nothing and reported every
+group as already published, which is the idempotence the first-final rule needs.
+`pnpm oracle:verify` reads all thirty-one messages back and every one is
+canonical and signed by `0x8aaf5b093842dc2e32f56bad9534d12a83861301`.
+
+### Scenario mode wrote neither the topic nor the chain
+
+`pnpm oracle:replay --scenario comp-shock-2026 --from 2026-02 --to 2026-05`
+opened four months, April on both forms, against synthetic rates overlaid on the
+real archive. After it ran, the index topic still held thirty-one messages and
+the series still held `lastObservedMonth` 24315. The four rows went to the local
+observation store with `mode` scenario, no `submit_tx` and the scenario label,
+and `GET /v1/index/replay` reported the label in place of the REPLAY badge.
+docs/DECISIONS.md records why neither is a flag.
+
+### Cost of the whole day
+
+The oracle account went from 14.4093 to 12.5286 HBAR across the replay, the live
+run and the scenario: 31 topic messages, 13 contract calls and the reads, for
+1.8807 HBAR. It is funded to 15 and needs no top-up.

@@ -9,7 +9,9 @@ import {
   type AdminClaimSummary,
 } from '../../../lib/admin-api';
 import { reportUnreachable } from '../../../lib/api';
+import { isReviewer } from '../../../lib/reviewer-session';
 import { ReviewQueue, type QueueRow } from './review-queue';
+import { ReviewerSignIn } from './sign-in';
 
 /**
  * The review queue, docs/DESIGN-TOKENS-ADDENDUM.md, "Admin review queue".
@@ -27,7 +29,11 @@ import { ReviewQueue, type QueueRow } from './review-queue';
  * list endpoint that carries every claimant's employer.
  *
  * The token is a private server variable and the reads happen here, on the
- * server, so it never reaches the browser.
+ * server, so it never reaches the browser. Holding it is not the same as being
+ * entitled to it: this page is served only to a request that carries a reviewer
+ * session, and without one it is the sign in screen and nothing else. See
+ * src/lib/reviewer-session.ts, and docs/DECISIONS.md, "A reviewer proves who
+ * they are before the server spends its own admin token".
  */
 
 export const metadata: Metadata = { title: 'Review queue' };
@@ -41,6 +47,9 @@ export default async function ReviewQueuePage({
 }) {
   const { status = 'under_review' } = await searchParams;
   if (!hasAdminToken()) return <NoToken />;
+  // Before any read, and before the page names a single claim: the server's
+  // token is not the visitor's authority to spend it.
+  if (!(await isReviewer())) return <ReviewerSignIn />;
 
   try {
     const queue = await fetchAdminQueue(status);

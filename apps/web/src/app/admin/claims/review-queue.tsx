@@ -9,7 +9,7 @@ import { PillButton } from '../../../components/pill-button';
 import { claimDay, claimReference, separationLabel } from '../../../lib/claim-model';
 import { shortenAddress } from '../../../lib/format';
 import { occupationLabel } from '../../../lib/occupations';
-import { decide } from './actions';
+import { decide, signOut } from './actions';
 
 /**
  * The queue, as a plain table: reference, cover, occupation, last day of work,
@@ -23,6 +23,10 @@ import { decide } from './actions';
  * Declining opens a sheet that asks for one plain sentence, because that
  * sentence is what the person reads on C9, and a decline with nothing to read
  * is a decision nobody can act on.
+ *
+ * Nothing on this screen is served to a request with no reviewer session, and
+ * "Sign out" ends that session: the queue names claimants and its buttons move
+ * money, so leaving it open on a shared machine should take one press to undo.
  *
  * The table is written out rather than built with the DataTable component: this
  * one has nine columns, two of which are a button pair and a wrapped list of
@@ -77,9 +81,18 @@ export function ReviewQueue({ rows, status }: { rows: readonly QueueRow[]; statu
           <h1 className="text-title font-display font-semibold tracking-title text-ink">
             Review queue
           </h1>
-          <p className="text-secondary text-ink-2">
-            {rows.length} {rows.length === 1 ? 'claim' : 'claims'}, {status.replace('_', ' ')}
-          </p>
+          <div className="flex items-baseline gap-4">
+            <p className="text-secondary text-ink-2">
+              {rows.length} {rows.length === 1 ? 'claim' : 'claims'}, {status.replace('_', ' ')}
+            </p>
+            <PillButton
+              className="min-h-11 px-4 text-secondary"
+              onClick={() => startTransition(() => signOut().then(() => router.refresh()))}
+              variant="secondary"
+            >
+              Sign out
+            </PillButton>
+          </div>
         </div>
 
         <table className="w-full border-collapse text-body">

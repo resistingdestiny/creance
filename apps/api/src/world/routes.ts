@@ -7,16 +7,19 @@ import { requiredString } from '../routes/quote.js';
 import type { Services } from '../services.js';
 import { rfc3339 } from '../views.js';
 import { continuityHolds } from './config.js';
+import { miniAppEntry, miniAppLaunchUrl, occupationIndexPath } from './mini-app.js';
 import { requestContext, WorldNotConfigured, type WorldPurpose } from './rp-context.js';
 import { verifySelfieCheck, type IdKitResult } from './verify.js';
 
-/// The two World endpoints, in both of their variants.
+/// The three World endpoints.
 ///
 ///   POST /v1/world/rp-context   a fresh signed context for one IDKit request
 ///   POST /v1/world/verify       the completed result, checked, then a credential
+///   GET  /v1/world/mini-app     the Mini App id and the links that enter it
 ///
-/// Neither is metered. A person confirming they are a person is not a paid
-/// call, and the x402 gate covers the index feed, the quote and the bind.
+/// None of them is metered. A person confirming they are a person is not a paid
+/// call, an entry link is public by construction, and the x402 gate covers the
+/// index feed, the quote and the bind.
 ///
 /// Each endpoint runs two ways, told apart by `purpose`. At purchase the signal
 /// is the wallet and no liveness check is asked for; at claim the signal is the
@@ -35,6 +38,46 @@ import { verifySelfieCheck, type IdKitResult } from './verify.js';
 export const worldRoutes: FastifyPluginAsync<{ services: Services }> = async (app, options) => {
   const { services } = options;
   const world = services.config.world;
+
+  /**
+   * How the Mini App surface is entered.
+   *
+   * The Mini App id lives here with the rest of the World configuration, so the
+   * web app holds none of its own and one answer serves a QR code, a shared link
+   * and a notification's `mini_app_path`. Free and unauthenticated: everything in
+   * it is public the moment a link is shared.
+   *
+   * `group` names the occupation the index entry opens, and defaults to the
+   * group the first configured series covers, which is the one with cover behind
+   * it.
+   */
+  app.get<{ Querystring: { group?: string } }>('/v1/world/mini-app', async (request, reply) => {
+    if (world.miniAppId === '') throw noMiniApp();
+    const groupKey = request.query.group ?? services.config.series[0]?.groupKey ?? '';
+    const group = groupKey === '' ? null : await services.repository.group(groupKey);
+    if (group === null) {
+      throw new AppError(
+        400,
+        'group_unknown',
+        'Unknown occupation',
+        'That is not one of the fifteen occupation groups this index covers.',
+      );
+    }
+    const series = seriesForGroup(services.config, groupKey);
+    const entry = miniAppEntry(world.miniAppId, occupationIndexPath(groupKey));
+    return reply.send({
+      app_id: world.miniAppId,
+      launch_url: miniAppLaunchUrl(world.miniAppId),
+      occupation_index: {
+        group: groupKey,
+        label: group.label,
+        series_id: series?.label ?? null,
+        path: entry.path,
+        url: entry.url,
+        mini_app_path: entry.miniAppPath,
+      },
+    });
+  });
 
   /**
    * A signed context, one per widget opening.
@@ -334,6 +377,15 @@ function signed(services: Services, purpose: WorldPurpose, signal: string) {
     if (error instanceof WorldNotConfigured) throw notConfigured();
     throw error;
   }
+}
+
+function noMiniApp(): AppError {
+  return new AppError(
+    503,
+    'world_mini_app_not_configured',
+    'This deployment has no Mini App',
+    'Set WORLD_MINI_APP_ID to the Developer Portal Mini App this web app is published as.',
+  );
 }
 
 function notConfigured(): AppError {

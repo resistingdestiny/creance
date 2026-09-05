@@ -17,6 +17,7 @@
 import { ApiError } from './api';
 import { formatIndexValue, formatMoney, formatWholeMoney } from './format';
 import { occupationLabel } from './occupations';
+import type { Surface } from './surface';
 import type { IndexPoint } from '../components/index-chart';
 import type { IndexView, PolicyView, QuoteView } from './worker-api';
 import type { Money } from './api';
@@ -272,13 +273,17 @@ export interface VerifyCopy {
  * outright; the heading is the Home deck's word for the state the person is
  * actually in, and the button carries them to it. Recorded in
  * docs/DECISIONS.md.
+ *
+ * The deck was written for a browser and a second device to scan from. Inside
+ * World App there is no second device, so the failure line drops the half of
+ * itself that offers one. Recorded in docs/DECISIONS.md under T27.
  */
-export function verifyCopy(state: VerifyState): VerifyCopy {
+export function verifyCopy(state: VerifyState, surface: Surface = 'browser'): VerifyCopy {
   const rule = 'One person, one cover. This stops bots and duplicate accounts.';
   if (state === 'failed') {
     return {
       heading: "We couldn't verify you.",
-      line: 'Try again, or use a different device.',
+      line: surface === 'world-app' ? 'Try again.' : 'Try again, or use a different device.',
       button: 'Try again',
     };
   }
@@ -290,6 +295,20 @@ export function verifyCopy(state: VerifyState): VerifyCopy {
     line: rule,
     button: state === 'verified' ? 'Continue' : 'Verify with World ID',
   };
+}
+
+/**
+ * The line while a check is out. Both check screens use it, at purchase and at
+ * claim.
+ *
+ * The deck's string is "Waiting for the World app", written for the browser flow
+ * where the check leaves for a phone. Inside World App it is wrong on its face:
+ * the person is in the World app, the sheet is open in front of them, and
+ * nothing is being waited for anywhere else. Recorded in docs/DECISIONS.md under
+ * T27.
+ */
+export function waitingLine(surface: Surface): string {
+  return surface === 'world-app' ? 'Confirming with World ID' : 'Waiting for the World app';
 }
 
 export interface PayResult {

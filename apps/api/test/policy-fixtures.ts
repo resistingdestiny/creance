@@ -83,6 +83,9 @@ export const CONFIG: ApiConfig = {
   quoteTtlSeconds: 900,
   world: {
     appId: 'app_8569aa8d1bbfb24b1243e86d4fc34adc',
+    // No Mini App is registered yet, so the surface has an id only in the tests
+    // that ask what the entry links look like.
+    miniAppId: '',
     rpId: 'rp_d6ae9b4ff2018a15',
     verifyId: 'rp_d6ae9b4ff2018a15',
     verifyUrl: 'https://developer.world.org/api/v4/verify',
@@ -452,6 +455,8 @@ export interface TestHarness {
 
 export async function buildTestServices(
   options: {
+    /** The whole configuration, for a test that turns one field of it off. */
+    config?: ApiConfig;
     observations?: ObservationRow[];
     hedera?: FakeHedera | null;
     mirror?: MirrorStub;
@@ -471,7 +476,7 @@ export async function buildTestServices(
     ttlSeconds: CONFIG.credentialTtlSeconds,
   });
   const services: Services = {
-    config: CONFIG,
+    config: options.config ?? CONFIG,
     repository,
     chain,
     hedera,
@@ -500,6 +505,7 @@ export async function buildTestServices(
 
 export async function buildTestServer(
   options: {
+    config?: ApiConfig;
     observations?: ObservationRow[];
     hedera?: FakeHedera | null;
     mirror?: MirrorStub;

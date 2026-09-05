@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { mergeSeries, parseBlsResponse, type SourceObservation } from './bls-response.js';
-import { canonicalize } from './jcs.js';
+import { canonicalize, type JsonValue } from './jcs.js';
 import { sha256Hex } from './hash.js';
 import { cacheRoot } from './paths.js';
 import { addMonths, periodRange, type Period } from './period.js';
@@ -72,7 +72,14 @@ export interface FetchResult {
   files: FetchedFile[];
 }
 
+/**
+ * The index signature is what makes a request body canonicalisable. The cache
+ * key and the recorded request string are the JCS bytes of the whole body, so
+ * every field has to be a JsonValue, and a field added later has to change the
+ * key rather than be quietly dropped by a hand written projection.
+ */
 interface RequestBody {
+  [key: string]: JsonValue;
   seriesid: string[];
   startyear: string;
   endyear: string;

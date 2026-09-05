@@ -41,7 +41,7 @@ export function DataTable({
           {columns.map((column) => (
             <th
               className={[
-                'h-10 text-secondary font-normal text-ink-2',
+                'h-10 px-4 first:pl-0 last:pr-0 text-secondary font-normal text-ink-2',
                 column.numeric ? 'text-right tabular-nums' : 'text-left',
               ].join(' ')}
               key={column.key}
@@ -60,7 +60,7 @@ export function DataTable({
               return (
                 <td
                   className={[
-                    'h-12 text-ink',
+                    'h-12 px-4 first:pl-0 last:pr-0 text-ink',
                     column?.numeric ? 'text-right tabular-nums' : 'text-left',
                   ].join(' ')}
                   key={column?.key ?? index}

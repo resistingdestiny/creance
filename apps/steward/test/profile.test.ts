@@ -59,7 +59,8 @@ describe('parseProfile', () => {
   });
 
   it('names the field that is missing', () => {
-    const { occupation: _dropped, ...without } = demo;
+    const without: Record<string, unknown> = { ...demo };
+    delete without['occupation'];
     expect(() => parseProfile(without)).toThrow(/occupation/);
   });
 });

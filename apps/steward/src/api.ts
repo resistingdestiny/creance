@@ -87,7 +87,7 @@ interface Problem {
 async function readBody<T>(response: Response, what: string, expected: number): Promise<T> {
   const text = await response.text();
   if (response.status !== expected) {
-    let problem: Problem = {};
+    let problem: Problem;
     try {
       problem = JSON.parse(text) as Problem;
     } catch {

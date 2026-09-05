@@ -1338,3 +1338,43 @@ needs ("Full payout at 4 points"). docs/HEDERA.md, "The demo series", publishes
 E as 4.0 points for ODI-COMP-2026-01, so the web app reads it from a per series
 table and drops the clause for a series that has no published exhaustion. The
 field belongs in the quote view; see docs/DECISIONS.md.
+
+### The framework refuses node's own file flags in NODE_OPTIONS, so a start script cannot load one
+
+The web app is a workspace inside a monorepo whose one settings file sits at the
+repository root, and the framework reads settings files from the application
+directory. The obvious fix, putting node's `--env-file-if-exists` flag in front
+of the start script, builds for about a second and then fails:
+
+    Error: Initiated Worker with invalid NODE_OPTIONS env variable:
+    --env-file-if-exists= is not allowed in NODE_OPTIONS
+
+The framework spawns build and render workers and passes the parent's exec
+arguments through NODE_OPTIONS, and node's allow list for that variable does not
+include those flags (https://nodejs.org/api/cli.html#node_optionsoptions, read
+2026-09-05).
+
+The documented alternative, an `instrumentation.ts` with `register`, works but is
+compiled for the Edge runtime as well as node, and `process.loadEnvFile` there is
+reported as "a Node.js API is used which is not supported in the Edge Runtime"
+followed by "Ecmascript file had an error" on every recompile, whether the call
+is guarded by `NEXT_RUNTIME` or hidden behind a dynamic import.
+
+What works and is quiet is to read the file in the one module that needs a
+secret, which is only ever loaded on the server. `process.loadEnvFile` is on the
+global, so that module has no node: import for the Edge build to see.
+
+### A workspace whose entry point is TypeScript with ".js" specifiers cannot be imported through its barrel
+
+`@creance/client` is TypeScript source with `"main": "src/index.ts"`, and its
+barrel re-exports with explicit `.js` specifiers, which is correct for the
+TypeScript runtime the API and its scripts use. The web app's bundler resolves
+those specifiers literally, finds no `.js` file beside the `.ts` one, and fails
+the build with a module-not-found for every line of the barrel.
+
+Importing the concrete modules instead, `@creance/client/src/x402/payer` and
+`@creance/client/src/hedera/keys`, resolves and builds: neither of those two
+files imports anything else inside the package, so the barrel is the only thing
+with a `.js` specifier on the path. The alternative, giving the workspace a build
+step and a `dist`, is a change to a package four other workspaces depend on and
+buys nothing else today.

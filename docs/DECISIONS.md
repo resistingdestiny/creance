@@ -1705,22 +1705,40 @@ without leaving the device, so the button carries its own loading state instead.
 T11 restores the wait along with the widget. The issuer sits behind one interface
 in `apps/web/src/lib/eligibility.ts` so T11 replaces that file and no screen.
 
-### The pay step binds without collecting, and the sheet says so before the press
+### The pay step is settled by a server side payer, and the sheet says so before the press
 
 Affects T15, T08 and T09.
 
-There is no x402 gate on main and no wallet in the browser that can sign, so
-pressing "Pay 0.86" binds the policy and writes the first premium as
-uncollected, which is what `POST /v1/bind` already does. The sheet carries a line
-above the button saying that the first payment is recorded and settles when the
-payment gate lands, so nothing leaves the wallet today. Before the press, not
-after it, which is the same rule the subscribe screen follows.
+T08 put the x402 gate in front of all three endpoints the worker flow reads, so
+the web app is a paying client of its own API: 0.01 for an index read, 0.05 for
+a quote and the first month's premium for the bind. There is no wallet in the
+browser that can sign, so the payment is made on the server by a payer holding
+the key of the same account the cover is bound to and the NFT is minted to,
+standing in for a wallet signature until HashPack is wired.
 
-When T08 merges, the bind gate is x402 and the payment is made by a server side
-payer holding the policyholder's derived key, standing in for a wallet signature
-until HashPack is wired. Every call in this flow is already made on the server for
-that reason. Nothing here depends on the unmerged branch and no x402 dependency
-was added.
+That is why every call in this flow was already made on the server. No key ever
+reaches the browser, and the eligibility credential the bind carries as a bearer
+token never leaves the server either.
+
+The key is derived from the operator key with the same HKDF label the API uses
+for its own account, `creance/testnet/policyholder-1`, so a clone with the
+operator key can run the flow and no new secret is stored anywhere. The asset is
+read from the 402's own price rather than configured, so the web app carries no
+token id. The ceiling is 100 in the settlement asset: a premium runs from under
+one to about fifty in an open month, so the ceiling is clear of a real price and
+well under the account's balance.
+
+The sheet carries a line above the button saying the first payment leaves the
+wallet as soon as it is pressed. Before the press, not after it, which is the
+same rule the subscribe screen follows.
+
+The environment file is read by `apps/web/src/lib/payer.ts` rather than by the
+framework, because the framework reads environment files from the application
+directory and this repository keeps one at the root. It is done in that module
+rather than at server startup: it is the only thing in the web app that needs a
+secret, it is only ever loaded on the server, and node's loader does not
+overwrite a variable that is already set, so a deployment that puts them in the
+process environment is unaffected.
 
 ### The orchestrated moment is a CSS animation, so reduced motion is an instant state change
 

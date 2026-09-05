@@ -71,3 +71,30 @@ else: no screen renders them and no layout depends on them.
 `icon-16.png`, `icon-32.png` and `icon-180.png`. The other three are the
 install sizes and the source mark, kept for the web manifest a later ticket
 adds, and nothing in the build references them today.
+
+## The x402 packages, version 2.25.0
+
+https://github.com/x402-foundation/x402
+
+`@x402/core`, `@x402/hedera`, `@x402/fastify` and `@x402/fetch` are
+dependencies. No source was copied. The API registers `ExactHederaScheme` from
+`@x402/hedera/exact/server` with `x402ResourceServer` and puts
+`paymentMiddleware` from `@x402/fastify` in front of two routes; the payer in
+`packages/client` registers the client half of the same scheme with
+`wrapFetchWithPaymentFromConfig`. Apache-2.0.
+
+The wiring in `apps/api/src/x402/gate.ts` follows the shape of the quick start
+in the `@x402/fastify` README and of the client setup in the `@x402/hedera`
+README, which are four and six lines respectively; everything around them,
+including the per-quote gate on `POST /v1/bind`, the settlement records and the
+payments topic message, is this build's.
+
+## Blocky402
+
+https://blocky402.com/docs/testnet/
+
+A service, not code. The testnet facilitator at
+`https://api.testnet.blocky402.com` verifies and settles every payment this
+build takes. No API key and no account: its own documentation says testnet is
+open access. Its `GET /supported` is where the Hedera fee payer account comes
+from.

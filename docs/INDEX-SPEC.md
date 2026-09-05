@@ -40,6 +40,8 @@ A_g = max(1.5, 3 sigma of the series' ODI from 2010 excluding 2020 to 2021, roun
 
 The CPS releases with the Employment Situation, normally in the first week of the following month. The scheduler does not hard-code release dates: it checks daily at 14:10 UTC whether the source has a period newer than the newest stored one, and runs the pipeline when it does. Run states: fetch, verify, compute, qa, publish, submit, done, failed. Every run writes a row to the runs table whether or not it published. The replay and scenario modes from DESIGN.md 3.3 bypass fetch but still pass qa and still write runs, labelled mode replay.
 
+As built, one invocation of `pnpm oracle:schedule` is one check and then it exits: the deploy compose runs the oracle as a service whose command loops that script and sleeps a day, so the loop owns the cadence. The check is safe at any hour and safe to run twice, because it publishes only what the source carries and the store and the topic do not. `--wait` makes a resident process sleep until the next 14:10 UTC itself. docs/INDEX-OPS.md is the runbook.
+
 ## 6. Revision and settlement policy: first final
 
 The first value published for a period is the settlement value, forever.
@@ -47,6 +49,8 @@ The first value published for a period is the settlement value, forever.
 - Publication is one HCS message per group per period; submission is one on-chain call per group per period. The contract ignores a second submission for the same (group, period).
 - If a later fetch shows the source changed for an already published period (BLS revisions, annual population control updates), the pipeline publishes a revision record to HCS referencing the original sequence number, stores it, alerts, and does not resubmit. The web app can show revisions; settlement never moves.
 - Revisions to periods never used in settlement and never published simply produce the normal first publication.
+- A change is detected by the source hash: the published message commits to the sha256 of the six source rows the computation used, so comparing that against the same six rows in a fresh fetch asks exactly the right question. The window is the fifteen calendar months a period's computation can touch.
+- The published message says `"status":"revision"`, which is the word section 7 uses; the stored row says `revised`, which is the word the observations table's status check uses. They are the same event.
 
 This is the standard fixed-determination rule for parametric triggers and it is what makes the note investable: noteholders can price the index as published, not as it might be restated.
 
@@ -70,7 +74,7 @@ Run after compute, before publish. Any failure fails the run closed: nothing is 
 
 - Completeness: all sixteen series present for the target period.
 - Bounds: 0 <= u <= 30 for every series; |ODI| <= 10.
-- Jump: |ebar_g,t - ebar_g,t-1| <= 5 standard deviations of the trailing 24 months, per group.
+- Jump: |ebar_g,t - ebar_g,t-1| <= 5 standard deviations of the trailing 24 months, per group. The window stays 24 calendar months and the gate runs on whatever those months collected, provided there are at least twelve; below that a standard deviation is a noisier test rather than a tighter one, and the gate abstains and says so. Demanding all 24 would switch the gate off for the fifteen months after the October 2025 lapse in appropriations, including the two the demo settles on. See docs/DECISIONS.md under T12.
 - Consistency: u_all lies between the min and max of the group rates for the period.
 - Mapping integrity: series-map.json hash matches the frozen hash.
 - Provenance: every source file used has a stored sha256 and byte count.
@@ -79,13 +83,15 @@ A failed gate is a bug or a source anomaly; either way a human looks before anyt
 
 ## 9. Monitoring and alerting
 
-- The runs table is the heartbeat. GET /v1/index/health returns last run, last period per group, qa status, staleness in days, and mode (live or replay). The deploy health check includes it.
+- The runs table is the heartbeat. GET /v1/index/health returns last run, last period per group, qa status, staleness in days, and mode (live or replay). It is free, and because it sits under the prefix the x402 gate meters, the gate exempts that one path by name with a test holding it open. GET /health carries a summary of the same document in its `index` block, which is what "the deploy health check includes it" means in practice.
+- Staleness is measured from the end of the newest reference month at the source, never from the last successful run: a run that succeeds every day while nothing new has been published is a heartbeat with nothing behind it.
 - Alerts through NOTIFY_URL (and STATUS.md): failed run; qa failure; source stale (newest period older than 45 days); revision detected; and the first open month for any group, which is a product event, not only an ops event.
 - The oracle runs in schedule mode as a service in the deploy compose (restart always); logs are retained for the event window; the daily status job includes index health in STATUS.md.
 
 ## 10. Storage
 
-Postgres, apps/api schema, owned by the oracle:
+Postgres, apps/api schema, owned by the oracle. As built the oracle has no database connection, so `runs` and `observations` are JSON files the oracle writes and the API reads over the volume both containers mount, in the shapes below, with the period as the `YYYY-MM` string the rest of the oracle uses rather than the integer form of the Postgres column. See docs/DECISIONS.md, "The runs table is a file the API reads, not a Postgres table the oracle writes".
+
 
     runs(id, mode, started_at, finished_at, state, target_period, qa_json, notes)
     source_files(id, url, sha256, bytes, fetched_at, stored_path)
@@ -97,7 +103,7 @@ Raw fetched files are kept verbatim under var/cache/bls (gitignored). Archived s
 
 ## 11. Backfill
 
-`pnpm oracle:backfill --from 2000-01` builds the full history in this order of preference: committed archive under data/bls, then var/cache/bls, then the BLS API (needs BLS_API_KEY, chunked by the API's year limits), then the flat files. Backfill verifies file hashes against PROVENANCE.txt where present, computes every period, writes observations with status final but submits nothing on chain (history before the series start is context, not settlement), and regenerates the tables in docs/INDEX.md. Re-running backfill is idempotent and byte-identical given the same archive.
+`pnpm oracle:backfill --from 2000-01` builds the full history in this order of preference: committed archive under data/bls, then var/cache/bls, then the BLS API (needs BLS_API_KEY, chunked by the API's year limits), then the flat files. Backfill verifies file hashes against PROVENANCE.txt where present, computes every period, submits nothing on chain (history before the series start is context, not settlement), and regenerates the tables in docs/INDEX.md. Re-running backfill is idempotent and byte-identical given the same archive. As built it writes the file and no observation rows: what settles is what the index topic carries, backfill publishes nothing, and a table of unpublished history would be a second answer to a question the topic already answers. See docs/DECISIONS.md.
 
 ## 12. Ops notes
 

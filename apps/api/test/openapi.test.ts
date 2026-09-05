@@ -182,17 +182,18 @@ describe('the Bazantic OpenAPI document', () => {
     }
   });
 
-  it('requires an eligibility credential on bind and offers it on quote', () => {
+  it('requires an eligibility credential on bind and asks for none on quote', () => {
     const document = buildOpenApiDocument({ version: '0.1.0' }) as {
       paths: Record<string, Record<string, { security?: unknown[] }>>;
     };
     expect(document.paths['/v1/bind']?.['post']?.security).toEqual([
       { eligibilityCredential: [] },
     ]);
-    expect(document.paths['/v1/quote']?.['post']?.security).toEqual([
-      {},
-      { eligibilityCredential: [] },
-    ]);
+    // Not `[{}, { eligibilityCredential: [] }]`, which read as "a credential is
+    // one of the ways in" and is not true of the quote: the gate never looks at
+    // the `Authorization` header there. See the T19 section of
+    // docs/DECISIONS.md and the gate test that holds it.
+    expect(document.paths['/v1/quote']?.['post']?.security).toBeUndefined();
   });
 
   it('keeps the schemas free of anything an importer chokes on', () => {

@@ -279,11 +279,12 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
             'price nobody can buy.',
             '',
             'Price: 0.05 TUSD, smallest unit `50000`, asset `0.0.10366463`, decimals 6.',
-            'An eligibility credential also satisfies the gate, because it is the output',
-            'of a live biometric check and is a stronger anti-abuse signal than the fee.',
+            'Nothing substitutes for it. An eligibility credential is not a payment here:',
+            'the gate never reads the `Authorization` header on this operation, and an',
+            'unpaid call carrying one is refused with the same 402 and the same price.',
+            'The credential belongs on `POST /v1/bind`.',
           ].join('\n'),
           parameters: [PAYMENT_SIGNATURE_HEADER],
-          security: [{}, { eligibilityCredential: [] }],
           requestBody: {
             required: true,
             content: {
@@ -674,7 +675,12 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
               },
             },
             expires_at: { type: 'string', format: 'date-time' },
-            issued_via: { type: 'string', enum: ['x402', 'credential', 'open'] },
+            issued_via: {
+              type: 'string',
+              description:
+                'How the caller satisfied the gate. Always `x402` while the gate is on, which is how this API runs. The other two are what a build with the gate turned off records.',
+              enum: ['x402', 'credential', 'open'],
+            },
           },
         },
         BindRequest: {

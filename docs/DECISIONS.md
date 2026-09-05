@@ -2112,3 +2112,33 @@ republishing, which needs the runs table to know which periods a previous run
 was in the middle of. That is T26's work, and the mirror node client already
 lives in this workspace for it. It is recorded here rather than left implicit
 because it is the one known gap in the first-final guarantee.
+
+### The published-already guard spans live and replay, and mode is only a label
+
+The store keyed a row by run mode as well as group and period, so a period the
+replay had published was invisible to the live path, which published its own
+message for the same month. The two commands' defaults meet: `pnpm oracle:replay`
+walks to the newest month the source carries and `pnpm oracle:once` defaults to
+that same month, so the demo replay followed by the live path put two messages
+for one group and month on the index topic, both with `revises_seq` null. They
+also read different rows by default, `--source archive` against `--source api`,
+so after a BLS revision the two messages need not even carry the same value,
+with nothing on the topic linking them or saying which one settles.
+
+The question the guard asks is whether this group and period already reached the
+index topic, and the answer cannot depend on which command put it there. Live
+and replay now share one namespace, `publicationScope` in apps/oracle/src/store.ts.
+A scenario keeps its own, because a scenario publishes no index message at all
+and its rows must never stand in the way of a real run.
+
+`mode` stays on the record. It is what a public query filters the demo clock out
+by, which is the reason it exists, and a skipped period now reports the mode that
+published it rather than the mode asking. This follows docs/INDEX-SPEC.md section
+10 rather than departing from it: the specification puts `mode` on the runs table
+and keys observations by group and period, not by mode.
+
+The chain call was never at risk. `submitObservation` is guarded separately by
+`observationOf().present` and `lastObservedMonth`, and the contract reverts
+`ObservationExists` regardless, so the duplicate was on the settlement topic
+alone. T26's Postgres writer replaces this file and has to carry the same rule:
+the unique index belongs on group and period, not on group, period and mode.

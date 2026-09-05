@@ -222,6 +222,40 @@ describe('the policy endpoints', () => {
       expect(response.json().code).toBe('credential_invalid');
     });
 
+    it('passes an expired credential through as 403, not 401', async () => {
+      const built = await harness();
+      const quote = (await quoted(built)).json();
+      // Issued two hours ago, so it expired ninety minutes ago at the
+      // thirty minute lifetime. The status matters: 403 sends a person back to
+      // verify again, 401 tells them their check was never valid.
+      const stale = await built.services.issuer.issue(
+        {
+          nullifier: '999',
+          group: 'computer_math',
+          series_id: 'ODI-COMP-2026-01',
+          wallet: POLICYHOLDER_1.accountId,
+          wallet_evm: POLICYHOLDER_1.address,
+          scope: 'bind',
+          world: {
+            action: 'occupation-cover-eligibility',
+            environment: 'demo',
+            credential: 'demo-issuer',
+            verified_at: 1_757_000_000,
+            presence: false,
+          },
+        },
+        new Date(Date.now() - 2 * 60 * 60 * 1000),
+      );
+      const response = await built.app.inject({
+        method: 'POST',
+        url: '/v1/bind',
+        headers: { authorization: `Bearer ${stale.token}` },
+        payload: { quote_id: quote.quote_id },
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json().code).toBe('credential_expired');
+    });
+
     it('refuses when the quote and the credential name different wallets', async () => {
       const built = await harness();
       const quote = (await quoted(built)).json();

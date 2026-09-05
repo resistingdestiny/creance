@@ -85,9 +85,15 @@ paths:
           description: The reading, its history and the trigger status.
           headers:
             PAYMENT-RESPONSE:
-              description: x402 version 2 settlement receipt, carrying the facilitator transaction id.
+              description: >-
+                x402 version 2 settlement receipt, base64 of a JSON object with `success`,
+                `transaction`, `network` and `payer`. The transaction id starts with the facilitator
+                fee payer account, not with the payer, because the facilitator pays the Hedera fee;
+                that is the id to look up on HashScan.
               schema:
                 type: string
+              example: >-
+                eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjAuMC43MTYyNzg0QDE3ODg2MTI3MDYuNTY3NjkyNjIzIn0=
           content:
             application/json:
               schema:
@@ -102,13 +108,19 @@ paths:
           description: Payment required. Price 0.01 TUSD.
           headers:
             PAYMENT-REQUIRED:
-              description: x402 version 2 payment requirements for this resource.
+              description: >-
+                x402 version 2 payment requirements for this resource, base64 of the JSON
+                `{"x402Version":2,"error":"Payment
+                required","resource":{...},"accepts":[{"scheme":"exact",
+                "network":"hedera:testnet","amount":"10000","asset":"0.0.10366463","payTo":"0.0.10366450",
+                "maxTimeoutSeconds":60,"extra":{"feePayer":"0.0.7162784"}}]}`. The body carries the
+                same terms in readable fields.
               schema:
                 type: string
           content:
             application/problem+json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/PaymentRequired'
         '503':
           description: '`index_unavailable`: no observation published yet.'
           content:
@@ -155,9 +167,15 @@ paths:
           description: The quote.
           headers:
             PAYMENT-RESPONSE:
-              description: x402 version 2 settlement receipt, carrying the facilitator transaction id.
+              description: >-
+                x402 version 2 settlement receipt, base64 of a JSON object with `success`,
+                `transaction`, `network` and `payer`. The transaction id starts with the facilitator
+                fee payer account, not with the payer, because the facilitator pays the Hedera fee;
+                that is the id to look up on HashScan.
               schema:
                 type: string
+              example: >-
+                eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjAuMC43MTYyNzg0QDE3ODg2MTI3MDYuNTY3NjkyNjIzIn0=
           content:
             application/json:
               schema:
@@ -172,13 +190,19 @@ paths:
           description: Payment required. Price 0.05 TUSD.
           headers:
             PAYMENT-REQUIRED:
-              description: x402 version 2 payment requirements for this resource.
+              description: >-
+                x402 version 2 payment requirements for this resource, base64 of the JSON
+                `{"x402Version":2,"error":"Payment
+                required","resource":{...},"accepts":[{"scheme":"exact",
+                "network":"hedera:testnet","amount":"10000","asset":"0.0.10366463","payTo":"0.0.10366450",
+                "maxTimeoutSeconds":60,"extra":{"feePayer":"0.0.7162784"}}]}`. The body carries the
+                same terms in readable fields.
               schema:
                 type: string
           content:
             application/problem+json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/PaymentRequired'
         '409':
           description: '`no_capacity_for_group`, `insufficient_capacity` or `series_not_open_for_binding`.'
           content:
@@ -233,9 +257,15 @@ paths:
           description: The bound policy.
           headers:
             PAYMENT-RESPONSE:
-              description: x402 version 2 settlement receipt, carrying the facilitator transaction id.
+              description: >-
+                x402 version 2 settlement receipt, base64 of a JSON object with `success`,
+                `transaction`, `network` and `payer`. The transaction id starts with the facilitator
+                fee payer account, not with the payer, because the facilitator pays the Hedera fee;
+                that is the id to look up on HashScan.
               schema:
                 type: string
+              example: >-
+                eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjAuMC43MTYyNzg0QDE3ODg2MTI3MDYuNTY3NjkyNjIzIn0=
           content:
             application/json:
               schema:
@@ -250,13 +280,19 @@ paths:
           description: Payment required. Price the first month premium from the quote.
           headers:
             PAYMENT-REQUIRED:
-              description: x402 version 2 payment requirements for this resource.
+              description: >-
+                x402 version 2 payment requirements for this resource, base64 of the JSON
+                `{"x402Version":2,"error":"Payment
+                required","resource":{...},"accepts":[{"scheme":"exact",
+                "network":"hedera:testnet","amount":"10000","asset":"0.0.10366463","payTo":"0.0.10366450",
+                "maxTimeoutSeconds":60,"extra":{"feePayer":"0.0.7162784"}}]}`. The body carries the
+                same terms in readable fields.
               schema:
                 type: string
           content:
             application/problem+json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/PaymentRequired'
         '403':
           description: '`credential_expired`.'
           content:
@@ -488,6 +524,59 @@ components:
           type: string
         retryable:
           type: boolean
+    PaymentRequired:
+      type: object
+      description: RFC 9457 problem document with the x402 terms repeated in readable fields.
+      required:
+        - type
+        - title
+        - status
+        - code
+        - retryable
+        - price
+        - x402_version
+        - scheme
+        - network
+        - pay_to
+        - facilitator
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+          example: payment_required
+        request_id:
+          type: string
+        retryable:
+          type: boolean
+        price:
+          $ref: '#/components/schemas/Money'
+        x402_version:
+          type: integer
+          example: 2
+        scheme:
+          type: string
+          example: exact
+        network:
+          type: string
+          example: hedera:testnet
+        pay_to:
+          type: string
+          description: The Hedera account the transfer has to credit.
+          example: 0.0.10366450
+        facilitator:
+          type: string
+          description: The x402 facilitator that settles the transfer.
+          example: https://api.testnet.blocky402.com
     AuditTrail:
       type: object
       description: >-

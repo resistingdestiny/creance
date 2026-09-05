@@ -13,6 +13,7 @@ import type {
   VerifyResponse,
 } from '@x402/core/types';
 
+import { buildOpenApiDocument } from '../src/openapi.js';
 import { buildServer } from '../src/server.js';
 import type { Services } from '../src/services.js';
 import { X402Gate } from '../src/x402/gate.js';
@@ -217,6 +218,24 @@ describe('the x402 gate', () => {
       });
       expect(body.pay_to).toBe(CONFIG.api.accountId);
       expect(body.facilitator).toBe('https://api.testnet.blocky402.com');
+    });
+
+    it('carries every field the OpenAPI document promises a 402 carries', async () => {
+      const built = await harness();
+      const response = await built.app.inject({ method: 'GET', url: '/v1/index/computer_math' });
+
+      // The document is imported into somebody else's product, so an agent that
+      // reads it and never reads this repository has to be able to find the
+      // price and the payment terms in the body it actually gets back.
+      const documented = (
+        buildOpenApiDocument({ version: '0.1.0' }) as {
+          components: { schemas: { PaymentRequired: { required: string[] } } };
+        }
+      ).components.schemas.PaymentRequired.required;
+      const body = response.json() as Record<string, unknown>;
+      for (const field of documented) {
+        expect(body[field], field).toBeDefined();
+      }
     });
 
     it('refuses a quote at the quote price', async () => {

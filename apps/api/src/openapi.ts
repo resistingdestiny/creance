@@ -95,21 +95,76 @@ const PAYMENT_SIGNATURE_HEADER = {
 };
 
 const PAYMENT_RESPONSE_HEADER = {
-  description:
-    'x402 version 2 settlement receipt, carrying the facilitator transaction id.',
+  description: [
+    'x402 version 2 settlement receipt, base64 of a JSON object with `success`,',
+    '`transaction`, `network` and `payer`. The transaction id starts with the',
+    'facilitator fee payer account, not with the payer, because the facilitator',
+    'pays the Hedera fee; that is the id to look up on HashScan.',
+  ].join(' '),
   schema: { type: 'string' },
+  example:
+    'eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjAuMC43MTYyNzg0QDE3ODg2MTI3MDYuNTY3NjkyNjIzIn0=',
+};
+
+const PAYMENT_REQUIRED_HEADER = {
+  description: [
+    'x402 version 2 payment requirements for this resource, base64 of the JSON',
+    '`{"x402Version":2,"error":"Payment required","resource":{...},"accepts":[{"scheme":"exact",',
+    '"network":"hedera:testnet","amount":"10000","asset":"0.0.10366463","payTo":"0.0.10366450",',
+    '"maxTimeoutSeconds":60,"extra":{"feePayer":"0.0.7162784"}}]}`. The body carries the same',
+    'terms in readable fields.',
+  ].join(' '),
+  schema: { type: 'string' },
+};
+
+/// The 402 body, which is not the plain problem document the other refusals
+/// return: it repeats the price and the payment terms as readable fields,
+/// because the person debugging an agent reads the body and not the base64
+/// header. Written out field by field rather than composed with `allOf`, which
+/// an importer is free to flatten badly.
+const PAYMENT_REQUIRED_BODY = {
+  type: 'object',
+  description: 'RFC 9457 problem document with the x402 terms repeated in readable fields.',
+  required: [
+    'type',
+    'title',
+    'status',
+    'code',
+    'retryable',
+    'price',
+    'x402_version',
+    'scheme',
+    'network',
+    'pay_to',
+    'facilitator',
+  ],
+  properties: {
+    ...PROBLEM.properties,
+    code: { type: 'string', example: 'payment_required' },
+    price: { $ref: '#/components/schemas/Money' },
+    x402_version: { type: 'integer', example: 2 },
+    scheme: { type: 'string', example: 'exact' },
+    network: { type: 'string', example: 'hedera:testnet' },
+    pay_to: {
+      type: 'string',
+      description: 'The Hedera account the transfer has to credit.',
+      example: '0.0.10366450',
+    },
+    facilitator: {
+      type: 'string',
+      description: 'The x402 facilitator that settles the transfer.',
+      example: 'https://api.testnet.blocky402.com',
+    },
+  },
 };
 
 function paymentRequired(price: string): Record<string, unknown> {
   return {
     description: `Payment required. Price ${price}.`,
-    headers: {
-      'PAYMENT-REQUIRED': {
-        description: 'x402 version 2 payment requirements for this resource.',
-        schema: { type: 'string' },
-      },
+    headers: { 'PAYMENT-REQUIRED': PAYMENT_REQUIRED_HEADER },
+    content: {
+      'application/problem+json': { schema: { $ref: '#/components/schemas/PaymentRequired' } },
     },
-    content: { 'application/problem+json': { schema: { $ref: '#/components/schemas/Problem' } } },
   };
 }
 
@@ -434,6 +489,7 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
       schemas: {
         Money: MONEY,
         Problem: PROBLEM,
+        PaymentRequired: PAYMENT_REQUIRED_BODY,
         AuditTrail: {
           type: 'object',
           description:

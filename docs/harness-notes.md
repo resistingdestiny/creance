@@ -1760,6 +1760,29 @@ it. `deploy/README.md` says the production file is `.env.example` filled in, and
 is the one case where a blank line would have overridden a value baked into an
 image rather than a value read from a committed file.
 
+### podman-compose runs no build at all for `up -d --build` when the containers exist
+
+A redeploy at a new commit came back reporting the old one:
+
+    deploy: http://localhost:13000 at 9e406cfd7bafea9ed8a65cbdebae6ea82ef73118
+    deploy: GET /health reports a32b63573fe6bcc3a268ca04c235b33d15c0c33a, not
+    9e406cfd7bafea9ed8a65cbdebae6ea82ef73118. A stale image is running.
+
+The build log for that run has zero `STEP` lines in it. podman-compose 1.0.6
+with containers already present does not build and does not recreate; it starts
+what is there, and `--build` is ignored. Docker Compose rebuilds and replaces the
+container when the image changes, so this is a difference between the two
+runtimes and not a compose file mistake.
+
+Adding `--force-recreate` fixes it, and the same run then reports the new commit
+and exits 0. `deploy/deploy.sh` passes it on every rebuilding deploy and the
+README shows it in the compose command, because a second `up -d --build` in a
+session is exactly when the flag matters and exactly when it is easy to omit.
+
+Worth saying separately: the stale image was caught rather than shipped. The
+check that compares `GET /health` against `git rev-parse HEAD` is what turned an
+invisible no-op redeploy into a non-zero exit with both commits printed.
+
 ### podman does not invalidate an `ENV` layer when its build argument changes
 
 The Dockerfile reference is explicit that an `ARG` whose value changes

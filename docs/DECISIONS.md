@@ -3265,3 +3265,87 @@ show. The README now says both: that a hold is a complete cycle, and that
 `--as-of 2025-05` puts the vantage on a rising month so the same run quotes,
 binds and schedules. The journal records `replay: true` for a labelled vantage,
 so nothing about it is hidden from a reader of the topic.
+
+## T28, the index feed as its own gateway, 5 September 2026
+
+DESIGN.md section 4 draws a "second gateway, same API" and says nothing more
+about it. This is what it turned out to be, and where the build went past the
+brief.
+
+### The public index surface is three routes, and two of them are free
+
+The ticket asks for "an OpenAPI description covering every public index route"
+while exactly one existed, `GET /v1/index/:group`. So the surface had to be
+decided rather than described.
+
+It is three. `GET /v1/index` is the catalogue, free. `GET /v1/index/{group}` is
+the reading, 0.01 TUSD. `GET /v1/replay` is the clock, free, and it is in the
+document because a reading taken while the demo clock is walking is a real
+published month that is not this month, and an agent that reports it as current
+is wrong in a way no schema catches.
+
+The catalogue is new and it is the substantive addition. Until it existed there
+was no way to learn a valid group key without paying for a reading, and the gate
+runs before the handler, so a guessed key costs 0.01 TUSD and answers 402 or
+400. A feed that charges a caller to find out how to call it is not a feed
+anyone builds an agent against. It carries the group keys, the labels, the
+source series, the frozen trigger lines, which groups have a reading, and the
+price and payment terms; it carries no index value, so nothing the metered route
+sells is given away.
+
+`GET /v1/index/health` is not in it. That route is T26's and it is still to do,
+and documenting an operation into somebody else's gateway before it exists means
+an importer gets an operation that answers 404.
+
+### A second document rather than a second section of the first
+
+Two OpenAPI documents describe one API. `recipes/bazantic/openapi.yaml` is the
+cover gateway, seven operations. `recipes/bazantic/agentify/openapi.yaml` is the
+index feed, three. The shared fragments moved to `apps/api/src/openapi-shared.ts`
+so the two cannot describe the same operation differently, and a test refuses to
+let any cover path into the index document.
+
+The alternative was one document imported twice with a filter, which Bazantic's
+console may or may not support and which nobody outside the beta can confirm.
+Two files is the version that works whatever the console does.
+
+### The description files are served, not only committed
+
+`GET /llms.txt`, `GET /skill.md` and `GET /openapi/index.json` are served by the
+API from the same code that generates the committed copies, and a test compares
+the bytes. An agent that has to be pointed at a repository to find out what an
+API costs has not been given an agent-usable API, and the acceptance line for
+this ticket is that a caller which has never seen the feed can get from one URL
+to a correct paid call without a person. That is only true if the URL answers.
+
+The public host routes those three paths to the API rather than to the web app,
+which is one line in `deploy/Caddyfile`.
+
+Every URL in both files is the public origin, never the origin the request
+arrived on. A description file fetched through a tunnel that then teaches an
+agent a tunnel address is worse than no description file, which is the same rule
+T19 set for the `servers` entry.
+
+### The proof is a deterministic client, not a language model
+
+The ticket describes giving a fresh agent session nothing but the description
+file. What was built is a client that is handed the URL of `/llms.txt` and a
+funded key, imports nothing from this repository's source, and extracts the
+route, the price, the asset, the network and the payee from the prose of the
+file before it signs anything.
+
+A deterministic client is the stronger proof here. It can be re-run by a judge
+and asserted on, it fails loudly rather than improvising when the file is
+missing a fact, and it holds the description file to a stricter standard: every
+fact it needs has to be extractable from the text rather than merely implied by
+it. What it does not prove is that a language model would read the file the same
+way, and docs/HEDERA.md says so rather than letting the run be read as more than
+it is.
+
+### The gate meters a parameter, not a prefix
+
+`GET /v1/index/*` in the x402 route map also metered the bare `/v1/index`, which
+is the free catalogue: the library makes a trailing wildcard optional. The
+pattern is now `GET /v1/index/:group`. It is a library behaviour rather than a
+decision, and it is in docs/harness-notes.md, but it is recorded here too
+because it is the one way the catalogue could silently stop being free.

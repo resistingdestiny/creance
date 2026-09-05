@@ -1,0 +1,5 @@
+{
+  "network": "previewnet",
+  "collateralVault": { "address": "0x0000000000000000000000000000000000000001" },
+  "coverPool": { "address": "0x0000000000000000000000000000000000000002" }
+}

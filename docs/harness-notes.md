@@ -1145,7 +1145,6 @@ names" and does not say which trailing punctuation ends a token
 2026-09-05). A colon does not, because a colon is the variant separator, so
 `shadow:` reads as the start of a variant and the base utility is emitted. The
 comment was reworded. The test caught it, which is the argument for having it.
-
 ## T08, x402 and Blocky402, 5 September 2026
 
 ### The Fastify middleware prices a route before the request body exists
@@ -1431,6 +1430,183 @@ the failure reads as a flaky app rather than as a missing wait. The same is true
 of the topic message read, which was 404 on the first attempt in every run
 measured and 200 roughly a second later. Waiting for the account before the run
 goes on is what the Harness PR changes.
+
+## T12, the oracle worker, 5 September 2026
+
+Measured against Hedera testnet on 5 September 2026, during the replay of real
+BLS history for ODI-COMP-2026-01 recorded in docs/HEDERA.md.
+
+### The contract does not ignore a duplicate observation, it reverts three ways
+
+docs/INDEX-SPEC.md section 6 says "The contract ignores a second submission for
+the same (group, period)". CoverPool does not. All three of the following are
+`eth_call` results against the deployed pool at
+`0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09` after the April 2026 submission,
+so they are what a rerun actually meets:
+
+    resubmit 2026-04, already present
+      ObservationExists(0x4f44...0100, 202604)
+    submit 2026-03, submitted earlier in the same run
+      ObservationExists(0x4f44...0100, 202603)
+    submit 2025-10, never submitted and behind the last observed month
+      PeriodNotAfterLast(0x4f44...0100, 202510, 24315)
+    submit 2026-12, a month that has not started
+      PeriodInFuture(0x4f44...0100, 202612)
+
+The presence check runs before the ordering check, so a month that is both
+present and behind reports `ObservationExists`. The specification's sentence is
+the one that is wrong, and the contract's behaviour is the one to keep: silently
+ignoring a resubmission would hide a bug in the worker.
+
+Idempotence is therefore the worker's job, not the contract's. Before each call
+the oracle reads `observationOf(seriesId, period).present` and
+`seriesOf(seriesId).lastObservedMonth`, and treats an existing observation as
+done rather than as an error. The specification should be corrected to say so.
+
+### Without error fragments in the ABI, ethers reports "unknown custom error"
+
+A hand written narrow ABI that carries only the functions and events decodes a
+revert as `execution reverted (unknown custom error)` and nothing else, which is
+useless in a run log. The four `error` fragments cost nothing to add and are
+what turns a failed submission into a sentence. Worth doing on every hand
+written fragment list in this build.
+
+### The first submission on a series costs 15 percent more than the rest
+
+Measured over thirteen `submitObservation` calls on the same series:
+
+    first submission, 2025-01              127,525
+    every later non-opening month          110,451 to 110,841
+    the opening month, 2026-04             253,941
+
+The first call writes `lastObservedMonth` from zero, which is a cold storage
+slot. docs/HEDERA.md records 271,024 for an opening month, measured on the T04
+smoke series; the 253,941 here is the same call on a series whose
+`firstOpenMonth` and `windowEndsAt` were also being written for the first time
+but whose `activeExposure` was already non-zero. Both are comfortably inside the
+1,000,000 limit this build uses, and the spread is the reason the limit is
+explicit rather than estimated.
+
+### Sixteen HCS messages and thirteen contract calls cost 1.79 HBAR
+
+The oracle account went from 14.4093 to 12.6181 HBAR over the whole replay. The
+contract calls dominate: the messages are a fraction of a tinybar each at
+roughly 553 to 571 bytes. Budgeting one HBAR per ten submitted months is
+generous and correct.
+
+### A signed observation is 553 bytes, not near the 1 KB cap
+
+DESIGN.md 4 warns that HCS messages are capped at roughly 1 KB. With the compact
+provenance form, a v2 observation carrying both thresholds, both measured
+values, the opening decision, the model version, a 64 character source hash and
+a 130 character signature is 553 bytes for a final month and 571 bytes for the
+longest, `insufficient_history`. The margin is real: the array form of
+`source_files` from docs/INDEX-SPEC.md section 7 would not have fitted with the
+archive's seven files, which is what forced the choice recorded in
+docs/DECISIONS.md.
+
+### The collection gap switches the jump QA gate off for fifteen months
+
+docs/INDEX-SPEC.md section 8 asks for five standard deviations of the trailing
+24 months. October, November and December 2025 have no smoothed excess for any
+group, so no target month from 2025-10 to 2026-09 has 24 values in its trailing
+window, and a literal reading of the gate abstains for fifteen consecutive
+months including both months the demo settles on. The window stays 24 calendar
+months and the gate now runs on whatever those months collected, with a floor of
+twelve values. This is a specification bug that only shows up against real data
+with a real hole in it, and it is the kind of thing a fixture-only test suite
+never finds.
+
+### The keyless BLS allowance is 25 requests a day and it runs out
+
+Confirmed again on 5 September 2026, the second time this build has hit it. The
+API answers HTTP 200 with `"status":"REQUEST_NOT_PROCESSED"` and the message
+"the daily threshold for total number of requests allocated to the user with
+registration key has been reached", with the key name left blank because there
+is no key. The status code is 200, so a client that only checks the code treats
+an exhausted allowance as data.
+
+Two things worked as they should. The client retried four times and then failed
+with the source's own sentence rather than a stack trace, and `pnpm oracle:once`
+failed before the compute step, so nothing was published and nothing was
+submitted. The fallback is `--source archive` or `--source cache`: the same
+pipeline over the committed snapshot, and the source hash in every message says
+which rows were used.
+
+The allowance is pooled across everything sharing the address, so a second
+process on the same host spends it too. Register a key before relying on the
+live path on demonstration day.
+
+### A replay from 2019-01 trips the jump gate on April 2020, and rightly
+
+`pnpm oracle:replay --from 2019-01` is the command the ticket's acceptance text
+names. It does not replay historical months: it stops at 2020-04 with
+
+    jump: management_business_financial moved 2.17 against 0.95,
+          service moved 4.03 against 0.99,
+          computer_math moved 3.03 against 2.00,
+          legal moved 2.67 against 1.67,
+          business_financial_ops moved 2.26 against 1.17
+
+Five groups past five standard deviations of their own trailing 24 months, in
+the month United States unemployment went from 4.4 to 14.7 percent. The gate is
+doing exactly what docs/INDEX-SPEC.md section 8 asks of it, and the frozen
+calibration already excludes 2020 and 2021 from the sigma window for the same
+reason. Nothing here is a bug in the gate or in the data.
+
+What was a bug is what the worker did about it. The gates originally ran period
+by period as the walk proceeded, so this run published fifteen months to the
+settlement topic and then exited 1 on the sixteenth. An HCS message cannot be
+retracted, and the first value published for a period settles it forever, so
+half a window on the topic is not a state anything can recover from.
+
+The gates now run over the whole window before the first message is published. A
+window that cannot finish publishes nothing, and the command names the month it
+stopped at and the longest window that would have run, which for 2019-01 is
+`--to 2020-03`. The gates stayed non-overridable: there is no flag that
+publishes a month that failed one, because a settlement value that a gate
+rejected is worse than no value.
+
+The windows that do complete are in README.md. The lesson generalises past this
+build: any pipeline that writes to an append-only log a period at a time has to
+validate the whole run first, because per-item validation plus an unretractable
+write is a partial-failure mode with no cleanup.
+
+### There is no transaction spanning an HCS submit and an EVM call, and the ordering has to carry the whole recovery
+
+An observation is two writes to the same network: a `TopicMessageSubmitTransaction`
+that publishes the signed message, and a `submitObservation` call through the
+relay that carries the sequence number the first one returned. They cannot be
+one transaction. The consensus service and the EVM are separate services, the
+second write needs a value only the first can produce, and neither can be
+rolled back once it lands.
+
+That leaves the ordering as the only recovery mechanism, and it is easy to get
+wrong in a way that looks fine. This build originally wrote its local record of
+a published observation after both network calls returned. A contract call that
+threw, an RPC timeout or an unexpected revert, then left a message permanently
+on the settlement topic with nothing recording that it existed, and the next run
+over the same window republished the period. Two messages for one month, and if
+the source had been revised between the attempts they would carry different
+values with nothing linking them.
+
+The record is now written between the two calls, as soon as the topic receipt is
+in hand and before anything that can throw. A run that dies in the contract call
+leaves a row with `hcs_seq` set and `submit_tx` null, and the next run
+republishes nothing and does the contract call alone, resubmitting the sequence
+number and source hash of the message actually on the topic rather than
+recomputing them.
+
+One window remains and it cannot be closed on this side: a process killed
+between the topic receipt and the local write leaves a message with no row. The
+only fix is to read the topic back through the mirror node before republishing a
+period, which needs a runs table to know which periods a previous run was in the
+middle of, and that is T26's.
+
+The general shape is worth stating for anyone integrating the two services:
+**any write to HCS that a later EVM call depends on needs its durable local
+record between them, not after both.** The same applies in reverse to a contract
+call whose result is then published to a topic.
 
 ## T09, the Steward agent, 5 September 2026
 

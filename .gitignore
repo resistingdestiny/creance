@@ -12,6 +12,12 @@ next-env.d.ts
 coverage/
 artifacts/
 cache/
+
+# Everything a run writes at runtime: the raw BLS cache under var/cache/bls, the
+# oracle's run state and observation store under var/oracle, and what the Steward
+# remembers between runs under var/steward. Derived data, never committed; the
+# archive that is committed lives in data/bls.
+var/
 typechain-types/
 *.log
 .DS_Store
@@ -25,5 +31,3 @@ contracts/types/
 # Scratch files a builder leaves inside a package while working something out.
 .scratch/
 
-# What the Steward remembers between runs: one pointer file per principal.
-var/

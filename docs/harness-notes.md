@@ -1753,3 +1753,35 @@ The file it names is the one that is present. Nothing in the message says the
 extended file is absent, which sends you looking at path aliases and module
 resolution rather than at the copy list. Any image that builds one workspace of
 a repository with a shared base config has to copy that base config in.
+
+### podman-compose lets the project's configuration file shadow the shell
+
+The compose specification is explicit that values in the shell take precedence
+over those in the project's environment file. podman-compose 1.0.6 does the
+opposite. `compose.yaml` carried `GIT_SHA: ${GIT_SHA:-unknown}` and
+`deploy/deploy.sh` exported `GIT_SHA` from `git rev-parse HEAD`; the deployment
+came up reporting
+
+    {"status":"ok","sha":"unknown", ...}
+
+because the file being read for substitution carried `GIT_SHA=` blank, which
+`:-` then treated as absent. The exported value was never consulted. The same
+compose file against a configuration that does not mention `GIT_SHA` at all does
+read the shell, so this is precedence and not a missing feature.
+
+Renaming the substitution to a name no configuration file defines,
+`CREANCE_GIT_SHA`, fixes it, and fixes it on both runtimes rather than depending
+on which one the host has. The lesson generalises: a compose substitution that
+has to come from the deploy command rather than from the operator's
+configuration needs a name that configuration never uses.
+
+### A configuration file value keeps an inline comment
+
+A value written as `FOO=bar   # trailing note` reaches the process as
+`"bar   # trailing note"`, comment and all, measured by starting the API image
+against a one line probe file and printing what the process saw. A `.env`
+written by hand with the comment beside the value, which is a natural thing to
+do, would have given the API a `PUBLIC_SITE_URL` with a comment in it, and that
+origin goes into every issued credential and every x402 resource URL.
+`.env.example` keeps comments on their own lines and `deploy/deploy.sh` refuses
+to deploy a file that does not.

@@ -53,7 +53,7 @@ Then:
 
     deploy/deploy.sh --with-caddy
 
-It builds the three images with `GIT_SHA` set from `git rev-parse HEAD`, starts
+It builds the three images with the commit from `git rev-parse HEAD`, starts
 the four services, waits for `GET /health` to answer with that same commit,
 checks the web app answers, installs `deploy/Caddyfile` and reloads Caddy. Drop
 `--with-caddy` on later runs, when the Caddy configuration has not changed.

@@ -1,6 +1,6 @@
 # The deploy compose: Postgres, the API, the web app and the index oracle.
 #
-#     GIT_SHA="$(git rev-parse HEAD)" podman compose up -d --build
+#     CREANCE_GIT_SHA="$(git rev-parse HEAD)" podman compose up -d --build
 #
 # Plain OCI images and no runtime-specific keys, so `docker compose` and
 # `podman compose` both run it. deploy/deploy.sh is the wrapper the public host
@@ -41,7 +41,14 @@ services:
       args:
         # The commit the image was built from, baked in so GET /health can
         # report it. deploy/deploy.sh exports it from `git rev-parse HEAD`.
-        GIT_SHA: ${GIT_SHA:-unknown}
+        #
+        # The substitution name is not GIT_SHA on purpose. podman-compose gives
+        # the project's own `.env` precedence over the shell, the opposite of
+        # what the compose specification says, so `GIT_SHA=` sitting blank in
+        # `.env` would win over the exported value and every deployment would
+        # report `unknown`. Measured; see docs/harness-notes.md. A name that
+        # `.env` never defines cannot be shadowed on either runtime.
+        GIT_SHA: ${CREANCE_GIT_SHA:-unknown}
     restart: always
     depends_on:
       db:
@@ -60,7 +67,7 @@ services:
       ORACLE_STATE_PATH: /repo/var/oracle/replay-state.json
       # env_file would otherwise import the blank GIT_SHA from `.env` and erase
       # what the build arg baked into the image.
-      GIT_SHA: ${GIT_SHA:-unknown}
+      GIT_SHA: ${CREANCE_GIT_SHA:-unknown}
     volumes:
       - oracle-state:/repo/var
     ports:
@@ -114,7 +121,7 @@ services:
       context: .
       dockerfile: apps/oracle/Dockerfile
       args:
-        GIT_SHA: ${GIT_SHA:-unknown}
+        GIT_SHA: ${CREANCE_GIT_SHA:-unknown}
     # Schedule mode, restart always: docs/INDEX-SPEC.md section 9. The image's
     # command runs `pnpm run oracle:schedule` once a day. Until T26 replaces the
     # body of that script it prints what it will do and the loop waits, so the
@@ -128,7 +135,7 @@ services:
       ORACLE_STATE_PATH: /repo/var/oracle/replay-state.json
       ORACLE_OBSERVATIONS_PATH: /repo/var/oracle/observations.json
       BLS_CACHE_DIR: /repo/var/cache/bls
-      GIT_SHA: ${GIT_SHA:-unknown}
+      GIT_SHA: ${CREANCE_GIT_SHA:-unknown}
     volumes:
       - oracle-state:/repo/var
 

@@ -13,6 +13,7 @@ Being built. The contracts, the note series, the coupon and maturity runs, the i
 - Node 22 or later
 - pnpm 11.25.0, which is pinned by the `packageManager` field in [package.json](package.json). Run `corepack enable` and pnpm will match it.
 - PostgreSQL 14 or later, for the API. Only the API needs it, and only when it runs: `pnpm test` has no database.
+- Ports 3000 and 3210 free. The API refuses to start if 3210 is taken; the web app takes the next free port and prints which one, so read the address it prints rather than assuming 3000.
 
 ## Setup
 

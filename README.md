@@ -157,6 +157,22 @@ add `--to 2020-03`. The gates are not overridable: a month that fails one is not
 published, because the first value published for a period settles it forever.
 Add `--dry-run` to test any window without sending anything.
 
+### Replaying against the shared testnet resources
+
+The index topic in [docs/HEDERA.md](docs/HEDERA.md) is one topic and everybody
+running this repository writes to the same one. Because the first value
+published for a period settles it forever, a run reads the topic back through
+the mirror node before it walks and publishes only the months that are not on
+it. A clean clone that runs the demo window therefore publishes nothing and says
+so: `skipped N already published`. Only a month the topic does not carry is
+published, and a month the topic carries without its contract call still gets
+that call, from the message on the topic.
+
+That is the safety net rather than the plan. For a first look, run the window
+with `--dry-run`, which computes, gates, signs and encodes every month and sends
+nothing, and add `--interval-ms 250` so a nineteen month window takes ten
+seconds instead of three minutes. Keep the real cadence for the demo.
+
 A single workspace can be run on its own, for example `pnpm --filter @creance/index-model test`.
 
 ## Layout

@@ -9,6 +9,7 @@ import {
   formatPercent,
   formatPeriod,
   formatPeriodShort,
+  formatWholeMoney,
   shortenAddress,
 } from '../src/lib/format.js';
 
@@ -106,5 +107,22 @@ describe('percent and addresses', () => {
 
   it('leaves an address that is already short alone', () => {
     expect(shortenAddress('0x1234')).toBe('0x1234');
+  });
+});
+
+describe('formatWholeMoney', () => {
+  it('writes a principal the way the investor copy deck writes it', () => {
+    expect(formatWholeMoney(100_000_000_000n)).toBe('100,000');
+    expect(formatWholeMoney(92_500_000_000n)).toBe('92,500');
+    expect(formatWholeMoney(0n)).toBe('0');
+  });
+
+  it('keeps the decimals when there is a fraction to show', () => {
+    expect(formatWholeMoney(92_500_250_000n)).toBe('92,500.25');
+    expect(formatWholeMoney(328_767_123n)).toBe('328.77');
+  });
+
+  it('uses the ASCII hyphen-minus for a negative', () => {
+    expect(formatWholeMoney(-5_000_000_000n)).toBe('-5,000');
   });
 });

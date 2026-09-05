@@ -1173,3 +1173,143 @@ capacity check, so those are tested rather than assumed.
 `CoverPool.recordPremium(policyId, period)` is on the chain gateway, because
 T09 needs it and writing it here cost nothing. Nothing in T07 calls it: a
 premium has to settle before it can be recorded, and nothing settles until T08.
+
+## T17, web investor screens, 5 September 2026
+
+### The web app reads the API on the server, so there is no CORS plugin and no proxy
+
+The two investor endpoints are read only and every figure on the investor
+screens comes from them, so the screens are server components that fetch in
+their own render. Nothing on either screen fetches from the browser.
+
+That removes the choice the ticket set up. A CORS plugin on the API and a Next
+rewrite in front of it are both answers to a browser making the request, and no
+browser makes it. The origin therefore lives in `CREANCE_API_URL`, a private
+variable rather than a `NEXT_PUBLIC_` one, so it is not inlined into the bundle
+and a public deployment need not expose the API at all. It defaults to
+`http://127.0.0.1:3210`, which is what `pnpm api:dev` listens on with no
+configuration, so the two commands in the README work together out of a clean
+clone with no environment file.
+
+Both routes are `force-dynamic` with `cache: 'no-store'`. The principal, the
+reserve and the coupons are live chain state and a prerendered principal would
+be a wrong number rather than a stale one. When the API does not answer, the
+route renders the error state instead of a figure.
+
+### Two fields the T14 endpoints did not carry are added to the series view
+
+Both are reads the screens need and neither existed. They are added to
+`apps/api/src/investor` rather than derived in the web app, so two surfaces
+cannot compute a different answer from the same chain.
+
+**KYC.** The "KYC approved" and "Verification needed" pill is the note's own
+internal KYC register, `getKycStatusFor(address)`, added to the note fragments
+and reported per holder as `kyc: {status, granted}`. `granted` is false when
+there is no note to ask: a holder nothing has approved is not an approved
+holder, and null is not a state a pill can render.
+
+**Capacity and the term.** The capacity rule of DESIGN.md 3.2 is the sum of the
+active cover limits over the principal, and that sum lives in the CoverPool's
+`SeriesTerms.activeExposure`, not in the vault. `seriesOf` returns the whole
+struct in one call, so the term comes back with it, and the vault does not
+store a term at all. Both are in a new `cover_pool` block. `capacity_used_percent`
+is a whole number computed server side, so the screen never divides.
+
+The term is stored in seconds and said in months. 365 days is not a whole
+number of months, so `term_months` rounds against the average Gregorian month
+and 31,536,000 seconds reads as 12. A series the CoverPool never registered
+reads back as a zeroed struct, so `registered` carries that and the term and
+the capacity rows do not render for it. The maturity demonstration series is
+exactly that case.
+
+### "If triggered" renders only while a reserve is held
+
+The copy deck's "Principal at risk" block is "Currently 100,000, 100 percent
+intact" and "92,500 if triggered". The first line is `principal_remaining` and
+its share of `principal_funded`. The second is that figure less the CoverPool
+reserve, and it renders only when the reserve is above nought.
+
+The deck's 92,500 came from subtracting the bound cover limits, which is the
+worst case a series could reach rather than a state it is in. The two figures
+have since come apart on testnet: T07 has bound policies, so `activeExposure`
+reads 2,000 TUSD while the reserve is still nought, and the screen shows
+"Capacity used 2 percent" against a principal that is wholly intact. That is
+the right pair of readings. A cover limit that is bound is capacity taken, and
+capacity taken is what the capacity row measures; it is not principal at risk,
+because no month is open and the vault has earmarked nothing. The worst case
+line appears the moment `submitObservation` opens a month and the vault takes a
+reserve, which is the moment there is a worst case to name.
+
+### The copy deck's em dash becomes a comma, and a zero clause is dropped
+
+Two copy changes, both mechanical, neither needing sign off.
+
+The deck writes "Currently 100,000 — 100 percent intact". CLAUDE.md and the
+addendum's house style rule both forbid an em dash in the product, so it is
+"Currently 100,000, 100 percent intact".
+
+The addendum's bar caption is "100,000 principal. 15,000 reserved while claims
+are open. 5,000 paid so far." with the figures interpolated. A clause whose
+figure is nought is dropped rather than rendered as a zero: "0 reserved while
+claims are open" says a reserve is being held during a claim window for a
+series whose claims are not open, which is false. With both at nought the
+caption reads "100,000 principal. None reserved, none paid.", which is the one
+string on these screens that is not in either sheet.
+
+### The subscribe screen does not sign, and says so before the press
+
+DESIGN.md 3.8 makes a subscription two calls by two roles: the operator issues
+the note through the Asset Tokenization Studio under `ROLE_ISSUER`, and the api
+account pays the vault on the investor's behalf under `SUBSCRIPTION_ROLE`,
+which is what `pnpm coupons:pay subscribe` did. Neither key is in the browser,
+the demo wallet holds an account id and an address and nothing that can move
+value, and no subscribe endpoint exists. Both noteholders are already fully
+subscribed on chain at 50,000 TUSD each.
+
+So the screen is built and the flow is real up to the point where a signature
+would be needed, and there it says what happens instead of pretending. The
+amount step and the confirm sheet both carry the sentence naming the two calls
+and the two roles, before the press and not after it. The screen that follows
+reports `subscriptionOf` and the note position for the connected noteholder,
+which is why "You're subscribed" is a true sentence, together with the first
+coupon that actually settled and a link to its transaction. It never reports
+the amount on the slider as having moved. MISSION rule 8: a screen that claims
+a transaction it did not make is the thing that rule exists to stop.
+
+### The investor screens present a noteholder, from the wallet module
+
+The demo wallet was policyholder-1, which is deliberately not on the note's KYC
+list, so an investor screen wired to it would show "Verification needed" and no
+position. `src/lib/wallet.ts` now holds all three demo accounts and
+`demoInvestorAccount()` returns investor-1, or investor-2 when
+`NEXT_PUBLIC_DEMO_INVESTOR` says so. The account stays in the wallet module,
+so no screen holds an address.
+
+The screens read that function rather than running the connect flow through
+`WalletContextProvider`. There is nothing to connect to and nothing to sign;
+the wallet on these screens is the account id, the shortened address and the
+demo label, which is what prep and the sheet ask for and all of which are
+known without a session. The provider stays the route for the worker flow,
+where a connection is a real step.
+
+### A coupon in the history table is two decimals, and the exact figure is one click away
+
+The first coupon settled 328.767123 TUSD to each noteholder. The table renders
+it through `formatMoney` as 328.77, because the sheet's rule is two decimals
+for money and the whole app formats every figure through one module. The exact
+minor units are in the endpoint's own `amount`, and the row links the executed
+transaction on HashScan, so nothing is hidden and no second money format is
+invented for one column.
+
+The principal figures next to it use a new `formatWholeMoney`, which drops the
+decimals only when the amount is exactly whole. The copy deck writes a
+principal as "100,000" and never as "100,000.00"; a part payment of 92,500.25
+still renders in full rather than being rounded into a figure that looks whole.
+
+### The overview shows the demo series and reaches the other one by query
+
+`/invest` shows ODI-COMP-2026-01. `?series=` names another, which is how the
+short dated maturity demonstration is read through the same screen. It is not
+linked from anywhere: the endpoint has no series list to build a link from, and
+the demonstration is a demonstration. The label on the screen is always the
+series' own, so the two can never be confused.

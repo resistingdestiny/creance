@@ -1088,3 +1088,60 @@ Nothing is wrong with `jose` here; the test was wrong. It is worth writing down
 because "flip a character to corrupt it" is the obvious way to write this test
 and it is subtly unsound for any base64 payload whose length is not a multiple
 of three bytes. Decode, flip a byte, re-encode.
+
+## T17, web investor screens, 5 September 2026
+
+### The ATS internal KYC register is a uint, and the docs only ever show it as a word
+
+docs/ATS.md records `getKycStatusFor` reading `1` for a granted noteholder,
+which is the value the ATS run through printed. The Asset Tokenization Studio
+documentation describes the states as GRANTED and NOT_GRANTED and does not give
+the ABI type behind them, so the fragment the API reads with had to be
+established against testnet rather than from a page.
+
+Measured on the demo note `0.0.10368240` through the JSON-RPC relay with the
+fragment `function getKycStatusFor(address) view returns (uint256)`:
+
+    0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931  investor-1        1
+    0xcaa1184cd59b9296f757efc7303a10ecec6ce51e  investor-2        1
+    0xcad39730d48683b13e6077a70c6972add449b6f5  policyholder-1    0
+
+The third account is the one that matters for a screen: an account nobody has
+granted reads `0` rather than reverting, so a "Verification needed" state is a
+read and not an error path. A word-shaped return type would have decoded the
+same 32 bytes, which is why this was checked rather than assumed.
+
+### CoverPool.seriesOf answers for a series it has never heard of
+
+The maturity demonstration series `ODI-MAT-1788558259` exists in the vault and
+in the note but was never registered in the CoverPool, and `seriesOf` returns a
+zeroed struct for it rather than reverting:
+
+    ODI-COMP-2026-01   term 31536000  waiting 5184000  status 1  activeExposure 0
+    ODI-MAT-1788558259 term 0         waiting 0        status 0  activeExposure 0
+
+Both series therefore read "0 capacity used" from the exposure alone, and only
+one of them means it. `registerSeries` refuses a zero term, so a zero term is
+the signal that separates the two, and the investor view carries `registered`
+rather than letting a screen infer a state from a nought.
+
+### Tailwind v4 reads "shadow:" in a comment as a class candidate and "shadow," not
+
+The web app's stylesheet already carries a warning about this: the utility
+scanner reads prose as a list of class name candidates and emits the utility for
+any word that happens to be one. The boundary is narrower than the warning
+suggests. `apps/web/src/components/toast.tsx` has carried the phrase "no
+shadow," since T10 with no effect on the built CSS. A new comment ending "no
+shadow:" put the framework's whole shadow composite into the stylesheet:
+
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow),
+                var(--tw-ring-offset-shadow), var(--tw-ring-shadow),
+                var(--tw-shadow)
+
+and failed the test that asserts this design has no drop shadow anywhere. The
+detection page describes the scan as looking for "tokens that could be class
+names" and does not say which trailing punctuation ends a token
+(https://tailwindcss.com/docs/detecting-classes-in-source-files, read
+2026-09-05). A colon does not, because a colon is the variant separator, so
+`shadow:` reads as the start of a variant and the base utility is emitted. The
+comment was reworded. The test caught it, which is the argument for having it.

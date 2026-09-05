@@ -28,9 +28,15 @@ route for anyone reading the project for the first time.
     git clone https://github.com/resistingdestiny/creance
     cd creance
 
-Put the production `.env` at the repository root. It is the same file
-`.env.example` describes, filled in for testnet, and it never enters git. The
-values that matter to a deployment, beyond the Hedera and World credentials:
+Put the production `.env` at the repository root. It is the file `.env.example`
+describes, filled in for testnet, and it never enters git.
+
+Filled in, not copied. A blank line in that file is a value and not an absence:
+`CREANCE_DEPLOYMENT_RECORD=` with nothing after it hands the API an empty path
+rather than the default, and the process refuses to boot. Fill a name in or leave
+it out of the file. See docs/harness-notes.md.
+
+The values that matter to a deployment, beyond the Hedera and World credentials:
 
 | Variable | Production value |
 | --- | --- |
@@ -60,6 +66,16 @@ checks the web app answers, installs `deploy/Caddyfile` and reloads Caddy. Drop
 
 A redeploy is `git pull` and the same command. The database and the oracle's
 state survive in named volumes.
+
+The commit is baked into the images at build time and never set at runtime, so
+`GET /health` answers with the commit the running image was built from. The
+script compares that against `git rev-parse HEAD` and stops with
+
+    deploy: GET /health reports <one commit>, not <another>. A stale image is running.
+
+when they differ, which is what a redeploy that did not rebuild looks like.
+`deploy/deploy.sh --no-build` starts what is already built without rebuilding,
+which is useful for a restart and is the quickest way to see that check work.
 
 ## Checking it
 

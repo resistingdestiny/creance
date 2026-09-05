@@ -279,6 +279,23 @@ describe('the x402 gate', () => {
       ).toBe(200);
     });
 
+    // The catalogue is the discovery route: it is what tells an agent which
+    // group keys exist and what a reading costs, so metering it would mean a
+    // caller had to pay to find out how to pay. It sits at `/v1/index` with no
+    // trailing segment, one character away from the `GET /v1/index/*` glob, and
+    // this is the test that says so.
+    it('does not meter the catalogue, which is how a caller learns the price', async () => {
+      const built = await harness();
+      const response = await built.app.inject({ method: 'GET', url: '/v1/index' });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json() as { price: { amount: string; pay_to: string } };
+      // With the gate on it quotes the gate's own price, not a second copy of
+      // it: one number, read from the configuration the 402 is built from.
+      expect(body.price.amount).toBe('10000');
+      expect(body.price.pay_to).toBe(CONFIG.api.accountId);
+    });
+
     // The replay badge sat at GET /v1/index/replay until T12 merged this gate.
     // The route map pattern is a glob, `GET /v1/index/*`, so it matched, and a
     // configured gate answered the badge with a 402. The endpoint moved out

@@ -2200,3 +2200,31 @@ missing. The demo narrative turns on May 2026 being an open month, so the gap
 mattered. The clean clone's replay published both, with `--no-submit`, so the
 topic now carries the whole window; their contract calls have not been made and
 the next submitting run will make them.
+
+## T28, the agentified index feed, 5 September 2026
+
+### A trailing wildcard in an x402 route pattern also matches the bare prefix
+
+The route map key `GET /v1/index/*` reads as "every path under `/v1/index/`".
+It is not. `parseRoutePattern` in `@x402/core` 2.25.0 strips the trailing `/*`
+and appends `(?:/.*?)?`, so the pattern compiles to `^/v1/index(?:/.*?)?$` and
+the optional group makes the bare prefix match too:
+
+    pattern  GET /v1/index/*
+    regex    /^\/v1\/index(?:\/.*?)?$/is
+    /v1/index/computer_math   ->  metered, correct
+    /v1/index                 ->  metered, 402, not intended
+
+Measured on a running server: the free catalogue at `GET /v1/index` answered 402
+with the gate configured, and 200 with it off. The route map is the only place
+that decided this, and nothing in the package README or the x402 documentation
+says a trailing wildcard is optional rather than required.
+
+The fix is one character class rather than a carve-out: the pattern is now
+`GET /v1/index/:group`, which the same function compiles to `[^/]+` for the
+segment and so matches one non-empty segment and nothing else. A test in
+`apps/api/test/x402-routes.test.ts` holds the catalogue open with the gate on,
+because this is a failure that only appears when payments are configured, which
+is not the state most tests run in.
+
+https://docs.x402.org/servers/quickstart

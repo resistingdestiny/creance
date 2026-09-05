@@ -10,6 +10,7 @@ import {
   type RecordDecisionInput,
   type CredentialRow,
   type GroupRow,
+  type LatestPeriod,
   type ObservationRow,
   type PaymentRow,
   type PolicyRow,
@@ -331,6 +332,16 @@ export class MemoryRepository implements Repository {
       .filter((row) => row.groupKey === groupKey && row.status === 'final')
       .sort((a, b) => b.period - a.period)
       .slice(0, limit);
+  }
+
+  async latestPeriods(): Promise<LatestPeriod[]> {
+    const newest = new Map<string, number>();
+    for (const row of this.observationRows.values()) {
+      if (row.status !== 'final') continue;
+      const seen = newest.get(row.groupKey);
+      if (seen === undefined || row.period > seen) newest.set(row.groupKey, row.period);
+    }
+    return [...newest].map(([groupKey, period]) => ({ groupKey, period }));
   }
 
   async upsertObservations(rows: ObservationRow[]): Promise<number> {

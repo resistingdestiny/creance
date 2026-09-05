@@ -20,6 +20,7 @@ import type {
   NewClaimInput,
   CredentialRow,
   GroupRow,
+  LatestPeriod,
   ObservationRow,
   ClaimAuditRow,
   RecordDecisionInput,
@@ -730,6 +731,18 @@ export class PostgresRepository implements Repository {
       [groupKey, limit],
     );
     return rows.map(toObservation);
+  }
+
+  async latestPeriods(): Promise<LatestPeriod[]> {
+    const { rows } = await this.pool.query(
+      `SELECT group_key, MAX(period) AS period FROM observations
+        WHERE status = 'final'
+        GROUP BY group_key`,
+    );
+    return rows.map((row: { group_key: string; period: string | number }) => ({
+      groupKey: row.group_key,
+      period: Number(row.period),
+    }));
   }
 
   async upsertObservations(rows: ObservationRow[]): Promise<number> {

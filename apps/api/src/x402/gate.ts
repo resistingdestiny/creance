@@ -75,7 +75,12 @@ interface GatedRoute {
 
 const GATED_ROUTES: GatedRoute[] = [
   {
-    pattern: 'GET /v1/index/*',
+    // `:group` and not `/*`. A trailing wildcard in this library is optional:
+    // `GET /v1/index/*` compiles to `^/v1/index(?:/.*?)?$` and so meters the
+    // bare `/v1/index` as well, which is the free catalogue. See
+    // docs/harness-notes.md. A named parameter compiles to one non-empty
+    // segment, which is exactly the reading route and nothing else.
+    pattern: 'GET /v1/index/:group',
     endpoint: 'GET /v1/index/:group',
     description: 'Latest ODI observation, 24 month history and trigger status',
     price: (config) => config.index,

@@ -9,6 +9,12 @@
 /// The interface exists so that `pnpm test` needs no database: the unit tests
 /// drive `MemoryRepository` and the testnet stage drives `PostgresRepository`.
 
+/** One group's newest settled period, as `latestPeriods` reports it. */
+export interface LatestPeriod {
+  groupKey: string;
+  period: number;
+}
+
 export interface GroupRow {
   groupKey: string;
   label: string;
@@ -494,6 +500,14 @@ export interface Repository {
     >,
   ): Promise<void>;
   observations(groupKey: string, limit: number): Promise<ObservationRow[]>;
+  /**
+   * The newest settled period for every group that has one.
+   *
+   * One query rather than fifteen, because the free index catalogue answers
+   * "which occupations have a reading" for every group in one response and a
+   * free route should not cost fifteen round trips to serve.
+   */
+  latestPeriods(): Promise<LatestPeriod[]>;
   upsertObservations(rows: ObservationRow[]): Promise<number>;
   close(): Promise<void>;
 }

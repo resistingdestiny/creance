@@ -22,7 +22,7 @@ the interim eligibility issuer.
 | Operation | Price | Notes |
 |---|---|---|
 | `GET /v1/index/{group}` | 0.01 TUSD | the metered index feed |
-| `POST /v1/quote` | 0.05 TUSD | a credential also satisfies the gate |
+| `POST /v1/quote` | 0.05 TUSD | paid, and only paid: a credential is not a payment |
 | `POST /v1/bind` | the first month premium | needs an eligibility credential |
 | `GET /v1/policy/{policyId}` | free | |
 | `GET /v1/audit/{policyId}` | free | the HCS trail, read from the mirror node |

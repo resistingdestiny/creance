@@ -147,9 +147,10 @@ the recipe ends there, having spent 0.01 TUSD.
     POST https://creance.co/v1/quote
     { "group": "computer_math", "limit": "5000000000", "wallet": "0.0.10366457" }
 
-Paid, 0.05 TUSD, `50000` in the smallest unit. An eligibility credential in the
-`Authorization` header satisfies the same gate, because it is the output of a
-live biometric check and a stronger anti-abuse signal than five cents.
+Paid, 0.05 TUSD, `50000` in the smallest unit, and nothing substitutes for it.
+An eligibility credential is not a payment here: the gate never reads the
+`Authorization` header on this operation, so an unpaid quote carrying one is
+refused with the same 402 and the same price. The credential is for the bind.
 
 Answers 201 with a quote id, the monthly premium, the series id, the frozen
 `attachment_shock` and `level_line` the price was built on, the capacity behind

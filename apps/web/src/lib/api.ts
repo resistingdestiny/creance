@@ -97,6 +97,21 @@ export async function postJson<T>(
   return request<T>('POST', path, body, options);
 }
 
+/**
+ * The asset a 402 asks to be paid in, from the problem document's own price.
+ *
+ * Reading it from the response rather than from configuration is what keeps
+ * this module free of a token id: the server names the price, the asset and the
+ * scale, and the payer is built for whatever it named.
+ */
+function priceAsset(problem: unknown): string | null {
+  if (typeof problem !== 'object' || problem === null) return null;
+  const price = (problem as { price?: unknown }).price;
+  if (typeof price !== 'object' || price === null) return null;
+  const asset = (price as { asset?: unknown }).asset;
+  return typeof asset === 'string' && asset !== '' ? asset : null;
+}
+
 async function request<T>(
   method: 'GET' | 'POST',
   path: string,
@@ -107,20 +122,73 @@ async function request<T>(
   const headers: Record<string, string> = { accept: 'application/json' };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (options.bearer !== undefined) headers.authorization = `Bearer ${options.bearer}`;
+  const init: RequestInit = {
+    method,
+    headers,
+    cache: 'no-store',
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  };
 
   let response: Response;
   try {
-    response = await fetch(url, {
-      method,
-      headers,
-      cache: 'no-store',
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
+    response = await fetch(url, init);
   } catch (cause) {
     throw new ApiError(url, null, null, cause instanceof Error ? cause.message : 'no response');
   }
+
+  // The three endpoints this app reads are x402 gated (T08), so an unpaid
+  // request is answered 402 with the price. The payer is built for the asset
+  // the server named and the request is made again through it, which is the
+  // library's own flow: it reads PAYMENT-REQUIRED, signs a transfer, retries
+  // with PAYMENT-SIGNATURE and hands back the 200.
+  if (response.status === 402) {
+    response = await payAndRetry(url, init, response, `${method} ${path}`);
+  }
+
   if (!response.ok) throw await problemOf(url, response);
   return (await response.json()) as T;
+}
+
+async function payAndRetry(
+  url: string,
+  init: RequestInit,
+  unpaid: Response,
+  endpoint: string,
+): Promise<Response> {
+  const problem = await unpaid
+    .clone()
+    .json()
+    .catch(() => null);
+  const asset = priceAsset(problem);
+  if (asset === null) return unpaid;
+
+  // Imported here rather than at the top of the module so that the Hedera
+  // signing stack is loaded only by a process that actually pays. Nothing in
+  // the browser bundle reaches this file.
+  const { logSettlement, workerPayer } = await import('./payer');
+  const payer = workerPayer(asset);
+  if (payer === null) {
+    throw new ApiError(
+      url,
+      402,
+      'payment_required',
+      'This call is paid and this deployment has no key to pay with.',
+    );
+  }
+
+  let paid: Response;
+  try {
+    paid = await payer.fetch(url, init);
+  } catch (cause) {
+    throw new ApiError(
+      url,
+      402,
+      'payment_failed',
+      cause instanceof Error ? cause.message : 'the payment did not go through',
+    );
+  }
+  logSettlement(endpoint, paid);
+  return paid;
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   policyBoundMessage,
 } from '../receipts.js';
 import type { Services } from '../services.js';
+import { payForBind } from '../x402/bind.js';
 import { buildPolicyView, calendarDate, type PolicyView } from '../views.js';
 import { seriesRowFrom } from '../series.js';
 import { requiredString } from './quote.js';
@@ -50,9 +51,11 @@ import { requiredString } from './quote.js';
 /// reason on it. The web app already polls this policy until the serial
 /// appears, and `GET /v1/policy/:id` is the endpoint it polls.
 ///
-/// There is no payment gate here yet. T08 adds it, and the payments row this
-/// writes at `uncollected` with a null facilitator transaction is the row it
-/// will settle.
+/// The payment is the first month's premium, settled over x402 before step 7
+/// returns and after step 5, so a bind that reverts costs the payer nothing.
+/// The gate is apps/api/src/x402/bind.ts rather than the route map, because the
+/// price is per quote and the quote id is in the body. The `payments` row this
+/// writes at `uncollected` is the row the settlement hook then settles.
 
 export interface BindBody {
   quote_id?: unknown;
@@ -63,8 +66,29 @@ export const bindRoutes: FastifyPluginAsync<{ services: Services }> = async (app
   const { services } = options;
 
   app.post<{ Body: BindBody }>('/v1/bind', async (request, reply) => {
-    const view = await bind(services, request.body ?? {}, request);
-    return reply.status(201).send(view);
+    const body = request.body ?? {};
+    const gate = services.x402;
+    if (gate === null) {
+      const view = await bind(services, body, request);
+      return reply.status(201).send(view);
+    }
+
+    // The quote is read here so the gate can price the payment from it, and
+    // read again inside `bind` under its own rules. Two reads of an immutable
+    // row is cheaper than a price the gate and the bind could disagree on.
+    const quoteId = requiredString(body.quote_id, 'quote_id');
+    const paid = await payForBind({
+      gate,
+      request,
+      reply,
+      quote: await services.repository.quote(quoteId),
+      run: async () => {
+        const view = await bind(services, body, request);
+        return { view, policyId: view.policy_id };
+      },
+    });
+    if (paid.answered) return reply;
+    return reply.status(201).send(paid.view);
   });
 };
 
@@ -179,8 +203,10 @@ export async function bind(
     asset: quote.asset,
     assetDecimals: quote.assetDecimals,
     facilitator: null,
-    // No x402 gate in this ticket, so the first premium is recorded as owed
-    // rather than paid. T08 settles this row rather than adding another.
+    // Owed until the facilitator says otherwise. The x402 gate settles this row
+    // in place once the transfer is on chain, and fills in the payer, the
+    // facilitator and its transaction id then: the account that actually paid
+    // may be an agent acting for the holder, not the holder.
     facilitatorTx: null,
     chainTxId: null,
     status: 'uncollected',

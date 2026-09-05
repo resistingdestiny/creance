@@ -16,6 +16,7 @@ import {
   premiumAmount,
   trendOf,
   verifyCopy,
+  waitingLine,
   whatWouldHaveHappened,
 } from '../src/lib/worker-model.js';
 import { toMinorUnits } from '../src/lib/worker-api.js';
@@ -219,6 +220,20 @@ describe("the Verify screen's copy", () => {
       line: 'Try again, or use a different device.',
       button: 'Try again',
     });
+  });
+
+  /**
+   * Inside World App the person is already on the only device in the flow, so
+   * the half of the line that offers another one goes. docs/DECISIONS.md, T27.
+   */
+  it('drops the second device inside World App', () => {
+    expect(verifyCopy('failed', 'world-app').line).toBe('Try again.');
+    expect(verifyCopy('failed', 'browser').line).toBe('Try again, or use a different device.');
+  });
+
+  it('waits for the World app in a browser and confirms with World ID inside it', () => {
+    expect(waitingLine('browser')).toBe('Waiting for the World app');
+    expect(waitingLine('world-app')).toBe('Confirming with World ID');
   });
 
   /**

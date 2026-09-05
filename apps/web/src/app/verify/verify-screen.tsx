@@ -5,8 +5,9 @@ import { useRef, useState, useTransition } from 'react';
 
 import { AppFrame } from '../../components/app-frame';
 import { PillButton } from '../../components/pill-button';
+import { useSurface } from '../../lib/surface';
 import type { WorldRequestContextView } from '../../lib/worker-api';
-import { verifyCopy, type VerifyState } from '../../lib/worker-model';
+import { verifyCopy, waitingLine, type VerifyState } from '../../lib/worker-model';
 import {
   completeWorldCheck,
   continueToPay,
@@ -25,6 +26,11 @@ import {
  * with the eligibility credential. "Waiting for the World app" is the state
  * while the check is away on another device, which is the state that string was
  * written for.
+ *
+ * Inside World App the same widget runs over the native transport and shows no
+ * QR code, so nothing about the request or the verify changes and only the copy
+ * does: the check is not away anywhere and there is no second device to offer.
+ * The surface comes from the MiniKit provider in src/app/providers.tsx.
  *
  * A clone with no World app id in its environment gets the interim issuer
  * instead, and says so in ink-2 the same way the wallet says it is a demo. That
@@ -57,6 +63,7 @@ export function VerifyScreen({
   const [context, setContext] = useState<WorldRequestContextView | null>(null);
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const surface = useSurface();
   /** Set when our own verification refused, so onError does not overwrite it. */
   const refused = useRef(false);
   /** One silent retry per attempt on an expired or malformed signature. */
@@ -114,7 +121,7 @@ export function VerifyScreen({
     setState('failed');
   };
 
-  const copy = verifyCopy(state);
+  const copy = verifyCopy(state, surface);
 
   return (
     <AppFrame>
@@ -131,7 +138,7 @@ export function VerifyScreen({
           ) : null}
           {state === 'waiting' ? (
             <p className="text-body-lg text-ink" data-testid="verify-state" role="status">
-              Waiting for the World app
+              {waitingLine(surface)}
             </p>
           ) : null}
           {interim ? (

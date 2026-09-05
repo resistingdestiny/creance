@@ -1,3 +1,5 @@
+import { Wallet } from 'ethers';
+
 import { MirrorClient } from '@creance/client';
 
 import type { ApiConfig } from '../src/config.js';
@@ -5,9 +7,16 @@ import type {
   BindCall,
   ChainGateway,
   ChainWrite,
+  ClaimCall,
   LossWindow,
+  LossWindowAnswer,
   SeriesChainState,
 } from '../src/chain/cover-pool.js';
+import {
+  claimAuthorisationDomain,
+  CLAIM_AUTHORISATION_TYPES,
+  type ClaimAuthorisation,
+} from '../src/chain/authorisation.js';
 import type { HederaGateway, MintedPolicyNft, TopicReceipt } from '../src/chain/hedera.js';
 import {
   MemoryObjectStore,
@@ -127,6 +136,7 @@ export const SERIES_STATE: SeriesChainState = {
   firstOpenMonth: 202604,
   lastOpenMonth: 202605,
   lastObservedMonth: 202607,
+  windowEndsAt: Math.floor(Date.parse('2026-10-05T09:04:51Z') / 1000),
 };
 
 export class FakeChain implements ChainGateway {
@@ -174,6 +184,57 @@ export class FakeChain implements ChainGateway {
       transactionHash: `0x${'cd'.repeat(32)}`,
       hashscan: `https://hashscan.io/testnet/transaction/0x${'cd'.repeat(32)}`,
       gasUsed: '66627',
+    };
+  }
+
+  /// The claim half. `payClaim` is recorded rather than sent, and the
+  /// authorisation is a real EIP-712 signature from a throwaway key, so a test
+  /// can recover the signer and check every field the contract checks.
+  readonly claims: { call: ClaimCall; authorisation: string }[] = [];
+  readonly authorised: ClaimAuthorisation[] = [];
+  readonly closed: string[] = [];
+  payClaimError: Error | null = null;
+  closeWindowError: Error | null = null;
+  /** What `expectedPayout` reports. The demo series pays the cover limit. */
+  payout = 1_000_000_000n;
+  /** What `isInLossWindow` reports for any month, so a test can move the key. */
+  window: LossWindowAnswer = { inWindow: true, qualifyingPeriod: 202604 };
+  readonly claimsSigner = new Wallet(`0x${'11'.repeat(32)}`);
+
+  async isInLossWindow(): Promise<LossWindowAnswer> {
+    return this.window;
+  }
+
+  async expectedPayout(): Promise<bigint> {
+    return this.payout;
+  }
+
+  async signAuthorisation(authorisation: ClaimAuthorisation): Promise<string> {
+    this.authorised.push(authorisation);
+    return await this.claimsSigner.signTypedData(
+      claimAuthorisationDomain(CONFIG.chainId, CONFIG.coverPoolAddress),
+      CLAIM_AUTHORISATION_TYPES as unknown as Record<string, { name: string; type: string }[]>,
+      authorisation,
+    );
+  }
+
+  async payClaim(call: ClaimCall, authorisation: string): Promise<ChainWrite> {
+    if (this.payClaimError !== null) throw this.payClaimError;
+    this.claims.push({ call, authorisation });
+    return {
+      transactionHash: `0x${'ef'.repeat(32)}`,
+      hashscan: `https://hashscan.io/testnet/transaction/0x${'ef'.repeat(32)}`,
+      gasUsed: '172689',
+    };
+  }
+
+  async closeWindow(seriesKey: string): Promise<ChainWrite> {
+    if (this.closeWindowError !== null) throw this.closeWindowError;
+    this.closed.push(seriesKey);
+    return {
+      transactionHash: `0x${'ba'.repeat(32)}`,
+      hashscan: `https://hashscan.io/testnet/transaction/0x${'ba'.repeat(32)}`,
+      gasUsed: '96000',
     };
   }
 }

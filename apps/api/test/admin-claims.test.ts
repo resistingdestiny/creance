@@ -380,6 +380,51 @@ describe('deciding a claim', () => {
     expect(stored?.reviewer).toBe('reviewer:root');
   });
 
+  it('composes a record for a human decision, because a hash needs a preimage', async () => {
+    const note = 'I read the letter and it matches the statement.';
+    await seed(harness, {
+      status: 'under_review',
+      decision: 'refer',
+      decisionHash: 'sha256:0000',
+      decisionRecord: {
+        rule_results: [
+          { rule: 'R20', status: 'fail_soft', required: true },
+          { rule: 'R18', status: 'pass', required: true },
+        ],
+        engine: { rules_version: 'adjuster-rules-1' },
+      },
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/claims/${CLAIM_ID}/decide`,
+      headers: bearer(ADMIN_TOKENS.admin as string),
+      payload: { decision: 'approve', reason: note },
+    });
+    expect(response.statusCode).toBe(201);
+
+    const stored = await harness.repository.claim(CLAIM_ID);
+    const composed = stored?.decisionRecord as Record<string, unknown>;
+    expect(composed['actor']).toBe('reviewer:root');
+    expect((composed['engine'] as { model: unknown }).model).toBeNull();
+    // The reviewer's words are never in the record, only their hash.
+    expect(JSON.stringify(composed)).not.toContain(note);
+    const human = composed['human'] as { note_hash: string; overrode: string[] };
+    expect(human.note_hash).toBe(
+      `sha256:${createHash('sha256').update(note, 'utf8').digest('hex')}`,
+    );
+    expect(human.overrode).toEqual(['R20']);
+    // A corrected decision is a new decision, never an edit.
+    expect(composed['supersedes']).toBe('sha256:0000');
+    // The hash the API stored is the hash of the record it stored.
+    expect(stored?.decisionHash).toBe(
+      `sha256:${createHash('sha256')
+        .update(canonicalize(composed as JsonValue), 'utf8')
+        .digest('hex')}`,
+    );
+    // And the amount a human approval pays is the cover limit, not a guess.
+    expect(stored?.amount).toBe('5000000000');
+  });
+
   it('refuses a decline with no sentence for the person', async () => {
     await seed(harness, { status: 'under_review' });
     const response = await app.inject({
@@ -432,6 +477,80 @@ describe('deciding a claim', () => {
     const stored = await harness.repository.claim(CLAIM_ID);
     expect(stored?.status).toBe('under_review');
     expect((await harness.repository.policy(POLICY_ID))?.status).toBe('under_review');
+  });
+});
+
+describe('a decision waiting for the topic', () => {
+  let harness: Harness;
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    harness = await buildTestServer();
+    app = harness.app;
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('is listed for the Adjuster, which is the only actor with the key', async () => {
+    await seed(harness, {
+      status: 'declined',
+      decision: 'decline',
+      decisionHash: 'sha256:abcd',
+      hcsDecisionSeq: null,
+    });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/claims/unpublished',
+      headers: bearer(ADMIN_TOKENS.adjuster as string),
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().claims).toEqual([
+      {
+        claim_id: CLAIM_ID,
+        policy_id: POLICY_ID,
+        decision: 'decline',
+        decision_hash: 'sha256:abcd',
+      },
+    ]);
+  });
+
+  it('takes its sequence number and touches nothing else', async () => {
+    await seed(harness, {
+      status: 'declined',
+      decision: 'decline',
+      decisionHash: 'sha256:abcd',
+      hcsDecisionSeq: null,
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/claims/${CLAIM_ID}/published`,
+      headers: bearer(ADMIN_TOKENS.adjuster as string),
+      payload: { hcs_decision_seq: 9 },
+    });
+    expect(response.statusCode).toBe(200);
+    const stored = await harness.repository.claim(CLAIM_ID);
+    expect(stored?.hcsDecisionSeq).toBe(9);
+    expect(stored?.status).toBe('declined');
+    expect(stored?.decision).toBe('decline');
+  });
+
+  it('refuses a second sequence number for the same decision', async () => {
+    await seed(harness, {
+      status: 'declined',
+      decision: 'decline',
+      decisionHash: 'sha256:abcd',
+      hcsDecisionSeq: 9,
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/claims/${CLAIM_ID}/published`,
+      headers: bearer(ADMIN_TOKENS.adjuster as string),
+      payload: { hcs_decision_seq: 10 },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().code).toBe('decision_not_publishable');
   });
 });
 

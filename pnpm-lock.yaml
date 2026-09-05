@@ -287,6 +287,9 @@ importers:
       '@x402/hedera':
         specifier: 2.25.0
         version: 2.25.0(ansi-regex@6.2.2)(ansi-styles@6.2.3)(bn.js@5.2.3)(debug@4.4.1(supports-color@8.1.1))(protobufjs@8.0.1)(react-native@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.8)(supports-color@8.1.1))(strip-ansi@7.1.2)(supports-color@8.1.1)
+      ethers:
+        specifier: ^6.15.0
+        version: 6.16.0
     devDependencies:
       typescript:
         specifier: ^5.9.3

@@ -2,6 +2,14 @@ import { createHash } from 'node:crypto';
 
 import { getAddress, verifyMessage } from 'ethers';
 
+import {
+  claimAttestationMessage,
+  FRAUD_STATEMENT,
+  SEPARATION_TYPES,
+  type ClaimAttestationFields,
+  type SeparationType,
+} from '@creance/client';
+
 import { AppError } from '../errors.js';
 
 /// The attestation: item 2 of the packet in DESIGN.md 3.9.
@@ -12,72 +20,31 @@ import { AppError } from '../errors.js';
 /// fraud."
 ///
 /// A signature is only worth what the signed bytes say, so the bytes are
-/// written out here, once, in a canonical form. The web app in T16, the client
-/// helper in packages/client and the two committed fixtures all build the same
-/// string from the same fields; anything else and a wallet would sign one
-/// sentence while the API checked another.
-///
-/// The form is deliberately human readable rather than a hash or a JSON blob.
-/// The person is signing it in a wallet that will show it to them, and a
-/// prompt reading "0x9f3c..." is a prompt nobody can refuse meaningfully.
+/// written out once, in a canonical form, in `@creance/client`. The web app in
+/// T16, the testnet script and the demo seed all build them and none of them
+/// may import from this workspace; two implementations of a signed message is
+/// one wallet signing a sentence the API never checks. This module is the other
+/// half: whether the policy's own wallet produced it.
 ///
 /// Rules R09 and R10 in docs/CLAIMS.md read the two facts this produces, and
 /// they are different facts: `statement_accepted` is whether the person ticked
 /// the box, and `attestation_verified` is whether the wallet signed. A signed
 /// message proves who sent it and not that they read what it said.
 
-/** The four covered kinds, and the four this cover does not pay for. */
-export const SEPARATION_TYPES = [
-  'layoff',
-  'redundancy',
-  'position_eliminated',
-  'site_closure',
-  'resignation',
-  'dismissal_for_cause',
-  'fixed_term_end',
-  'client_loss_self_employed',
-] as const;
+/// The canonical message and the eight separation types are in
+/// `@creance/client`, not here. The web app, the testnet script and the demo
+/// seed all build the bytes a wallet signs, none of them may import from this
+/// workspace, and two implementations of a signed message is one wallet signing
+/// a sentence the API never checks. They are re-exported so a reader of this
+/// file finds them where they expect to.
 
-export type SeparationType = (typeof SEPARATION_TYPES)[number];
-
-export interface AttestationFields {
-  policyId: string;
-  seriesId: string;
-  fullName: string;
-  employerName: string;
-  jobTitle: string;
-  groupKey: string;
-  /** The last day of work, as a calendar date, YYYY-MM-DD. */
-  lastDayOfWork: string;
-  separationType: SeparationType;
-}
-
-/** The sentence the checkbox in screen C5 carries, verbatim. */
-export const FRAUD_STATEMENT =
-  "Everything here is true. I understand that a false claim is fraud.";
-
-/**
- * The exact bytes a wallet signs.
- *
- * Lines joined with a single newline and no trailing one. Every value is
- * trimmed and its internal whitespace collapsed before it goes in, so a stray
- * space typed into a form field cannot produce a message the API rebuilds
- * differently from the one the wallet showed.
- */
-export function attestationMessage(fields: AttestationFields): string {
-  return [
-    'Creance claim attestation',
-    `Policy: ${fields.policyId}`,
-    `Series: ${fields.seriesId}`,
-    `Name: ${tidy(fields.fullName)}`,
-    `Employer: ${tidy(fields.employerName)}`,
-    `Job title: ${tidy(fields.jobTitle)}`,
-    `Occupation: ${fields.groupKey}`,
-    `Last day of work: ${fields.lastDayOfWork.slice(0, 10)}`,
-    `How it ended: ${fields.separationType}`,
-    FRAUD_STATEMENT,
-  ].join('\n');
-}
+export {
+  claimAttestationMessage as attestationMessage,
+  FRAUD_STATEMENT,
+  SEPARATION_TYPES,
+  type ClaimAttestationFields as AttestationFields,
+  type SeparationType,
+};
 
 /** `sha256:<hex>` over the message, stored so the signed bytes are recoverable. */
 export function attestationMessageHash(message: string): string {
@@ -155,8 +122,4 @@ export function verifyAttestation(
     );
   }
   return true;
-}
-
-function tidy(value: string): string {
-  return value.trim().replace(/\s+/g, ' ');
 }

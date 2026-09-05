@@ -1,0 +1,12 @@
+{
+  "principal": "policyholder-2",
+  "occupation": "computer_math",
+  "wallet": {
+    "account_id": "0.0.10366457",
+    "evm_address": "0xf4801d2881df3f4deccf6f4b22302232cbfa5c13"
+  },
+  "cover_limit": "1000000000",
+  "eligibility": {
+    "source": "api_demo_issuer"
+  }
+}

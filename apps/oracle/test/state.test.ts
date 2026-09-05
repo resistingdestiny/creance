@@ -84,12 +84,36 @@ const RECORD: ObservationRecord = {
 };
 
 describe('the observation store', () => {
-  it('keys on group, period and mode so a replay never shadows a live row', async () => {
+  // This asserted the opposite until the mode keyed guard was found to let the
+  // live path republish a month the replay had already put on the index topic.
+  // Live and replay write the same topic, so one row covers both; a scenario
+  // writes no index message and keeps its own.
+  it('keys on group and period across the two modes that write the index topic', async () => {
     const writer = new MemoryObservationWriter();
     await writer.write(RECORD);
     expect(await writer.has('computer_math', '2026-04', 'replay')).toBe(true);
-    expect(await writer.has('computer_math', '2026-04', 'live')).toBe(false);
+    expect(await writer.has('computer_math', '2026-04', 'live')).toBe(true);
+    expect(await writer.has('computer_math', '2026-04', 'scenario')).toBe(false);
     expect(await writer.has('legal', '2026-04', 'replay')).toBe(false);
+  });
+
+  it('answers a live lookup with the replay row, mode and all', async () => {
+    const writer = new MemoryObservationWriter();
+    await writer.write(RECORD);
+    const found = await writer.get('computer_math', '2026-04', 'live');
+    expect(found?.mode).toBe('replay');
+    expect(found?.hcs_seq).toBe(RECORD.hcs_seq);
+  });
+
+  it('keeps a scenario row beside the real one for the same group and period', async () => {
+    const writer = new MemoryObservationWriter();
+    await writer.write(RECORD);
+    await writer.write({ ...RECORD, mode: 'scenario', scenario_label: 'comp-shock-2026', hcs_seq: null });
+    expect(await writer.all()).toHaveLength(2);
+    expect((await writer.get('computer_math', '2026-04', 'live'))?.mode).toBe('replay');
+    expect((await writer.get('computer_math', '2026-04', 'scenario'))?.scenario_label).toBe(
+      'comp-shock-2026',
+    );
   });
 
   it('persists to a file and reloads through a new writer', async () => {

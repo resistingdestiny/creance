@@ -153,6 +153,61 @@ describe('the replay of real history for the demo series', () => {
     expect(submitter.calls).toHaveLength(0);
   });
 
+  it('does not publish a month again in live mode that the replay already put on the topic', async () => {
+    // The demo clock and the live path write the same index topic, and their
+    // defaults meet: a replay runs to the newest month the source carries and
+    // `oracle:once` defaults to that same month. Keying the guard by mode put
+    // two messages for it on the topic, both with revises_seq null, and the two
+    // commands read different sources by default, so the pair need not even
+    // agree. One period, one message, whichever mode published it.
+    const writer = new MemoryObservationWriter();
+    const replayPublisher = new DryRunPublisher();
+    const replay = await runPipeline(
+      base({ writer, publisher: replayPublisher, periods: ['2026-07'] }),
+    );
+    expect(replay.publishedCount).toBe(1);
+    expect(replayPublisher.published).toHaveLength(1);
+
+    const livePublisher = new DryRunPublisher();
+    const liveSubmitter = new DryRunSubmitter();
+    const live = await runPipeline(
+      base({
+        writer,
+        mode: 'live' as const,
+        publisher: livePublisher,
+        submitter: liveSubmitter,
+        periods: ['2026-07'],
+      }),
+    );
+    expect(livePublisher.published).toHaveLength(0);
+    expect(live.publishedCount).toBe(0);
+    expect(live.skippedCount).toBe(1);
+    expect(liveSubmitter.calls).toHaveLength(0);
+
+    // One row, and it still says which mode published it, which is what the
+    // public query filters the demo clock out by.
+    const rows = await writer.all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.mode).toBe('replay');
+    expect(rows[0]?.replay).toBe(true);
+  });
+
+  it('keeps a scenario apart from the months a real run published', async () => {
+    // The other direction: a scenario writes no index message, so its rows must
+    // never stand in the way of a live or replay publish of the same month.
+    const writer = new MemoryObservationWriter();
+    await runPipeline(
+      base({ writer, mode: 'scenario' as const, submitter: null, periods: ['2026-07'] }),
+    );
+    const publisher = new DryRunPublisher();
+    const live = await runPipeline(
+      base({ writer, mode: 'live' as const, publisher, periods: ['2026-07'] }),
+    );
+    expect(publisher.published).toHaveLength(1);
+    expect(live.publishedCount).toBe(1);
+    expect(live.skippedCount).toBe(0);
+  });
+
   it('does not republish a period whose contract call threw on an earlier run', async () => {
     // The partial failure that matters: the message is on the topic and cannot
     // be retracted, and then the chain call fails. A retry must not put a

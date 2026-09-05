@@ -1,0 +1,98 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState, useTransition } from 'react';
+
+import { AppFrame } from '../../components/app-frame';
+import { BottomSheet } from '../../components/bottom-sheet';
+import { ListRow } from '../../components/list-row';
+import { PillButton } from '../../components/pill-button';
+import { SurfaceGroup } from '../../components/surface-group';
+import { payAndBind } from '../purchase-actions';
+
+/**
+ * "Confirm your cover", its five rows and "Pay {premium}", verbatim from
+ * docs/DESIGN-TOKENS.md section 8. The button names the outcome, so the number
+ * on it is the premium.
+ *
+ * "Pays from" is the Hedera account id the quote returns, not a shortened EVM
+ * address. The two name the same account; the account id is what the receipt,
+ * the policy NFT and HashScan all say, and shortening it would invent a format
+ * for a string that is already eleven characters. See docs/DECISIONS.md.
+ *
+ * The line above the button says what the press does today. The first premium
+ * is recorded against the policy and settles when the x402 gate lands (T08), so
+ * nothing moves from the wallet in this build, and the screen says so before
+ * the press rather than after it.
+ */
+
+export function PayScreen({
+  cover,
+  occupation,
+  premium,
+  paysFrom,
+  walletLabel,
+}: {
+  cover: string;
+  occupation: string;
+  premium: string;
+  paysFrom: string;
+  walletLabel: string | null;
+}) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const confirm = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await payAndBind();
+      if (result.ok) router.push('/home?bound=1');
+      else setError(result.error);
+    });
+  };
+
+  return (
+    <AppFrame>
+      <main className="relative flex min-h-dvh flex-col gap-2 px-5 py-10">
+        <h1 className="text-title font-display font-semibold tracking-title text-ink">
+          Cover amount
+        </h1>
+        <p className="text-display-l font-display font-semibold tracking-display tabular-nums text-ink">
+          {premium} a month
+        </p>
+
+        <BottomSheet inline onClose={() => router.push('/amount')} open title="Confirm your cover">
+          <div className="flex flex-col gap-5">
+            <SurfaceGroup>
+              <ListRow label="Cover" value={cover} />
+              <ListRow label="Occupation" value={occupation} />
+              <ListRow label="Monthly payment" value={premium} />
+              <ListRow label="First payment today" value={premium} />
+              <ListRow
+                caption={walletLabel}
+                label="Pays from"
+                value={<span className="tabular-nums">{paysFrom}</span>}
+              />
+            </SurfaceGroup>
+
+            <p className="text-secondary text-ink-2">
+              Testnet only. The first payment is recorded against your cover and settles when the
+              payment gate lands, so nothing leaves the wallet today.
+            </p>
+
+            {error === null ? null : (
+              <p className="text-secondary text-triggered" role="status">
+                {error}
+              </p>
+            )}
+
+            <PillButton className="w-full" loading={pending} onClick={confirm}>
+              {`Pay ${premium}`}
+            </PillButton>
+          </div>
+        </BottomSheet>
+      </main>
+    </AppFrame>
+  );
+}

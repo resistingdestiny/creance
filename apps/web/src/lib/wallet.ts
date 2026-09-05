@@ -40,13 +40,35 @@ export interface WalletProvider {
 }
 
 /**
- * The demo worker from docs/HEDERA.md. A real testnet account with a real TUSD
- * balance, which the API signs for. The browser never holds its key.
+ * The demo accounts from docs/HEDERA.md. Real testnet accounts with real TUSD
+ * balances, which the API signs for. The browser never holds a key for any of
+ * them.
+ *
+ * There is more than one because the worker flow and the investor screens are
+ * two different people. policyholder-1 buys cover and is deliberately not on
+ * the note's KYC list; the two investors are the noteholders the demo series
+ * was issued to, and are the only accounts an investor screen can honestly
+ * present a position for.
  */
-export const DEMO_ACCOUNT: WalletAccount = {
-  accountId: '0.0.10366453',
-  evmAddress: '0xcad39730d48683b13e6077a70c6972add449b6f5',
+export type DemoRole = 'policyholder-1' | 'investor-1' | 'investor-2';
+
+export const DEMO_ACCOUNTS: Record<DemoRole, WalletAccount> = {
+  'policyholder-1': {
+    accountId: '0.0.10366453',
+    evmAddress: '0xcad39730d48683b13e6077a70c6972add449b6f5',
+  },
+  'investor-1': {
+    accountId: '0.0.10366460',
+    evmAddress: '0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931',
+  },
+  'investor-2': {
+    accountId: '0.0.10366462',
+    evmAddress: '0xcaa1184cd59b9296f757efc7303a10ecec6ce51e',
+  },
 };
+
+/** The demo worker. The worker flow's account, and the default everywhere. */
+export const DEMO_ACCOUNT: WalletAccount = DEMO_ACCOUNTS['policyholder-1'];
 
 /** Never hidden. A judge who cannot tell whether a payment was real assumes it was not. */
 export const DEMO_WALLET_LABEL = 'Demo wallet. Testnet only.';
@@ -64,6 +86,23 @@ export function createDemoWalletProvider(
       // Nothing to tear down: the demo provider holds no session.
     },
   };
+}
+
+/**
+ * Which noteholder the investor screens present. A judge who wants to see the
+ * other side of the note sets this to investor-2 and rebuilds. Anything that
+ * is not a noteholder falls back to investor-1, because an investor screen
+ * that presents an account with no position is a screen with nothing on it.
+ */
+export function readDemoInvestor(
+  value: string | undefined = process.env.NEXT_PUBLIC_DEMO_INVESTOR,
+): Extract<DemoRole, 'investor-1' | 'investor-2'> {
+  return value === 'investor-2' ? 'investor-2' : 'investor-1';
+}
+
+/** The account the investor screens speak to. */
+export function demoInvestorAccount(role = readDemoInvestor()): WalletAccount {
+  return DEMO_ACCOUNTS[role];
 }
 
 /**

@@ -35,8 +35,8 @@ Run all of these from the repository root.
 | Command | What it does |
 | --- | --- |
 | `pnpm test` | Runs every unit test in every workspace. Chain free, no credentials needed. |
-| `pnpm test:testnet` | Runs the integration tests against Hedera testnet: the contract lifecycle run through, then one policy bound end to end through the API. Needs credentials and a database. |
-| `pnpm dev` | Runs the web app on http://localhost:3000 and the API on http://localhost:3210, together. The component gallery, which is the design review surface, is at http://localhost:3000/gallery. The investor screens are at http://localhost:3000/invest and http://localhost:3000/invest/subscribe, and they read the API. |
+| `pnpm test:testnet` | Runs the integration tests against Hedera testnet: the contract lifecycle run through, one policy bound end to end through the API, one paid request of each kind through the x402 gate, then that policy's audit trail read back off the payments topic. Needs credentials and a database. |
+| `pnpm dev` | Runs the web app on http://localhost:3000 and the API on http://localhost:3210, together. The component gallery, which is the design review surface, is at http://localhost:3000/gallery. The investor screens are at http://localhost:3000/invest and http://localhost:3000/invest/subscribe, and the receipt for a policy is at http://localhost:3000/receipt/:policyId. All of them read the API. |
 | `pnpm lint` | Runs eslint across the repository. |
 | `pnpm typecheck` | Runs the TypeScript compiler in every workspace without emitting. |
 | `pnpm oracle:once` | Pulls BLS data, computes the ODI and publishes one observation to HCS. |
@@ -52,7 +52,7 @@ Run all of these from the repository root.
 | `pnpm ats:issue` | Issues the demo Displacement Bond Note series as an Asset Tokenization Studio bond on Hedera testnet and runs the compliance sequence: roles, the credential issuer, a KYC grant per noteholder, the mints, a blocked then allowed transfer, pause, freeze and the first coupon. Idempotent: run it again and it does nothing. The run through with a link for every transaction is [docs/ATS.md](docs/ATS.md). Stages: `status throwaway issue roles issuer kyc1 mint1 blocked kyc2 allowed mint2 controls coupon couponcheck verify`. |
 | `pnpm coupons:pay` | Settles a declared coupon on Hedera testnet: seeds the premium account, subscribes the noteholders in the vault, pays each holder with a Scheduled Transaction carrying the vault's `fundCoupon` call, and publishes each settlement to the payments topic. Idempotent: run it again and it does nothing. The run through is [docs/ATS.md](docs/ATS.md) section 14. Stages: `status fund probe seed subscribe pay publish verify`. |
 | `pnpm coupons:mature` | Runs a maturity redemption on Hedera testnet, on a short dated series opened for the purpose because the demo series matures in 2027: opens the series and a matching note, subscribes both noteholders, waits, then burns each holding through ATS and returns the principal from the vault. Stages: `status fund open bond subscribe wait redeem payout`. |
-| `pnpm api:dev` | Runs the API alone on port 3210, reading Hedera testnet and the local database. Endpoints: `POST /v1/quote`, `POST /v1/bind`, `GET /v1/policy/:id`, `GET /v1/index/:group`, `GET /v1/series/:id`, `GET /v1/series/:id/coupons`, `GET /healthz` and `GET /.well-known/jwks.json`. The first three are paid: see [Payment flow](#payment-flow). Set `PORT` to move it, and `X402_ENABLED=false` to serve them open. |
+| `pnpm api:dev` | Runs the API alone on port 3210, reading Hedera testnet and the local database. Endpoints: `POST /v1/quote`, `POST /v1/bind`, `GET /v1/policy/:id`, `GET /v1/audit/:id`, `GET /v1/index/:group`, `GET /v1/series/:id`, `GET /v1/series/:id/coupons`, `GET /healthz` and `GET /.well-known/jwks.json`. The index, quote and bind routes are paid: see [Payment flow](#payment-flow). Set `PORT` to move it, and `X402_ENABLED=false` to serve them open. |
 | `pnpm api:migrate` | Creates the API schema and seeds the fifteen occupation groups. Idempotent. |
 | `pnpm api:openapi` | Regenerates [recipes/bazantic/openapi.yaml](recipes/bazantic/openapi.yaml) and the JSON beside it from the routes. A test fails if the committed files differ. |
 | `pnpm demo:seed` | Seeds the demo series, policyholders, investors and claim packets. |
@@ -65,6 +65,7 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
 
     apps/web            worker, investor and admin screens, and the demo clock
     apps/web/src/app/invest  the investor overview at /invest and subscribe at /invest/subscribe
+    apps/web/src/app/receipt  the receipt for one policy at /receipt/:policyId
     apps/api            quotes, binding, claims, x402 middleware, World verification
     apps/api/src/investor  the investor endpoints, which read the chain directly
     apps/oracle         BLS fetch, ODI computation, HCS publish, replay
@@ -78,6 +79,7 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
     packages/client     API client, the x402 payer helper, Scheduled Transactions, mirror node reads, amount conversion
     packages/client/src/x402  the payer: one Hedera account key in, a fetch that completes the 402 flow out
     apps/api/src/x402   the gate: the 402, the facilitator, the payments row and the topic message
+    apps/api/src/audit  the audit trail: the message shapes with no writer yet, and the read that assembles a policy's trail from the topics
     recipes/bazantic    the OpenAPI document the Bazantic gateway imports
 
 The investor screens are desktop, 1280 wide, and they fetch on the server rather than in the browser, so the API has to be running for them to render. `pnpm dev` starts it beside the web app. The origin is `CREANCE_API_URL` and defaults to the address the API listens on, so no configuration is needed to run them locally.
@@ -99,7 +101,7 @@ version 2 over the `exact` scheme on `hedera:testnet`, settled through the
 | `GET /v1/index/:group` | 0.01 TUSD, per call |
 | `POST /v1/quote` | 0.05 TUSD |
 | `POST /v1/bind` | the first month premium from the quote |
-| `GET /v1/policy/:id` and everything else | free |
+| `GET /v1/policy/:id`, `GET /v1/audit/:id` and everything else | free |
 
 TUSD is this build's settlement token, [0.0.10366463](https://hashscan.io/testnet/token/0.0.10366463),
 six decimals, so 0.01 is `10000` on the wire. Every amount in the protocol is an
@@ -171,6 +173,20 @@ account [0.0.10366451](https://hashscan.io/testnet/account/0.0.10366451):
 Each one is a transfer of TUSD from 0.0.10366451 to 0.0.10366450 whose network
 fee was paid by 0.0.7162784, and each is on the payments topic at sequence 16,
 17 and 20.
+
+## Audit trail
+
+`GET /v1/audit/:policyId` is the trail for one policy, and it is free. The
+database holds the sequence numbers of the messages and the mirror node holds
+the messages themselves, so what comes back is what is on the topics rather
+than what our rows say. Every entry carries its topic, its sequence number, its
+transaction and a HashScan link, and says which of the two it came from: an
+entry the topic does not carry is marked rather than shown as recorded. Nothing
+in the response identifies a person.
+
+The receipt screen at `/receipt/:policyId` in the web app is that endpoint,
+rendered. The measured run through and the links are in
+[docs/HEDERA.md](docs/HEDERA.md), section "Audit trail".
 
 ## Continuous integration
 

@@ -165,6 +165,29 @@ export interface PaymentRow {
   requestId: string;
 }
 
+/**
+ * The columns of a claim the audit trail reads, and only those.
+ *
+ * A claim row carries the attestation, the employer and the separation date,
+ * which are about a person; `GET /v1/audit/:policyId` is free, so it must not
+ * be able to reach them even by accident. T13 and T25 own the full row and
+ * will define it; this is the projection the read side needs and nothing more.
+ */
+export interface ClaimAuditRow {
+  claimId: string;
+  status: string;
+  packetHash: string | null;
+  decisionHash: string | null;
+  decision: 'approve' | 'refer' | 'decline' | null;
+  amount: string | null;
+  hcsSubmittedSeq: number | null;
+  hcsDecisionSeq: number | null;
+  paidTx: string | null;
+  submittedAt: string | null;
+  decidedAt: string | null;
+  paidAt: string | null;
+}
+
 export interface ObservationRow {
   groupKey: string;
   seriesId: string | null;
@@ -232,6 +255,17 @@ export interface Repository {
   paymentByRef(endpoint: string, ref: string): Promise<PaymentRow | null>;
   /** The idempotency key: one settled row per facilitator transaction. */
   paymentByFacilitatorTx(facilitatorTx: string): Promise<PaymentRow | null>;
+  /**
+   * Every payment recorded against one policy, oldest first.
+   *
+   * Two references, because a policy is paid for twice under two names: the
+   * bind premium carries the policy id as its `ref`, and the index read and
+   * the quote that came before it carry the quote id, which the policy row
+   * still points at. Both belong on the policy's receipt.
+   */
+  paymentsForPolicy(policyId: string, quoteId: string | null): Promise<PaymentRow[]>;
+  /** The claims on a policy, projected down to what the audit trail shows. */
+  claimAudit(policyId: string): Promise<ClaimAuditRow[]>;
   updatePayment(
     paymentId: string,
     patch: Partial<

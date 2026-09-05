@@ -532,3 +532,52 @@ verification from on chain 296, has no match for the note, the throwaway, the
 ATS factory or the ATS resolver as of 4 September 2026. `CollateralVault` and
 `CoverPool`, which this build did write, are both exact matches and are linked
 above.
+
+## Audit trail
+
+`GET /v1/audit/:policyId` assembles a policy's trail from the two topics. The
+database holds the sequence numbers and the mirror node holds the messages, so
+the response is what is on chain rather than what the rows say. Run it against
+testnet with:
+
+    pnpm --filter @creance/api testnet:audit pol_01M1RG5GHA82D523FDHJPXFXA8
+
+Measured on 5 September 2026, on the policy bound by the x402 run:
+
+    audit pol_01M1RG5GHA82D523FDHJPXFXA8, status bound, 4 entries
+      settlement     topic   sequence 17  0.05      0.0.7162784@1788602392.809335465
+      policy         topic   sequence 18  0.841667
+      policy         topic   sequence 19            0x34449e5df8100a6c...5bca7ec
+      settlement     topic   sequence 20  0.841667  0.0.7162784@1788602397.120605122
+    4 entries checked again against the mirror node
+    2 settlements, 2 of them on the topic
+
+The stage fetches every entry a second time from the mirror node and compares
+the kind, so the endpoint cannot pass it by trusting its own database.
+
+| What | Link |
+| --- | --- |
+| Payments topic | [0.0.10366471](https://hashscan.io/testnet/topic/0.0.10366471) |
+| Claims topic | [0.0.10366473](https://hashscan.io/testnet/topic/0.0.10366473) |
+| Price quote, sequence 17 | [0.0.7162784-1788602392-809335465](https://hashscan.io/testnet/transaction/0.0.7162784-1788602392-809335465) |
+| Cover requested, sequence 18 | the binding receipt, `hcs_receipt_seq` on the policy |
+| Cover started, sequence 19 | [bind](https://hashscan.io/testnet/transaction/0x34449e5df8100a6c4d9d9d0dd0245e36ceb54cb4fc21c502bb2d5b4555bca7ec) |
+| First payment, sequence 20 | [0.0.7162784-1788602397-120605122](https://hashscan.io/testnet/transaction/0.0.7162784-1788602397-120605122) |
+| Policy receipt | [0.0.10366468 serial 6](https://hashscan.io/testnet/token/0.0.10366468/6) |
+| CoverPool | [0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09](https://hashscan.io/testnet/contract/0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09) |
+
+The index read at sequence 16 is not on this policy's trail: its `ref` is the
+occupation group, not the quote, so it belongs to no one policy.
+
+The message kinds the payments topic carries are `coupon`, `policy`,
+`settlement`, `premium` and `payout`; the claims topic carries `claim_packet`
+and `claim_decision`. All are `{v, kind, ...}` JSON with amounts as integer
+strings in minor units. The shapes are in docs/DECISIONS.md under T18, the
+writers are in `apps/api/src/audit`, `apps/api/src/receipts.ts`,
+`apps/api/src/x402` and `contracts/coupons`, and the one reader is
+`packages/client/src/audit.ts`. `premium`, `payout` and the two claim kinds
+have publishers and tests but no live entries yet: those arrive with T09's
+premium watcher, T13's claim payout and T25's Adjuster.
+
+The claims topic's submit key is the adjuster account's, so the API reads that
+topic and never writes it.

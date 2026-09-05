@@ -77,7 +77,13 @@ export class MirrorClient {
    */
   async topicMessages(
     topicId: string,
-    options: { sequenceNumber?: number; limit?: number; order?: 'asc' | 'desc' } = {},
+    options: {
+      sequenceNumber?: number;
+      /** Everything from this sequence number on, which `sequencenumber=gte:` does. */
+      fromSequenceNumber?: number;
+      limit?: number;
+      order?: 'asc' | 'desc';
+    } = {},
   ): Promise<MirrorTopicMessage[]> {
     const query = new URLSearchParams({
       limit: String(options.limit ?? 25),
@@ -85,11 +91,27 @@ export class MirrorClient {
     });
     if (options.sequenceNumber !== undefined) {
       query.set('sequencenumber', `eq:${options.sequenceNumber}`);
+    } else if (options.fromSequenceNumber !== undefined) {
+      query.set('sequencenumber', `gte:${options.fromSequenceNumber}`);
     }
     const body = await this.get<{ messages?: MirrorTopicMessage[] }>(
       `/topics/${topicId}/messages?${query.toString()}`,
     );
     return body?.messages ?? [];
+  }
+
+  /**
+   * The window a policy's receipt sits in: its own message and the few that
+   * follow it. A bind writes two messages and only the first sequence number is
+   * stored (docs/DECISIONS.md, T07, "A bind writes two topic messages, not
+   * one"), so the second is found by reading forward from the first.
+   */
+  async topicMessagesFrom(
+    topicId: string,
+    sequenceNumber: number,
+    limit = 25,
+  ): Promise<MirrorTopicMessage[]> {
+    return await this.topicMessages(topicId, { fromSequenceNumber: sequenceNumber, limit });
   }
 
   /** One message by its sequence number, or null until the mirror has it. */

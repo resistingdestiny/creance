@@ -1434,3 +1434,140 @@ instance is unavailable. It was not needed: `https://api.testnet.blocky402.com`
 answered `GET /health` and advertised `exact` on `hedera:testnet` with fee payer
 0.0.7162784 throughout, and settled every payment this ticket made. No API key
 and no account, which its own testnet documentation says is deliberate.
+
+## T18, the audit trail, 5 September 2026
+
+### The audit endpoint answers from the topic, and says where every entry came from
+
+DESIGN.md 3.7 asks for an audit trail "verifiable independently of our
+database". An endpoint that reads its own rows and formats them is not that, so
+`GET /v1/audit/:policyId` uses the database only as the index into the topics:
+the rows carry the sequence numbers, the mirror node carries the messages, and
+the message body is what the response reports.
+
+That leaves four honest answers rather than one, and each entry says which it
+is in `source`:
+
+    topic               read back from the mirror node, body and all
+    awaiting_mirror     published, sequence number known, the mirror node has
+                        not caught up; it lags consensus by seconds
+    not_yet_on_topic    a row and no message, which is exactly the settled
+                        payment whose publish failed, above
+    mirror_unavailable  the mirror node could not be read at all
+
+A trail that quietly showed a database row as a topic message would be worse
+than no trail, because the whole claim being made is that the reader does not
+have to trust us.
+
+### The entries are free, so the fields of each message kind are named one by one
+
+The endpoint is free, like `GET /v1/policy/:id`, and for the same reason it is
+a whitelist rather than a copy of the message. Each kind contributes named
+fields under `detail`. The holder's EVM address is on two of the messages the
+payments topic carries and is dropped by exactly this; the nullifier is on no
+message anywhere. The Hedera account ids that remain, the payer and the holder,
+are already visible in the transfers on chain.
+
+`detail` is an object rather than the kind's fields spread over the top level,
+because five kinds put five different things behind names like `amount` and
+`at`. Keeping them one level down means the top of every entry is the same
+shape whatever the kind, which is what a list renderer needs.
+
+### The premium, payout and claim messages are fixed now, before their flows exist
+
+Acceptance line one names four kinds of payments topic entry and two claims
+topic entries. Three of them have writers: `coupon` from T14, `policy` from T07
+and `settlement` from T08. The recurring premium belongs to T09's watcher loop,
+the payout to T13's `payClaim`, and the two claims messages to T13 and T25.
+None of those flows exists yet.
+
+So this ticket settles the shapes rather than leaving three later tickets to
+invent them: `apps/api/src/audit/messages.ts` builds them, publishes them
+through T08's outbox and tests them, and the ticket that grows the flow calls
+the helper. Version 1 of each:
+
+    premium        policy, period (YYYYMM), scheduleId, tx, amount, asset,
+                   decimals, payer, at
+    payout         policy, claimId, packetHash, decisionHash, amount, asset,
+                   decimals, tx, at
+    claim_packet   policy, claimId, packetHash, evidence (sha256 per file), at
+    claim_decision policy, claimId, decisionHash, decision, at
+
+An append-only topic cannot be corrected afterwards, which is what makes
+agreeing the field names cheaper now than later.
+
+### The claims publisher takes the key it is given
+
+The claims topic's submit key is the adjuster account's, not the api account's,
+so this API cannot write that topic at all. The publishers therefore take a
+writer rather than reaching for a global one: apps/adjuster builds a client
+with its own key and hands it in. The API reads the claims topic and never
+writes it.
+
+### A payout is written as a payments row as well, so the trail can find it
+
+`claims` has `hcs_submitted_seq` and `hcs_decision_seq`, the two claims topic
+pointers, and no column for a payout message on the payments topic. Rather than
+adding one, T13 writes the payout as a `payments` row with the policy id as its
+`ref`, which is what a payout is: a payment. The audit trail then picks it up
+through the same path as every other payment, with a sequence number of its
+own, and `claims.paid_tx` stays what it is, the on-chain transaction.
+
+### An uncollected first premium points at the binding receipt, so the reader checks the kind
+
+`POST /v1/bind` writes the first premium as `uncollected` and sets its
+`hcs_seq` to the binding receipt's sequence number, because at that moment the
+receipt is the only message on the topic; the settlement hook overwrites the
+pointer when the transfer settles. So a payments row's sequence number is only
+a payment message once the payment has settled.
+
+The audit trail reads the message and looks at its `kind` rather than trusting
+the pointer: anything that is not a payment leaves the entry on the row, marked
+`not_yet_on_topic`, and the policy receipt is not reported twice.
+
+### Timestamps are normalised, because the coupon writer stamps a consensus timestamp
+
+The settlement, policy, premium and payout messages carry an RFC 3339 instant.
+The coupon message carries `paidAt` as the consensus timestamp of the transfer,
+`seconds.nanos`, which is the form the mirror node handed the coupon run. Both
+are read here and both come out of the endpoint as RFC 3339 UTC, the form every
+other endpoint uses. The `policy` binding message carries no written-at field at
+all, so its entry uses the consensus timestamp the mirror node reports, which
+is the better answer anyway.
+
+### The parser lives in packages/client and tolerates a writer newer than itself
+
+Three writers live in apps/api and contracts and this ticket does not move
+them. The reader is one parser in `packages/client/src/audit.ts`, which apps/api
+and apps/web both import, with a test that round-trips each writer's own output
+and a second test against messages read back off the live topic.
+
+It refuses to throw on anything. An unknown `kind` comes back as `unknown` with
+its fields, and a `v` above 1 is read through its version 1 fields, because a
+topic is append-only and shared: a later ticket adds a kind, and every deployed
+reader has to keep rendering the history around it.
+
+### The receipt screen's copy, chosen here because there is no deck for it
+
+docs/DESIGN-TOKENS.md section 8 puts "View receipt" on the paid state and has
+no screen behind it. The screen is built from the components the sheet already
+specifies, a surface group of list rows in the 390 frame, and the words follow
+the section 8 voice rules: payment, payout, receipt, and never bind, settle,
+parametric or nullifier.
+
+    Receipt
+    Every payment on this cover, written to Hedera as it happened.
+    Cover / Covered          Reference / pol_...FXA8
+    Cover receipt            View on HashScan
+    Payments
+      Price quote            5 September 2026 - Recorded on Hedera
+      Cover requested        Cover started        First payment
+      Monthly payment        Payout               Coupon
+      Claim sent             Claim decision
+    View every payment on HashScan
+
+An entry the API could not find on the topic reads "Not recorded yet", one it
+is still waiting for reads "Recording on Hedera", and one it could not check
+reads "Cannot reach Hedera". A receipt that showed a payment as recorded when
+the message never arrived would be the one lie this screen must not tell.
+Dates are en-GB in UTC, per the T10 decision.

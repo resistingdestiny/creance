@@ -17,12 +17,13 @@
 
 export const PUBLIC_ORIGIN = 'https://creance.co';
 
-/** The eight operations the Bazantic gateway imports. */
+/** The operations the Bazantic gateway imports. */
 export const OPERATIONS = [
   'GET /v1/index/{group}',
   'POST /v1/quote',
   'POST /v1/bind',
   'GET /v1/policy/{policyId}',
+  'GET /v1/audit/{policyId}',
   'GET /v1/series/{seriesId}',
   'GET /v1/series/{seriesId}/coupons',
 ] as const;
@@ -166,6 +167,7 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
       { name: 'index', description: 'The Occupation Displacement Index.' },
       { name: 'cover', description: 'Quoting and binding a policy.' },
       { name: 'series', description: 'The Displacement Bond Note series.' },
+      { name: 'audit', description: 'The trail on the Hedera Consensus Service topics.' },
     ],
     paths: {
       '/v1/index/{group}': {
@@ -318,6 +320,47 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
           },
         },
       },
+      '/v1/audit/{policyId}': {
+        get: {
+          tags: ['audit'],
+          operationId: 'getAudit',
+          summary: 'The audit trail for a policy, from the HCS topics',
+          description: [
+            'Free. Every message the payments topic and the claims topic carry for',
+            'this policy, read back from the mirror node rather than from our',
+            'database, each with its sequence number, its consensus timestamp and a',
+            'HashScan link.',
+            '',
+            'The `source` on an entry says where it came from. `topic` is a message',
+            'read back off the topic. `awaiting_mirror` is published and not yet',
+            'visible on the mirror node, which lags consensus by seconds.',
+            '`not_yet_on_topic` is a row with no message, which is what a settled',
+            'payment whose publish failed looks like. `mirror_unavailable` is the',
+            'mirror node not answering.',
+            '',
+            'Nothing here identifies a person. Claim entries carry hashes only.',
+          ].join('\n'),
+          parameters: [
+            {
+              name: 'policyId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', pattern: '^pol_[0-9A-HJKMNP-TV-Z]{26}$' },
+              example: 'pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E',
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'The trail.',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/AuditTrail' } },
+              },
+            },
+            '400': problemResponse('`bad_id_prefix`: that is not a policy id.'),
+            '404': problemResponse('`policy_not_found`.'),
+          },
+        },
+      },
       '/v1/series/{seriesId}': {
         get: {
           tags: ['series'],
@@ -385,6 +428,94 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
       schemas: {
         Money: MONEY,
         Problem: PROBLEM,
+        AuditTrail: {
+          type: 'object',
+          description:
+            'The audit trail for one policy. DESIGN.md 3.7: verifiable independently of this API, because every entry names the topic, the sequence number and the transaction.',
+          required: ['policy_id', 'summary', 'entries'],
+          properties: {
+            policy_id: { type: 'string', example: 'pol_01K4YB9X3M8Q0RZ7T2VD6C5H9E' },
+            series_id: { type: 'string', example: 'ODI-COMP-2026-01' },
+            group: { type: 'string', enum: GROUP_KEYS },
+            status: { type: 'string', example: 'bound' },
+            summary: {
+              type: 'object',
+              properties: {
+                payments_topic: { $ref: '#/components/schemas/AuditLink' },
+                claims_topic: { $ref: '#/components/schemas/AuditLink' },
+                policy_nft: {
+                  type: 'object',
+                  properties: {
+                    token_id: { type: 'string', nullable: true, example: '0.0.10366468' },
+                    serial: { type: 'integer', nullable: true, example: 6 },
+                    hashscan: { type: 'string', nullable: true },
+                  },
+                },
+                bind_transaction: { $ref: '#/components/schemas/AuditLink' },
+                cover_pool: { $ref: '#/components/schemas/AuditLink' },
+                entries: { type: 'integer', example: 4 },
+                entries_on_topic: { type: 'integer', example: 4 },
+              },
+            },
+            entries: { type: 'array', items: { $ref: '#/components/schemas/AuditEntry' } },
+          },
+        },
+        AuditLink: {
+          type: 'object',
+          nullable: true,
+          description: 'An id and the HashScan page for it.',
+          properties: {
+            id: { type: 'string', example: '0.0.10366471' },
+            hashscan: {
+              type: 'string',
+              example: 'https://hashscan.io/testnet/topic/0.0.10366471',
+            },
+          },
+        },
+        AuditEntry: {
+          type: 'object',
+          required: ['kind', 'source'],
+          properties: {
+            kind: {
+              type: 'string',
+              description:
+                'The message kind. `policy` is the receipt the bind quoted and its outcome, `settlement` an x402 payment, `premium` a scheduled monthly premium, `coupon` a note coupon, `payout` a claim payment, `claim_packet` and `claim_decision` the two claims topic hashes, `unknown` a kind written by something newer than this reader.',
+              enum: [
+                'policy',
+                'settlement',
+                'premium',
+                'coupon',
+                'payout',
+                'claim_packet',
+                'claim_decision',
+                'unknown',
+              ],
+            },
+            source: {
+              type: 'string',
+              enum: ['topic', 'awaiting_mirror', 'not_yet_on_topic', 'mirror_unavailable'],
+            },
+            at: { type: 'string', format: 'date-time', nullable: true },
+            amount: { $ref: '#/components/schemas/Money' },
+            hcs: {
+              type: 'object',
+              nullable: true,
+              properties: {
+                topic_id: { type: 'string', example: '0.0.10366471' },
+                sequence_number: { type: 'integer', nullable: true, example: 18 },
+                consensus_at: { type: 'string', format: 'date-time', nullable: true },
+                hashscan: { type: 'string' },
+              },
+            },
+            tx: { $ref: '#/components/schemas/AuditLink' },
+            detail: {
+              type: 'object',
+              description:
+                'The fields this kind carries, named one by one per kind and never a copy of the message.',
+              additionalProperties: true,
+            },
+          },
+        },
         QuoteRequest: {
           type: 'object',
           required: ['group', 'limit', 'wallet'],

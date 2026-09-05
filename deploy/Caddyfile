@@ -1,0 +1,27 @@
+# TLS and routing for the public host. Copy to /etc/caddy/Caddyfile.
+#
+# One origin serves both apps. https://creance.co is baked into the World
+# Developer Portal's allowed origins, into the x402 resource URLs and into the
+# Bazantic gateway's base URL, so the API cannot move to an api. subdomain
+# without invalidating all three. Caddy routes the API's paths to the api
+# container and everything else to the web app.
+#
+# Caddy obtains and renews the certificate itself over ACME, which needs port 80
+# and port 443 open to the internet and an A record, and an AAAA record if the
+# host has IPv6, pointing at this machine.
+
+{$SITE_HOST:creance.co} {
+	encode zstd gzip
+
+	# The API's paths. /health and /healthz sit outside /v1/index/, which the
+	# x402 gate meters, so an uptime check never pays to find out the site is up.
+	@api path /v1/* /health /healthz /.well-known/jwks.json
+	handle @api {
+		reverse_proxy 127.0.0.1:{$API_PORT:3210}
+	}
+
+	# Everything else is the Next.js app.
+	handle {
+		reverse_proxy 127.0.0.1:{$WEB_PORT:3000}
+	}
+}

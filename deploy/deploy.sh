@@ -3,6 +3,7 @@
 #
 #     deploy/deploy.sh              build, start, wait for GET /health
 #     deploy/deploy.sh --with-caddy also install deploy/Caddyfile and reload Caddy
+#     deploy/deploy.sh --no-build   start what is already built, do not rebuild
 #
 # Run it from a clone on the public host, with the production .env already in
 # place at the repository root. It reads no secret and prints none: the only
@@ -16,9 +17,11 @@ set -eu
 cd "$(dirname "$0")/.."
 
 WITH_CADDY=no
+BUILD=yes
 for arg in "$@"; do
 	case "$arg" in
 	--with-caddy) WITH_CADDY=yes ;;
+	--no-build) BUILD=no ;;
 	*)
 		echo "deploy: unknown option $arg" >&2
 		exit 2
@@ -113,7 +116,12 @@ CREANCE_GIT_SHA=$GIT_SHA
 export CREANCE_GIT_SHA
 
 echo "deploy: $SITE at $GIT_SHA with $COMPOSE"
-$COMPOSE up -d --build
+if [ "$BUILD" = yes ]; then
+	$COMPOSE up -d --build
+else
+	echo "deploy: --no-build, so whatever is already built is what starts"
+	$COMPOSE up -d
+fi
 
 echo "deploy: waiting for the API to answer on 127.0.0.1:$API_PORT"
 health="http://127.0.0.1:$API_PORT/health"
@@ -132,8 +140,14 @@ if [ -z "$served" ]; then
 	exit 1
 fi
 
+# The two sides of this come from different places, which is the point. $GIT_SHA
+# is this working tree's HEAD; $served is what the running image was built with,
+# baked into it by the build argument and never set at runtime. They differ when
+# a deploy started an image older than the checkout, which is exactly what
+# --no-build can do and what a half finished redeploy leaves behind.
 if [ "$served" != "$GIT_SHA" ]; then
 	echo "deploy: GET /health reports $served, not $GIT_SHA. A stale image is running." >&2
+	echo "deploy: rerun without --no-build to rebuild the images at this commit." >&2
 	exit 1
 fi
 

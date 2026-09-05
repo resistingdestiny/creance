@@ -23,7 +23,7 @@ import {
   toScaledInt,
   workspaceName,
 } from '../src/index.js';
-import type { Observation, Period, SeriesInput } from '../src/index.js';
+import type { Observation, Period, SeriesInput, SourceObservation } from '../src/index.js';
 
 describe('@creance/index-model', () => {
   it('describes itself', () => {
@@ -104,10 +104,15 @@ describe('the public surface', () => {
     const client = new BlsClient({ apiKey: '' });
     expect(client.version).toBe('v1');
     expect(ENDPOINTS.v1.endsWith('/')).toBe(true);
-    expect(
-      latestPeriod(
-        new Map([['LNU04034021', [{ seriesId: 'LNU04034021', period: '2026-07', value: 4.1 }]]]),
-      ),
-    ).toBe('2026-07');
+    const july: SourceObservation = {
+      seriesId: 'LNU04034021',
+      period: '2026-07',
+      value: 4.1,
+      raw: '4.1',
+      year: '2026',
+      blsPeriod: 'M07',
+      footnoteCodes: [],
+    };
+    expect(latestPeriod(new Map([[july.seriesId, [july]]]))).toBe('2026-07');
   });
 });

@@ -1,0 +1,278 @@
+/**
+ * The arithmetic and the wording behind the claim screens.
+ *
+ * The same rule src/lib/worker-model.ts follows: every figure and every
+ * sentence has one definition here, and the screens hold none of it, so two
+ * screens cannot disagree about what the cover pays or when it pays it.
+ *
+ * The copy is docs/DESIGN-TOKENS-ADDENDUM.md, verbatim, with the amounts, the
+ * dates and the occupation interpolated from the policy and the series as its
+ * closing line requires. Its house style rules the strings here: sentence
+ * case, no em or en dashes, and none of the words "policy", "bind", "settle",
+ * "parametric" or "nullifier" anywhere a worker can read them.
+ */
+
+import { formatDay, formatPeriodShort } from './format';
+import type { ClaimStatusView, ReplayView } from './claim-api';
+import type { PolicyView } from './worker-api';
+import type { StatusState } from '../components/status-pill';
+import { coverAmount, premiumAmount } from './worker-model';
+
+/**
+ * The five choices on C2, and the separation type each one means.
+ *
+ * The addendum fixes five labels and packages/client carries eight types, so
+ * two pairs collapse: "laid off or made redundant" is stored as `redundancy`
+ * and "position eliminated or workplace closed" as `position_eliminated`. Both
+ * pairs are treated identically by every rule in docs/CLAIMS.md, so nothing
+ * downstream can tell the difference, and asking a person to split a hair the
+ * adjudication does not split would be a worse screen. Recorded in
+ * docs/DECISIONS.md.
+ */
+export interface SeparationOption {
+  readonly value: string;
+  readonly label: string;
+  /** Not covered in v1 (DESIGN.md 3.9). C2 says so under the field. */
+  readonly excluded: boolean;
+}
+
+export const SEPARATION_OPTIONS: readonly SeparationOption[] = [
+  { value: 'redundancy', label: 'Laid off or made redundant', excluded: false },
+  { value: 'position_eliminated', label: 'Position eliminated or workplace closed', excluded: false },
+  { value: 'dismissal_for_cause', label: 'Dismissed', excluded: true },
+  { value: 'resignation', label: 'I resigned', excluded: true },
+  { value: 'fixed_term_end', label: 'My contract ended', excluded: true },
+];
+
+/** The inline line under the field, in `triggered`, when the choice is excluded. */
+export const EXCLUDED_NOTE =
+  "Cover doesn't pay for this. You can still submit and a person will look at it.";
+
+export function separationOption(value: string | null): SeparationOption | null {
+  return SEPARATION_OPTIONS.find((option) => option.value === value) ?? null;
+}
+
+export function isExcludedSeparation(value: string | null): boolean {
+  return separationOption(value)?.excluded === true;
+}
+
+/** How C5 says the choice back, and how the review queue reads it. */
+export function separationLabel(value: string | null): string {
+  return separationOption(value)?.label ?? (value ?? '');
+}
+
+/**
+ * The evidence kind a file is submitted under.
+ *
+ * The API takes one of five kinds and the addendum's C3 offers four documents
+ * without asking which is which. Asking would be a field nobody can answer
+ * wrongly in a way that matters: the Adjuster reads the document itself and
+ * every rule works from what it says, not from the label the uploader chose.
+ * So every file goes up as `other` unless its own name says otherwise.
+ */
+export function evidenceKind(filename: string): string {
+  const name = filename.toLowerCase();
+  if (/p45|record.?of.?employment|\broe\b/.test(name)) return 'p45';
+  if (/termination|redundan|dismiss|layoff|notice/.test(name)) return 'termination_letter';
+  if (/benefit|determination|unemploy/.test(name)) return 'benefit_determination';
+  if (/pay.?(slip|statement|stub)|final.?pay/.test(name)) return 'final_pay_statement';
+  return 'other';
+}
+
+/** The states Home can be in. The tab bar stays on Home and Index only. */
+export type HomeState = 'covered' | 'claims_open' | 'claim_in_progress' | 'paid' | 'lapsed';
+
+export interface HomeStatus {
+  readonly state: HomeState;
+  /** The card's status pill: `watch` is amber, `triggered` is red. */
+  readonly pill: StatusState;
+  readonly label: string;
+}
+
+const HOME_STATUS: Record<HomeState, HomeStatus> = {
+  covered: { state: 'covered', pill: 'covered', label: 'Covered' },
+  claims_open: { state: 'claims_open', pill: 'watch', label: 'Claims open' },
+  claim_in_progress: { state: 'claim_in_progress', pill: 'watch', label: 'Claim in progress' },
+  paid: { state: 'paid', pill: 'triggered', label: 'Paid out' },
+  lapsed: { state: 'lapsed', pill: 'triggered', label: 'Payment due' },
+};
+
+export function homeStatus(state: HomeState): HomeStatus {
+  return HOME_STATUS[state];
+}
+
+/**
+ * Which state Home is in, from the cover and the claim behind it.
+ *
+ * The order is the order the states supersede each other. A paid claim is the
+ * end of this cover's life, so it wins over everything; a claim in flight wins
+ * over the invitation to start one; the amber "Claims open" pill needs both
+ * the chain's answer and no claim of this browser's own.
+ */
+export function homeStateOf(policy: PolicyView, claim: ClaimStatusView | null): HomeState {
+  if (policy.status === 'paid' || claim?.status === 'paid') return 'paid';
+  if (claim !== null && claim.status !== 'declined') return 'claim_in_progress';
+  if (policy.status === 'lapsed') return 'lapsed';
+  if (policy.claims?.open === true) return 'claims_open';
+  return 'covered';
+}
+
+/**
+ * "If you lost your job on or after 4 June, you can claim 5,000."
+ *
+ * The date is `claims_payable_from`, which is the start plus the waiting
+ * period and the first day a separation can qualify, and the amount is the
+ * cover limit. Neither is ever hard coded in the copy.
+ */
+export function claimsOpenLine(policy: PolicyView): string {
+  return `If you lost your job on or after ${formatDay(policy.claims_payable_from)}, you can claim ${coverAmount(policy.limit)}.`;
+}
+
+/** The Lapsed state, docs/DESIGN-TOKENS.md section 8, with the real date. */
+export interface LapsedCopy {
+  readonly heading: string;
+  readonly line: string;
+  readonly action: string;
+}
+
+export function lapsedCopy(policy: PolicyView): LapsedCopy {
+  const premium = premiumAmount(policy.premium);
+  const due = policy.next_payment_due;
+  return {
+    heading: 'Payment due',
+    line:
+      due === null
+        ? 'Pay to stay covered.'
+        : `Pay by ${formatDay(due)} to stay covered.`,
+    action: `Pay ${premium}`,
+  };
+}
+
+/**
+ * The Payment failed state, with the amount and the date interpolated.
+ *
+ * The deck's sentence is written for a payment that keeps existing cover
+ * alive, which is the lapsed case: "Your cover is unchanged until 19 October."
+ * There is no cover to be unchanged during a purchase, so the purchase screen
+ * gets the same title and a second sentence that is true of it. Recorded in
+ * docs/DECISIONS.md.
+ */
+export interface FailureCopy {
+  readonly title: string;
+  readonly body: string;
+  readonly action: string;
+}
+
+export function paymentFailedCopy(policy: PolicyView): FailureCopy {
+  const premium = premiumAmount(policy.premium);
+  const due = policy.next_payment_due;
+  return {
+    title: "Your payment didn't go through.",
+    body:
+      due === null
+        ? `Check that your wallet has at least ${premium}, then try again.`
+        : `Check that your wallet has at least ${premium}, then try again. Your cover is unchanged until ${formatDay(due)}.`,
+    action: `Pay ${premium}`,
+  };
+}
+
+export function purchaseFailedCopy(premium: string, detail: string): FailureCopy {
+  return { title: "Your payment didn't go through.", body: detail, action: `Pay ${premium}` };
+}
+
+/** Which of C6 to C9 a claim is on. The decision replaces C6 when it arrives. */
+export type ClaimScreen = 'received' | 'under_review' | 'approved' | 'declined';
+
+export function claimScreenOf(claim: ClaimStatusView): ClaimScreen {
+  if (claim.status === 'approved' || claim.status === 'paid') return 'approved';
+  if (claim.status === 'declined') return 'declined';
+  if (claim.status === 'under_review') return 'under_review';
+  return 'received';
+}
+
+/** A decision has arrived, so the screen stops polling. */
+export function claimIsDecided(claim: ClaimStatusView): boolean {
+  return claim.status !== 'submitted';
+}
+
+/** The short reference C8 shows. A claim id is public; its tail is enough to say. */
+export function claimReference(claimId: string): string {
+  const body = claimId.replace(/^clm_/, '');
+  return body.slice(-6).toUpperCase();
+}
+
+/**
+ * The sentences a decline is printed from, when the composed ones cannot be
+ * read.
+ *
+ * The Adjuster composes the real sentences and the web app prints them
+ * verbatim (docs/CLAIMS.md, "What the person reads"). This is the fallback for
+ * a deployment with no admin token: the codes are on the free read, and these
+ * are the same sentences with every slot that needs a date left out, so a
+ * person still learns why rather than reading a code.
+ */
+const FALLBACK_LINES: Record<string, string> = {
+  separation_type_not_covered:
+    "Resigning isn't covered. This cover pays when your employer ends your job.",
+  group_does_not_match_policy: 'This cover is for a different occupation from the one on your claim.',
+  separation_in_waiting_period: 'Your last day of work is before your cover started paying out.',
+  separation_after_term: 'Your last day of work falls after your cover ended.',
+  outside_loss_window:
+    'The index for your occupation did not rise in the months around your last day of work.',
+  claim_window_closed: 'The time to claim for this has ended.',
+  evidence_contradicts_separation_type:
+    'Your document says you left by choice, but your statement says your employer ended your job.',
+  'evidence_does_not_match_attestation:employer':
+    'The document names a different employer from your statement.',
+  'evidence_does_not_match_attestation:date':
+    'The document gives a different last day of work from your statement.',
+  'evidence_does_not_match_attestation:name':
+    'The document is in a different name from the one on your statement.',
+  evidence_missing: 'Add a document that shows your employer ended your job.',
+  evidence_unreadable: 'We could not read that document. Send a clearer photo or a PDF.',
+  already_claimed: 'You have already claimed on this cover.',
+  nullifier_mismatch: 'The person who bought this cover has to be the person who claims it.',
+};
+
+/** The order a reader should meet several reasons in, docs/CLAIMS.md. */
+const REASON_PRIORITY: readonly string[] = [
+  'separation_type_not_covered',
+  'group_does_not_match_policy',
+  'separation_in_waiting_period',
+  'separation_after_term',
+  'outside_loss_window',
+  'claim_window_closed',
+  'evidence_contradicts_separation_type',
+  'evidence_does_not_match_attestation:employer',
+  'evidence_does_not_match_attestation:name',
+  'evidence_does_not_match_attestation:date',
+  'evidence_missing',
+  'evidence_unreadable',
+];
+
+export function fallbackReasonLines(codes: readonly string[]): string[] {
+  const rank = (code: string): number => {
+    const at = REASON_PRIORITY.indexOf(code);
+    return at === -1 ? REASON_PRIORITY.length : at;
+  };
+  return [...codes]
+    .sort((a, b) => rank(a) - rank(b))
+    .map((code) => FALLBACK_LINES[code])
+    .filter((line): line is string => line !== undefined);
+}
+
+/**
+ * The badge, "Replay: Jul 2026".
+ *
+ * The endpoint's own `badge.label` is the word REPLAY, and the deck's string
+ * names the month the clock is standing on, so the month is put back here from
+ * `current_period`. In scenario mode the endpoint's label is the scenario's
+ * own name and is printed as it stands. Null when the clock is live, which is
+ * a screen with no badge at all.
+ */
+export function replayBadgeLabel(replay: ReplayView | null): string | null {
+  if (replay === null || replay.badge === null || !replay.badge.show) return null;
+  if (replay.mode === 'scenario') return replay.badge.label;
+  const period = replay.current_period ?? replay.latest_published;
+  return period === null ? 'Replay' : `Replay: ${formatPeriodShort(period)}`;
+}

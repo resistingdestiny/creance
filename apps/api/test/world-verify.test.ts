@@ -32,6 +32,7 @@ const NULLIFIER_DECIMAL =
 function world(overrides: Partial<WorldConfig> = {}): WorldConfig {
   return {
     appId: 'app_8569aa8d1bbfb24b1243e86d4fc34adc',
+    miniAppId: '',
     rpId: 'rp_d6ae9b4ff2018a15',
     verifyId: 'rp_d6ae9b4ff2018a15',
     verifyUrl: 'https://developer.world.org/api/v4/verify',

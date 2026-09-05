@@ -6,6 +6,10 @@
 /// key", which is why the web app has no World credential at all and asks this
 /// API for a signed rp_context instead.
 ///
+/// The Mini App id is a different app in the same Portal. MiniKit initialises
+/// with it, IDKit never sees it, and the entry links the Mini App surface
+/// publishes are built from it. A deployment with none is a website only.
+///
 /// The preset and the accepted credential identifiers are configuration rather
 /// than constants, because the Selfie Check feature flag is granted per app by
 /// a human at Tools for Humanity and DESIGN.md section 8 names a fallback for
@@ -17,6 +21,11 @@
 export interface WorldConfig {
   /** `app_...`, the app the World ID App is handed off to. */
   appId: string;
+  /**
+   * `app_...`, the Mini App the same web app is published as, which is a second
+   * Portal app and not this one. Empty until one is registered.
+   */
+  miniAppId: string;
   /** `rp_...`, the relying party the signature and the verify path name. */
   rpId: string;
   /** The id the verify path carries. `rp_id` when there is one. */
@@ -90,6 +99,7 @@ export function loadWorldConfig(): WorldConfig {
   const preset = text('WORLD_PRESET', 'selfieCheckLegacy');
   return {
     appId,
+    miniAppId: text('WORLD_MINI_APP_ID', ''),
     rpId,
     // The endpoint summary prefers `rp_id` and still accepts `app_id`, so the
     // form in the path is configuration: a deployment whose rp_id the endpoint

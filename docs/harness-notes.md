@@ -2299,3 +2299,52 @@ A plain `pnpm install` afterwards restored all nine projects in seven seconds an
 reported the lockfile already up to date, so nothing about the resolution was
 wrong and only the linking was partial. Run `pnpm install` after any filtered
 `add` in this repository before believing a typecheck or a test run.
+
+## T26, index operations, 5 September 2026
+
+### An x402 route pattern cannot express an exemption, and getRouteConfig is private
+
+The reading route is metered as `GET /v1/index/:group`, which `@x402/core`
+2.25.0 compiles to `[^/]+` for the segment. `health` is one non-empty segment, so
+`GET /v1/index/health` is metered by the same pattern that meters
+`GET /v1/index/computer_math`, and docs/INDEX-SPEC.md section 9 puts the
+operations endpoint at exactly that path.
+
+There is no way to write the exemption as a pattern. `parseRoutePattern` escapes
+`[$()+.?^{|}]` before it builds the regex, so a negative lookahead is escaped
+into a literal, and `*` becomes `.*?` rather than passing through.
+
+The obvious extension point is not usable either. `getRouteConfig(path, method)`
+is the function that decides, and it is declared `private` in the package's own
+type declarations, so a subclass cannot override it without a type error.
+
+What does work: `requiresPayment(context)` is public, it is the first thing the
+Fastify middleware calls on every request, and the middleware returns
+immediately when it answers false. Registering with `paymentMiddlewareFromHTTPServer`
+and a subclass of `x402HTTPResourceServer` that overrides `requiresPayment` is
+therefore the whole carve-out, and it is four lines:
+
+    class CarveOutResourceServer extends x402HTTPResourceServer {
+      override requiresPayment(context: HTTPRequestContext): boolean {
+        const method = context.method ?? context.adapter.getMethod();
+        if (isFreeUnderMeteredPrefix(method, context.path)) return false;
+        return super.requiresPayment(context);
+      }
+    }
+
+`context.method` is optional on the type and the middleware itself falls back to
+`context.adapter.getMethod()`, so the override does the same.
+
+Fastify's own router is not the problem: find-my-way matches a static segment
+before a parameter, so `/v1/index/health` reaches its own handler and never the
+reading handler. Both facts have a test.
+
+https://docs.x402.org/servers/quickstart
+
+### pnpm run passes a bare -- through to the script's arguments
+
+`pnpm oracle:schedule -- --source archive` does not work. pnpm 11 forwards the
+`--` itself, so the command becomes `tsx src/cli/schedule.ts -- --source archive`
+and the parser sees `--` as an unknown argument and exits 1. The form that works
+is `pnpm oracle:schedule --source archive`, with no separator, which is what
+docs/INDEX-OPS.md and the usage text show.

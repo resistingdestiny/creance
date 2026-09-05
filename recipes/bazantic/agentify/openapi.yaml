@@ -198,6 +198,40 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /v1/index/health:
+    get:
+      tags:
+        - index
+      operationId: getIndexHealth
+      summary: Whether the index is still being published, and how fresh it is
+      description: |-
+        Free. The operations view of the feed: the last run and the state it reached,
+        whether the QA gates passed and which failed if they did not, the newest
+        published month for every group, and how many days old the newest month at
+        the source is.
+
+        `source.stale` is true when the newest reference month is more than 45 days
+        old. It is measured from the end of that month and never from the last
+        successful run, because a run that succeeds every day while the source has
+        published nothing new is not a healthy index.
+
+        It is under the metered prefix and it is free. Nothing here is an index
+        value: it says whether the numbers are current, not what they are.
+
+        It answers 200 even when the feed is unhealthy, including when the database
+        behind the readings cannot be reached: `status` and `database` carry that,
+        and the last run and the gates are read from files rather than from Postgres.
+      x-agent-hint: >-
+        Call this before relying on a reading you paid for. If status is stale or the last run
+        failed, the newest month may be older than it looks and the reading should be reported with
+        its period, not as current.
+      responses:
+        '200':
+          description: The health of the index feed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndexHealth'
   /v1/replay:
     get:
       tags:
@@ -551,6 +585,145 @@ components:
               type: boolean
             label:
               type: string
+    IndexHealth:
+      type: object
+      required:
+        - status
+        - mode
+        - time
+        - qa
+        - database
+        - source
+        - model_version
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+            - stale
+            - failed
+            - degraded
+            - never_run
+          description: >-
+            One word for the whole feed. `failed` when the last run failed, `degraded` when the
+            published periods could not be read, `stale` when nothing newer than 45 days has been
+            published, `never_run` on a deployment whose oracle has not run yet.
+        mode:
+          type: string
+          enum:
+            - live
+            - replay
+            - scenario
+          description: Which calendar the feed is on, the same value GET /v1/replay serves.
+        time:
+          type: string
+          format: date-time
+        last_run:
+          type: object
+          nullable: true
+          description: The newest row of the runs table. Null when nothing has run here.
+          properties:
+            id:
+              type: integer
+              example: 12
+            mode:
+              type: string
+              enum:
+                - live
+                - replay
+                - backfill
+                - scenario
+            state:
+              type: string
+              enum:
+                - fetch
+                - verify
+                - compute
+                - qa
+                - publish
+                - submit
+                - done
+                - failed
+            started_at:
+              type: string
+              nullable: true
+              format: date-time
+            finished_at:
+              type: string
+              nullable: true
+              format: date-time
+            target_period:
+              type: string
+              nullable: true
+              example: 2026-07
+            notes:
+              type: string
+              nullable: true
+            qa_passed:
+              type: boolean
+              nullable: true
+        qa:
+          type: object
+          description: The gate results of the last run.
+          properties:
+            status:
+              type: string
+              enum:
+                - pass
+                - fail
+                - unknown
+            period:
+              type: string
+              nullable: true
+              example: 2026-07
+            failed_gates:
+              type: array
+              items:
+                type: object
+                properties:
+                  gate:
+                    type: string
+                  detail:
+                    type: string
+        database:
+          type: string
+          enum:
+            - ok
+            - unreachable
+          description: >-
+            Where `last_period_by_group` and `source.newest_period` came from. When it is
+            `unreachable` the periods are absent rather than empty: the run, the gates and the mode
+            are read from files and are still reported.
+        last_period_by_group:
+          type: object
+          description: >-
+            The newest published month for each group, keyed by group key. Empty when the database
+            is unreachable.
+          additionalProperties:
+            type: string
+            example: 2026-07
+        source:
+          type: object
+          description: How fresh the published index is.
+          properties:
+            newest_period:
+              type: string
+              nullable: true
+              example: 2026-07
+            stale_days:
+              type: integer
+              nullable: true
+              example: 35
+            stale:
+              type: boolean
+            stale_after_days:
+              type: integer
+              example: 45
+        replay:
+          $ref: '#/components/schemas/FeedClock'
+        model_version:
+          type: string
+          example: odi-1.0.0
     IndexReading:
       type: object
       required:

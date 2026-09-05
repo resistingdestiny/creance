@@ -55,6 +55,9 @@ export async function publishedOnTopic(options: {
       group_key: message.group,
       period: message.period as Period,
       mode: options.mode,
+      // A revision record on the topic is not a claim that a period settled, so
+      // it is keyed apart and never stands in for the message it revises.
+      status: message.status,
     });
     // First writer wins, which is the same rule the topic itself settles by.
     if (!found.has(key)) {

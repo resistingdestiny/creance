@@ -56,7 +56,7 @@ describe('the index feed OpenAPI document', () => {
     expect(document.servers[0]?.url).toBe('https://creance.co');
   });
 
-  it('documents exactly the three public index routes', () => {
+  it('documents exactly the four public index routes', () => {
     const document = buildIndexOpenApiDocument({ version: '0.1.0' }) as {
       paths: Record<string, Record<string, unknown>>;
     };
@@ -148,6 +148,7 @@ describe('the index feed OpenAPI document', () => {
     // The two free routes are free, and a 402 documented on either of them
     // would tell an agent to pay for the thing that tells it what to pay.
     expect(document.paths['/v1/index']?.['get']?.responses['402']).toBeUndefined();
+    expect(document.paths['/v1/index/health']?.['get']?.responses['402']).toBeUndefined();
     expect(document.paths['/v1/replay']?.['get']?.responses['402']).toBeUndefined();
   });
 

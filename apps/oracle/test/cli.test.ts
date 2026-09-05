@@ -3,6 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { readInteger, readPeriod, readSource, readString } from '../src/cli/args.js';
 import { parseArgs as parseOnce } from '../src/cli/once.js';
 import { DEFAULT_FROM, DEFAULT_INTERVAL_MS, parseArgs as parseReplay } from '../src/cli/replay.js';
+import {
+  millisecondsUntil,
+  parseArgs as parseSchedule,
+  readTimeOfDay,
+} from '../src/cli/schedule.js';
 
 describe('argument reading', () => {
   it('names the flag when a value is wrong', () => {
@@ -78,5 +83,57 @@ describe('pnpm oracle:replay', () => {
 
   it('takes a scenario by name', () => {
     expect(parseReplay(['--scenario', 'comp-shock-2026']).scenario).toBe('comp-shock-2026');
+  });
+});
+
+describe('pnpm oracle:schedule', () => {
+  it('defaults to the live source, the 14:10 UTC check and one check per invocation', () => {
+    expect(parseSchedule([])).toEqual({
+      source: 'api',
+      series: null,
+      submit: true,
+      dryRun: false,
+      at: '14:10',
+      wait: false,
+      statePath: null,
+    });
+  });
+
+  it('takes a source, a series, a check time and the two off switches', () => {
+    expect(
+      parseSchedule([
+        '--source',
+        'archive',
+        '--series',
+        'ODI-COMP-2026-01',
+        '--at',
+        '12:40',
+        '--wait',
+        '--no-submit',
+        '--dry-run',
+      ]),
+    ).toMatchObject({
+      source: 'archive',
+      series: 'ODI-COMP-2026-01',
+      at: '12:40',
+      wait: true,
+      submit: false,
+      dryRun: true,
+    });
+  });
+
+  it('refuses a check time that is not a UTC time of day', () => {
+    expect(() => readTimeOfDay('25:00', '--at')).toThrow(/--at needs a UTC time/);
+    expect(() => readTimeOfDay('9:00', '--at')).toThrow(/--at needs a UTC time/);
+    expect(() => readTimeOfDay(undefined, '--at')).toThrow(/--at needs a UTC time/);
+    expect(readTimeOfDay('14:10', '--at')).toBe('14:10');
+  });
+
+  it('waits until the next 14:10 UTC, today or tomorrow', () => {
+    const minutes = (ms: number): number => ms / 60000;
+    expect(minutes(millisecondsUntil('14:10', new Date('2026-09-05T14:00:00Z')))).toBe(10);
+    // Past today's check, so the next one is tomorrow's.
+    expect(minutes(millisecondsUntil('14:10', new Date('2026-09-05T14:10:00Z')))).toBe(24 * 60);
+    expect(minutes(millisecondsUntil('14:10', new Date('2026-09-05T23:50:00Z')))).toBe(14 * 60 + 20);
   });
 });

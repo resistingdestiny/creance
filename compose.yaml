@@ -72,10 +72,12 @@ services:
       # The database is a service on this network, not the one on the operator's
       # laptop that `.env` names.
       DATABASE_URL: postgres://creance:${POSTGRES_PASSWORD:-creance}@db:5432/creance
-      # The same file the oracle writes, on the volume both containers mount at
-      # the same path. GET /health reads it. Set explicitly in both services so
-      # neither depends on the other's idea of the default.
+      # The two files the oracle writes, on the volume both containers mount at
+      # the same path. GET /health and GET /v1/index/health read them. Set
+      # explicitly in both services so neither depends on the other's idea of
+      # the default.
       ORACLE_STATE_PATH: /repo/var/oracle/replay-state.json
+      ORACLE_RUNS_PATH: /repo/var/oracle/runs.json
     volumes:
       - oracle-state:/repo/var
     ports:
@@ -128,17 +130,19 @@ services:
       args:
         GIT_SHA: ${CREANCE_GIT_SHA:-unknown}
     # Schedule mode, restart always: docs/INDEX-SPEC.md section 9. The image's
-    # command runs `pnpm run oracle:schedule` once a day. Until T26 replaces the
-    # body of that script it prints what it will do and the loop waits, so the
-    # command T26 changes is the npm script and this compose file stays as it is.
+    # command runs `pnpm run oracle:schedule` and then sleeps a day, so the loop
+    # is the schedule and one invocation is one check: it asks whether the
+    # source has a period newer than the newest published one, runs the pipeline
+    # when it has, and writes a row to the runs table either way.
     restart: always
     env_file:
       - .env
     environment:
-      # The three paths a run writes, all of them on the shared volume so the
-      # API reads the run state this container writes.
+      # The four paths a run writes, all of them on the shared volume so the
+      # API reads the run state and the runs table this container writes.
       ORACLE_STATE_PATH: /repo/var/oracle/replay-state.json
       ORACLE_OBSERVATIONS_PATH: /repo/var/oracle/observations.json
+      ORACLE_RUNS_PATH: /repo/var/oracle/runs.json
       BLS_CACHE_DIR: /repo/var/cache/bls
     volumes:
       - oracle-state:/repo/var

@@ -1,5 +1,9 @@
 import type { FastifyBaseLogger, FastifyInstance } from 'fastify';
-import { paymentMiddleware, x402ResourceServer } from '@x402/fastify';
+import {
+  paymentMiddlewareFromHTTPServer,
+  x402HTTPResourceServer,
+  x402ResourceServer,
+} from '@x402/fastify';
 import { HTTPFacilitatorClient } from '@x402/core/server';
 import type { HTTPRequestContext, RoutesConfig } from '@x402/core/server';
 import type { Network, PaymentRequirements } from '@x402/core/types';
@@ -96,6 +100,31 @@ const GATED_ROUTES: GatedRoute[] = [
     ref: (_path, body) => readField(body, 'quote_id'),
   },
 ];
+
+/**
+ * Paths under a metered prefix that are free anyway.
+ *
+ * `GET /v1/index/health` is index operations, not a reading, and
+ * docs/INDEX-SPEC.md section 9 names that path. The route map matches a
+ * parameter, `GET /v1/index/:group`, which compiles to one non-empty segment
+ * and so matches `health` as readily as `computer_math`; the library's pattern
+ * syntax escapes everything a negative lookahead would need, so the exemption
+ * cannot be written as a pattern and is written here instead.
+ *
+ * It is a list of exact paths rather than a prefix, because the reason this
+ * exists at all is that a prefix under a metered prefix is how a free route
+ * silently stops being free. A test holds the endpoint open with the gate
+ * configured, beside the test that holds the free catalogue open.
+ */
+const FREE_UNDER_METERED_PREFIX: readonly { method: string; path: string }[] = [
+  { method: 'GET', path: '/v1/index/health' },
+];
+
+export function isFreeUnderMeteredPrefix(method: string, path: string): boolean {
+  return FREE_UNDER_METERED_PREFIX.some(
+    (route) => route.method === method.toUpperCase() && route.path === path,
+  );
+}
 
 /** The endpoint label for the bind gate, which is not in the route map. */
 export const BIND_ENDPOINT = 'POST /v1/bind';
@@ -318,6 +347,23 @@ export interface PaymentRequiredProblem extends ProblemBody {
 }
 
 /**
+ * The resource server the middleware asks "does this request need paying for",
+ * with the exemptions of `FREE_UNDER_METERED_PREFIX` applied.
+ *
+ * `requiresPayment` is the one question the Fastify middleware asks before it
+ * does anything else, so answering false here is the whole carve out: the
+ * request never reaches the facilitator, never gets a 402 and never has a
+ * settlement hook attached to it.
+ */
+class CarveOutResourceServer extends x402HTTPResourceServer {
+  override requiresPayment(context: HTTPRequestContext): boolean {
+    const method = context.method ?? context.adapter.getMethod();
+    if (isFreeUnderMeteredPrefix(method, context.path)) return false;
+    return super.requiresPayment(context);
+  }
+}
+
+/**
  * Put the gate in front of the routes.
  *
  * Called before the route plugins are registered, because the middleware's
@@ -325,7 +371,7 @@ export interface PaymentRequiredProblem extends ProblemBody {
  */
 export function registerX402(app: FastifyInstance, gate: X402Gate): void {
   gate.useLogger(app.log);
-  paymentMiddleware(app, gate.routes(), gate.server);
+  paymentMiddlewareFromHTTPServer(app, new CarveOutResourceServer(gate.server, gate.routes()));
 
   // The middleware builds the 402 body before Fastify's request id exists, so
   // the one field the error envelope needs and the body cannot know is filled

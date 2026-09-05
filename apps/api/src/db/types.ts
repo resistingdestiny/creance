@@ -226,9 +226,20 @@ export interface Repository {
       >
     >,
   ): Promise<void>;
+  /** A settlement for an endpoint that had no row waiting, from T08's gate. */
+  insertPayment(row: PaymentRow): Promise<void>;
+  /** The row a bind wrote at `uncollected`, found by the policy it belongs to. */
+  paymentByRef(endpoint: string, ref: string): Promise<PaymentRow | null>;
+  /** The idempotency key: one settled row per facilitator transaction. */
+  paymentByFacilitatorTx(facilitatorTx: string): Promise<PaymentRow | null>;
   updatePayment(
     paymentId: string,
-    patch: Partial<Pick<PaymentRow, 'hcsTopic' | 'hcsSeq' | 'status'>>,
+    patch: Partial<
+      Pick<
+        PaymentRow,
+        'hcsTopic' | 'hcsSeq' | 'status' | 'payer' | 'facilitator' | 'facilitatorTx' | 'settledAt'
+      >
+    >,
   ): Promise<void>;
   observations(groupKey: string, limit: number): Promise<ObservationRow[]>;
   upsertObservations(rows: ObservationRow[]): Promise<number>;

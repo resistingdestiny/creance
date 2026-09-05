@@ -119,6 +119,24 @@ export class MemoryRepository implements Repository {
     this.policyRows.set(policyId, { ...existing, ...patch });
   }
 
+  async insertPayment(row: PaymentRow): Promise<void> {
+    this.paymentRows.set(row.paymentId, row);
+  }
+
+  async paymentByRef(endpoint: string, ref: string): Promise<PaymentRow | null> {
+    return (
+      [...this.paymentRows.values()].find(
+        (row) => row.endpoint === endpoint && row.ref === ref,
+      ) ?? null
+    );
+  }
+
+  async paymentByFacilitatorTx(facilitatorTx: string): Promise<PaymentRow | null> {
+    return (
+      [...this.paymentRows.values()].find((row) => row.facilitatorTx === facilitatorTx) ?? null
+    );
+  }
+
   async updatePayment(paymentId: string, patch: Partial<PaymentRow>): Promise<void> {
     const existing = this.paymentRows.get(paymentId);
     if (existing === undefined) return;

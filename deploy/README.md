@@ -31,10 +31,12 @@ route for anyone reading the project for the first time.
 Put the production `.env` at the repository root. It is the file `.env.example`
 describes, filled in for testnet, and it never enters git.
 
-Filled in, not copied. A blank line in that file is a value and not an absence:
-`CREANCE_DEPLOYMENT_RECORD=` with nothing after it hands the API an empty path
-rather than the default, and the process refuses to boot. Fill a name in or leave
-it out of the file. See docs/harness-notes.md.
+A blank line in that file used to be a value rather than an absence, so
+`CREANCE_DEPLOYMENT_RECORD=` with nothing after it handed the API an empty path
+instead of the default and the process refused to boot. T23 fixed that: every
+name the API and the oracle read is now read blank as unset. `GIT_SHA` is still
+the one case where a blank line would do harm, because it would erase what the
+image build baked in, and it is kept out of `.env.example` for that reason.
 
 The values that matter to a deployment, beyond the Hedera and World credentials:
 

@@ -70,6 +70,7 @@ ENV GIT_SHA=$GIT_SHA
 
 # Schedule mode: the daily index check of docs/INDEX-SPEC.md section 9. The loop
 # is the schedule, so the container stays up and `restart: always` in the compose
-# file means what it says rather than papering over an exiting process. T26 fills
-# in the body of the `oracle:schedule` script and this command does not change.
+# file means what it says rather than papering over an exiting process. One
+# invocation of the script is one check, which is why the loop can own the
+# cadence: the check publishes only what the source has and the store does not.
 CMD ["sh", "-c", "while true; do pnpm run oracle:schedule; sleep 86400; done"]

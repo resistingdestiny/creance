@@ -9,7 +9,7 @@
     "migrate": "tsx --env-file-if-exists=../../.env src/db/cli.ts",
     "openapi": "tsx scripts/openapi.ts",
     "test": "vitest run",
-    "test:testnet": "vitest run --config vitest.testnet.config.ts",
+    "test:testnet": "tsx --env-file-if-exists=../../.env scripts/testnet/bind.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

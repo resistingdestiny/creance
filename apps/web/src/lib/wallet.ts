@@ -50,12 +50,16 @@ export interface WalletProvider {
  * was issued to, and are the only accounts an investor screen can honestly
  * present a position for.
  */
-export type DemoRole = 'policyholder-1' | 'investor-1' | 'investor-2';
+export type DemoRole = 'policyholder-1' | 'policyholder-3' | 'investor-1' | 'investor-2';
 
 export const DEMO_ACCOUNTS: Record<DemoRole, WalletAccount> = {
   'policyholder-1': {
     accountId: '0.0.10366453',
     evmAddress: '0xcad39730d48683b13e6077a70c6972add449b6f5',
+  },
+  'policyholder-3': {
+    accountId: '0.0.10366458',
+    evmAddress: '0xb4e3e57d1f4dfedf146e59ff6f1ae478fbb81c9e',
   },
   'investor-1': {
     accountId: '0.0.10366460',
@@ -69,6 +73,18 @@ export const DEMO_ACCOUNTS: Record<DemoRole, WalletAccount> = {
 
 /** The demo worker. The worker flow's account, and the default everywhere. */
 export const DEMO_ACCOUNT: WalletAccount = DEMO_ACCOUNTS['policyholder-1'];
+
+/**
+ * Which demo role holds an account, or null for an account this app has no key
+ * for. The claim's attestation is signed as the cover's own holder, so the
+ * signer has to name the role whose key derives it. docs/HEDERA.md.
+ */
+export function demoRoleOf(accountId: string): DemoRole | null {
+  const found = Object.entries(DEMO_ACCOUNTS).find(
+    ([, account]) => account.accountId === accountId,
+  );
+  return found === undefined ? null : (found[0] as DemoRole);
+}
 
 /** Never hidden. A judge who cannot tell whether a payment was real assumes it was not. */
 export const DEMO_WALLET_LABEL = 'Demo wallet. Testnet only.';

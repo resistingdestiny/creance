@@ -8,6 +8,8 @@ import { BottomSheet } from '../../components/bottom-sheet';
 import { ListRow } from '../../components/list-row';
 import { PillButton } from '../../components/pill-button';
 import { SurfaceGroup } from '../../components/surface-group';
+import { FailureBody } from '../../components/toast';
+import { purchaseFailedCopy } from '../../lib/claim-model';
 import { payAndBind } from '../purchase-actions';
 
 /**
@@ -25,6 +27,13 @@ import { payAndBind } from '../purchase-actions';
  * T08 put in front of the bind, and the cover is real from that moment. It is
  * said before the press rather than after it, which is the same rule the
  * subscribe screen follows.
+ *
+ * A payment that does not go through opens the Payment failed sheet, which is
+ * the deck's own state for it: the title verbatim, the amount interpolated, and
+ * one sentence saying what happened and what to do next. Its second sentence in
+ * the deck is written for a lapsed cover that is unchanged until its due date,
+ * and there is no cover yet at this point in the flow, so the sentence here is
+ * the one the API's own problem document justifies. See docs/DECISIONS.md.
  */
 
 export function PayScreen({
@@ -81,15 +90,15 @@ export function PayScreen({
               Testnet only. The first payment leaves the wallet above as soon as you press.
             </p>
 
-            {error === null ? null : (
-              <p className="text-secondary text-triggered" role="status">
-                {error}
-              </p>
+            {error === null ? (
+              <PillButton className="w-full" loading={pending} onClick={confirm}>
+                {`Pay ${premium}`}
+              </PillButton>
+            ) : (
+              <div data-testid="payment-failed">
+                <FailureBody {...purchaseFailedCopy(premium, error)} onAction={confirm} />
+              </div>
             )}
-
-            <PillButton className="w-full" loading={pending} onClick={confirm}>
-              {`Pay ${premium}`}
-            </PillButton>
           </div>
         </BottomSheet>
       </main>

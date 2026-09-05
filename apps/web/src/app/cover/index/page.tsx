@@ -3,6 +3,9 @@ import { redirect } from 'next/navigation';
 
 import { reportUnreachable } from '../../../lib/api';
 
+import { fetchReplay } from '../../../lib/claim-api';
+import { replayBadgeLabel } from '../../../lib/claim-model';
+
 import { findOccupation, occupationLabel } from '../../../lib/occupations';
 import { readPurchase } from '../../../lib/purchase-session';
 import { fetchIndex, fetchPolicy } from '../../../lib/worker-api';
@@ -52,7 +55,7 @@ export default async function CoverIndexPage({
   if (group === null || findOccupation(group) === null) redirect('/');
 
   try {
-    const index = await fetchIndex(group);
+    const [index, replay] = await Promise.all([fetchIndex(group), fetchReplay()]);
     const reading = headlineReading(index);
     const occupation = findOccupation(group);
     return (
@@ -66,6 +69,7 @@ export default async function CoverIndexPage({
         occupation={occupationLabel(group)}
         open={reading?.open ?? false}
         points={chartPoints(index)}
+        replayBadge={replayBadgeLabel(replay)}
         sentence={reading?.detail ?? null}
         threshold={chartThreshold(index)}
       />

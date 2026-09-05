@@ -97,3 +97,21 @@ export async function fetchAuditTrail(policyId: string): Promise<AuditTrail> {
   }
   return (await response.json()) as AuditTrail;
 }
+
+/**
+ * The payout on a cover, or null when there has not been one.
+ *
+ * Home's Paid state needs an amount and a date, and the claim behind them
+ * belongs to whichever browser submitted it. A cover reopened later, or opened
+ * from a link, has no claim session, so the payout is read from the audit trail
+ * instead: it is the same payment, read back off the payments topic, and it is
+ * free.
+ */
+export async function fetchPayout(policyId: string): Promise<AuditEntry | null> {
+  try {
+    const trail = await fetchAuditTrail(policyId);
+    return trail.entries.find((entry) => entry.kind === 'payout') ?? null;
+  } catch {
+    return null;
+  }
+}

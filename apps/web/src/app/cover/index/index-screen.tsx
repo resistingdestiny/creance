@@ -1,5 +1,6 @@
 import { AppFrame } from '../../../components/app-frame';
 import { IndexChart, type IndexPoint } from '../../../components/index-chart';
+import { ReplayBar } from '../../../components/replay-bar';
 import { formatPeriodShort } from '../../../lib/format';
 import type { BacktestMonth } from '../../../lib/worker-model';
 import { CoverTabs } from '../../cover-tabs';
@@ -26,6 +27,7 @@ export function IndexScreen({
   neverOpened,
   months,
   open,
+  replayBadge = null,
 }: {
   occupation: string;
   distance: string | null;
@@ -38,12 +40,15 @@ export function IndexScreen({
   neverOpened: boolean;
   months: readonly BacktestMonth[];
   open: boolean;
+  /** "Replay: Jul 2026" while the demo clock is walking, null when it is live. */
+  replayBadge?: string | null;
 }) {
   return (
     <AppFrame>
       <div className="flex min-h-dvh flex-col">
         <main className="flex flex-1 flex-col gap-8 px-5 py-10">
           <div className="flex flex-col gap-2">
+            {replayBadge === null ? null : <ReplayBar label={replayBadge} variant="compact" />}
             <h1 className="text-title font-display font-semibold tracking-title text-ink">
               {occupation}
             </h1>

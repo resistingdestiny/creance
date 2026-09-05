@@ -1,3 +1,4 @@
+import { serverVar } from './server-env';
 import { issueEligibility, verifyWorldCheck } from './worker-api';
 import type { WalletAccount } from './wallet';
 
@@ -97,24 +98,12 @@ export const demoIssuer: EligibilityIssuer = {
 /**
  * Whether this deployment has a World ID app to run a check against.
  *
- * The framework reads environment files from the application directory and the
- * one environment file in this repository sits at the root, so it is loaded the
- * same way apps/web/src/lib/payer.ts loads it. Only ever on the server: the
- * browser never learns the app id from here, it gets it with the signed request
- * context.
- *
- * https://nodejs.org/api/process.html#processloadenvfilepath
+ * A private variable, read through src/lib/server-env.ts, and only ever on the
+ * server: the browser never learns the app id from here, it gets it with the
+ * signed request context.
  */
 export function worldAppId(): string | null {
-  const direct = process.env.WORLD_APP_ID;
-  if (direct !== undefined && direct.trim() !== '') return direct.trim();
-  try {
-    process.loadEnvFile('../../.env');
-  } catch {
-    return null;
-  }
-  const loaded = process.env.WORLD_APP_ID;
-  return loaded !== undefined && loaded.trim() !== '' ? loaded.trim() : null;
+  return serverVar('WORLD_APP_ID');
 }
 
 /**

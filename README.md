@@ -351,7 +351,42 @@ camera ran when one did not.
 One payout and one decline are on testnet, with every link, in
 [docs/HEDERA.md](docs/HEDERA.md).
 
+### The screens a person claims through
+
+    /home              the cover, and "Start a claim" when the index is open
+    /claim             what the cover pays for and what it does not
+    /claim/job         employer, job title, last day of work, how it ended
+    /claim/proof       the documents, one is enough
+    /claim/confirm     the live person check
+    /claim/review      every answer, the statement, and submit
+    /claim/status      the answer when it arrives, and the reasons if it is no
+
+Every call is made on the server, so the claim credential never reaches the
+browser and the attestation is signed there with the key of the account the
+cover was bound to. The files live in the web process between the upload screen
+and the packet, and go no further: the API is where they are sealed.
+
+Home carries the state of the cover: Covered, Claims open when the chain says
+the series is open, Claim in progress while one is being decided, Paid out with
+the amount received and a receipt, and Payment due when a premium has been
+missed. A lapse, a failed payment and an offline browser have no server path to
+force, so `WEB_DEMO_STATES=true` turns on `/home?demo=lapsed` and its five
+siblings, which render from fixtures and say so on the screen.
+
 ## The review queue
+
+Referred claims are reviewed at `/admin/claims`, a desktop screen that lists
+each one with the Adjuster's reasons, the evidence fingerprints and the
+statement behind it, and approves or declines through the endpoints below. A
+decline asks for one plain sentence, because that sentence is what the person
+reads.
+
+The screen asks for the reviewer token before it shows anything. It is the same
+`ADMIN_TOKEN` the API compares, typed once and exchanged for an opaque session
+id in an httpOnly cookie; the token never reaches the browser. Approving moves
+settlement funds, so the decide action checks that session before it calls the
+API, not only the page that renders the button. "Sign out" ends it, and a
+restart of the web server ends every session.
 
 A claim needs two keys: the index has to be open for the occupation, and the
 person has to show they lost their job. The second key is adjudicated. The

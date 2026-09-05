@@ -10,6 +10,7 @@ import {
   type X402Payer,
 } from '@creance/client/src/x402/payer';
 
+import { serverVar } from './server-env';
 import { DEMO_ACCOUNT } from './wallet';
 
 /**
@@ -48,32 +49,13 @@ const MAX_PER_PAYMENT = '100000000';
 const payers = new Map<string, X402Payer>();
 
 /**
- * The operator key, from the process environment or from the repository's own
- * environment file.
+ * The operator key, a private variable read through src/lib/server-env.ts.
  *
- * The framework reads environment files from the application directory, and
- * this is a workspace inside a monorepo whose one environment file sits at the
- * repository root, beside the example that documents it. The API loads that
- * file with node's own loader and this does the same, here rather than at
- * server startup, because this module is the only thing in the web app that
- * needs a secret and it is only ever loaded on the server.
- *
- * The loader does not overwrite a variable that is already set, so a deployment
- * that puts them in the process environment is unaffected, and a clone with no
- * file at all simply has no payer.
- *
- * https://nodejs.org/api/process.html#processloadenvfilepath
+ * This module is the only thing in the web app that needs a secret and it is
+ * only ever loaded on the server. A clone with no key simply has no payer.
  */
 function operatorKey(): string | null {
-  const direct = process.env.HEDERA_OPERATOR_KEY;
-  if (direct !== undefined && direct.trim() !== '') return direct.trim();
-  try {
-    process.loadEnvFile('../../.env');
-  } catch {
-    return null;
-  }
-  const loaded = process.env.HEDERA_OPERATOR_KEY;
-  return loaded !== undefined && loaded.trim() !== '' ? loaded.trim() : null;
+  return serverVar('HEDERA_OPERATOR_KEY');
 }
 
 /**

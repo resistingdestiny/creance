@@ -51,6 +51,7 @@ const { PayScreen } = await import('../src/app/pay/pay-screen.js');
 const { VerifyScreen } = await import('../src/app/verify/verify-screen.js');
 const { startWorldCheck } = await import('../src/app/purchase-actions.js');
 const { OCCUPATIONS } = await import('../src/lib/occupations.js');
+const { homeStatus } = await import('../src/lib/claim-model.js');
 const {
   bandLabelFor,
   chartDescription,
@@ -274,11 +275,18 @@ describe('home', () => {
     return render(
       <HomeScreen
         bound={bound}
-        cover={1000}
-        indexCaption="Points from opening claims."
-        indexValue="0.69, falling"
-        nextPayment="0.86 on 5 October"
-        occupation="Computer and mathematical"
+        view={{
+          policyId: 'pol_01M1S3EBDQR3W79A9E8MR6MPYB',
+          occupation: 'Computer and mathematical',
+          cover: 1000,
+          status: homeStatus('covered'),
+          nextPayment: '0.86 on 5 October',
+          index: { value: '0.69, falling', caption: 'Points from opening claims.' },
+          claimsOpen: null,
+          paid: null,
+          lapsed: null,
+          replayBadge: null,
+        }}
       />,
     );
   }

@@ -83,6 +83,31 @@ export interface QuoteView {
   readonly expires_at: string;
 }
 
+/**
+ * Whether a claim can be started, and the sentences to print when it cannot.
+ *
+ * Present only where `GET /v1/policy/:id` read the chain for it. It is on the
+ * free view because "Claims aren't open." is a screen a person sees before
+ * they have identified themselves, and the reading behind it is the published
+ * index, which is public. The sentences are printed verbatim: they are
+ * composed server side so that two screens cannot say the reading differently
+ * (docs/CLAIMS.md, "Claims aren't open").
+ */
+export interface PolicyClaimsBlock {
+  readonly open: boolean;
+  readonly code: 'claims_open' | 'claims_not_open' | 'policy_not_claimable' | 'already_claimed';
+  readonly title: string;
+  readonly reason_lines: readonly string[];
+  readonly reading: {
+    readonly form: 'level' | 'shock';
+    readonly distance: string;
+    readonly period: string | null;
+    readonly attachment_shock: string;
+    readonly level_line: string;
+    readonly open: boolean;
+  } | null;
+}
+
 export interface PolicyView {
   readonly policy_id: string;
   readonly series_id: string;
@@ -106,6 +131,7 @@ export interface PolicyView {
     readonly bind_transaction: string | null;
     readonly hashscan: string | null;
   };
+  readonly claims?: PolicyClaimsBlock;
 }
 
 export interface IndexReading {

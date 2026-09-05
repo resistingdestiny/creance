@@ -962,3 +962,98 @@ Read the two topics back without asking us:
 
     curl -s https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10366473/messages
     curl -s https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10366471/messages
+
+## The claim screens on testnet, 5 September 2026
+
+The claim flow of DESIGN.md 3.9 ran end to end through the web app: a person
+started a claim on Home, filled in the four fields, uploaded a document,
+confirmed the live person check, signed the attestation and submitted the
+packet; the Adjuster referred it; a reviewer approved it from the admin review
+queue screen and the vault paid. A second claim was declined and its reason
+reached the person's screen. Both documents are the committed fixtures under
+`apps/adjuster/fixtures`, so every evidence fingerprint below can be recomputed
+from this repository with `sha256sum`.
+
+### Three more backdated policies
+
+Bound with `pnpm --filter @creance/api testnet:bind-backdated` for the reason
+recorded above: cover has to have begun before the April 2026 loss window. All
+three start 2025-12-01, are 1,000 TUSD of cover at 28.00 a month, and become
+claimable on 2026-01-30.
+
+| | Approved path | Declined path | Unused |
+|---|---|---|---|
+| cover | `pol_01M1S77VCWJ7VMMFXANN0N7G19` | `pol_01M1S78JTAHNT62MBK6Y74ZEMW` | `pol_01M1S75QAWN060TNZJRCG2AKTB` |
+| holder | policyholder-1 [0.0.10366453](https://hashscan.io/testnet/account/0.0.10366453) | policyholder-3 [0.0.10366458](https://hashscan.io/testnet/account/0.0.10366458) | policyholder-1 |
+| bind | [0x91fc76e2…f6ab](https://hashscan.io/testnet/transaction/0x91fc76e2ae0e5f616eaa23f005366039643578d1e7f0048e5ed5ece57289f6ab) | [0xdf30de59…1ec2](https://hashscan.io/testnet/transaction/0xdf30de599a1c83f31c2e9aa17884ed73bde877839cb0c940b3df97c2ba5e1ec2) | [0x3a7b08fa…8006](https://hashscan.io/testnet/transaction/0x3a7b08fa68fb0cd87bbf83504936965eeb44dbec05448abeab38bcdb40738006) |
+| policy receipt | [0.0.10366468 serial 17](https://hashscan.io/testnet/token/0.0.10366468/17) | [0.0.10366468 serial 18](https://hashscan.io/testnet/token/0.0.10366468/18) | [0.0.10366468 serial 16](https://hashscan.io/testnet/token/0.0.10366468/16) |
+| binding receipt | payments topic sequence 90 | sequence 92 | sequence 88 |
+
+The third was bound before the fix recorded in docs/harness-notes.md, which
+stored the cover's start date in `claims_payable_from` instead of the day the
+waiting period ends. It is left where it is rather than quietly deleted: it is
+on chain, and the two policies bound after the fix read 2026-01-30.
+
+### The approved claim, submitted through the screens
+
+`clm_01M1S819FWBCPFEQ6F1326KQDY`, packet A, the clean redundancy. Separation
+2026-03-13, one month inside the lookback of the open month 2026-04. The
+attestation was signed by the web server as the account the cover was bound to,
+and the API's recovery check passed: the admin payload records
+`"method": "eip191", "signature_verified": true`.
+
+    packet hash    sha256:2b44c5f5789c59a4ff988d175c9018e325f5782c1b9a845c7675ba07188531c6
+    evidence       sha256:c92a84402195993a9472418ce9ed0ddb11435f6688e4acfaabe13d07422588f5
+    decision       approve, by reviewer:root, from the review queue screen
+    decision hash  sha256:1ee6e1c67d634e657f485212a7be2ce1de66662c269e66ebf81161adf9d67c46
+    amount         1000000000, the cover limit exactly
+    paid at        2026-09-05T17:02:49Z
+
+The Adjuster referred it, because this deployment has no `ANTHROPIC_API_KEY` and
+a claim whose document cannot be read is referred and never declined. The
+approval came from the new admin screen, which is the human half of the queue
+working end to end.
+
+| What | Where |
+|---|---|
+| Packet hash on the claims topic | [sequence 15](https://hashscan.io/testnet/topic/0.0.10366473) |
+| The Adjuster's refer | sequence 16 |
+| The reviewer's approve | sequence 19 |
+| `payClaim`, 172,684 gas | [0xfc1a2137…0c8c](https://hashscan.io/testnet/transaction/0xfc1a2137f7fe87d9a853347247a20ea5edccdf1d8c46176d25bed1b244480c8c) |
+| The transfer inside it | [0.0.7314364-1788627760-612909364](https://hashscan.io/testnet/transaction/0.0.7314364-1788627760-612909364) |
+| Payout on the payments topic | sequence 104 |
+
+### The declined claim, and the reason on the person's screen
+
+`clm_01M1S85DH1930WXZ8J0KDS6710`, packet B, the resignation. R07 failed hard on
+the statement alone, so no document was read and no chain call was made.
+
+    packet hash    sha256:acb4a38d857183758cc8f88838d929b46855fd1801ec2cffe1856ca769750e9f
+    evidence       sha256:ad1ef4663c8a1df95b6c230537b77ffb3c6d7534f4570731d76494961ff289fe
+    decision       decline, by adjuster
+    decision hash  sha256:0a147dc3c151a00f53132301f6ae1259f981246fe9f0e03dddbcb2eeea4bcb7a
+    claims topic   packet sequence 17, decision sequence 18
+
+Screen C9 printed the sentence from the decision record:
+
+    We can't pay this claim.
+    Resigning isn't covered. This cover pays when your employer ends your job.
+
+### The api account needed HBAR before `payClaim` would run
+
+The first approval refused with `insufficient funds for intrinsic transaction
+cost`: the api account held 2.14 HBAR and the call reserves about 3.3 for its
+explicit 1,500,000 gas limit. The decision stood and the authorisation was
+stored, so pressing Approve again after 25 HBAR moved from the operator paid it,
+which is the retry path the decide endpoint is written for.
+
+    transfer  0.0.10362512@1788627701.184655628, operator to 0.0.10366450
+
+### Reproducing it
+
+    pnpm --filter @creance/api testnet:bind-backdated --holder policyholder-1 --start 2025-12-01
+    pnpm dev
+    # open /home?policy=pol_..., claim through the screens
+    pnpm adjuster:run
+    # approve at /admin/claims, then publish the decision hash
+    pnpm adjuster:run

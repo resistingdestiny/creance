@@ -480,13 +480,15 @@ runs the live call and prints the JSON that refreshes a recording.
 
 ## The review queue
 
-Four endpoints, all behind a bearer token in the `Authorization` header,
+Six endpoints, all behind a bearer token in the `Authorization` header,
 compared in constant time.
 
     GET  /v1/admin/claims?status=under_review&limit=20
     GET  /v1/admin/claims/{claimId}
     GET  /v1/admin/claims/{claimId}/evidence/{evidenceId}
     POST /v1/admin/claims/{claimId}/decide
+    GET  /v1/admin/claims/unpublished
+    POST /v1/admin/claims/{claimId}/published
 
 None of them is in `recipes/bazantic/openapi.yaml`. That document describes what
 an agent may buy over x402; the review queue is internal, and it is not something
@@ -521,6 +523,28 @@ overdue claim is flagged and sorted to the top, and that is all. A time-gated
 transition is right for money already committed on chain, such as the reserve
 releasing when the window closes, and wrong for an adjudication, because the
 deadline in this design is on the claimant's filing and not on our review.
+
+### A human decision gets a record too
+
+A reviewer posts a decision and a sentence, not a record, so the API composes
+one: the same shape, `actor` as `reviewer:<name>`, `engine.model` null, the rule
+results carried forward from the machine's record, and a `human` block with the
+review time, the soft rules the reviewer decided against, and the hash of their
+sentence. The sentence itself is never in the record, only its hash, so the
+record proves a note existed without publishing one person's words about another.
+A decision that supersedes an earlier one carries `supersedes` with the earlier
+hash: a corrected decision is a new decision, never an edit, which is the same
+append-only discipline the index uses and for the same reason.
+
+The API composes it because a decision with no record is a decision nothing can
+pay. The CLAIMS role signs over `decisionHash`, and a hash needs a preimage.
+
+The API cannot publish it, because the claims topic's submit key is the adjuster
+account's. So the last two endpoints exist: the Adjuster lists the decisions
+whose hash has not reached the topic and posts back where each one landed. That
+runs at the end of every pass, which is what keeps "every decision is on a public
+topic" true for the human half of the queue as well as the machine half.
+`POST .../published` writes one column and cannot reopen a decided claim.
 
 ### Who holds which token
 

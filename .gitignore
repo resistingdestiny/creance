@@ -16,3 +16,5 @@ typechain-types/
 
 # Hardhat 3 typechain output, regenerated on every build.
 contracts/types/
+.playwright-mcp/
+.claude/worktrees/

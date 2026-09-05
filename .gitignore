@@ -24,3 +24,6 @@ contracts/types/
 
 # Scratch files a builder leaves inside a package while working something out.
 .scratch/
+
+# What the Steward remembers between runs: one pointer file per principal.
+var/

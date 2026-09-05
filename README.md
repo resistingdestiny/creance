@@ -6,7 +6,7 @@ Everything runs on Hedera testnet. There is no mainnet path and no real money an
 
 ## Status
 
-Being built. The contracts, the note series, the coupon and maturity runs, the index model, the API, the investor screens, the index oracle, the Steward agent and the Adjuster are live on Hedera testnet; the API's three metered endpoints are gated with x402 and settle through Blocky402, and the Adjuster's first decision hash is on the claims topic. The scheduler and the demo seed still print what they will do instead of doing it, and later tickets fill them in one at a time.
+Being built. The contracts, the note series, the coupon and maturity runs, the index model, the API, the worker and investor screens, the index oracle, the Steward agent, the Adjuster, the claim flow and the review queue are live on Hedera testnet; the API's three metered endpoints are gated with x402 and settle through Blocky402, one payout and one decline are on the claims topic, and the images and compose file for a public deployment are built. The scheduler and the demo seed still print what they will do instead of doing it, and later tickets fill them in one at a time.
 
 ## Requirements
 

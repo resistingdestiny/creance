@@ -4,5 +4,13 @@
     "outDir": "dist",
     "rootDir": "."
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts", "hardhat.config.ts"]
+  "include": [
+    "ats/**/*.ts",
+    "src/**/*.ts",
+    "scripts/**/*.ts",
+    "test/**/*.ts",
+    "types/**/*.ts",
+    "vitest.config.ts",
+    "hardhat.config.ts"
+  ]
 }

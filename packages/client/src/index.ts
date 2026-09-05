@@ -6,3 +6,6 @@ export const summary = 'TypeScript client for the API including an x402 payer he
 export function describeWorkspace(): string {
   return `${workspaceName}: ${summary}`;
 }
+
+export * from './hedera/schedule.js';
+export * from './units.js';

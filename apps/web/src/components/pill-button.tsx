@@ -78,3 +78,32 @@ function LoadingDots() {
     </span>
   );
 }
+
+/**
+ * The same pill, as a link. The investor overview's "Subscribe" moves to
+ * another route rather than doing something in place, and a button that
+ * navigates is a link with the wrong element: it loses the middle click, the
+ * open in a new tab and the status bar preview a person expects from one.
+ *
+ * The classes are the button's own, so the two cannot drift apart.
+ */
+export function PillLink({
+  variant = 'primary',
+  href,
+  children,
+  className,
+}: {
+  variant?: PillButtonVariant;
+  href: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <a
+      className={[base, variants[variant], 'no-underline', className].filter(Boolean).join(' ')}
+      href={href}
+    >
+      {children}
+    </a>
+  );
+}

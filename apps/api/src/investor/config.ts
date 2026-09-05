@@ -48,6 +48,7 @@ export interface SeriesConfig {
   group: string;
   maturityAt: number;
   vault: { address: string; contractId?: string };
+  coverPool?: { address: string; contractId?: string };
   note?: { address: string; contractId?: string };
   settlementToken: { tokenId: string; address: string; decimals: number; symbol: string };
   holders: HolderConfig[];
@@ -68,6 +69,7 @@ const DEFAULT_RESOURCES = '../../../../docs/hedera.testnet.json';
 interface DeploymentFile {
   network?: string;
   collateralVault?: { address: string; contractId?: string };
+  coverPool?: { address: string; contractId?: string };
   settlementToken?: { tokenId: string; evmAddress: string };
   testnetRunthrough?: unknown;
   maturityDemo?: {
@@ -142,6 +144,20 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
       : { contractId: record.collateralVault.contractId }),
   };
 
+  // The pool is optional. Its two fields, active exposure and the term, are the
+  // only things on the investor view that degrade to null without it, so a
+  // deployment record written before the pool existed still serves.
+  const coverPoolAddress = process.env.HEDERA_COVER_POOL_ADDRESS ?? record.coverPool?.address;
+  const coverPool =
+    coverPoolAddress === undefined
+      ? undefined
+      : {
+          address: coverPoolAddress,
+          ...(record.coverPool?.contractId === undefined
+            ? {}
+            : { contractId: record.coverPool.contractId }),
+        };
+
   const token = resources?.settlementToken;
   const settlementToken = {
     tokenId: token?.tokenId ?? '',
@@ -166,6 +182,7 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
       group: record.series.group,
       maturityAt: record.series.maturityAt,
       vault,
+      ...(coverPool === undefined ? {} : { coverPool }),
       ...(noteAddress === undefined
         ? {}
         : {
@@ -194,6 +211,7 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
       group: record.series?.group ?? '',
       maturityAt: record.maturityDemo.maturityAt,
       vault,
+      ...(coverPool === undefined ? {} : { coverPool }),
       ...(record.maturityDemo.note === undefined ? {} : { note: record.maturityDemo.note }),
       settlementToken,
       holders,

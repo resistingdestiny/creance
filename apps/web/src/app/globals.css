@@ -262,3 +262,20 @@
     outline-offset: 2px;
   }
 }
+
+@layer components {
+  /* The reserved segment of the principal bar, from
+     docs/DESIGN-TOKENS-ADDENDUM.md: white, a hairline border, and a diagonal
+     hatch in hairline. The border and the ground are utilities on the element;
+     the hatch is here because a gradient at a fixed angle and pitch is not one.
+
+     The same 118deg the card gradient uses, so the two diagonals on the page
+     agree. */
+  .principal-bar__reserved {
+    background-image: repeating-linear-gradient(
+      118deg,
+      var(--color-hairline) 0 1px,
+      transparent 1px 5px
+    );
+  }
+}

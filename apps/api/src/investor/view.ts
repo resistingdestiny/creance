@@ -1,7 +1,13 @@
 import { money, type Money } from '@creance/client';
 
 import type { CouponSettlementConfig, HolderConfig, SeriesConfig } from './config.js';
-import type { CouponEntitlement, HolderState, NoteState, VaultSeriesState } from './chain.js';
+import type {
+  CouponEntitlement,
+  CoverPoolSeriesState,
+  HolderState,
+  NoteState,
+  VaultSeriesState,
+} from './chain.js';
 
 /// The JSON the investor endpoints return, built from chain reads and the
 /// deployment record.
@@ -27,6 +33,27 @@ export interface HolderView {
   note_position: string;
   note_units: string;
   subscription: Money;
+  /// The note's own internal KYC register, which is what refuses a transfer.
+  /// `status` is null where there is no note to ask; `granted` is false then,
+  /// because a holder nothing has approved is not an approved holder.
+  kyc: { status: number | null; granted: boolean };
+  hashscan: string;
+}
+
+/// What the CoverPool adds to the series view. Null when the API has no pool
+/// address; `registered` false when the pool has never heard of this series,
+/// which is the maturity demonstration's case.
+export interface CoverPoolView {
+  address: string;
+  contract_id: string | null;
+  registered: boolean;
+  active_exposure: Money;
+  exposure_covered: Money;
+  /// The capacity rule of DESIGN.md 3.2: active cover limits over principal,
+  /// as a whole number of percent, which is how the investor screen says it.
+  capacity_used_percent: number;
+  term_seconds: number | null;
+  term_months: number | null;
   hashscan: string;
 }
 
@@ -62,11 +89,24 @@ export interface SeriesView {
     hashscan: string;
   } | null;
   holders: HolderView[];
-  coupons: { count: number; settled: number; latest_coupon_id: string | null };
+  cover_pool: CoverPoolView | null;
+  coupons: {
+    count: number;
+    settled: number;
+    latest_coupon_id: string | null;
+    /// The rate the most recent coupon was declared at, so a screen can say
+    /// "8 percent a year" without reading the coupons endpoint as well.
+    rate_percent: string | null;
+  };
   links: { coupons: string; payments_topic: string | null };
 }
 
 const SECONDS = 1000;
+
+/// The note's internal KYC register. docs/ATS.md sections 5 and 8: 1 is
+/// GRANTED, 0 is NOT_GRANTED, and it is the value that decides whether a
+/// transfer settles.
+export const KYC_GRANTED = 1;
 
 /** RFC 3339 in UTC, second precision, which is what every timestamp here is. */
 export function asTimestamp(seconds: number): string {
@@ -75,6 +115,23 @@ export function asTimestamp(seconds: number): string {
 
 export function hashscanUrl(kind: string, id: string, network = 'testnet'): string {
   return `https://hashscan.io/${network}/${kind}/${id}`;
+}
+
+/// The average Gregorian month in seconds. The term is stored in seconds and
+/// said in months, and 365 days is not a whole number of any month, so the
+/// conversion rounds. 31,536,000 seconds reads as 12 months.
+const AVERAGE_MONTH_SECONDS = 2_629_746;
+
+export function termMonths(seconds: number): number {
+  return Math.round(seconds / AVERAGE_MONTH_SECONDS);
+}
+
+/// Active cover limits over principal, rounded to whole percent. A series with
+/// no principal funded has no capacity to use, so it reads zero rather than
+/// dividing by zero.
+export function capacityUsedPercent(activeExposure: bigint, principalFunded: bigint): number {
+  if (principalFunded <= 0n) return 0;
+  return Number((activeExposure * 100n + principalFunded / 2n) / principalFunded);
 }
 
 /** Whole units of a note or a token, as a string. Never a float. */
@@ -88,10 +145,11 @@ export interface SeriesViewInput {
   vault: VaultSeriesState;
   note: NoteState | null;
   holders: { config: HolderConfig; state: HolderState }[];
+  coverPool: CoverPoolSeriesState | null;
 }
 
 export function buildSeriesView(input: SeriesViewInput): SeriesView {
-  const { series, vault, note, holders, network } = input;
+  const { series, vault, note, holders, network, coverPool } = input;
   const asset = series.settlementToken.tokenId;
   const decimals = series.settlementToken.decimals;
   const amount = (value: bigint): Money => money(value, asset, decimals);
@@ -157,12 +215,35 @@ export function buildSeriesView(input: SeriesViewInput): SeriesView {
       note_position: (state.balance + state.frozen).toString(),
       note_units: wholeUnits(state.balance + state.frozen, note?.decimals ?? decimals),
       subscription: amount(state.subscription),
+      kyc: { status: state.kycStatus, granted: state.kycStatus === KYC_GRANTED },
       hashscan: hashscanUrl('account', config.accountId, network),
     })),
+    cover_pool:
+      coverPool === null || series.coverPool === undefined
+        ? null
+        : {
+            address: series.coverPool.address,
+            contract_id: series.coverPool.contractId ?? null,
+            registered: coverPool.registered,
+            active_exposure: amount(coverPool.activeExposure),
+            exposure_covered: amount(coverPool.exposureCovered),
+            capacity_used_percent: capacityUsedPercent(
+              coverPool.activeExposure,
+              vault.principalFunded,
+            ),
+            term_seconds: coverPool.registered ? coverPool.term : null,
+            term_months: coverPool.registered ? termMonths(coverPool.term) : null,
+            hashscan: hashscanUrl(
+              'contract',
+              series.coverPool.contractId ?? series.coverPool.address,
+              network,
+            ),
+          },
     coupons: {
       count: series.coupons.length,
       settled,
       latest_coupon_id: series.coupons.at(-1)?.couponId ?? null,
+      rate_percent: series.coupons.at(-1)?.ratePercent.toString() ?? null,
     },
     links: {
       coupons: `/v1/series/${series.label}/coupons`,

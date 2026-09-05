@@ -28,7 +28,7 @@ Run all of these from the repository root.
 | --- | --- |
 | `pnpm test` | Runs every unit test in every workspace. Chain free, no credentials needed. |
 | `pnpm test:testnet` | Runs the integration tests against Hedera testnet. Needs `.env`. |
-| `pnpm dev` | Runs the web app on http://localhost:3000. The component gallery, which is the design review surface, is at http://localhost:3000/gallery. The API joins this command in T07. |
+| `pnpm dev` | Runs the web app on http://localhost:3000. The component gallery, which is the design review surface, is at http://localhost:3000/gallery. The investor screens are at http://localhost:3000/invest and http://localhost:3000/invest/subscribe, and they read the API, so run `pnpm api:dev` beside this. The API joins this command in T07. |
 | `pnpm lint` | Runs eslint across the repository. |
 | `pnpm typecheck` | Runs the TypeScript compiler in every workspace without emitting. |
 | `pnpm oracle:once` | Pulls BLS data, computes the ODI and publishes one observation to HCS. |
@@ -54,6 +54,7 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
 ## Layout
 
     apps/web            worker, investor and admin screens, and the demo clock
+    apps/web/src/app/invest  the investor overview at /invest and subscribe at /invest/subscribe
     apps/api            quotes, binding, claims, x402 middleware, World verification
     apps/api/src/investor  the investor endpoints, which read the chain directly
     apps/oracle         BLS fetch, ODI computation, HCS publish, replay
@@ -65,6 +66,8 @@ A single workspace can be run on its own, for example `pnpm --filter @creance/in
     data/bls            snapshot of the raw BLS source files, with their hashes
     contracts/coupons   coupon settlement and the maturity demonstration
     packages/client     API client, Scheduled Transactions and amount conversion
+
+The investor screens are desktop, 1280 wide, and they fetch on the server rather than in the browser, so `pnpm api:dev` has to be running beside `pnpm dev` for them to render. The origin is `CREANCE_API_URL` and defaults to the address `pnpm api:dev` listens on, so no configuration is needed to run them locally.
 
 Workspaces are named under the `@creance` scope. Every one of them extends [tsconfig.base.json](tsconfig.base.json), which sets TypeScript to strict.
 

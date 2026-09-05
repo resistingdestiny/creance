@@ -1,5 +1,5 @@
 import { AppFrame } from '../components/app-frame';
-import { PillButton } from '../components/pill-button';
+import { PillButton, PillLink } from '../components/pill-button';
 
 /**
  * A holding page in the product voice. The purchase flow is T15's, the index
@@ -23,9 +23,11 @@ export default function Home() {
         </div>
         <div className="flex flex-col gap-3">
           <PillButton disabled>Get a quote</PillButton>
-          <PillButton disabled variant="secondary">
+          {/* The only wire out of this holding page. The investor screens are
+              T17's and they are real; the quote is T15's and is not. */}
+          <PillLink href="/invest" variant="secondary">
             I want to invest
-          </PillButton>
+          </PillLink>
         </div>
       </main>
     </AppFrame>

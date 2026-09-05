@@ -1373,3 +1373,27 @@ recording, or the replay runs publish-only with `--no-submit` against a chain
 state that already holds the April opening. The second is the cheaper take and
 shows the same screens; the first is the one that shows the reserve being taken
 live.
+
+### The observation row is written between the two network calls, and resuming is the retry
+
+Publishing an observation is two writes that cannot be one transaction: an HCS
+message, and a contract call carrying the sequence number that message returned.
+The local row is written between them, not after both.
+
+The row is the only thing that stops a later run publishing a period twice, and
+an HCS message cannot be retracted, so the row has to be durable before anything
+that can throw runs. A run that dies in the contract call leaves the row with
+`hcs_seq` set and `submit_tx` null; the next run over that window republishes
+nothing and does the contract call alone, sending the sequence number and the
+source hash of the message that is actually on the topic rather than recomputing
+them. Recomputing would be wrong rather than merely wasteful: if the source were
+revised between the two attempts, the value on chain would be one no published
+message supports.
+
+One window is left open deliberately. A process killed between the topic receipt
+and the row write leaves a message with no row, and the next run would republish
+that period. Closing it needs the topic read back through the mirror node before
+republishing, which needs the runs table to know which periods a previous run
+was in the middle of. That is T26's work, and the mirror node client already
+lives in this workspace for it. It is recorded here rather than left implicit
+because it is the one known gap in the first-final guarantee.

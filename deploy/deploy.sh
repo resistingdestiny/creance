@@ -57,6 +57,18 @@ if [ -n "$INLINE" ]; then
 	exit 1
 fi
 
+# GIT_SHA is a build argument of the images and never a runtime setting. A line
+# for it in .env, blank or otherwise, is passed to the container by `env_file`
+# and overrides what the build baked in, so GET /health would report the
+# operator's file rather than the running image's own commit. .env.example no
+# longer carries the name; a file copied from an older one still might.
+if grep -q '^GIT_SHA=' .env; then
+	echo "deploy: .env sets GIT_SHA. It is baked into the image at build time and" >&2
+	echo "deploy: a value here overrides that, so GET /health would stop reporting" >&2
+	echo "deploy: the commit the running image was built from. Delete the line." >&2
+	exit 1
+fi
+
 # One key from the file, last definition wins, exactly as a shell would read it.
 setting() {
 	grep "^$1=" .env | tail -n 1 | cut -d= -f2- | tr -d '\r' | sed 's/[[:space:]]*$//'

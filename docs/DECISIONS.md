@@ -2941,3 +2941,19 @@ docs/PRIZES.md stays where it is. It was created by an earlier ticket, it is
 linked from docs/SUBMISSION.md, and deleting a file this ticket was not asked to
 delete is worse than the duplication.
 
+### The premium floor is 0.5 percent a year, not DESIGN's 3 percent
+
+DESIGN.md 3.4 sets the floor at "3 percent of the cover limit". The formula of
+record, in "Premium is a guide price from the index multiplied by a capacity
+term" above, uses `max(0.005, ...)`, which is 0.5 percent a year, and that is
+what `PRICING.floorRate` has always been. The difference was never called out
+and is called out now, because a stated assumption that is not the one the code
+runs is the worst kind.
+
+The 0.5 percent floor never binds. The flat tail of the fitted hazard prices at
+`0.047 * 0.167 * 0.60 * 1.30`, which is 61 basis points, so the cheapest quote
+the formula can produce is already above the floor. A 3 percent floor would have
+bound on most months for most groups and overridden the hazard entirely, which
+is exactly the flattening the formula of record exists to avoid. The floor is
+therefore a statement about the least a policy is worth writing rather than a
+number that does any work.

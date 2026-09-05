@@ -14,6 +14,10 @@ export const COVER_POOL_ABI = [
   'function seriesOf(bytes32 seriesId) view returns (tuple(bytes32 group, int64 attachmentShock, int64 levelLine, int64 exhaustionShock, uint8 payoutMode, uint32 waitingPeriod, uint32 term, uint32 gracePeriod, uint32 claimWindowFromObservation, uint32 claimWindowFromSeparation, uint8 lookbackMonths, uint8 status, uint8 statusBeforeWindow, uint256 activeExposure, uint256 exposureCovered, uint32 firstOpenMonth, uint32 lastOpenMonth, uint32 lastObservedMonth, uint64 windowEndsAt))',
   'function policyOf(bytes32 policyId) view returns (tuple(bytes32 seriesId, address holder, bytes32 nullifierHash, uint256 limit, uint256 premium, uint64 startAt, uint32 paidThroughMonth, uint64 paidAt, uint8 status))',
   'function activePolicyOf(bytes32 seriesId, bytes32 nullifierHash) view returns (bytes32)',
+  'function openMonths(bytes32 seriesId) view returns (uint32[])',
+  'function isInLossWindow(bytes32 seriesId, uint32 separationPeriod) view returns (bool inWindow, uint32 qualifyingPeriod)',
+  'function claimDeadline(bytes32 seriesId, uint64 separationAt) view returns (uint64)',
+  'function expectedPayout(bytes32 policyId, uint64 separationAt) view returns (uint256)',
   'event PolicyBound(bytes32 indexed policyId, bytes32 indexed seriesId, address indexed holder, bytes32 nullifierHash, uint256 limit, uint256 premium, uint64 startAt, uint64 hcsReceiptSeq, uint256 activeExposure)',
   'error ZeroAddress()',
   'error SeriesUnknown(bytes32 seriesId)',
@@ -23,11 +27,23 @@ export const COVER_POOL_ABI = [
   'error PolicyUnknown(bytes32 policyId)',
   'error NullifierHasActivePolicy(bytes32 seriesId, bytes32 nullifierHash)',
   'error CapacityExceeded(bytes32 seriesId, uint256 exposure, uint256 limit, uint256 principal)',
+  'error SeparationOutsideLossWindow(bytes32 seriesId, uint32 separationMonth)',
+  'error IndexedModeNeedsShockOpening(bytes32 seriesId, uint32 qualifyingMonth)',
 ] as const;
 
 export const VAULT_PRINCIPAL_ABI = [
   'function principalRemaining(bytes32 seriesId) view returns (uint256)',
 ] as const;
+
+/// A month index is `year * 12 + (month - 1)`, which is how every window rule
+/// inside CoverPool is computed; the raw `SeriesTerms` struct is the one place
+/// an index is visible from outside, so `firstOpenMonth`, `lastOpenMonth` and
+/// `lastObservedMonth` are converted here rather than at each call site.
+/// docs/HEDERA.md, ABI conventions.
+export function periodFromMonthIndex(index: number): number {
+  if (index === 0) return 0;
+  return Math.floor(index / 12) * 100 + ((index % 12) + 1);
+}
 
 /// `SeriesTerms.status`, in the order CoverPool declares the enum. Binding is
 /// allowed in Active and ClaimsOpen and nowhere else, which is what `bind`

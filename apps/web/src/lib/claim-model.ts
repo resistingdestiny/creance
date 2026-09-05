@@ -128,6 +128,24 @@ export function claimsOpenLine(policy: PolicyView): string {
   return `If you lost your job on or after ${formatDay(policy.claims_payable_from)}, you can claim ${coverAmount(policy.limit)}.`;
 }
 
+/** Everything Home renders, in one object, decided on the server. */
+export interface HomeView {
+  readonly policyId: string;
+  readonly occupation: string;
+  /** Whole cover amounts, which is what the card's display number takes. */
+  readonly cover: number;
+  readonly status: HomeStatus;
+  readonly nextPayment: string;
+  readonly index: { readonly value: string; readonly caption: string } | null;
+  /** The Claims open state's one line under the group. */
+  readonly claimsOpen: string | null;
+  /** The Paid state's row: the amount received and the day it arrived. */
+  readonly paid: { readonly amount: string; readonly day: string | null } | null;
+  readonly lapsed: LapsedCopy | null;
+  /** "Replay: Jul 2026", or null when the clock is live. */
+  readonly replayBadge: string | null;
+}
+
 /**
  * The waiting period, in days, from the cover's own dates.
  *

@@ -11,6 +11,7 @@ vi.mock('next/navigation', () => ({
 
 import { DisplayNumber } from '../src/components/display-number.js';
 import { HomeScreen } from '../src/app/home/home-screen.js';
+import { homeStatus } from '../src/lib/claim-model.js';
 
 /**
  * The count-up is the one piece of motion that CSS cannot switch off, because
@@ -160,11 +161,18 @@ describe('the orchestrated moment after payment', () => {
     return (
       <HomeScreen
         bound={bound}
-        cover={1000}
-        indexCaption="Points from opening claims."
-        indexValue="0.69, falling"
-        nextPayment="0.86 on 5 October"
-        occupation="Computer and mathematical"
+        view={{
+          policyId: 'pol_01M1S3EBDQR3W79A9E8MR6MPYB',
+          occupation: 'Computer and mathematical',
+          cover: 1000,
+          status: homeStatus('covered'),
+          nextPayment: '0.86 on 5 October',
+          index: { value: '0.69, falling', caption: 'Points from opening claims.' },
+          claimsOpen: null,
+          paid: null,
+          lapsed: null,
+          replayBadge: null,
+        }}
       />
     );
   }

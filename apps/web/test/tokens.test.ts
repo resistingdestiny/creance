@@ -89,18 +89,24 @@ describe('the typeface switch', () => {
     expect(activeFontOption).toBe(asked === 'B' || asked === 'C' ? asked : 'A');
   });
 
-  // The two font modules cannot be imported here: next/font only runs inside
+  // The three font modules cannot be imported here: next/font only runs inside
   // the framework's compiler. What can be checked is that they present the same
-  // two exports, which is what lets next.config.ts alias one for the other.
-  it('has the same shape for both options, so the alias can swap them', () => {
+  // three exports, which is what lets next.config.ts alias any one of them for
+  // another. The root layout imports fontStylesheetHref as well as
+  // fontClassName, so every module has to carry it: A and B leave it undefined
+  // because next/font self hosts them, C gives the Fontshare URL.
+  it('has the same shape for all three options, so the alias can swap them', () => {
     const dir = new URL('../src/lib/', import.meta.url);
     const a = readFileSync(new URL('fonts.option-a.ts', dir), 'utf8');
     const b = readFileSync(new URL('fonts.option-b.ts', dir), 'utf8');
-    for (const source of [a, b]) {
-      expect(source).toMatch(/export const fontOption = '[AB]';/);
+    const c = readFileSync(new URL('fonts.option-c.ts', dir), 'utf8');
+    for (const source of [a, b, c]) {
+      expect(source).toMatch(/export const fontOption = '[ABC]';/);
       expect(source).toMatch(/export const fontClassName =/);
+      expect(source).toMatch(/export const fontStylesheetHref/);
     }
     expect(a).toContain("export const fontOption = 'A';");
     expect(b).toContain("export const fontOption = 'B';");
+    expect(c).toContain("export const fontOption = 'C';");
   });
 });

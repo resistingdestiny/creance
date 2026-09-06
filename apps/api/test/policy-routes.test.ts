@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import type { ObservationRow } from '../src/db/types.js';
 import {
   buildTestServer,
   issueCredential,
@@ -495,6 +496,58 @@ describe('the policy endpoints', () => {
       const response = await built.app.inject({ method: 'GET', url: '/v1/index/armed_forces' });
       expect(response.statusCode).toBe(400);
       expect(response.json().code).toBe('group_unknown');
+    });
+
+    /// Thirty published months to July 2026, so the default and a longer ask
+    /// differ. `period` is the YYYYMM integer the observations table stores.
+    function thirtyMonths(): ObservationRow[] {
+      const july2026 = 2026 * 12 + 6;
+      return Array.from({ length: 30 }, (_unused, offset) => {
+        const absolute = july2026 - 29 + offset;
+        const period = Math.floor(absolute / 12) * 100 + (absolute % 12) + 1;
+        return observation({ period, ebar: -0.6 - offset / 100 });
+      });
+    }
+
+    it('carries twenty-four months, and more when the caller asks for more', async () => {
+      const built = await buildTestServer({ observations: thirtyMonths() });
+      app = built.app;
+
+      const fallback = await built.app.inject({ method: 'GET', url: '/v1/index/computer_math' });
+      expect(fallback.statusCode).toBe(200);
+      expect(fallback.json().history).toHaveLength(24);
+
+      const longer = await built.app.inject({
+        method: 'GET',
+        url: '/v1/index/computer_math?months=30',
+      });
+      expect(longer.statusCode).toBe(200);
+      expect(longer.json().history).toHaveLength(30);
+      // Oldest first either way, so a chart draws it in the order it arrives.
+      expect(longer.json().history[29].period).toBe(fallback.json().history[23].period);
+    });
+
+    it('takes fewer months than the default when asked for fewer', async () => {
+      const built = await buildTestServer({ observations: thirtyMonths() });
+      app = built.app;
+      const response = await built.app.inject({
+        method: 'GET',
+        url: '/v1/index/computer_math?months=6',
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().history).toHaveLength(6);
+    });
+
+    it('refuses a months that is not a whole number inside the ceiling', async () => {
+      const built = await harness();
+      for (const months of ['0', '121', 'six', '12.5', '-1', '']) {
+        const response = await built.app.inject({
+          method: 'GET',
+          url: `/v1/index/computer_math?months=${months}`,
+        });
+        expect(response.statusCode, `months=${months}`).toBe(400);
+        expect(response.json().code).toBe('months_invalid');
+      }
     });
   });
 

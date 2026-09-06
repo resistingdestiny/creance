@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
 
 import { ExplorerChart } from '../../components/explorer-chart';
 import { PlainChart } from '../../components/plain-chart';
@@ -437,6 +437,7 @@ function Price({
   price: ReturnType<typeof priceFor>;
   seriesId: string | null;
 }) {
+  const capacityId = useId();
   if (price === null) return null;
 
   return (
@@ -455,11 +456,14 @@ function Price({
           <p className="text-caption text-ink-2">
             Guide price {price.guide} from the index. Capital adds {String(price.addOn)} percent.
           </p>
-          <label className="flex flex-col gap-2">
-            <span className="text-secondary text-ink-2">How much capital wants this risk</span>
+          <div className="flex flex-col gap-2">
+            <label className="text-secondary text-ink-2" htmlFor={capacityId}>
+              How much capital wants this risk
+            </label>
             <input
               aria-valuetext={`${String(capacity)} percent of this pool already used`}
               className="amount-slider"
+              id={capacityId}
               max={CAPACITY_MAX}
               min={0}
               onChange={(event) => onCapacity(Number(event.target.value))}
@@ -473,7 +477,7 @@ function Price({
             <span className="text-caption tabular-nums text-ink-2">
               {String(capacity)} percent of this pool already used
             </span>
-          </label>
+          </div>
           {seriesId === null ? null : (
             <p className="text-caption text-ink-2">Capacity from {seriesId}.</p>
           )}

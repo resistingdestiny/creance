@@ -2368,3 +2368,67 @@ The fix is naming rather than configuration. The size is `--text-landing-step`
 and the colour stays `--color-landing-numeral`, so the two utilities are
 `text-landing-step` and `text-landing-numeral` and neither is ambiguous. Nothing
 in the framework warns about the collision, which is why it is written down.
+
+## T30, the three home card directions, 6 September 2026
+
+The three directions change the card treatment and the typeface together, so the
+gallery has to show three families in one build while the product ships one.
+Both notes below come out of that.
+
+### A custom property that substitutes another one resolves where it is declared
+
+The token sheet declares the two type roles once, at the root:
+
+    --font-display: var(--font-display-family), Inter, ...;
+    --font-text:    var(--font-text-family), ...;
+
+and each font option points the two family slots at its own family. That is why
+the switch is applied on `<html>`: the layout puts the option's class on the same
+element the roles are declared on.
+
+Pointing a slot at a different family further down the tree does nothing. A
+wrapper carrying `--font-display-family: "General Sans"` left the card in Inter
+Tight, because `--font-display` is substituted at computed-value time on the
+element that declares it, and descendants inherit the already substituted value.
+The custom properties page describes substitution but not where it happens
+(https://developer.mozilla.org/en-US/docs/Web/CSS/--*, read 6 September 2026);
+the specification is explicit and the page is not
+(https://www.w3.org/TR/css-variables-1/#substitute-a-var).
+
+The fix is to redeclare the roles wherever the slots are redirected. The gallery
+wrapper class `.type-specimen` sets `--font-display` and `--font-text` beside the
+slots, so the substitution happens on the wrapper.
+
+### A next/font module in one route's graph still emits @font-face for every route
+
+The note above at "A font module in the bundle graph is fetched whether or not it
+is used" says a conditional import in the root layout ships both families. The
+obvious reading is that the problem is the root layout, and that importing the
+inactive families from a single route keeps them to that route. It does not.
+
+Measured on the Option B build, with the gallery importing the Option A and
+Option C font modules directly. The preload links behaved as hoped and appeared
+in the `/gallery` HTML only. The font files did not: the `@font-face` rules land
+in a stylesheet chunk that every route loads, and a browser opening the landing
+or Home fetched three woff2 files rather than one.
+
+    /                    Geist_Variable-s.p...woff2, 83afe278...woff2, ab57efd0...woff2
+    /home?demo=covered   the same three
+    /gallery             the same three
+
+So preload links are the wrong thing to grep for. What settles it is what the
+browser requests, and the answer is every family whose `@font-face` reaches the
+shared chunk.
+
+The gallery therefore links its three specimen families as stylesheets, from
+Google Fonts and from Fontshare, rather than importing them through next/font. A
+link element rendered by one page is loaded by that page and by no other. The
+same measurement on the rebuilt Option B tree:
+
+    /                    Geist_Variable-s.p...woff2
+    /home?demo=covered   Geist_Variable-s.p...woff2
+    /gallery             the Geist file, plus Inter, Inter Tight, Geist and
+                         General Sans from their own CDNs
+
+and the Option A build ships no Geist file at all, which is the property the
+switch exists to keep.

@@ -3903,13 +3903,20 @@ and the hero lead at 22 are the sizes the design draws. Everything else maps
 onto the nearest role in section 2, and every landing token steps back down to
 that scale below the landing breakpoint, where section 2 tops out at display-xl.
 
-### The landing pays for two settled reads on every view
+### The landing pays 0.06 TUSD on every view
 
-The index reading is metered at 0.01 TUSD and the quote is metered too, so a
-single render of the front door settles two x402 payments on Hedera testnet and
-takes about 3.2 seconds warm. That is the honest cost of "the number on the
-landing page is the number the product would settle on", and caching it would
-make the page a fixture with extra steps.
+Both metered routes the page calls are priced in `apps/api/src/x402/config.ts`,
+and they are not priced the same. `GET /v1/index/:group` is `DEFAULT_INDEX_PRICE`
+at 0.01 TUSD and `POST /v1/quote` is `DEFAULT_QUOTE_PRICE` at 0.05, so a single
+render of the front door settles two x402 payments totalling 0.06 TUSD on Hedera
+testnet and takes about 3.2 seconds warm. Measured on the transfers themselves:
+the two settlements from one render move 10,000 and 50,000 minor units of a six
+decimal TUSD.
+
+That is the honest cost of "the number on the landing page is the number the
+product would settle on", and caching it would make the page a fixture with
+extra steps.
 
 It is recorded because it is a real operating cost of the demonstration: the
-demo account pays 0.02 TUSD per page view, including every reload during a take.
+demo account pays 0.06 TUSD per page view, including every reload during a take,
+and five sixths of that is the from price rather than the reading.

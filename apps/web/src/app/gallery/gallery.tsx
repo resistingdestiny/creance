@@ -24,7 +24,7 @@ import { DataTable } from '../../components/table';
 import { TextLink } from '../../components/text-link';
 import { FailureBody, OFFLINE, PAYMENT_FAILED, Toast } from '../../components/toast';
 import { UploadArea } from '../../components/upload-area';
-import type { CardTreatment, FontOption } from '../../lib/font-option';
+import type { CardTreatment } from '../../lib/font-option';
 import { formatAmount, formatMoney, shortenAddress } from '../../lib/format';
 import {
   CANVAS,
@@ -83,23 +83,14 @@ const HOME_DIRECTIONS: {
   code: string;
   name: string;
   typeface: string;
-  option: FontOption;
+  /** The .type-specimen modifier that names this direction's family. */
+  specimen: string;
   treatment: CardTreatment;
 }[] = [
-  { code: '1a', name: 'Wallet card', option: 'A', treatment: 'wallet', typeface: 'Inter Tight + Inter' },
-  { code: '1b', name: 'Certificate', option: 'B', treatment: 'certificate', typeface: 'Geist throughout' },
-  { code: '1c', name: 'Ingot', option: 'C', treatment: 'ingot', typeface: 'General Sans throughout' },
+  { code: '1a', name: 'Wallet card', specimen: 'type-specimen--a', treatment: 'wallet', typeface: 'Inter Tight + Inter' },
+  { code: '1b', name: 'Certificate', specimen: 'type-specimen--b', treatment: 'certificate', typeface: 'Geist throughout' },
+  { code: '1c', name: 'Ingot', specimen: 'type-specimen--c', treatment: 'ingot', typeface: 'General Sans throughout' },
 ];
-
-export interface GalleryProps {
-  /**
-   * For each option, the class name that points --font-display-family and
-   * --font-text-family at that direction's family. The gallery page passes all
-   * three so the typefaces can be compared in one build. With nothing passed,
-   * every card renders in whichever family the build is shipping.
-   */
-  specimenFonts?: Partial<Record<FontOption, string>>;
-}
 
 /** A slider that starts at one of the sheet's stops and is live from there. */
 function SliderCase({ from }: { from: number }) {
@@ -152,7 +143,7 @@ const SMALL_FLAT = FLAT.slice(-12);
 const SMALL_RISING = RISING.slice(0, 12);
 const SMALL_TRIGGERED = RISING.slice(-12);
 
-export function Gallery({ specimenFonts = {} }: GalleryProps) {
+export function Gallery() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [failureOpen, setFailureOpen] = useState(false);
   const [counting, setCounting] = useState(false);
@@ -643,7 +634,7 @@ export function Gallery({ specimenFonts = {} }: GalleryProps) {
                 <span className="text-body font-semibold text-ink">{direction.name}</span>
                 <span className="text-caption text-ink-2">{direction.typeface}</span>
               </div>
-              <div className={`type-specimen ${specimenFonts[direction.option] ?? ''}`}>
+              <div className={`type-specimen ${direction.specimen}`}>
                 <CoverCard
                   amount={formatAmount(5000)}
                   className="h-[210px] w-full"

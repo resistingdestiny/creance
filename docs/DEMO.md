@@ -177,7 +177,8 @@ published and has never been submitted. It opens on the level form, the vault
 reserves the exposed limits and the series stays in a claim window. That is a
 real month of published data opening a real reserve, on camera, once.
 
-    the sticky replay bar on /index/ODI-COMP-2026-01 advancing a month at a time
+    the sticky replay bar on /index advancing a month at a time, with computer
+            and mathematical picked
     2026-05 publishing and opening, with the provenance block naming the topic
             and the sequence number
     the reserve rising, printed by the run and readable on /invest

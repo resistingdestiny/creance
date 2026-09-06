@@ -41,7 +41,14 @@ import type { IndexCatalogueView, IndexView } from './worker-api';
  */
 export const LANDING_GROUP = 'computer_math';
 
-/** The three steps, verbatim from the design of record. */
+/**
+ * The three steps, verbatim from the design of record.
+ *
+ * Step one says "Eleven groups" and the picker offers fifteen, which is the
+ * "Occupation picker correction" in docs/DESIGN-TOKENS-ADDENDUM.md. The ticket
+ * asks for these sentences verbatim, so the count ships as the design writes it
+ * and the mismatch is Root's to settle rather than this file's.
+ */
 export const LANDING_STEPS = [
   {
     title: 'Pick your occupation',

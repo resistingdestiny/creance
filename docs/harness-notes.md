@@ -2348,3 +2348,23 @@ https://docs.x402.org/servers/quickstart
 and the parser sees `--` as an unknown argument and exits 1. The form that works
 is `pnpm oracle:schedule --source archive`, with no separator, which is what
 docs/INDEX-OPS.md and the usage text show.
+
+## T29, the landing page, 6 September 2026
+
+### Tailwind v4 resolves `text-*` against two namespaces, so one name cannot be both a size and a colour
+
+The v4 theme documentation describes `--text-*` and `--color-*` as separate
+namespaces and lists the utilities each one drives.
+https://tailwindcss.com/docs/theme
+
+What it does not say is that `text-<name>` is generated from both, so a theme
+that declares `--text-landing-numeral` and `--color-landing-numeral` produces one
+utility name with two meanings and the class silently sets whichever the
+compiler resolved last. Measured against this build's own stylesheet: with both
+declared, `text-landing-numeral` compiled to the font size and the colour never
+appeared.
+
+The fix is naming rather than configuration. The size is `--text-landing-step`
+and the colour stays `--color-landing-numeral`, so the two utilities are
+`text-landing-step` and `text-landing-numeral` and neither is ambiguous. Nothing
+in the framework warns about the collision, which is why it is written down.

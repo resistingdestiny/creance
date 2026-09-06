@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
-// Resolved by next.config.ts to fonts.option-a or fonts.option-b. See
-// src/lib/font-option.ts for what chooses which.
+// Resolved by next.config.ts to fonts.option-a, fonts.option-b or
+// fonts.option-c. See src/lib/font-option.ts for what chooses which.
 import { fontClassName, fontStylesheetHref } from 'creance-active-font';
 
 import './globals.css';

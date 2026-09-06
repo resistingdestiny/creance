@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { LandingScreen } from '../src/components/landing/landing-screen.js';
+import { explorerOccupation, rankByDistance } from '../src/lib/explorer-model.js';
 import {
   LANDING_GROUP,
   costAnswer,
@@ -10,9 +11,11 @@ import {
   landingIndexSection,
   payAnswer,
   staleNote,
+  tickerReadings,
 } from '../src/lib/landing-model.js';
-import { findOccupation, hasCover } from '../src/lib/occupations.js';
+import { findOccupation, hasCover, occupationLabel } from '../src/lib/occupations.js';
 
+import { EXPLORER_READINGS } from './explorer-fixtures.js';
 import { COLD, LIVE, REPLAYING, STALE } from './landing-fixtures.js';
 import { INDEX } from './worker-fixtures.js';
 
@@ -209,11 +212,141 @@ describe('the demo clock and the page', () => {
   });
 });
 
+describe('the dark marketing ground', () => {
+  it('is three sections and never the body', () => {
+    // The navigation, the hero with the card and the ticker, and the closing
+    // line. The page root is still canvas and so is the document, so no other
+    // route can be darkened by this page.
+    expect(live.match(/bg-night/g)).toHaveLength(3);
+    expect(live).toContain('flex flex-col bg-canvas');
+  });
+
+  it('leaves the sections between them exactly as they were', () => {
+    // The steps keep the surface ground and the questions and the index section
+    // keep the canvas one. Nothing between the two dark bands changed.
+    expect(live).toContain('bg-surface');
+    expect(live).not.toContain('bg-night-2');
+  });
+
+  it('writes headings in white and everything else at the addendum opacity', () => {
+    const closing = /<section class="bg-night py-16[\s\S]*?<\/section>/.exec(live)?.[0] ?? '';
+    expect(closing).toContain('text-white lg:text-display-xl');
+    expect(closing).toContain('text-secondary text-white/66');
+    expect(closing).not.toContain('text-ink-2');
+  });
+});
+
+describe('the navigation on the dark ground', () => {
+  const nav = /<header[\s\S]*?<\/header>/.exec(live)?.[0] ?? '';
+
+  it('draws the call to action inverted, not in the colour of the ground', () => {
+    // A primary pill is bg-ink, which is black on #0A0D12 and invisible. The
+    // variant is what makes it legible; an override on top of bg-ink would be a
+    // coin toss decided by the order two utilities happen to compile in.
+    const button = /<button[^>]*>/.exec(nav)?.[0] ?? '';
+    expect(button).toContain('bg-canvas');
+    expect(button).toContain('text-ink');
+    expect(button).not.toContain('bg-ink');
+  });
+
+  it('keeps the wordmark and the action on one line at 390', () => {
+    expect(nav).not.toContain('flex-wrap');
+    expect(nav).toContain('whitespace-nowrap text-body font-semibold text-white');
+  });
+
+  it('hides the secondary links below the medium breakpoint rather than wrapping', () => {
+    for (const label of ['The index', 'Investors']) {
+      const link = new RegExp(`<a[^>]*>${label}</a>`).exec(nav)?.[0] ?? '';
+      expect(link, label).toContain('hidden md:inline-flex');
+    }
+  });
+});
+
+describe('the ticker of occupation readings', () => {
+  /** Every occupation label the strip prints, in the order it prints them. */
+  const labels = [...live.matchAll(/class="font-medium text-white">([^<]+)</g)].map(
+    (match) => match[1],
+  );
+
+  it('carries all fifteen groups twice, so the loop closes on itself', () => {
+    expect(LIVE.ticker).toHaveLength(15);
+    expect(labels).toHaveLength(30);
+    expect(labels.slice(0, 15)).toStrictEqual(labels.slice(15));
+  });
+
+  it('leads with the occupation this page speaks for, then the explorer order', () => {
+    const occupations = EXPLORER_READINGS.map(explorerOccupation);
+    const landing = occupationLabel(LANDING_GROUP);
+    const ranked = rankByDistance(occupations).map((entry) => entry.occupation.label);
+    expect(labels.slice(0, 15)).toStrictEqual([
+      landing,
+      ...ranked.filter((label) => label !== landing),
+    ]);
+  });
+
+  it('says the distance in the words the explorer uses, not a second vocabulary', () => {
+    const occupations = EXPLORER_READINGS.map(explorerOccupation);
+    const ranked = rankByDistance(occupations);
+    for (const reading of tickerReadings(occupations, LANDING_GROUP)) {
+      const entry = ranked.find((row) => row.occupation.label === reading.occupation);
+      expect(entry?.gap, reading.occupation).toBe(reading.gap);
+    }
+  });
+
+  it('is hidden from assistive technology, because the same readings are /index', () => {
+    expect(live).toContain('<div aria-hidden="true" class="landing-ticker');
+  });
+
+  it('is absent altogether when no reading could be bought', () => {
+    const markup = renderToStaticMarkup(<LandingScreen data={{ ...LIVE, ticker: [] }} />);
+    expect(markup).not.toContain('landing-ticker');
+  });
+});
+
+describe('the hero card as an object', () => {
+  it('asks for depth here and in no other place in the product', () => {
+    expect(live.match(/cover-card--depth/g)).toHaveLength(1);
+    expect(live).toContain('cover-card-stack');
+    expect(live).toContain('cover-card-tilt');
+  });
+
+  it('paints its light layers beneath its content, in every treatment', () => {
+    // The glare is a sibling of the face and precedes it, and the face is the
+    // element the stylesheet lifts. The stylesheet test asserts the z-indexes.
+    const card = /<div class="cover-card [\s\S]*?cover-card__content/.exec(live)?.[0] ?? '';
+    expect(card).toContain('cover-card__glare');
+    expect(card.indexOf('cover-card__glare')).toBeLessThan(card.indexOf('cover-card__content'));
+  });
+
+  it('prints the true cover amount in the server HTML, before anything animates', () => {
+    // The count-up starts from this, not from zero. A browser that never runs
+    // an animation still shows the figure.
+    expect(visibleText(live)).toContain('Covered Cover 5,000');
+  });
+});
+
+describe('the index live state', () => {
+  it('says live when the feed answered on this request', () => {
+    expect(visibleText(live)).toContain('Index live, updated monthly from public data');
+    expect(LIVE.index.live).toBe(true);
+  });
+
+  it('says what it is showing instead when the feed did not answer', () => {
+    const text = visibleText(renderToStaticMarkup(<LandingScreen data={STALE} />));
+    expect(text).toContain('Showing the last reading we published');
+    expect(text).not.toContain('Index live');
+    expect(STALE.index.live).toBe(false);
+  });
+});
+
 describe('motion and focus', () => {
-  it('has one orchestrated moment on load and turns it off under reduced motion', () => {
+  it('has one orchestrated moment on load and a reduced branch for every animation', () => {
     expect(live).toContain('cover-card-enter');
-    expect(live).toContain('motion-reduce:animate-none');
     expect(live.match(/cover-card-enter/g)).toHaveLength(1);
+    // Two animations reach the markup: the card's entrance, which is the
+    // orchestrated moment, and the ticker's travel, which is continuous. Each
+    // carries its own reduced-motion branch and there is no third.
+    expect(live.match(/motion-reduce:animate-none/g)).toHaveLength(2);
   });
 
   it('runs nothing on scroll', () => {

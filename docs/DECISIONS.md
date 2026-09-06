@@ -4026,6 +4026,24 @@ At 1280 the three sit in a row inside the gallery's 1280 wide column, which
 leaves each card 368 rather than 390 wide. Below the gallery's large breakpoint
 they stack full width, which is the 390 case. The height stays the design's 210.
 
+### Each treatment carries its own vertical separation, because Home has no card height
+
+The design file draws all three cards at 210 or 212 and the token sheet has no
+card height, so Home lets the card size to its content and only the landing hero
+and the gallery set one. The wallet card has always relied on that: its
+`justify-between gap-10` is what makes it 206 tall on Home rather than collapsed.
+
+The ingot was first built with `mt-auto` on its bottom row and nothing else,
+which is correct wherever a height exists and worth nothing where one does not.
+On Home at 390 with Option C the card measured 146, the occupation's bottom and
+the "Cover" label's top were both 41 from the top of the card, and the two
+touched. The fix is the same `gap-10` the wallet card already carries, which
+puts the ingot at 186 on Home with 40 between them and the amount seated on the
+card's own bottom padding. `mt-auto` stays for the sizes that do set a height.
+
+The certificate needs nothing: it centres its column, so it stays symmetrical at
+any height and sits at 176 on Home.
+
 ## T31, the attribution panel, 6 September 2026
 
 The design of record covers no attribution panel at all, so every visual and

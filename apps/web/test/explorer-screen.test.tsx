@@ -225,7 +225,8 @@ describe('the two disclosures', () => {
     render(<ExplorerScreen data={data()} />);
     const steps = document.querySelectorAll('details')[0];
     expect(within(steps as HTMLElement).getAllByRole('listitem')).toHaveLength(4);
-    expect(steps?.querySelectorAll('svg')).toHaveLength(4);
+    // Inside the body, so the summary's own chevron is not counted.
+    expect(steps?.querySelectorAll(':scope > div svg')).toHaveLength(4);
     expect(steps?.textContent).toContain('Your job');
     expect(steps?.textContent).toContain('Compared with everyone else');
     expect(steps?.textContent).toContain('Smoothed over three months');
@@ -239,7 +240,7 @@ describe('the two disclosures', () => {
     expect(cells).toHaveLength(15);
     expect(cells[0]?.textContent).toContain('Arts, design, entertainment and media');
     expect(cells[0]?.textContent).toContain('on the line');
-    expect(grid.querySelectorAll('svg')).toHaveLength(15);
+    expect(grid.querySelectorAll(':scope > div svg')).toHaveLength(15);
   });
 
   it('selects an occupation in the explorer above when a cell is chosen', () => {

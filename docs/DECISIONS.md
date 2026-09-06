@@ -3921,6 +3921,136 @@ It is recorded because it is a real operating cost of the demonstration: the
 demo account pays 0.06 TUSD per page view, including every reload during a take,
 and five sixths of that is the from price rather than the reading.
 
+## T30, the three home card directions, 6 September 2026
+
+### All three directions stay buildable, and the default stays Option A and 1a
+
+The two entries above, "The typeface is Option A, Inter Tight for display and
+numbers, Inter for text" and "The typeface is Option A, and the switch removes
+the other family entirely", say Option B is dropped and not needed. They still
+describe what ships. This adds the third option rather than rewriting them.
+
+The design of record draws three home screens whose only differences are the
+card treatment and the typeface: 1a Wallet card with Inter Tight and Inter, 1b
+Certificate with Geist, 1c Ingot with General Sans. docs/DESIGN-TOKENS.md
+section 2 already names General Sans beside Geist as the same alternative, so
+the third option is the sheet's own and not an invention.
+
+The pair is one setting. `NEXT_PUBLIC_FONT_OPTION` now takes A, B or C, and
+`activeCardTreatment` in `apps/web/src/lib/font-option.ts` derives the card from
+the same value, so the typeface and the treatment cannot drift apart and there
+is no second mechanism. `CoverCard` takes a `treatment` prop that defaults to
+the derived value; only the gallery passes it, so it can show all three at once.
+
+The default is A and 1a, which is the direction the token sheet already carries.
+Choosing a direction is a change of one variable, not a rebuild.
+
+### The two new treatments are modifier classes, never edits to the card rule
+
+`.cover-card` keeps its hairline border, its 20px radius, its four stop gradient
+and both pseudo-element overlays. `.cover-card--certificate` and
+`.cover-card--ingot` override on top of it.
+
+The certificate's one pixel metallic edge is drawn as a gradient in the border
+box with the face in the padding box, on the element the base rule already has,
+rather than as a wrapper around it. The ingot's brushing is a second background
+layer on the sheen pseudo-element rather than a second overlay, which leaves
+`::after` free for the landing size. Both treatments drop the hero brushing at
+landing size and keep its inner edge light: that brushing runs on the wallet
+card's diagonal, the certificate is flat and the ingot is brushed horizontally.
+
+### The amount keeps the sheet's scale in all three, and only its weight moves
+
+The design file draws the amount at 58px with -0.03em tracking, at line height 1
+on the certificate and 0.95 on the ingot. The sheet's display-l is 56/60 at
+-0.02em, and it wins, as it did on the landing in T29. The visible difference is
+two pixels of size and about four of leading.
+
+Weight is part of the treatment and does follow the file: the certificate sets
+its amount at 500, the wallet card and the ingot at 600.
+
+That weight is what /gallery shows, where the amount is a plain string. On Home
+the amount is a `DisplayNumber`, which sets `font-semibold` on its own span, so
+the certificate's amount reads at 600 there rather than 500. No acceptance line
+asks the counter to take its weight from the treatment, and threading one
+through would touch the count up animation, so it is left alone and recorded
+here instead.
+
+### Every label on all three cards is ink, and the shared status pill is not forked
+
+The contrast decision recorded above for the wallet card holds for the other two.
+Computed WCAG 2.x ratios against each treatment's darkest gradient stop: ink-2 is
+3.89:1 on the wallet card's `#DFE2E7`, 4.46:1 on the certificate's `#EFF1F4` and
+3.67:1 on the ingot's `#D9DCE2`. All three are below the 4.5:1 floor. Black is
+16.17:1, 18.56:1 and 15.29:1 on the same three, so every occupation and "Cover"
+label is ink.
+
+The design draws the ingot's status pill on `rgba(255,255,255,0.66)` with a
+`#DFE2E7` border, where the shared pill is `rgba(255,255,255,0.78)` with the
+hairline. The shared pill is used unchanged. The difference is 0.12 of alpha and
+one step of grey, it is not perceptible on the ingot's ground, and a second pill
+would be a worse outcome than a card that matches the file to that tolerance.
+
+### The certificate keeps the word "Cover" for a screen reader
+
+The design gives 1b no visible "Cover" label, because a centred column of three
+things reads without one. Switching treatment must change no copy, so the word
+stays in the markup as `sr-only`. The three treatments carry the same words and
+arrange them differently, which is what a treatment is, and a test asserts it.
+
+### General Sans is linked, not committed, because its licence forbids redistribution
+
+Option C's family is General Sans from the Indian Type Foundry, under the ITF
+Free Font License version 2.0. Section 01 permits self hosting for the
+licensee's own sites. Section 02 forbids making the font software available
+"through another font website, font library, marketplace, repository, download
+service" or on "publicly accessible servers", and forbids subsetting and format
+conversion. This repository is public, so committing the woff2 files would be
+redistribution and next/font local is not available to Option C.
+
+So Option C's font module carries a stylesheet href instead of a next/font call,
+and the root layout links it for that option only. Options A and B export the
+same name as `undefined` and link nothing. The cost is that Option C fetches its
+family from a third party CDN where A and B self host, which is recorded here
+because it is a real difference between the directions and not a detail.
+
+### The gallery links its three specimen families rather than importing them
+
+Comparing the typefaces at a glance needs all three on one page, which is the
+opposite of what the switch does everywhere else. Importing the inactive font
+modules from the gallery route was tried first and measured: the preload links
+stayed on `/gallery`, but the `@font-face` rules landed in a stylesheet chunk
+every route loads and the browser then fetched three families on Home and the
+landing instead of one. The measurement is in docs/harness-notes.md.
+
+The gallery therefore links Inter, Inter Tight and Geist from Google Fonts and
+General Sans from Fontshare, and names the families literally in three
+`.type-specimen` classes. Those are gallery only, the page stays unlinked and
+noindex, and the product build is unchanged: with A active it still ships no
+Geist file.
+
+At 1280 the three sit in a row inside the gallery's 1280 wide column, which
+leaves each card 368 rather than 390 wide. Below the gallery's large breakpoint
+they stack full width, which is the 390 case. The height stays the design's 210.
+
+### Each treatment carries its own vertical separation, because Home has no card height
+
+The design file draws all three cards at 210 or 212 and the token sheet has no
+card height, so Home lets the card size to its content and only the landing hero
+and the gallery set one. The wallet card has always relied on that: its
+`justify-between gap-10` is what makes it 206 tall on Home rather than collapsed.
+
+The ingot was first built with `mt-auto` on its bottom row and nothing else,
+which is correct wherever a height exists and worth nothing where one does not.
+On Home at 390 with Option C the card measured 146, the occupation's bottom and
+the "Cover" label's top were both 41 from the top of the card, and the two
+touched. The fix is the same `gap-10` the wallet card already carries, which
+puts the ingot at 186 on Home with 40 between them and the amount seated on the
+card's own bottom padding. `mt-auto` stays for the sizes that do set a height.
+
+The certificate needs nothing: it centres its column, so it stays symmetrical at
+any height and sits at 176 on Home.
+
 ## T31, the attribution panel, 6 September 2026
 
 The design of record covers no attribution panel at all, so every visual and

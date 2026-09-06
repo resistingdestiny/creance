@@ -5,3 +5,6 @@ import { GeistSans } from 'geist/font/sans';
 // global stylesheet.
 export const fontOption = 'B';
 export const fontClassName = `${GeistSans.variable} font-option-b`;
+
+// Self hosted by the geist package's own next/font call, so nothing to link.
+export const fontStylesheetHref: string | undefined = undefined;

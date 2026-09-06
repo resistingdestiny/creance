@@ -72,6 +72,35 @@ else: no screen renders them and no layout depends on them.
 install sizes and the source mark, kept for the web manifest a later ticket
 adds, and nothing in the build references them today.
 
+## General Sans, from the Indian Type Foundry
+
+https://www.fontshare.com/fonts/general-sans
+
+The typeface of direction 1c, Option C of docs/DESIGN-TOKENS.md section 2. Not a
+dependency and not committed: no font file from it is in this repository. The
+stylesheet at
+`https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap`
+is linked by the root layout when Option C is built, and by the gallery in every
+build so the three directions can be compared.
+
+Licensed under the ITF Free Font License version 2.0, which permits free
+commercial use and self hosting but forbids redistributing the font software,
+including through a public repository, and forbids subsetting or format
+conversion. That is why the files are not committed and why this option is
+linked where the other two are self hosted. The reasoning is in
+docs/DECISIONS.md.
+
+## The gallery's specimen stylesheets
+
+https://fonts.google.com/specimen/Inter, https://fonts.google.com/specimen/Inter+Tight
+and https://fonts.google.com/specimen/Geist
+
+Not code and not a dependency. The unlinked component gallery links one Google
+Fonts stylesheet for Inter, Inter Tight and Geist so that the three home
+directions can be compared in one build. The product self hosts whichever family
+its own option selects and never reads these. All three are SIL Open Font
+License 1.1.
+
 ## The x402 packages, version 2.25.0
 
 https://github.com/x402-foundation/x402

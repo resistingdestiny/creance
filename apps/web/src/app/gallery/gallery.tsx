@@ -24,6 +24,7 @@ import { DataTable } from '../../components/table';
 import { TextLink } from '../../components/text-link';
 import { FailureBody, OFFLINE, PAYMENT_FAILED, Toast } from '../../components/toast';
 import { UploadArea } from '../../components/upload-area';
+import type { CardTreatment } from '../../lib/font-option';
 import { formatAmount, formatMoney, shortenAddress } from '../../lib/format';
 import {
   CANVAS,
@@ -72,6 +73,24 @@ function Case({ label, children }: { label: string; children: ReactNode }) {
 function Grid({ children }: { children: ReactNode }) {
   return <div className="grid gap-6 sm:grid-cols-2">{children}</div>;
 }
+
+/**
+ * The three home directions of the design file. Each pairs one card treatment
+ * with one typeface, and NEXT_PUBLIC_FONT_OPTION picks the pair the product
+ * builds.
+ */
+const HOME_DIRECTIONS: {
+  code: string;
+  name: string;
+  typeface: string;
+  /** The .type-specimen modifier that names this direction's family. */
+  specimen: string;
+  treatment: CardTreatment;
+}[] = [
+  { code: '1a', name: 'Wallet card', specimen: 'type-specimen--a', treatment: 'wallet', typeface: 'Inter Tight + Inter' },
+  { code: '1b', name: 'Certificate', specimen: 'type-specimen--b', treatment: 'certificate', typeface: 'Geist throughout' },
+  { code: '1c', name: 'Ingot', specimen: 'type-specimen--c', treatment: 'ingot', typeface: 'General Sans throughout' },
+];
 
 /** A slider that starts at one of the sheet's stops and is live from there. */
 function SliderCase({ from }: { from: number }) {
@@ -594,6 +613,40 @@ export function Gallery() {
             />
           </Case>
         </Grid>
+      </Section>
+
+      <Section id="home-directions" title="Home card, three directions">
+        <p className="text-secondary text-ink-2">
+          Each direction changes the card treatment and the typeface together and nothing else.
+          NEXT_PUBLIC_FONT_OPTION picks the pair the product builds, A by default, and all three
+          are the same component with the same copy in it.
+        </p>
+        <div className="flex flex-col gap-8 lg:grid lg:grid-cols-3 lg:gap-6">
+          {HOME_DIRECTIONS.map((direction) => (
+            <div
+              className="flex w-full max-w-[390px] flex-col gap-4"
+              key={direction.code}
+            >
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="rounded-full bg-ink px-3 py-1 text-caption font-semibold text-white">
+                  {direction.code}
+                </span>
+                <span className="text-body font-semibold text-ink">{direction.name}</span>
+                <span className="text-caption text-ink-2">{direction.typeface}</span>
+              </div>
+              <div className={`type-specimen ${direction.specimen}`}>
+                <CoverCard
+                  amount={formatAmount(5000)}
+                  className="h-[210px] w-full"
+                  occupation="Office and administrative support"
+                  state="covered"
+                  statusLabel="Covered"
+                  treatment={direction.treatment}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </Section>
 
       <Section id="upload" title="Upload area and file rows">

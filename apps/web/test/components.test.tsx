@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
+import { CoverCard } from '../src/components/cover-card.js';
+import type { CardTreatment } from '../src/lib/font-option.js';
+
 import { Gallery } from '../src/app/gallery/gallery.js';
 import { LandingScreen } from '../src/components/landing/landing-screen.js';
 import { PillButton } from '../src/components/pill-button.js';
@@ -79,6 +82,109 @@ describe('state colours are indicators, not text', () => {
   });
 });
 
+describe('the three home card directions', () => {
+  const TREATMENTS: CardTreatment[] = ['wallet', 'certificate', 'ingot'];
+
+  function render(treatment: CardTreatment): string {
+    return renderToStaticMarkup(
+      <CoverCard
+        amount="5,000"
+        occupation="Office and administrative support"
+        state="covered"
+        statusLabel="Covered"
+        treatment={treatment}
+      />,
+    );
+  }
+
+  it('defaults to 1a, the direction the token sheet already carries', () => {
+    const fallback = renderToStaticMarkup(
+      <CoverCard
+        amount="5,000"
+        occupation="Office and administrative support"
+        state="covered"
+        statusLabel="Covered"
+      />,
+    );
+    expect(fallback).toBe(render('wallet'));
+    expect(fallback).not.toContain('cover-card--');
+  });
+
+  it('changes no copy between the three', () => {
+    // Where a word sits is the treatment; which words there are is the copy.
+    // The certificate centres the amount and drops the visible "Cover" label,
+    // so the words arrive in a different order, but not one of them changes.
+    // The label stays in the markup for a screen reader so this holds.
+    const words = TREATMENTS.map((treatment) =>
+      visibleText(render(treatment)).split(' ').sort().join(' '),
+    );
+    expect(words[1]).toBe(words[0]);
+    expect(words[2]).toBe(words[0]);
+    for (const phrase of ['Office and administrative support', 'Cover', '5,000', 'Covered']) {
+      for (const treatment of TREATMENTS) {
+        expect(visibleText(render(treatment))).toContain(phrase);
+      }
+    }
+  });
+
+  it('names each direction with its own modifier and leaves the base rule alone', () => {
+    expect(render('certificate')).toContain('cover-card--certificate');
+    expect(render('ingot')).toContain('cover-card--ingot');
+    for (const treatment of TREATMENTS) {
+      const markup = render(treatment);
+      expect(markup).toContain('class="cover-card');
+      expect(markup).toContain('cover-card__content');
+    }
+  });
+
+  it('keeps every label in ink, because ink-2 fails on all three grounds', () => {
+    for (const treatment of TREATMENTS) {
+      expect(render(treatment)).not.toContain('text-ink-2');
+    }
+  });
+
+  it('keeps the amount on the sheet scale and moves only its weight', () => {
+    for (const treatment of TREATMENTS) {
+      expect(render(treatment)).toContain('text-display-l font-display');
+    }
+    expect(render('certificate')).toContain('font-display font-medium tracking-display');
+    expect(render('wallet')).toContain('font-display font-semibold tracking-display');
+    expect(render('ingot')).toContain('font-display font-semibold tracking-display');
+  });
+
+  it('gives every treatment a separation that survives a content sized card', () => {
+    // Home lets the card size to its content, and `render` above passes no
+    // height either. An auto margin resolves to nothing in that case, so each
+    // face has to declare its own vertical separation or the occupation ends
+    // exactly where the label below it begins. jsdom does not lay out, so this
+    // asserts the construction, which is the thing that regressed.
+    for (const treatment of TREATMENTS) {
+      const face = /<div class="(cover-card__content[^"]*)"/.exec(render(treatment))?.[1];
+      expect(face).toMatch(/\bgap-\d+\b/);
+    }
+  });
+
+  it('does not leave the ingot bottom row to mt-auto and a parent height', () => {
+    const markup = render('ingot');
+    const face = /<div class="(cover-card__content[^"]*)"/.exec(markup)?.[1];
+    // The same 40px the wallet card's justify-between gap-10 already gives, so
+    // the two are the same height on Home.
+    expect(face).toContain('gap-10');
+    // mt-auto stays for the landing hero and the gallery, which do set a
+    // height, where it seats the bottom row on the bottom edge. It is never the
+    // only thing holding the occupation and the "Cover" label apart.
+    expect(markup).toContain('mt-auto');
+  });
+
+  it('adds no spacing outside the card', () => {
+    for (const treatment of TREATMENTS) {
+      const outer = /^<div class="([^"]*)"/.exec(render(treatment))?.[1];
+      expect(outer).toContain('p-5');
+      expect(outer).not.toMatch(/\bm[trblxy]?-/);
+    }
+  });
+});
+
 describe('the gallery', () => {
   const markup = renderToStaticMarkup(<Gallery />);
 
@@ -100,6 +206,7 @@ describe('the gallery', () => {
       'index-chart-small',
       'index-chart-large',
       'cover-card',
+      'home-directions',
       'upload',
       'checkbox',
       'segmented',

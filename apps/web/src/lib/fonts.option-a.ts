@@ -17,3 +17,7 @@ const display = Inter_Tight({
 
 export const fontOption = 'A';
 export const fontClassName = `${text.variable} ${display.variable}`;
+
+// Self hosted by next/font, so there is no third party stylesheet to link.
+// Option C has one; the root layout reads this from whichever module is active.
+export const fontStylesheetHref: string | undefined = undefined;

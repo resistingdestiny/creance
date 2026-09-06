@@ -1,0 +1,328 @@
+import type { ReactNode } from 'react';
+
+import { beginPurchase } from '../../app/purchase-actions';
+import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
+import { formatAmount } from '../../lib/format';
+import { COVERED_ANSWER, LANDING_STEPS, type LandingIndexSection } from '../../lib/landing-model';
+import type { LandingData } from '../../lib/landing-data';
+import { CoverCard } from '../cover-card';
+import { IndexChart } from '../index-chart';
+import { PillButton, PillLink } from '../pill-button';
+import { ReplayBar } from '../replay-bar';
+
+/**
+ * The landing page, section for section from the design of record.
+ *
+ * Order, which is the acceptance: the navigation, the hero with the cover card
+ * and the from price, the three questions, the three steps, the index section,
+ * the closing line, the investor line, the footer bar. The sections are local
+ * to this file so that the order is one list a reader can check rather than
+ * eight imports.
+ *
+ * Two things this page does not do. It runs no scroll triggered reveal: there
+ * is no observer and no scroll listener anywhere in it, because on a data dense
+ * page they read as flicker and in a screen recording as a rendering glitch.
+ * And it holds no figure of its own: the price, the trigger level, the reading
+ * and the coupon all arrive in `data`, already read from the API, so nothing
+ * here can print a number nobody published.
+ *
+ * The one orchestrated moment on load is the hero card sliding into place,
+ * which is the sheet's own `.cover-card-enter` with `motion-reduce:animate-none`
+ * beside it. Under reduced motion the card is simply in place on the first
+ * paint and the page is otherwise identical.
+ *
+ * Every interactive element is a button or an anchor, so the base layer's
+ * outline is the focus state on all of them. The design draws them as divs and
+ * spans, which would have neither focus nor keyboard.
+ */
+
+const PAGE = 'px-5 lg:px-16';
+const CONTENT = 'mx-auto w-full max-w-[1080px]';
+
+export function LandingScreen({ data }: { data: LandingData }) {
+  const indexHref = `/cover/index?group=${encodeURIComponent(data.group)}`;
+
+  return (
+    <div className="flex flex-col bg-canvas">
+      <Nav indexHref={indexHref} />
+      <main>
+        <Hero priceLine={data.priceLine} />
+        <HeroCard occupation={data.index.occupation} />
+        <Questions costLine={data.costLine} payLine={data.payLine} />
+        <Steps />
+        <IndexSection replayBadge={data.replayBadge} section={data.index} />
+        <Closing investorLine={data.investorLine} />
+      </main>
+      <FooterBar indexHref={indexHref} />
+    </div>
+  );
+}
+
+/**
+ * A navigation link. The design draws these without an underline, which is why
+ * they are not the sheet's TextLink: that component is the underlined 16px link
+ * inside the app. The 44px minimum tap target is the sheet's rule and applies
+ * to both.
+ */
+function NavLink({ children, href }: { children: ReactNode; href: string }) {
+  return (
+    <a
+      className="inline-flex min-h-11 items-center text-body text-ink-2 no-underline transition-opacity duration-200 ease-out hover:text-ink motion-reduce:transition-none"
+      href={href}
+    >
+      {children}
+    </a>
+  );
+}
+
+/** "Get a quote", which is the same server action the old start screen submitted. */
+function QuoteButton({ className }: { className?: string }) {
+  return (
+    <form action={beginPurchase} className={className}>
+      <PillButton className={className} type="submit">
+        Get a quote
+      </PillButton>
+    </form>
+  );
+}
+
+/**
+ * The wordmark is Creance, where the design file reads Displacement Bond.
+ * Displacement Bond Note is the instrument and Creance is the product, which is
+ * Root's decision and predates the design file. docs/DECISIONS.md.
+ */
+function Nav({ indexHref }: { indexHref: string }) {
+  return (
+    <header
+      className={`flex min-h-18 flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-hairline py-3 ${PAGE}`}
+    >
+      <span className="text-body font-semibold text-ink">Creance</span>
+      <nav aria-label="Main" className="flex flex-wrap items-center gap-x-6 gap-y-2 lg:gap-x-8">
+        <NavLink href={indexHref}>The index</NavLink>
+        <NavLink href="/invest">Investors</NavLink>
+        <QuoteButton />
+      </nav>
+    </header>
+  );
+}
+
+function Hero({ priceLine }: { priceLine: string | null }) {
+  return (
+    <section className={`pt-16 lg:pt-36 ${PAGE}`}>
+      <div className="mx-auto flex max-w-[1060px] flex-col items-center text-center">
+        <h1 className="text-balance font-display text-headline font-semibold tracking-headline text-ink sm:text-display-l lg:text-landing-hero lg:tracking-landing-hero">
+          Cover for the day your job is automated.
+        </h1>
+        <p className="mt-6 max-w-[500px] text-balance text-body-lg text-ink-2 lg:mt-8 lg:text-landing-lead">
+          A monthly payment now. A payout if your occupation is displaced.
+        </p>
+        <div className="mt-8 flex flex-col items-center gap-4 lg:mt-11 lg:flex-row lg:gap-6">
+          <QuoteButton />
+          {/* No price, no line. The one thing this page may never do is name an
+              amount nobody quoted. */}
+          {priceLine === null ? null : <p className="text-body text-ink-2">{priceLine}</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The signature object, at landing size, over the soft ground the design draws
+ * behind it.
+ *
+ * The card goes through CoverCard rather than being drawn here, so that T30 can
+ * switch its treatment behind one setting without touching this page. It is
+ * 720 by 432 at 1440 and fluid at the same ratio below that.
+ */
+function HeroCard({ occupation }: { occupation: string }) {
+  return (
+    <section className={`relative flex justify-center pb-24 pt-16 lg:pb-36 lg:pt-28 ${PAGE}`}>
+      <div
+        aria-hidden="true"
+        className="landing-glow pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-full max-w-[1100px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+      />
+      <CoverCard
+        amount={formatAmount(AMOUNT_DEFAULT)}
+        className="cover-card-enter relative aspect-[720/432] w-full max-w-[720px] motion-reduce:animate-none"
+        hero
+        occupation={occupation}
+        state="covered"
+        statusLabel="Covered"
+      />
+    </section>
+  );
+}
+
+/**
+ * The three questions, as a definition list: each one is a term and the answer
+ * beside it is its definition, which is what the design's two column ledger is.
+ * At 390 the answer sits under its question instead of beside it.
+ */
+function Questions({ costLine, payLine }: { costLine: string; payLine: string }) {
+  return (
+    <section className={`mx-5 border-t border-hairline py-16 lg:mx-16 lg:py-32`}>
+      <dl className={`flex flex-col ${CONTENT}`}>
+        <Question answer={costLine} question="What does it cost." />
+        <Question answer={payLine} question="When does it pay." />
+        <Question answer={COVERED_ANSWER} question="Am I covered." />
+      </dl>
+    </section>
+  );
+}
+
+function Question({ question, answer }: { question: string; answer: string }) {
+  return (
+    <div className="flex flex-col gap-3 border-b border-hairline py-8 last:border-b-0 lg:flex-row lg:items-baseline lg:justify-between lg:gap-12 lg:py-11">
+      <dt className="font-display text-title font-semibold tracking-title text-ink lg:whitespace-nowrap lg:text-landing-ledger lg:tracking-landing-ledger">
+        {question}
+      </dt>
+      <dd className="m-0 max-w-[400px] text-body-lg text-ink-2 lg:text-right">{answer}</dd>
+    </div>
+  );
+}
+
+/**
+ * The three steps. The numerals are aria-hidden decoration in a grey that is far
+ * below the contrast floor by design; the order they show is carried properly by
+ * the ordered list they sit in, so nothing is lost when they are not read.
+ */
+function Steps() {
+  return (
+    <section className={`bg-surface py-16 lg:py-32 ${PAGE}`}>
+      <div className={CONTENT}>
+        <h2 className="font-display text-title font-semibold tracking-title text-ink lg:text-landing-head lg:tracking-display">
+          Two minutes, start to covered.
+        </h2>
+        <ol className="mt-10 flex list-none flex-col gap-10 p-0 lg:mt-18 lg:flex-row lg:gap-14">
+          {LANDING_STEPS.map((step, position) => (
+            <li className="flex-1" key={step.title}>
+              <span
+                aria-hidden="true"
+                className="block font-display text-display-l font-semibold tracking-landing-tight text-landing-numeral lg:text-landing-step"
+              >
+                {position + 1}
+              </span>
+              <h3 className="mt-5 text-body-lg font-medium text-ink">{step.title}</h3>
+              <p className="mt-2 text-body text-ink-2">{step.line}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The index section, live.
+ *
+ * The figure is the distance to a payout that the Index tab shows, read through
+ * the same helpers from the same endpoint, so the number on the front door is
+ * the number the product would settle on. When the feed is not answering the
+ * section prints the last reading this server published with the note that says
+ * so, and when there has never been one it prints the note alone. It never
+ * prints a zero and it never prints an invented figure.
+ */
+function IndexSection({
+  section,
+  replayBadge,
+}: {
+  section: LandingIndexSection;
+  replayBadge: string | null;
+}) {
+  const { occupation, reading, note } = section;
+
+  return (
+    <section className={`py-16 lg:py-36 ${PAGE}`}>
+      <div className={CONTENT}>
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
+          <div>
+            <h2 className="max-w-[520px] text-balance font-display text-title font-semibold tracking-title text-ink lg:text-landing-head lg:tracking-display">
+              One number decides. You can watch it.
+            </h2>
+            <p className="mt-5 max-w-[460px] text-body-lg text-ink-2">
+              Unemployment in your occupation, compared with everyone, smoothed over three months,
+              compared with a year ago. No adjuster, no claim forms.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 lg:items-end lg:text-right">
+            {replayBadge === null ? null : <ReplayBar label={replayBadge} variant="compact" />}
+            <p className="text-secondary text-ink-2">{occupation}</p>
+            {reading === null ? null : (
+              <>
+                <p className="font-display text-display-xl font-semibold tracking-landing-tight text-ink lg:text-landing-reading">
+                  {reading.distance}
+                </p>
+                <p className="text-secondary text-ink-2">{reading.trend}</p>
+              </>
+            )}
+          </div>
+        </div>
+
+        {reading === null ? null : (
+          <div className="mt-12 lg:mt-16">
+            <IndexChart
+              bandLabel={reading.bandLabel}
+              description={reading.description}
+              label={occupation}
+              points={reading.points}
+              size="landing"
+              state={reading.open ? 'triggered' : 'flat'}
+              threshold={reading.threshold}
+            />
+            {reading.negativeLine ? (
+              <p className="mt-4 max-w-[560px] text-secondary text-ink-2">
+                People in this occupation are usually unemployed less than average. The trigger is
+                about getting worse than their own normal, not about being above zero.
+              </p>
+            ) : null}
+          </div>
+        )}
+
+        {note === null ? null : (
+          <p className="mt-6 max-w-[560px] text-body text-ink-2" data-testid="landing-index-note">
+            {note}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function Closing({ investorLine }: { investorLine: string }) {
+  return (
+    <section className="mx-5 border-t border-hairline py-16 lg:mx-16 lg:py-28">
+      <div className="mx-auto flex max-w-[800px] flex-col items-center text-center">
+        <h2 className="text-balance font-display text-headline font-semibold tracking-headline text-ink lg:text-display-xl lg:tracking-landing-tight">
+          The quiet kind of ready.
+        </h2>
+        <div className="mt-8 flex w-full flex-col items-center gap-4 lg:mt-10 lg:w-auto lg:flex-row lg:gap-6">
+          <QuoteButton className="w-full lg:w-auto" />
+          <PillLink className="w-full lg:w-auto" href="/invest" variant="secondary">
+            I want to invest
+          </PillLink>
+        </div>
+        <p className="mt-6 text-secondary text-ink-2">{investorLine}</p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The footer bar. The design carries "Terms" and "Contact" beside "How the
+ * index works"; neither page exists and this ticket does not write them, so
+ * they are left out rather than pointed at something that is not them.
+ * docs/DECISIONS.md.
+ */
+function FooterBar({ indexHref }: { indexHref: string }) {
+  return (
+    <div
+      className={`flex min-h-22 flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-hairline py-3 ${PAGE}`}
+    >
+      <span className="text-secondary text-ink-2">Creance</span>
+      <nav aria-label="Footer">
+        <NavLink href={indexHref}>How the index works</NavLink>
+      </nav>
+    </div>
+  );
+}

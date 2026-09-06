@@ -112,20 +112,29 @@ describe('the theme block is the config', () => {
   });
 });
 
-describe('no drop shadows anywhere', () => {
-  it('sets box-shadow to nothing but none', () => {
+describe('no drop shadows, and one elevation on the marketing surface', () => {
+  it('sets box-shadow to nothing but none, or to the one permitted elevation', () => {
+    // T33 spends the elevation the addendum permits. It is still the only
+    // shadow in the build: every other value in the compiled stylesheet is
+    // none, which is what stops a second one arriving by habit.
     const values = [...css.matchAll(/box-shadow\s*:\s*([^;}]+)/g)].map((match) =>
       (match[1] ?? '').trim(),
     );
     expect(values.length).toBeGreaterThan(0);
-    for (const value of values) expect(value).toBe('none');
+    for (const value of values) {
+      expect(['none', 'var(--elevation-hero)']).toContain(value);
+    }
   });
 
-  it('leaves the marketing elevation as a variable that nothing applies', () => {
-    // The addendum permits one elevation, on the landing hero card only. It is
-    // declared so nobody invents a second one, and nothing in this build uses it.
+  it('spends the marketing elevation on one selector and no other', () => {
+    // docs/DESIGN-TOKENS-ADDENDUM.md permits it on the landing hero card only.
+    // `.cover-card--depth` is carried when a caller passes `depth`, and the
+    // landing hero is the only caller that does.
     expect(css).toContain('--elevation-hero:');
-    expect(css).not.toMatch(/box-shadow\s*:\s*var\(--elevation-hero\)/);
+    const lifted = blocksMatching(/./)
+      .filter(([, body]) => /box-shadow:\s*var\(--elevation-hero\)/.test(body))
+      .map(([selector]) => selector);
+    expect(lifted).toStrictEqual(['.cover-card--depth']);
   });
 });
 
@@ -164,6 +173,45 @@ describe('hairlines and the card', () => {
     expect(css).toMatch(/\.cover-card::before\s*\{[^}]*pointer-events:\s*none/);
     expect(css).toMatch(/\.cover-card--hero::after\s*\{[^}]*pointer-events:\s*none/);
     expect(css).toMatch(/\.cover-card__content\s*\{[^}]*z-index:\s*10/);
+  });
+
+  it('keeps every light layer beneath the content, including the glare', () => {
+    // The one defect a card of this kind ships with is light painted across the
+    // occupation or the amount. The sheen and the brushing are pseudo-elements
+    // with no z-index of their own, so they sit at 0; the glare names 1; the
+    // content names 10. This asserts the order in the compiled stylesheet,
+    // because the source order alone would not decide it.
+    const glare = blocksMatching(/^\.cover-card__glare$/)[0]?.[1] ?? '';
+    expect(glare).toMatch(/z-index:\s*1\b/);
+    expect(glare).toMatch(/pointer-events:\s*none/);
+    const content = blocksMatching(/^\.cover-card__content$/)[0]?.[1] ?? '';
+    expect(Number(/z-index:\s*(\d+)/.exec(content)?.[1])).toBeGreaterThan(1);
+    for (const [, body] of blocksMatching(/\.cover-card(--\w+)?::(before|after)$/)) {
+      expect(body).not.toContain('z-index');
+    }
+  });
+
+  it('gives the depth card back its overflow, or it could have no depth at all', () => {
+    // A grouping property forces transform-style to flat, so a card that clips
+    // its own overflow is flat whatever else it declares. The two light layers
+    // clip themselves to the radius instead.
+    const depth = blocksMatching(/^\.cover-card--depth$/)[0]?.[1] ?? '';
+    expect(depth).toMatch(/overflow:\s*visible/);
+    expect(depth).toMatch(/transform-style:\s*preserve-3d/);
+    expect(css).toMatch(
+      /\.cover-card--depth::before,\s*\.cover-card--depth::after\s*\{[^}]*overflow:\s*hidden/,
+    );
+  });
+
+  it('replaces the ticker and the tilt with their finished state under reduced motion', () => {
+    // The ticker's own animation is turned off by the motion-reduce utility on
+    // the element; the tilt's ease back is a transition, which only CSS can
+    // reach, so the stylesheet turns it off here.
+    expect(css).toMatch(/\.landing-ticker__row\s*\{[^}]*animation:\s*landing-ticker/);
+    expect(css).toMatch(
+      /\.landing-ticker:hover\s+\.landing-ticker__row\s*\{[^}]*animation-play-state:\s*paused/,
+    );
+    expect(css).toMatch(/prefers-reduced-motion[\s\S]*?\.cover-card-tilt[^}]*\{[^}]*transition:\s*none/);
   });
 
   it('draws the certificate edge without touching the base card rule', () => {

@@ -49,8 +49,13 @@ export interface IndexChartProps {
   readonly description?: string;
 }
 
-const BAND_FILL = 'rgba(209,59,59,0.06)';
-const BAND_EDGE = 'rgba(209,59,59,0.4)';
+/**
+ * The trigger band, docs/DESIGN-TOKENS.md section 5. Exported because every
+ * chart in this app that draws a threshold draws this band, and two charts
+ * with two shades of red would read as two different meanings.
+ */
+export const BAND_FILL = 'rgba(209,59,59,0.06)';
+export const BAND_EDGE = 'rgba(209,59,59,0.4)';
 
 const DEFAULTS = {
   small: { width: 64, height: 20, stroke: 1.25 },
@@ -74,7 +79,7 @@ const DEFAULTS = {
  */
 const FLUID_BOX = 'h-45 w-full lg:h-75';
 
-interface Scale {
+export interface Scale {
   readonly x: (index: number) => number;
   readonly y: (value: number) => number;
   readonly top: number;
@@ -134,7 +139,8 @@ export function contiguousRuns(
   return runs;
 }
 
-function pathFor(run: { index: number; value: number }[], scale: Scale): string {
+/** One contiguous run as an SVG path, in the scale's own pixel space. */
+export function pathFor(run: { index: number; value: number }[], scale: Scale): string {
   return run
     .map((point, position) => {
       const command = position === 0 ? 'M' : 'L';

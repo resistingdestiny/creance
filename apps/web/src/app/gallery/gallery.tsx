@@ -630,10 +630,10 @@ export function Gallery({ specimenFonts = {} }: GalleryProps) {
           NEXT_PUBLIC_FONT_OPTION picks the pair the product builds, A by default, and all three
           are the same component with the same copy in it.
         </p>
-        <div className="flex flex-col gap-8 lg:flex-row lg:flex-wrap">
+        <div className="flex flex-col gap-8 lg:grid lg:grid-cols-3 lg:gap-6">
           {HOME_DIRECTIONS.map((direction) => (
             <div
-              className="flex w-full flex-col gap-4 lg:min-w-[280px] lg:max-w-[390px] lg:flex-1 lg:basis-[390px]"
+              className="flex w-full max-w-[390px] flex-col gap-4"
               key={direction.code}
             >
               <div className="flex flex-wrap items-center gap-2.5">
@@ -643,7 +643,7 @@ export function Gallery({ specimenFonts = {} }: GalleryProps) {
                 <span className="text-body font-semibold text-ink">{direction.name}</span>
                 <span className="text-caption text-ink-2">{direction.typeface}</span>
               </div>
-              <div className={specimenFonts[direction.option]}>
+              <div className={`type-specimen ${specimenFonts[direction.option] ?? ''}`}>
                 <CoverCard
                   amount={formatAmount(5000)}
                   className="h-[210px] w-full"

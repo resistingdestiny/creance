@@ -299,6 +299,22 @@
     --font-display-family: "General Sans";
     --font-text-family: "General Sans";
   }
+
+  /* Gallery only: shows one direction's typeface on a wrapper rather than on
+     the document.
+
+     The two family slots are substituted into --font-display and --font-text
+     on the element those are declared on, which is the root. Pointing a slot at
+     another family further down the tree therefore changes nothing on its own,
+     and this class redeclares the two roles beside it so the substitution
+     happens on the wrapper instead. Never used by a product screen; the root
+     layout puts the active option on <html>, where the root declarations are.
+     See docs/harness-notes.md. */
+  .type-specimen {
+    --font-display: var(--font-display-family), Inter, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --font-text: var(--font-text-family), -apple-system, "Helvetica Neue", Arial, sans-serif;
+    font-family: var(--font-text);
+  }
 }
 
 @layer components {

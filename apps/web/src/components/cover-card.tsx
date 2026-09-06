@@ -143,9 +143,18 @@ function Certificate({ occupation, amount, state, statusLabel, hero }: FaceProps
   );
 }
 
+/**
+ * `gap-10` and not `mt-auto` alone. Home lets the card size to its content, so
+ * an auto margin there resolves to nothing and the occupation ends where the
+ * "Cover" label begins. The gap is the separation the card carries itself, and
+ * it is the same one the wallet card's `justify-between gap-10` already gives,
+ * so the two are the same height on Home. `mt-auto` stays for the sizes that do
+ * have a height, the landing hero and the gallery, where it seats the bottom
+ * row on the bottom edge.
+ */
 function Ingot({ occupation, amount, state, statusLabel, hero }: FaceProps) {
   return (
-    <div className="cover-card__content flex h-full flex-col">
+    <div className="cover-card__content flex h-full flex-col gap-10">
       <p className="max-w-[220px] text-secondary font-medium text-ink">{occupation}</p>
       <div className="mt-auto flex items-end justify-between gap-4">
         <div className="flex flex-col gap-1">

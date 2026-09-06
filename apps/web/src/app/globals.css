@@ -45,9 +45,16 @@
   --color-current: currentColor;
 
   /* Marketing surface only, from docs/DESIGN-TOKENS-ADDENDUM.md. No worker or
-     investor screen may use these. Nothing in this ticket does. */
+     investor screen may use these. The landing page of record is light
+     throughout, so night and night-2 are still unused. */
   --color-night: #0a0d12;
   --color-night-2: #11151c;
+
+  /* The landing step numeral's grey, docs/DESIGN-TOKENS.md section 2,
+     "Landing (web) adds". It is the one colour on the landing that is not in
+     section 1, and it is 1.4:1 on surface, so the numerals it paints are
+     aria-hidden decoration over an ordered list and never carry information. */
+  --color-landing-numeral: #c9cdd4;
 
   /* Section 2: type. The two font families are set by next/font in the root
      layout; src/lib/font-option.ts is the Option A and Option B switch. */
@@ -76,6 +83,33 @@
   --tracking-display: -0.02em;
   --tracking-headline: -0.015em;
   --tracking-title: -0.01em;
+
+  /* The landing scale, marketing surface only. Section 2's "Landing (web)
+     adds" line gives the hero, the section head, the ledger line and the step
+     numeral; the reading, the hero card amount and the hero lead are the sizes
+     the design of record draws at 1440. Every one of them is stepped down to
+     the mobile scale at 390, where section 2 tops out at display-xl.
+
+     Line heights are unitless here because these are ratios in the design,
+     not the fixed leading the product scale above uses. */
+  --text-landing-hero: 104px;
+  --text-landing-hero--line-height: 1.02;
+  --text-landing-amount: 108px;
+  --text-landing-amount--line-height: 0.95;
+  --text-landing-reading: 96px;
+  --text-landing-reading--line-height: 1;
+  --text-landing-numeral: 72px;
+  --text-landing-numeral--line-height: 1;
+  --text-landing-ledger: 56px;
+  --text-landing-ledger--line-height: 1.1;
+  --text-landing-head: 44px;
+  --text-landing-head--line-height: 1.15;
+  --text-landing-lead: 22px;
+  --text-landing-lead--line-height: 1.5;
+
+  --tracking-landing-hero: -0.035em;
+  --tracking-landing-tight: -0.03em;
+  --tracking-landing-ledger: -0.025em;
 
   /* Section 3: radii. Spacing stays on the default 4px scale, which already
      gives the sheet's 4 8 12 16 20 24 32 40 48 as p-1 to p-12. */
@@ -183,6 +217,17 @@
     to {
       transform: translateY(0);
     }
+  }
+
+  /* Landing only: the soft ground the design of record puts behind the hero
+     card. It is a radial gradient and not an elevation, so the sheet's "no
+     drop shadows anywhere" still holds and --elevation-hero stays unused.
+
+     The design draws it in #F1F2F5, which is not in section 1. `surface` is
+     #F4F5F7 and the two are indistinguishable at this opacity, so the token
+     is used rather than a fourteenth grey. */
+  .landing-glow {
+    background: radial-gradient(closest-side, var(--color-surface), transparent);
   }
 
   /* Gallery only: shows the padded hit area of a text link so a reviewer can

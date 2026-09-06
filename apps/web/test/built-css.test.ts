@@ -166,6 +166,34 @@ describe('hairlines and the card', () => {
     expect(css).toMatch(/\.cover-card__content\s*\{[^}]*z-index:\s*10/);
   });
 
+  it('draws the certificate edge without touching the base card rule', () => {
+    // 1b is a modifier, never an edit to `.cover-card`: the base border above
+    // still has to be the hairline. The metallic edge is one pixel of gradient
+    // in the border box with the face in the padding box, so the border stays
+    // and only its colour goes.
+    expect(css).toMatch(/\.cover-card--certificate\s*\{[^}]*border-color:\s*transparent/);
+    expect(css).toMatch(/\.cover-card--certificate\s*\{[^}]*#fcfcfd 0%, #eff1f4 100%\) padding-box/);
+    expect(css).toMatch(/\.cover-card--certificate\s*\{[^}]*#c9cdd4 100%\) border-box/);
+  });
+
+  it('draws the ingot as a deeper gradient under horizontal brushing', () => {
+    expect(css).toMatch(/\.cover-card--ingot\s*\{[^}]*border-color:\s*#dfe2e7/);
+    expect(css).toMatch(/\.cover-card--ingot\s*\{[^}]*linear-gradient\(180deg, #f0f1f4 0%, #d9dce2 100%\)/);
+    expect(css).toMatch(/\.cover-card--ingot::before\s*\{[^}]*repeating-linear-gradient\(180deg/);
+  });
+
+  it('keeps both new treatments' + "'" + ' overlays on the pseudo-elements the base rule positions', () => {
+    // The overlays must stay pseudo-elements with pointer-events none and the
+    // content lifted above them, which is the one thing the card most often
+    // gets wrong. Neither modifier reopens `inset` on ::before except to sit
+    // the certificate sheen inside its edge.
+    expect(css).toMatch(/\.cover-card--certificate::before\s*\{[^}]*inset:\s*1px/);
+    for (const [selector, body] of blocksMatching(/\.cover-card--(certificate|ingot)/)) {
+      expect(selector).toMatch(/::(before|after)$|^\.cover-card--(certificate|ingot)$/);
+      expect(body).not.toContain('z-index');
+    }
+  });
+
   it('puts the landing glow behind the card as a gradient, not an elevation', () => {
     expect(css).toMatch(/\.landing-glow\s*\{[^}]*radial-gradient/);
   });

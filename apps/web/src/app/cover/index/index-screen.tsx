@@ -1,6 +1,8 @@
 import { AppFrame } from '../../../components/app-frame';
+import { AttributionPanel } from '../../../components/attribution-panel';
 import { IndexChart, type IndexPoint } from '../../../components/index-chart';
 import { ReplayBar } from '../../../components/replay-bar';
+import type { AttributionPanelData } from '../../../lib/attribution-model';
 import { formatPeriodShort } from '../../../lib/format';
 import type { BacktestMonth } from '../../../lib/worker-model';
 import { CoverTabs } from '../../cover-tabs';
@@ -16,6 +18,7 @@ import { CoverTabs } from '../../cover-tabs';
  */
 
 export function IndexScreen({
+  attribution = null,
   occupation,
   distance,
   sentence,
@@ -29,6 +32,12 @@ export function IndexScreen({
   open,
   replayBadge = null,
 }: {
+  /**
+   * The AI attribution telemetry, under the index and separated from it. Null
+   * only where a caller renders the index on its own; the route always has it,
+   * because the committed series is its own cold fallback.
+   */
+  attribution?: AttributionPanelData | null;
   occupation: string;
   distance: string | null;
   sentence: string | null;
@@ -97,6 +106,8 @@ export function IndexScreen({
           </div>
 
           <WhatWouldHaveHappened months={months} />
+
+          {attribution === null ? null : <AttributionPanel data={attribution} />}
 
           {neverOpened ? (
             <p className="text-secondary text-ink-2">

@@ -7,7 +7,7 @@ import {
   loadCalibration,
   type Dataset,
 } from '../dataset.js';
-import { hazardTable } from '../pricing.js';
+import { hazardTable } from '../hazard.js';
 import { resolveDataset } from '../sources.js';
 import { fmt2 } from '../rounding.js';
 

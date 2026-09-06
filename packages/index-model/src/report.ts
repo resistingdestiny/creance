@@ -10,7 +10,8 @@ import {
 } from './dataset.js';
 import { addMonths, comparePeriods, monthOf, type Period } from './period.js';
 import { fmt2 } from './rounding.js';
-import { hazardTable, fittedHazard, guideRate, HAZARD_FIT, PRICING } from './pricing.js';
+import { hazardTable } from './hazard.js';
+import { fittedHazard, guideRate, HAZARD_FIT, PRICING } from './pricing.js';
 import { BACKTEST_FROM } from './calibration.js';
 
 /**

@@ -142,23 +142,19 @@ export { archiveRoot, cacheRoot, docsRoot, hasArchive, repoRoot } from './paths.
 
 // The guide price, the market price and the headline a screen shows.
 export {
-  HAZARD_BUCKET_LABELS,
   HAZARD_FIT,
   PRICING,
   fittedHazard,
   guideRate,
-  hazardTable,
   headline,
   marketRate,
   monthlyPremium,
 } from './pricing.js';
-export type {
-  HazardBucket,
-  HazardOptions,
-  HazardTable,
-  Headline,
-  HeadlineForm,
-} from './pricing.js';
+export type { Headline, HeadlineForm } from './pricing.js';
+
+// The empirical hazard the fit above was taken from.
+export { HAZARD_BUCKET_LABELS, hazardTable } from './hazard.js';
+export type { HazardBucket, HazardOptions, HazardTable } from './hazard.js';
 
 // The published table in docs/INDEX.md.
 export { GAP_CAPTION, lossWindows, renderIndexReport, reportMonthLabel } from './report.js';

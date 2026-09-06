@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadDataset } from '../src/dataset.js';
+import { hazardTable } from '../src/hazard.js';
 import {
   HAZARD_FIT,
   PRICING,
   fittedHazard,
   guideRate,
-  hazardTable,
   headline,
   marketRate,
   monthlyPremium,

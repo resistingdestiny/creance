@@ -4319,6 +4319,24 @@ It is aria-hidden. The same readings, in the same words, are the substance of
 travelling past is texture for the eye that would be a wall of unordered figures
 read aloud.
 
+### The ticker's separation is a trailing margin, not a row gap
+
+The strip carries the fifteen readings twice and travels `translateX(-50%)`,
+which is half its own width. That is one period only if half the row is exactly
+the distance from an item to its duplicate, and with a row gap it is not: n
+items separated by a gap have n - 1 gaps, so half of thirty of them is half a
+gap short of fifteen. It shipped that way first and the strip jumped 28px once
+every 48 seconds, a visible stutter on a page whose whole point is that nothing
+stutters in a screen recording.
+
+Putting the 56px on the item as a trailing margin makes every item the same
+width including its separation, so half of thirty is exactly fifteen and the
+loop closes. The alternative, measuring the period in script and animating that,
+would put a layout read and a style write on every resize for a decorative strip.
+`.landing-ticker__item` therefore exists, `.landing-ticker__row` declares no gap,
+and both the stylesheet test and the markup test hold that construction, because
+it is not something a reader would guess from the spacing alone.
+
 ### The ticker carries no state colour
 
 The state palette is defined against the light ground and the addendum leaves it

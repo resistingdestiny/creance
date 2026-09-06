@@ -3785,3 +3785,131 @@ read.
 The half an operator needs most survives, because it never came from the
 database: whether the oracle ran, whether the gates passed, and which calendar
 the feed is on all come from the two files the oracle writes.
+
+## T29, the landing page, 6 September 2026
+
+The design of record is `Landing v2`, a 1440 wide canvas export. Every entry
+here is a place where this build could not follow it, or followed something else
+that outranks it.
+
+### The wordmark on the landing page is Creance, not Displacement Bond
+
+The design file writes the wordmark as "Displacement Bond" in the navigation and
+again in the footer bar. "The product is called Creance" above is Root's
+decision and predates the file; the instrument alone keeps the descriptive name
+Displacement Bond Note, and no consumer surface uses it.
+
+So the landing says Creance in both places. Nothing else in the design's
+navigation or footer changes, and the instrument name is untouched wherever the
+investor screens print it.
+
+### The landing speaks for computer and mathematical, not office and administrative support
+
+The design's hero card, from price and index reading are all Office and
+administrative support. That occupation has readings from the archive and no
+series, and "Capacity is committed per occupation" above means an occupation
+with no series has no price. A landing page built on it would have a card
+reading "Covered" for cover nobody can buy and a from price that no quote could
+produce.
+
+One series exists, ODI-COMP-2026-01 for computer and mathematical, so the page
+speaks for that group. It is one constant, `LANDING_GROUP` in
+`apps/web/src/lib/landing-model.ts`, and the hero card, the from price, the two
+index links and the index section all read it. Pointing the page at another
+occupation is that one line, once another series is issued.
+
+### The from price is a quote, not a figure in the copy
+
+The design writes "From 28.00 a month" twice. An amount in the copy is an amount
+that goes stale the first time pricing changes, and docs/DESIGN-TOKENS.md
+section 9 already forbids hard-coding the trigger levels for the same reason.
+
+The page asks `POST /v1/quote` for the smallest cover on offer, `LIMIT_MIN_MAJOR`
+1,000, for the landing group, on the server, and formats the premium through
+`src/lib/format.ts`. A quote takes no capacity, needs no eligibility and expires
+in fifteen minutes, so pricing the front door is the same call the Amount screen
+makes and the figure is a binding price. When no quote can be had the line
+disappears and the cost answer keeps only its second sentence. It never falls
+back to a number.
+
+The same rule covers the other two figures on the page. The attachment and the
+full payout level come from the reading's own trigger block, or from the free
+catalogue `GET /v1/index` when there is no reading, through the same
+`pointsInProse` and `exhaustionFor` the Amount screen's sentence uses. The
+coupon in the investor line comes from the series the investor screens already
+read.
+
+### The last published reading is module memory, and the note says which it is
+
+The acceptance asks the index section to degrade to the last published reading
+with an honest note. Nothing in the web app stored one: every screen reads the
+feed live and renders its unavailable state when the read fails, which is right
+behind a purchase and wrong at the front door, where the alternative to a stale
+figure is an empty page.
+
+`src/lib/last-reading.ts` keeps the newest successful reading per group in
+server module memory. It is not a cache: nothing is served from it while the
+feed answers, there is no expiry, and `src/lib/api.ts` still sends every request
+with `cache: 'no-store'`. A restart empties it, and the page then says it has no
+reading rather than inventing one.
+
+There are three states and the page prints a different thing in each. Live: the
+reading and no note. Stale: the same reading, its chart, and "This is the last
+reading we published, for July 2026. The live feed is not answering." Cold: the
+note "The live feed is not answering, so there is no reading to show.", no
+figure, no chart, and no zero. A shared store would survive the restart and is a
+database row this event does not need; the note is the same either way.
+
+### Terms and Contact are left out of the footer bar rather than pointed somewhere
+
+The design's footer bar carries "How the index works", "Terms" and "Contact".
+Neither of the last two has a page and this ticket does not write one. A link to
+a paragraph that is not the terms is worse than no link, so the footer bar
+carries the wordmark and "How the index works", and the disclosure the root
+layout renders on every page is unchanged beneath it.
+
+### The landing's pill buttons are the sheet's 56px, not the design's 44px nav pill
+
+The design draws the navigation's "Get a quote" at 44px high and the hero and
+closing pills at 56px. docs/DESIGN-TOKENS.md section 7 has one primary pill and
+it is 56px, and the landing uses the same `PillButton` the whole product uses so
+that a change to the component reaches every surface. Every pill on the page is
+therefore 56px. The navigation bar is 72px and the pill fits inside it.
+
+### The landing chart scales its box and holds its stroke in device space
+
+Section 5 puts the landing line at 1.75px and the chart at full content width,
+which a fixed size SVG cannot be. `IndexChart` gained a `landing` size rather
+than a second component: the viewBox stays the design's 1080 by 300, the box
+decides the pixels through `preserveAspectRatio="none"`, and every stroked
+element carries `vector-effect="non-scaling-stroke"`.
+
+Scaling the two axes differently is not a distortion of a line chart, it is the
+same data at another aspect, and it is what lets one drawing be the sheet's 180
+tall on a phone and 300 on the web. Without the vector effect the 1.75px line
+would render at 0.6px at 390. The two fixed sizes are untouched and are still
+drawn at the size they are given.
+
+### The landing type scale is seven tokens, and the rest of the design maps onto the sheet
+
+The design tool emits intermediate sizes the sheet does not have: 19px, 17px and
+15px appear across the questions, the steps and the navigation. Adding a token
+for each would make the marketing surface its own type system.
+
+The seven that are genuinely new are tokens: the hero at 104, the section head
+at 44, the ledger line at 56 and the step numeral at 72 are section 2's own
+"Landing (web) adds", and the index reading at 96, the hero card amount at 108
+and the hero lead at 22 are the sizes the design draws. Everything else maps
+onto the nearest role in section 2, and every landing token steps back down to
+that scale below the landing breakpoint, where section 2 tops out at display-xl.
+
+### The landing pays for two settled reads on every view
+
+The index reading is metered at 0.01 TUSD and the quote is metered too, so a
+single render of the front door settles two x402 payments on Hedera testnet and
+takes about 3.2 seconds warm. That is the honest cost of "the number on the
+landing page is the number the product would settle on", and caching it would
+make the page a fixture with extra steps.
+
+It is recorded because it is a real operating cost of the demonstration: the
+demo account pays 0.02 TUSD per page view, including every reload during a take.

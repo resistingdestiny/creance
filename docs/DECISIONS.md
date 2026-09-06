@@ -3969,6 +3969,13 @@ two pixels of size and about four of leading.
 Weight is part of the treatment and does follow the file: the certificate sets
 its amount at 500, the wallet card and the ingot at 600.
 
+That weight is what /gallery shows, where the amount is a plain string. On Home
+the amount is a `DisplayNumber`, which sets `font-semibold` on its own span, so
+the certificate's amount reads at 600 there rather than 500. No acceptance line
+asks the counter to take its weight from the treatment, and threading one
+through would touch the count up animation, so it is left alone and recorded
+here instead.
+
 ### Every label on all three cards is ink, and the shared status pill is not forked
 
 The contrast decision recorded above for the wallet card holds for the other two.

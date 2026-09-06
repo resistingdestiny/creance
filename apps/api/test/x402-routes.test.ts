@@ -277,6 +277,12 @@ describe('the x402 gate', () => {
       expect(
         (await built.app.inject({ method: 'GET', url: '/.well-known/jwks.json' })).statusCode,
       ).toBe(200);
+      // The attribution feed is the caveats on the paid product: what the
+      // index cannot tell you and how weakly the AI attribution lines up with
+      // it. Charging for that would be the wrong way round. It sits outside
+      // the metered prefix so it needs no carve out, and this is what says so.
+      const attribution = await built.app.inject({ method: 'GET', url: '/v1/attribution' });
+      expect(attribution.statusCode).toBe(200);
     });
 
     // The catalogue is the discovery route: it is what tells an agent which

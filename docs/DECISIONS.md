@@ -4025,3 +4025,104 @@ Geist file.
 At 1280 the three sit in a row inside the gallery's 1280 wide column, which
 leaves each card 368 rather than 390 wide. Below the gallery's large breakpoint
 they stack full width, which is the 390 case. The height stays the design's 210.
+
+## T31, the attribution panel, 6 September 2026
+
+The design of record covers no attribution panel at all, so every visual and
+editorial choice below is a decision rather than a reading of the sheet.
+
+### The panel goes on the Index tab, under "What would have happened"
+
+The repository has one public index page, the Index tab at
+apps/web/src/app/cover/index. It opens cold through `?group=`, it is what the
+landing's "The index" navigation link and its "How the index works" footer link
+both open, and the Mini App deep link hands over to it. Putting the panel
+anywhere else would mean a reader who followed the product's own links to the
+index never saw the caveats about the index.
+
+The landing's index section was the alternative. It is a marketing section built
+from a design of record that has no panel in it, and its section order is held
+by a test. It is left alone.
+
+### The panel is a neutral bar strip and not a second index chart
+
+Section 5 of docs/DESIGN-TOKENS.md is about the index line: a black line, a red
+trigger band, a band label reading "Pays out above 2.0". None of it appears
+here, on purpose. The strip is ink-3 bars over a hairline baseline, in the form
+the "What would have happened" strip above it already uses, so nothing about it
+reads as a line that could open a claim.
+
+Forty months across the 344px content width of the 390 frame is about six pixels
+a column. A labelled line chart does not fit that and a bar strip with two axis
+labels does, which is the other reason for the form.
+
+Bars are scaled linearly against the peak month, and a month that is not zero is
+drawn at least one pixel. Rounding a real 7 down to nothing would draw it as the
+zero it is not. A recorded zero gets no bar, and the flat baseline is what a zero
+looks like.
+
+### The endpoint is GET /v1/attribution, outside the metered prefix
+
+The x402 gate meters `GET /v1/index/*`. A free route under that prefix needs an
+exact entry in FREE_UNDER_METERED_PREFIX and a test holding it open, which is
+what `GET /v1/index/health` needed. A path outside the prefix needs neither, and
+this feed has no reason to live under the index prefix: it is not an index and
+it is not settlement data. It is free because charging for the caveats on a paid
+product would be the wrong way round. A case in the "leaves the free endpoints
+alone" block of apps/api/test/x402-routes.test.ts holds it open with the gate
+configured anyway, because that is the test that would catch a later change of
+prefix.
+
+It is not in the OpenAPI document. That list is the Bazantic gateway import of
+the priced routes, and the free catalogue and the health endpoint are not in it
+either. llms.txt names it instead, as free context.
+
+### The cold fallback is the committed series, bundled at build time
+
+T29's precedent for "the last published figures with a note" is module memory of
+the last successful read (apps/web/src/lib/last-reading.ts). That is right for a
+live reading, which nothing on disk can stand in for, and it adds nothing here.
+The attribution series is static committed data and the file the API serves is
+the same file the web app can import, so a build time import of
+data/attribution/challenger-ai-cuts-monthly.json really is the last published
+figures rather than a remembered read or a placeholder. It also survives a
+restart, which module memory does not.
+
+The panel says on screen which of the two it is showing. It is an import and not
+a runtime file read because the web image copies only apps/web and the two
+packages; apps/web/Dockerfile now copies data/attribution before the build so
+the bundle can carry it, and apps/api/Dockerfile copies it for the same reason
+it copies data/bls.
+
+### The caveats are held in the web app, not read from the feed
+
+The figures come from the feed. The settlement sentence, the limits and the
+correlation sentence are constants in apps/web/src/lib/attribution-model.ts. A
+failed read may cost the reader a number; it must never cost them a caveat, and
+a panel that fetched its own disclaimers would drop them at exactly the moment
+its numbers were least trustworthy. The API serves its own structured copy of
+the same limits for an agent reading the feed directly.
+
+### The committed provenance gains a sentence about derived monthly cells
+
+The research notes behind this series record that several monthly cells are
+worked back from published year to date figures rather than from a published
+monthly figure, and that the workbook flagged which. The JSON carries no per
+month flag, so nothing in this repository can tell those months apart. Inventing
+a flag would be worse than saying so, so data/attribution/PROVENANCE.txt gains
+one plain sentence stating it and the panel repeats it as a limit.
+
+### The panel says the two series are not aligned month for month
+
+The index's newest published month is July 2026 and the attribution series runs
+to August 2026, because the two are published on different calendars. The strip
+would otherwise sit under the index chart implying a shared window. The sentence
+is computed from the two latest periods rather than typed, and it disappears
+when they do land on the same month.
+
+### The attribution panel cannot take the index tab down
+
+The panel is fetched outside the page's main try block, and a failed read falls
+back to the committed series rather than to the unavailable screen. The index is
+what the screen is for, and the caveats beside it are never the reason a worker
+cannot see their own reading.

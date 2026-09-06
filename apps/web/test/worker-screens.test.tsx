@@ -61,6 +61,9 @@ const {
   lineIsNegative,
   whatWouldHaveHappened,
 } = await import('../src/lib/worker-model.js');
+const { attributionPanel, attributionSnapshot } = await import(
+  '../src/lib/attribution-model.js'
+);
 const { INDEX } = await import('./worker-fixtures.js');
 
 afterEach(cleanup);
@@ -359,6 +362,28 @@ describe('the index tab', () => {
     expect(
       screen.getByText('It is compared with a year ago, so it shows change, not level.'),
     ).toBeTruthy();
+  });
+
+  // T31. The panel is its own section under the index, and the sentence that
+  // must survive every redesign is the one saying the panel decides nothing.
+  it('carries the attribution panel under the index when the route hands it one', () => {
+    renderIndex({
+      attribution: attributionPanel(attributionSnapshot(), { indexLatestPeriod: '2026-07' }),
+    });
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'What employers say about AI' }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'This does not affect settlement. Claims open on the occupation index alone, and nothing in this panel can open or close a claim.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('188,000')).toBeTruthy();
+  });
+
+  it('shows the index on its own when there is no panel to show', () => {
+    renderIndex();
+    expect(screen.queryByText('What employers say about AI')).toBeNull();
   });
 
   it("carries the addendum's second explanation block", () => {

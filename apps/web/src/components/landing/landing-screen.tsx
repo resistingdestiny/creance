@@ -40,7 +40,11 @@ const PAGE = 'px-5 lg:px-16';
 const CONTENT = 'mx-auto w-full max-w-[1080px]';
 
 export function LandingScreen({ data }: { data: LandingData }) {
-  const indexHref = `/cover/index?group=${encodeURIComponent(data.group)}`;
+  // Both index links open the public explorer, which is the page of record for
+  // the index (T32). They pointed at the worker's Index tab, which is one
+  // occupation inside the app frame and behind a tab bar; a visitor who has
+  // bought nothing is better served by the page that carries all fifteen.
+  const indexHref = '/index';
 
   return (
     <div className="flex flex-col bg-canvas">

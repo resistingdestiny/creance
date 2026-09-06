@@ -15,7 +15,8 @@ import { EXACT_SCHEME, X402_VERSION } from '../x402/config.js';
 ///     GET /v1/index/:group   one group's reading, metered
 ///
 /// The reading is the latest observation, the last twenty-four months and the
-/// trigger status, from the `observations` table. DESIGN.md 3.7 makes it a
+/// trigger status, from the `observations` table. `?months=` asks for a longer
+/// history at the same price, up to HISTORY_MONTHS_MAX. DESIGN.md 3.7 makes it a
 /// metered feed and the x402 gate in apps/api/src/x402 is in front of it,
 /// priced per call; nothing about this payload changes because of that.
 ///
@@ -38,6 +39,23 @@ import { EXACT_SCHEME, X402_VERSION } from '../x402/config.js';
 /// the contract compared.
 
 export const HISTORY_MONTHS = 24;
+
+/// The ceiling on `?months=`. The committed source starts in March 2000, so ten
+/// years is well inside the archive and well past anything a chart draws. A
+/// caller that asks for more is refused rather than served a scan of the table.
+///
+/// The parameter exists because the public index explorer scrubs five years of
+/// history for each of the fifteen groups, and twenty-four months is a reading
+/// rather than a record. It changes nothing about what a reading costs: the
+/// price is per call, and a call for sixty months is the same call.
+export const HISTORY_MONTHS_MAX = 120;
+
+/// The path and the query of one reading. Named so the handler's own signature
+/// stays one line.
+interface ReadingRequest {
+  Params: { group: string };
+  Querystring: { months?: string };
+}
 
 /// What the two trigger forms are, in the words an agent needs to read a
 /// reading. DESIGN.md 3.3 and docs/INDEX-SPEC.md section 4 are the definitions;
@@ -86,8 +104,9 @@ export const indexRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
       reading: {
         path: '/v1/index/{group}',
         history_months: HISTORY_MONTHS,
+        history_months_max: HISTORY_MONTHS_MAX,
         describes:
-          'The newest published month for one occupation group, the twenty-four months before it, and whether claims are open. Values are decimal strings in percentage points.',
+          'The newest published month for one occupation group, the twenty-four months before it, and whether claims are open. Ask for a longer history with ?months=, up to history_months_max, at the same price. Values are decimal strings in percentage points.',
         fields: {
           u_g: 'The unemployment rate for the occupation group.',
           u_all: 'The unemployment rate across all occupations.',
@@ -136,7 +155,8 @@ export const indexRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
     });
   });
 
-  app.get<{ Params: { group: string } }>('/v1/index/:group', async (request, reply) => {
+  app.get<ReadingRequest>('/v1/index/:group', async (request, reply) => {
+    const months = historyMonths(request.query.months);
     const groupKey = request.params.group;
     const group = await services.repository.group(groupKey);
     if (group === null) {
@@ -148,7 +168,7 @@ export const indexRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
       );
     }
 
-    const rows = await services.repository.observations(groupKey, HISTORY_MONTHS);
+    const rows = await services.repository.observations(groupKey, months);
     if (rows.length === 0) {
       throw new AppError(
         503,
@@ -246,6 +266,26 @@ export const indexRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
     });
   });
 };
+
+/// How many months of history the reading carries.
+///
+/// The gate runs before the handler, so a malformed `months` is refused after
+/// the payment, exactly as an unknown group is. It is validated before anything
+/// is read, so that the caller gets the reason without waiting for a query that
+/// was never going to run.
+function historyMonths(value: string | undefined): number {
+  if (value === undefined) return HISTORY_MONTHS;
+  const months = /^[0-9]+$/.test(value) ? Number(value) : Number.NaN;
+  if (!Number.isInteger(months) || months < 1 || months > HISTORY_MONTHS_MAX) {
+    throw new AppError(
+      400,
+      'months_invalid',
+      'Bad months',
+      `months must be a whole number from 1 to ${String(HISTORY_MONTHS_MAX)}.`,
+    );
+  }
+  return months;
+}
 
 function margin(value: number | null, threshold: number): string | null {
   return value === null ? null : (value - threshold).toFixed(2);

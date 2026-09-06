@@ -4151,3 +4151,100 @@ The panel is fetched outside the page's main try block, and a failed read falls
 back to the committed series rather than to the unavailable screen. The index is
 what the screen is for, and the caveats beside it are never the reason a worker
 cannot see their own reading.
+
+## T32, the public index explorer
+
+### The explorer is `/index`, and the worker's Index tab is unchanged
+
+The two are different pages for different readers. `/cover/index` is one
+occupation for the person whose cover depends on it, inside the app frame and
+behind the two tab bar, and it still answers `?group=` for the fourteen
+occupations with no series behind them. `/index` is all fifteen for anyone at
+all: no session, no purchase, no policy. Sharing one route would have meant a
+page that is a phone screen for one reader and a desktop explorer for the other,
+and neither would have been either.
+
+The route is free of collisions because Caddy sends `/v1/*`, `/health`,
+`/healthz`, `/.well-known/jwks.json`, `/llms.txt`, `/skill.md` and `/openapi/*`
+to the API and everything else to Next.
+
+### The explorer buys a longer history rather than computing one
+
+`GET /v1/index/:group` returned twenty-four months and the explorer scrubs five
+years for fifteen groups. Three ways to close the gap were open.
+
+A `months` query parameter on the paid route, capped at 120. A free history
+route under `/v1/index/`, which needs an entry in `FREE_UNDER_METERED_PREFIX`
+and gives away exactly what the metered route sells, which T28 refused. Or
+computing the history in the web app from the committed archive through
+`@creance/index-model`, which would put figures this app worked out on a page
+whose whole claim is that it prints figures somebody published.
+
+The first. The price is per call and unaffected, the catalogue advertises the
+ceiling as `history_months_max`, a malformed value is refused with
+`months_invalid`, and both gateway documents carry the parameter. Nothing about
+what a reading costs or what it contains changed for an existing caller.
+
+### The fifteen readings are cached for ten minutes, and nothing else is
+
+src/lib/api.ts says nothing is cached, because a price and a policy are live
+state. Fifteen metered reads per page view is a different problem: two visitors
+arriving together would pay thirty times for a figure that changes once a month.
+So src/lib/explorer-data.ts holds one round of fifteen in module memory for ten
+minutes behind a single in-flight promise, and the page prints the month it is
+showing. The replay badge is never cached, because the demo clock moves in ten
+second steps and a stale badge would be a lie about what is on screen. T33's
+ticker reads the same round.
+
+### The trigger band is above the line on the explorer, as it is everywhere else
+
+The prototype draws the explorer with the sign flipped: it plots the margin
+above average, so down is towards a payout and the red zone is at the bottom.
+docs/DESIGN-TOKENS.md section 5 says the band runs from the attachment upward,
+the app's own index chart draws it that way, and the API serves both trigger
+forms as "open when the value reaches the line". Two charts in one product with
+the red on opposite sides is worse than either convention, so the explorer
+follows the sheet and the app: up is towards a payout and the band is above the
+line. No axis carries a number, so no signed value reaches the screen either
+way.
+
+### The guide price holds the hazard at the line rather than extrapolating past it
+
+`fittedHazard` is an exponential fitted to buckets that begin at the line, and
+everything at or past the line is one bucket. The fit says nothing about a
+negative distance, and evaluated there it runs away: at 1.5 points past the line
+it asks for about eighty percent of the limit a year. apps/api/src/pricing.ts
+does not floor it because it prices the current month of a group with capacity
+behind it; the explorer prices sixty months of fifteen groups, most of them
+containing months when claims were open, so it floors the distance at zero
+before pricing. The prototype does the same.
+
+### An occupation with no capacity shows a guide price and no premium
+
+Capacity is committed per occupation, so fourteen of the fifteen have nothing to
+sell. The explorer still prices them, because what the index says the risk is
+worth is a fact about the index and is the point of the page, but it labels the
+figure "Guide price", drops the capacity slider, and says that no cover is on
+sale for that occupation today. A monthly premium beside a slider for something
+nobody can buy would be an offer.
+
+### The four steps are four charts, not a tabbed walkthrough
+
+The prototype's "How this number is built" is one chart behind four tab buttons.
+Four steps stacked, each with its own small chart, is the same content with no
+hidden state, no tab tween, and no keyboard model to get wrong; the whole
+disclosure is one native `details`. The step titles are written in the deck's
+voice, because the design of record marks its own provisional.
+
+### The explorer imports the index model's pricing, which meant splitting it
+
+The acceptance is that the price on the page comes from `guideRate`,
+`marketRate` and `monthlyPremium` in packages/index-model/src/pricing.ts rather
+than from a second copy of the formula. The Next bundler cannot follow that
+module's `.js` specifiers to their `.ts` files, which is the pitfall recorded at
+the top of apps/web/src/lib/payer.ts, and pricing.ts pulled in the dataset
+loader and `node:fs` with it. The empirical hazard table moved to
+packages/index-model/src/hazard.ts, which is where it belonged: it reads the
+whole archive and the three pricing functions read nothing. pricing.ts now
+imports one type and nothing else, the barrel and its callers are unchanged, and
+the web app and the API price from the same functions.

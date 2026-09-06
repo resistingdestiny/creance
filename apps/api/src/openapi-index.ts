@@ -1,3 +1,4 @@
+import { HISTORY_MONTHS, HISTORY_MONTHS_MAX } from './routes/index-feed.js';
 import {
   GROUP_KEYS,
   INDEX_SCHEMAS,
@@ -139,7 +140,8 @@ export function buildIndexOpenApiDocument(options: DocumentOptions): Record<stri
         '',
         'Start here. `GET /v1/index` is free and lists the fifteen occupation groups, the',
         'frozen trigger lines for each, and which of them have a reading published. Then',
-        'buy the reading for one group with `GET /v1/index/{group}`.',
+        'buy the reading for one group with `GET /v1/index/{group}`, adding `?months=` if',
+        'twenty-four months of history is not enough.',
         '',
         PAYMENT_TERMS,
       ].join('\n'),
@@ -194,6 +196,9 @@ export function buildIndexOpenApiDocument(options: DocumentOptions): Record<stri
             '`headline` names whichever of the two forms is nearer its line and how far',
             'away it is, decided here so that two readers cannot decide differently.',
             '',
+            `\`months\` asks for a longer or shorter history, from 1 to ${String(HISTORY_MONTHS_MAX)}. The price is per`,
+            'call and does not change with it, so a chart of five years costs one reading.',
+            '',
             `Price: ${PRICE.display} ${PRICE.symbol}, smallest unit \`${PRICE.amount}\`, asset \`${PRICE.asset}\`, decimals ${String(PRICE.decimals)}.`,
             '',
             'The payment gate runs before the handler, so an unknown group is refused with',
@@ -210,6 +215,19 @@ export function buildIndexOpenApiDocument(options: DocumentOptions): Record<stri
               schema: { type: 'string', enum: GROUP_KEYS },
               example: 'computer_math',
             },
+            {
+              name: 'months',
+              in: 'query',
+              required: false,
+              description: 'How many months of history to return. The reading itself is unaffected.',
+              schema: {
+                type: 'integer',
+                minimum: 1,
+                maximum: HISTORY_MONTHS_MAX,
+                default: HISTORY_MONTHS,
+              },
+              example: 60,
+            },
             PAYMENT_SIGNATURE_HEADER,
           ],
           responses: {
@@ -220,7 +238,9 @@ export function buildIndexOpenApiDocument(options: DocumentOptions): Record<stri
                 'application/json': { schema: { $ref: '#/components/schemas/IndexReading' } },
               },
             },
-            '400': problemResponse('`group_unknown`: not one of the fifteen groups.'),
+            '400': problemResponse(
+              '`group_unknown`: not one of the fifteen groups. `months_invalid`: not a whole number in range.',
+            ),
             '402': paymentRequired(`${PRICE.display} ${PRICE.symbol}`),
             '503': problemResponse('`index_unavailable`: no observation published yet.'),
           },
@@ -329,7 +349,8 @@ export function buildIndexOpenApiDocument(options: DocumentOptions): Record<stri
               description: 'What the metered route returns, and what each field means.',
               properties: {
                 path: { type: 'string', example: '/v1/index/{group}' },
-                history_months: { type: 'integer', example: 24 },
+                history_months: { type: 'integer', example: HISTORY_MONTHS },
+                history_months_max: { type: 'integer', example: HISTORY_MONTHS_MAX },
                 describes: { type: 'string' },
                 fields: {
                   type: 'object',

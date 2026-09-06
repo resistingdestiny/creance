@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@creance/client": "workspace:*",
+    "@creance/index-model": "workspace:*",
     "@worldcoin/idkit": "4.2.3",
     "@worldcoin/minikit-js": "2.0.3",
     "geist": "1.7.2",

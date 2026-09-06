@@ -3,7 +3,7 @@
   "info": {
     "title": "Occupation Displacement Index",
     "version": "0.1.0",
-    "description": "A monthly index of how far an occupation is losing ground against the labour\nmarket as a whole, published to a Hedera Consensus Service topic and served here\nper call over x402.\n\nWhat a reading is. For an occupation group g in month t, take the unemployment\nrate for that occupation and subtract the rate across all occupations. That\nexcess is smoothed over three months, and the index is the smoothed excess less\nits own value twelve months earlier. Subtracting the all-occupation rate removes\nthe business cycle and most of the seasonality, so a recession does not move\nevery occupation at once; what is left is the occupation against the market.\nEvery value is in percentage points and every value is a decimal string.\n\nThe two trigger forms. A reading is not only a number, it is a number against two\nfrozen lines, and either one opening is what puts an occupation in trouble.\nThe shock form opens when `odi >= attachment_shock`, which is an abrupt\ndislocation: the occupation has lost ground fast in the last twelve months.\nThe level form opens when `ebar >= level_line`, which is the slow grind that year\non year differencing removes: the occupation has settled at a worse level than\nits own history. A level line can be negative, and that is the reading most often\ngot wrong: for an occupation with structurally low unemployment the trigger is\ndeterioration against its own past, not high unemployment in absolute terms.\nBoth lines are set when a series is issued and never move.\n\nWhat it is not. This is not a forecast and not an unemployment rate. It says how\nan occupation is doing relative to all occupations, on data the US Bureau of\nLabor Statistics published, with the source series and a hash of the source rows\non every reading so anyone can recompute it.\n\nWhere it comes from. US Bureau of Labor Statistics, Current Population Survey,\nunemployment rate by occupation, monthly, not seasonally adjusted. Each monthly\nobservation is published as one message on the Hedera Consensus Service topic\n0.0.10366470, signed by the publishing account, and the first value published for\na period is the settlement value forever. A caller who does not want to trust\nthis API can read the same observations off that topic through the Hedera mirror\nnode and get the same numbers.\n\nStart here. `GET /v1/index` is free and lists the fifteen occupation groups, the\nfrozen trigger lines for each, and which of them have a reading published. Then\nbuy the reading for one group with `GET /v1/index/{group}`.\n\nPrice: 0.01 TUSD per call, which is `10000` in the smallest\nunit of the HTS token `0.0.10366463` at 6 decimals.\n\nFlow: x402 version 2, scheme `exact`, network `hedera:testnet`, settled through the\nBlocky402 testnet facilitator at https://api.testnet.blocky402.com. Call without paying and the\nanswer is 402 with the requirements in the `PAYMENT-REQUIRED` header and the same terms\nin readable fields in the body. Build a Hedera `TransferTransaction` against them, send\nit in `PAYMENT-SIGNATURE`, and the settlement receipt comes back in `PAYMENT-RESPONSE`.\n\nPay to 0.0.10366450. The facilitator adds its own signature and pays the Hedera fee,\nso the settlement transaction id begins with its fee payer 0.0.7162784 and not with\nthe paying account. That is the id to look up on HashScan.\n\nTestnet only. There are no real funds anywhere in this feed.",
+    "description": "A monthly index of how far an occupation is losing ground against the labour\nmarket as a whole, published to a Hedera Consensus Service topic and served here\nper call over x402.\n\nWhat a reading is. For an occupation group g in month t, take the unemployment\nrate for that occupation and subtract the rate across all occupations. That\nexcess is smoothed over three months, and the index is the smoothed excess less\nits own value twelve months earlier. Subtracting the all-occupation rate removes\nthe business cycle and most of the seasonality, so a recession does not move\nevery occupation at once; what is left is the occupation against the market.\nEvery value is in percentage points and every value is a decimal string.\n\nThe two trigger forms. A reading is not only a number, it is a number against two\nfrozen lines, and either one opening is what puts an occupation in trouble.\nThe shock form opens when `odi >= attachment_shock`, which is an abrupt\ndislocation: the occupation has lost ground fast in the last twelve months.\nThe level form opens when `ebar >= level_line`, which is the slow grind that year\non year differencing removes: the occupation has settled at a worse level than\nits own history. A level line can be negative, and that is the reading most often\ngot wrong: for an occupation with structurally low unemployment the trigger is\ndeterioration against its own past, not high unemployment in absolute terms.\nBoth lines are set when a series is issued and never move.\n\nWhat it is not. This is not a forecast and not an unemployment rate. It says how\nan occupation is doing relative to all occupations, on data the US Bureau of\nLabor Statistics published, with the source series and a hash of the source rows\non every reading so anyone can recompute it.\n\nWhere it comes from. US Bureau of Labor Statistics, Current Population Survey,\nunemployment rate by occupation, monthly, not seasonally adjusted. Each monthly\nobservation is published as one message on the Hedera Consensus Service topic\n0.0.10366470, signed by the publishing account, and the first value published for\na period is the settlement value forever. A caller who does not want to trust\nthis API can read the same observations off that topic through the Hedera mirror\nnode and get the same numbers.\n\nStart here. `GET /v1/index` is free and lists the fifteen occupation groups, the\nfrozen trigger lines for each, and which of them have a reading published. Then\nbuy the reading for one group with `GET /v1/index/{group}`, adding `?months=` if\ntwenty-four months of history is not enough.\n\nPrice: 0.01 TUSD per call, which is `10000` in the smallest\nunit of the HTS token `0.0.10366463` at 6 decimals.\n\nFlow: x402 version 2, scheme `exact`, network `hedera:testnet`, settled through the\nBlocky402 testnet facilitator at https://api.testnet.blocky402.com. Call without paying and the\nanswer is 402 with the requirements in the `PAYMENT-REQUIRED` header and the same terms\nin readable fields in the body. Build a Hedera `TransferTransaction` against them, send\nit in `PAYMENT-SIGNATURE`, and the settlement receipt comes back in `PAYMENT-RESPONSE`.\n\nPay to 0.0.10366450. The facilitator adds its own signature and pays the Hedera fee,\nso the settlement transaction id begins with its fee payer 0.0.7162784 and not with\nthe paying account. That is the id to look up on HashScan.\n\nTestnet only. There are no real funds anywhere in this feed.",
     "license": {
       "name": "MIT"
     },
@@ -54,7 +54,7 @@
         ],
         "operationId": "getIndex",
         "summary": "The metered index reading for one occupation group",
-        "description": "The latest published observation for the group, the twenty-four months before\nit, and whether claims are open on either trigger form. The source series and\na hash of the source rows come with it, so a reader can recompute the number\nfrom the rows it cites.\n\n`headline` names whichever of the two forms is nearer its line and how far\naway it is, decided here so that two readers cannot decide differently.\n\nPrice: 0.01 TUSD, smallest unit `10000`, asset `0.0.10366463`, decimals 6.\n\nThe payment gate runs before the handler, so an unknown group is refused with\n402 and not with 400: the 400 is what a paid call to an unknown group gets.\nTake the group from `GET /v1/index` and the question does not arise.",
+        "description": "The latest published observation for the group, the twenty-four months before\nit, and whether claims are open on either trigger form. The source series and\na hash of the source rows come with it, so a reader can recompute the number\nfrom the rows it cites.\n\n`headline` names whichever of the two forms is nearer its line and how far\naway it is, decided here so that two readers cannot decide differently.\n\n`months` asks for a longer or shorter history, from 1 to 120. The price is per\ncall and does not change with it, so a chart of five years costs one reading.\n\nPrice: 0.01 TUSD, smallest unit `10000`, asset `0.0.10366463`, decimals 6.\n\nThe payment gate runs before the handler, so an unknown group is refused with\n402 and not with 400: the 400 is what a paid call to an unknown group gets.\nTake the group from `GET /v1/index` and the question does not arise.",
         "x-agent-hint": "This call costs money. Take the group key from GET /v1/index first, and check there that the group has a latest_period, or the payment buys a 503.",
         "parameters": [
           {
@@ -82,6 +82,19 @@
               ]
             },
             "example": "computer_math"
+          },
+          {
+            "name": "months",
+            "in": "query",
+            "required": false,
+            "description": "How many months of history to return. The reading itself is unaffected.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 120,
+              "default": 24
+            },
+            "example": 60
           },
           {
             "name": "PAYMENT-SIGNATURE",
@@ -114,7 +127,7 @@
             }
           },
           "400": {
-            "description": "`group_unknown`: not one of the fifteen groups.",
+            "description": "`group_unknown`: not one of the fifteen groups. `months_invalid`: not a whole number in range.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -396,6 +409,10 @@
               "history_months": {
                 "type": "integer",
                 "example": 24
+              },
+              "history_months_max": {
+                "type": "integer",
+                "example": 120
               },
               "describes": {
                 "type": "string"

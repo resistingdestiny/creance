@@ -181,6 +181,16 @@ export interface IndexView {
     readonly model_version: string | null;
     readonly replay: boolean;
   };
+  /**
+   * Where the observation was settled. Empty until the oracle has published the
+   * month, which is why the fields are nullable rather than absent: a reader
+   * can see that nothing was published rather than guess that nothing exists.
+   */
+  readonly publication: {
+    readonly topic_id: string | null;
+    readonly sequence_number: number | null;
+    readonly submit_transaction: string | null;
+  };
 }
 
 /**
@@ -236,8 +246,16 @@ export function fetchPolicy(id: string): Promise<PolicyView> {
   return getJson<PolicyView>(`/v1/policy/${encodeURIComponent(id)}`);
 }
 
-export function fetchIndex(group: string): Promise<IndexView> {
-  return getJson<IndexView>(`/v1/index/${encodeURIComponent(group)}`);
+/**
+ * One group's reading, and as much history as is asked for.
+ *
+ * The default is the API's own twenty-four months, which is a reading. The
+ * public index explorer scrubs five years and asks for sixty, which the API
+ * serves at the same price: the charge is per call. T32.
+ */
+export function fetchIndex(group: string, months?: number): Promise<IndexView> {
+  const query = months === undefined ? '' : `?months=${String(months)}`;
+  return getJson<IndexView>(`/v1/index/${encodeURIComponent(group)}${query}`);
 }
 
 /**
@@ -260,6 +278,19 @@ export interface IndexCatalogueGroup {
 }
 
 export interface IndexCatalogueView {
+  /**
+   * What the index is and where it settles. The topic id is the record the
+   * whole feed is served from, so a page that cites its provenance takes it
+   * from here rather than naming a topic of its own.
+   */
+  readonly index: {
+    readonly name: string;
+    readonly unit: string;
+    readonly cadence: string;
+    readonly source: string;
+    readonly topic_id: string | null;
+    readonly mirror_url: string;
+  };
   readonly groups: readonly IndexCatalogueGroup[];
 }
 

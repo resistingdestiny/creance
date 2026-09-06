@@ -286,6 +286,11 @@ export const INDEX: IndexView = {
     hash: 'sha256:78a58e0898fa1c607cf61125381e9c02c8890382fd0b1c0090e02a4fe4af1ce5',
     model_version: 'odi-1.0.0',
     replay: false
+  },
+  publication: {
+    topic_id: null,
+    sequence_number: null,
+    submit_transaction: null
   }
 };
 

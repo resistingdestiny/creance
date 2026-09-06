@@ -15,6 +15,7 @@
 /// cost before it makes one. The gate is live: an unpaid call to any of them
 /// comes back 402 with the requirements in `PAYMENT-REQUIRED`.
 
+import { HISTORY_MONTHS, HISTORY_MONTHS_MAX } from './routes/index-feed.js';
 import {
   GROUP_KEYS,
   INDEX_SCHEMAS,
@@ -92,7 +93,8 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
           description: [
             'The latest published observation, the last twenty-four months and the',
             'trigger status, with the source series and the source file hash so a',
-            'reader can recompute the number from the cited rows.',
+            'reader can recompute the number from the cited rows. `months` asks for a',
+            'longer or shorter history at the same price.',
             '',
             'Price: 0.01 TUSD, smallest unit `10000`, asset `0.0.10366463`, decimals 6.',
             '',
@@ -108,6 +110,19 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
               schema: { type: 'string', enum: GROUP_KEYS },
               example: 'computer_math',
             },
+            {
+              name: 'months',
+              in: 'query',
+              required: false,
+              description: 'How many months of history to return. The reading itself is unaffected.',
+              schema: {
+                type: 'integer',
+                minimum: 1,
+                maximum: HISTORY_MONTHS_MAX,
+                default: HISTORY_MONTHS,
+              },
+              example: 60,
+            },
             PAYMENT_SIGNATURE_HEADER,
           ],
           responses: {
@@ -118,7 +133,9 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
                 'application/json': { schema: { $ref: '#/components/schemas/IndexReading' } },
               },
             },
-            '400': problemResponse('`group_unknown`: not one of the fifteen groups.'),
+            '400': problemResponse(
+              '`group_unknown`: not one of the fifteen groups. `months_invalid`: not a whole number in range.',
+            ),
             '402': paymentRequired('0.01 TUSD'),
             '503': problemResponse('`index_unavailable`: no observation published yet.'),
           },

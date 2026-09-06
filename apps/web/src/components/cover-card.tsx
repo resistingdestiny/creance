@@ -28,6 +28,15 @@ import { StatusPill, type StatusState } from './status-pill';
  *
  * Everything inside sits in `.cover-card__content`, which lifts it above the
  * overlays. Without that the sheen paints over the amount.
+ *
+ * `depth` turns the card into an object: the gradient keeps its own thickness
+ * behind the face, a glare layer follows the pointer, and the contents move
+ * onto separate planes so they travel against each other as the card turns.
+ * Only the landing hero asks for it. Every other card in the product renders
+ * exactly the markup it rendered before, which is what the component tests
+ * hold. The glare goes under `.cover-card__content` and over the two light
+ * overlays, so nothing on this card ever paints light across the occupation
+ * or the amount, in any treatment.
  */
 
 export interface CoverCardProps {
@@ -37,6 +46,8 @@ export interface CoverCardProps {
   statusLabel: string;
   /** The landing size: 32px radius and the brushing overlay on top of the sheen. */
   hero?: boolean;
+  /** The landing hero only: thickness, depth planes and the pointer glare. */
+  depth?: boolean;
   /** Defaults to the treatment the active font option selects. */
   treatment?: CardTreatment;
   className?: string;
@@ -48,6 +59,7 @@ export function CoverCard({
   state,
   statusLabel,
   hero = false,
+  depth = false,
   treatment = activeCardTreatment,
   className,
 }: CoverCardProps) {
@@ -57,15 +69,23 @@ export function CoverCard({
         'cover-card',
         treatment === 'wallet' ? undefined : `cover-card--${treatment}`,
         hero ? 'cover-card--hero' : undefined,
+        depth ? 'cover-card--depth' : undefined,
         hero ? 'p-8' : 'p-5',
         className,
       ]
         .filter(Boolean)
         .join(' ')}
     >
+      {depth ? (
+        <>
+          <span aria-hidden="true" className="cover-card__edge" />
+          <span aria-hidden="true" className="cover-card__glare" />
+        </>
+      ) : null}
       {treatment === 'certificate' ? (
         <Certificate
           amount={amount}
+          depth={depth}
           hero={hero}
           occupation={occupation}
           state={state}
@@ -74,6 +94,7 @@ export function CoverCard({
       ) : treatment === 'ingot' ? (
         <Ingot
           amount={amount}
+          depth={depth}
           hero={hero}
           occupation={occupation}
           state={state}
@@ -82,6 +103,7 @@ export function CoverCard({
       ) : (
         <Wallet
           amount={amount}
+          depth={depth}
           hero={hero}
           occupation={occupation}
           state={state}
@@ -92,7 +114,28 @@ export function CoverCard({
   );
 }
 
-type FaceProps = Required<Pick<CoverCardProps, 'occupation' | 'amount' | 'state' | 'statusLabel' | 'hero'>>;
+type FaceProps = Required<
+  Pick<CoverCardProps, 'occupation' | 'amount' | 'state' | 'statusLabel' | 'hero' | 'depth'>
+>;
+
+/**
+ * The class list for one element, with the plane classes dropped when the card
+ * is flat. A face without depth therefore renders the string it always
+ * rendered, character for character.
+ */
+function cx(...parts: (string | undefined | false)[]): string {
+  return parts.filter(Boolean).join(' ');
+}
+
+/** Marks a group whose children may sit on planes of their own. */
+function planes(depth: boolean): string | undefined {
+  return depth ? 'cover-card__planes' : undefined;
+}
+
+/** Lifts one element towards the viewer. Lifts inside a group compose. */
+function lift(depth: boolean, z: 16 | 24 | 40): string | undefined {
+  return depth ? `cover-card__lift-${z}` : undefined;
+}
 
 /**
  * The amount keeps docs/DESIGN-TOKENS.md section 2's scale in every treatment.
@@ -112,16 +155,21 @@ function amountClasses(hero: boolean, weight: 'font-medium' | 'font-semibold'): 
   ].join(' ');
 }
 
-function Wallet({ occupation, amount, state, statusLabel, hero }: FaceProps) {
+function Wallet({ occupation, amount, state, statusLabel, hero, depth }: FaceProps) {
   return (
-    <div className="cover-card__content flex h-full flex-col justify-between gap-10">
-      <div className="flex items-start justify-between gap-4">
+    <div
+      className={cx(
+        'cover-card__content flex h-full flex-col justify-between gap-10',
+        planes(depth),
+      )}
+    >
+      <div className={cx('flex items-start justify-between gap-4', lift(depth, 24))}>
         <p className="max-w-[190px] text-secondary font-medium text-ink">{occupation}</p>
         <StatusPill state={state}>{statusLabel}</StatusPill>
       </div>
-      <div className="flex flex-col gap-1">
+      <div className={cx('flex flex-col gap-1', planes(depth), lift(depth, 16))}>
         <p className="text-secondary text-ink">Cover</p>
-        <p className={amountClasses(hero, 'font-semibold')}>{amount}</p>
+        <p className={cx(amountClasses(hero, 'font-semibold'), lift(depth, 24))}>{amount}</p>
       </div>
     </div>
   );
@@ -132,12 +180,17 @@ function Wallet({ occupation, amount, state, statusLabel, hero }: FaceProps) {
  * column of three things reads without one. The word stays in the markup for
  * a screen reader so that switching treatment changes no copy.
  */
-function Certificate({ occupation, amount, state, statusLabel, hero }: FaceProps) {
+function Certificate({ occupation, amount, state, statusLabel, hero, depth }: FaceProps) {
   return (
-    <div className="cover-card__content flex h-full flex-col items-center justify-center gap-3 text-center">
-      <p className="max-w-[250px] text-secondary text-ink">{occupation}</p>
+    <div
+      className={cx(
+        'cover-card__content flex h-full flex-col items-center justify-center gap-3 text-center',
+        planes(depth),
+      )}
+    >
+      <p className={cx('max-w-[250px] text-secondary text-ink', lift(depth, 16))}>{occupation}</p>
       <p className="sr-only">Cover</p>
-      <p className={amountClasses(hero, 'font-medium')}>{amount}</p>
+      <p className={cx(amountClasses(hero, 'font-medium'), lift(depth, 40))}>{amount}</p>
       <StatusPill state={state}>{statusLabel}</StatusPill>
     </div>
   );
@@ -152,14 +205,22 @@ function Certificate({ occupation, amount, state, statusLabel, hero }: FaceProps
  * have a height, the landing hero and the gallery, where it seats the bottom
  * row on the bottom edge.
  */
-function Ingot({ occupation, amount, state, statusLabel, hero }: FaceProps) {
+function Ingot({ occupation, amount, state, statusLabel, hero, depth }: FaceProps) {
   return (
-    <div className="cover-card__content flex h-full flex-col gap-10">
-      <p className="max-w-[220px] text-secondary font-medium text-ink">{occupation}</p>
-      <div className="mt-auto flex items-end justify-between gap-4">
-        <div className="flex flex-col gap-1">
+    <div className={cx('cover-card__content flex h-full flex-col gap-10', planes(depth))}>
+      <p className={cx('max-w-[220px] text-secondary font-medium text-ink', lift(depth, 24))}>
+        {occupation}
+      </p>
+      <div
+        className={cx(
+          'mt-auto flex items-end justify-between gap-4',
+          planes(depth),
+          lift(depth, 16),
+        )}
+      >
+        <div className={cx('flex flex-col gap-1', planes(depth))}>
           <p className="text-secondary text-ink">Cover</p>
-          <p className={amountClasses(hero, 'font-semibold')}>{amount}</p>
+          <p className={cx(amountClasses(hero, 'font-semibold'), lift(depth, 24))}>{amount}</p>
         </div>
         <div className="mb-1 shrink-0">
           <StatusPill state={state}>{statusLabel}</StatusPill>

@@ -40,7 +40,7 @@
         ],
         "operationId": "getIndex",
         "summary": "The metered index feed for an occupation group",
-        "description": "The latest published observation, the last twenty-four months and the\ntrigger status, with the source series and the source file hash so a\nreader can recompute the number from the cited rows.\n\nPrice: 0.01 TUSD, smallest unit `10000`, asset `0.0.10366463`, decimals 6.\n\nThe gate runs before the handler, so an unknown group is refused with 402\nand not with 400: the 400 is what a paid call to an unknown group answers.\nSend the group from the enum and the question does not arise.",
+        "description": "The latest published observation, the last twenty-four months and the\ntrigger status, with the source series and the source file hash so a\nreader can recompute the number from the cited rows. `months` asks for a\nlonger or shorter history at the same price.\n\nPrice: 0.01 TUSD, smallest unit `10000`, asset `0.0.10366463`, decimals 6.\n\nThe gate runs before the handler, so an unknown group is refused with 402\nand not with 400: the 400 is what a paid call to an unknown group answers.\nSend the group from the enum and the question does not arise.",
         "parameters": [
           {
             "name": "group",
@@ -67,6 +67,19 @@
               ]
             },
             "example": "computer_math"
+          },
+          {
+            "name": "months",
+            "in": "query",
+            "required": false,
+            "description": "How many months of history to return. The reading itself is unaffected.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 120,
+              "default": 24
+            },
+            "example": 60
           },
           {
             "name": "PAYMENT-SIGNATURE",
@@ -99,7 +112,7 @@
             }
           },
           "400": {
-            "description": "`group_unknown`: not one of the fifteen groups.",
+            "description": "`group_unknown`: not one of the fifteen groups. `months_invalid`: not a whole number in range.",
             "content": {
               "application/problem+json": {
                 "schema": {

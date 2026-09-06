@@ -41,7 +41,8 @@ info:
 
     Start here. `GET /v1/index` is free and lists the fifteen occupation groups, the
     frozen trigger lines for each, and which of them have a reading published. Then
-    buy the reading for one group with `GET /v1/index/{group}`.
+    buy the reading for one group with `GET /v1/index/{group}`, adding `?months=` if
+    twenty-four months of history is not enough.
 
     Price: 0.01 TUSD per call, which is `10000` in the smallest
     unit of the HTS token `0.0.10366463` at 6 decimals.
@@ -112,6 +113,9 @@ paths:
         `headline` names whichever of the two forms is nearer its line and how far
         away it is, decided here so that two readers cannot decide differently.
 
+        `months` asks for a longer or shorter history, from 1 to 120. The price is per
+        call and does not change with it, so a chart of five years costs one reading.
+
         Price: 0.01 TUSD, smallest unit `10000`, asset `0.0.10366463`, decimals 6.
 
         The payment gate runs before the handler, so an unknown group is refused with
@@ -143,6 +147,16 @@ paths:
               - business_financial_ops
               - education_training_library
           example: computer_math
+        - name: months
+          in: query
+          required: false
+          description: How many months of history to return. The reading itself is unaffected.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 120
+            default: 24
+          example: 60
         - name: PAYMENT-SIGNATURE
           in: header
           required: false
@@ -170,7 +184,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/IndexReading'
         '400':
-          description: '`group_unknown`: not one of the fifteen groups.'
+          description: >-
+            `group_unknown`: not one of the fifteen groups. `months_invalid`: not a whole number in
+            range.
           content:
             application/problem+json:
               schema:
@@ -411,6 +427,9 @@ components:
             history_months:
               type: integer
               example: 24
+            history_months_max:
+              type: integer
+              example: 120
             describes:
               type: string
             fields:

@@ -284,8 +284,12 @@ export function ExplorerScreen({
 /**
  * The search box and the fifteen chips, in the addendum's picker order.
  *
- * Every chip is a button, so the keyboard and the focus ring are the platform's,
- * and each carries the state dot for the newest published month.
+ * Every chip is a button, so the keyboard and the focus outline are the base
+ * layer's, and each carries the state dot for the newest published month.
+ *
+ * The word for a focus outline is spelt out rather than abbreviated on purpose:
+ * Tailwind scans this file for candidates and would compile the bare utility
+ * out of a comment, which built-css.test.ts refuses because it sets a shadow.
  */
 function Picker({
   matches,

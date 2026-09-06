@@ -185,12 +185,14 @@ export function chartThreshold(index: IndexView): number {
  * to the average narrows to that many points, so it is said that way round:
  * "within 0.68 of average", not "above -0.68".
  */
-export function bandLabelFor(index: IndexView): string {
-  const form = index.headline?.form ?? 'level';
-  const line = chartThreshold(index);
+export function bandLabel(form: 'level' | 'shock', line: number): string {
   if (form === 'shock') return `Pays out above ${formatIndexValue(line)}`;
   if (line < 0) return `Pays out within ${formatIndexValue(Math.abs(line))} of average`;
   return `Pays out above ${formatIndexValue(line)} worse than average`;
+}
+
+export function bandLabelFor(index: IndexView): string {
+  return bandLabel(index.headline?.form ?? 'level', chartThreshold(index));
 }
 
 /** The chart's accessible reading, in the same unsigned framing as the screen. */

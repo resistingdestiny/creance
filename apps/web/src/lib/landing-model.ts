@@ -97,6 +97,19 @@ export function payAnswer(attachment: string | number | null, seriesId: string |
 /** "Am I covered." No figure in it, so it is the design's sentence and nothing else. */
 export const COVERED_ANSWER = 'Your card says so at all times. Green means yes.';
 
+/**
+ * The investor line under the closing buttons.
+ *
+ * The coupon is per-series and the investor screens already read it, so the
+ * landing reads the same field rather than typing the rate twice. Without it
+ * the line falls back to the first landing's own wording, which says the same
+ * thing without naming a rate.
+ */
+export function investorLine(coupon: string | null): string {
+  if (coupon === null) return 'Investors fund the cover and earn the premiums monthly.';
+  return `Investors fund the cover and earn ${coupon}.`;
+}
+
 export interface LandingReading {
   readonly distance: string;
   readonly trend: IndexTrend;

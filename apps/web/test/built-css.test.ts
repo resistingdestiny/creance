@@ -77,7 +77,7 @@ describe('the theme block is the config', () => {
       ['landing-hero', '104px', '1.02'],
       ['landing-amount', '108px', '0.95'],
       ['landing-reading', '96px', '1'],
-      ['landing-numeral', '72px', '1'],
+      ['landing-step', '72px', '1'],
       ['landing-ledger', '56px', '1.1'],
       ['landing-head', '44px', '1.15'],
       ['landing-lead', '22px', '1.5'],

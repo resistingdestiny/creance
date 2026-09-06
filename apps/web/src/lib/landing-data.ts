@@ -15,11 +15,14 @@ import { reportUnreachable } from './api';
 import { fetchReplay } from './claim-api';
 import { replayBadgeLabel } from './claim-model';
 import { AMOUNT_MIN } from './cover-amount';
+import { fetchSeries } from './investor-api';
+import { couponLine } from './investor-model';
 import {
   LANDING_GROUP,
   attachmentFor,
   costAnswer,
   fromPriceLine,
+  investorLine,
   landingIndexSection,
   payAnswer,
   seriesFor,
@@ -45,15 +48,18 @@ export interface LandingData {
   readonly costLine: string;
   /** "When does it pay." */
   readonly payLine: string;
+  /** "Investors fund the cover and earn 8 percent a year, paid monthly." */
+  readonly investorLine: string;
   readonly index: LandingIndexSection;
   /** "Replay: Jul 2026" while the demo clock is walking. */
   readonly replayBadge: string | null;
 }
 
 export async function readLanding(group: string = LANDING_GROUP): Promise<LandingData> {
-  const [reading, premium, replay] = await Promise.all([
+  const [reading, premium, coupon, replay] = await Promise.all([
     readIndex(group),
     readPrice(group),
+    readCoupon(),
     fetchReplay(),
   ]);
 
@@ -70,6 +76,7 @@ export async function readLanding(group: string = LANDING_GROUP): Promise<Landin
       attachmentFor(group, reading.index, catalogue),
       seriesFor(group, reading.index, catalogue),
     ),
+    investorLine: investorLine(coupon),
     index: landingIndexSection(group, reading.index, reading.live),
     replayBadge: replayBadgeLabel(replay),
   };
@@ -108,6 +115,16 @@ async function readPrice(group: string): Promise<string | null> {
     return premiumAmount(quote.premium);
   } catch (cause) {
     reportUnreachable('the landing from price', cause);
+    return null;
+  }
+}
+
+/** The coupon the note pays, from the series the investor screens already read. */
+async function readCoupon(): Promise<string | null> {
+  try {
+    return couponLine(await fetchSeries());
+  } catch (cause) {
+    reportUnreachable('the landing investor line', cause);
     return null;
   }
 }

@@ -2,10 +2,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { Gallery } from '../src/app/gallery/gallery.js';
-import Home from '../src/app/page.js';
+import { LandingScreen } from '../src/components/landing/landing-screen.js';
 import { PillButton } from '../src/components/pill-button.js';
 import { StatusPill } from '../src/components/status-pill.js';
 import { TabBar } from '../src/components/tab-bar.js';
+
+import { LIVE } from './landing-fixtures.js';
 
 /** Everything a person reads, with the markup taken out. */
 function visibleText(markup: string): string {
@@ -155,7 +157,7 @@ describe('the gallery', () => {
 describe('no em dash, no en dash and no percent glyph in anything rendered', () => {
   const screens: [string, string][] = [
     ['gallery', renderToStaticMarkup(<Gallery />)],
-    ['home', renderToStaticMarkup(<Home />)],
+    ['landing', renderToStaticMarkup(<LandingScreen data={LIVE} />)],
   ];
 
   for (const [name, markup] of screens) {

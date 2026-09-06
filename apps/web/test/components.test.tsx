@@ -152,6 +152,30 @@ describe('the three home card directions', () => {
     expect(render('ingot')).toContain('font-display font-semibold tracking-display');
   });
 
+  it('gives every treatment a separation that survives a content sized card', () => {
+    // Home lets the card size to its content, and `render` above passes no
+    // height either. An auto margin resolves to nothing in that case, so each
+    // face has to declare its own vertical separation or the occupation ends
+    // exactly where the label below it begins. jsdom does not lay out, so this
+    // asserts the construction, which is the thing that regressed.
+    for (const treatment of TREATMENTS) {
+      const face = /<div class="(cover-card__content[^"]*)"/.exec(render(treatment))?.[1];
+      expect(face).toMatch(/\bgap-\d+\b/);
+    }
+  });
+
+  it('does not leave the ingot bottom row to mt-auto and a parent height', () => {
+    const markup = render('ingot');
+    const face = /<div class="(cover-card__content[^"]*)"/.exec(markup)?.[1];
+    // The same 40px the wallet card's justify-between gap-10 already gives, so
+    // the two are the same height on Home.
+    expect(face).toContain('gap-10');
+    // mt-auto stays for the landing hero and the gallery, which do set a
+    // height, where it seats the bottom row on the bottom edge. It is never the
+    // only thing holding the occupation and the "Cover" label apart.
+    expect(markup).toContain('mt-auto');
+  });
+
   it('adds no spacing outside the card', () => {
     for (const treatment of TREATMENTS) {
       const outer = /^<div class="([^"]*)"/.exec(render(treatment))?.[1];

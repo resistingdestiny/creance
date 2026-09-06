@@ -370,15 +370,48 @@
     }
   }
 
-  /* Landing only: the soft ground the design of record puts behind the hero
-     card. It is a radial gradient and not an elevation, so the sheet's "no
-     drop shadows anywhere" still holds and --elevation-hero stays unused.
+  /* Landing only: the soft ground behind the hero card. It is a radial
+     gradient and not an elevation, so it is not the one the addendum permits
+     and it is not counted against it.
 
-     The design draws it in #F1F2F5, which is not in section 1. `surface` is
-     #F4F5F7 and the two are indistinguishable at this opacity, so the token
-     is used rather than a fourteenth grey. */
+     It was `surface`, a light grey, when the hero stood on canvas. The hero
+     stands on night now, so it is white at eight percent: the same soft pool
+     of light, read off the ground it is actually on. No new colour, because an
+     alpha on white is not a token. */
   .landing-glow {
-    background: radial-gradient(closest-side, var(--color-surface), transparent);
+    background: radial-gradient(closest-side, rgba(255, 255, 255, 0.08), transparent);
+  }
+
+  /* Marketing surface only: the ticker of index readings under the hero.
+     One CSS keyframe rather than a scripted scroll, so reduced motion replaces
+     it with its finished state, which is the readings standing still and fully
+     legible, and the hover pause is animation-play-state on the strip.
+
+     The strip carries every reading twice and travels half its own width, so
+     the loop closes on itself. The row clears the sheet's 44px minimum,
+     because hovering it is an action and the strip is the target. */
+  .landing-ticker {
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  }
+
+  .landing-ticker__row {
+    display: flex;
+    width: max-content;
+    gap: 56px;
+    padding: 12px 0;
+    animation: landing-ticker 48s linear infinite;
+  }
+
+  .landing-ticker:hover .landing-ticker__row {
+    animation-play-state: paused;
+  }
+
+  @keyframes landing-ticker {
+    to {
+      transform: translateX(-50%);
+    }
   }
 
   /* Gallery only: shows the padded hit area of a text link so a reviewer can

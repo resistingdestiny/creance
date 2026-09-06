@@ -2474,3 +2474,23 @@ nearest 0.85 is slightly below it; `(0.92).toFixed(1)` is `"0.9"` as expected.
 Nothing on the index explorer depends on a half-point boundary, so the figures
 stand, but an expectation written on a `.x5` value will look like a bug in the
 code rather than in the expectation.
+
+## The Turbopack dev server did not hydrate on this host, and `next start` did
+
+Next 16.3.4. `pnpm dev` served the landing page correctly but no client
+component ever hydrated: no `__reactFiber$` property on any element, no effect
+ran, the card never took an angle and the count-up never started. Nothing failed
+in the network log and no error reached `pageerror`. The only thing the console
+carried was the development client's own hot reload socket, failing over and
+over:
+
+    WebSocket connection to 'ws://127.0.0.1:PORT/_next/hmr?id=...' failed:
+    Error during WebSocket handshake: net::ERR_INVALID_HTTP_RESPONSE
+
+The same pages hydrate normally from `pnpm build` followed by `pnpm start`, so
+this is the development server on this host rather than the application. It is
+worth knowing because it makes the development server useless for checking
+anything that only happens after hydration, and the failure is silent: the page
+looks finished and simply does nothing.
+
+Verify a client behaviour against a production build.

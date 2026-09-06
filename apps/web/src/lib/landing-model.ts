@@ -13,6 +13,7 @@
  * interpolated into the places the design shows them.
  */
 
+import { rankByDistance, type ExplorerOccupation } from './explorer-model';
 import { formatPeriod } from './format';
 import { occupationLabel } from './occupations';
 import type { IndexPoint } from '../components/index-chart';
@@ -133,6 +134,8 @@ export interface LandingReading {
 export interface LandingIndexSection {
   readonly occupation: string;
   readonly reading: LandingReading | null;
+  /** Whether the feed answered on this request. The page's "index live" state. */
+  readonly live: boolean;
   /** Null while the feed answers, the honest note when it does not. */
   readonly note: string | null;
 }
@@ -161,6 +164,7 @@ export function landingIndexSection(
     return {
       occupation,
       reading: null,
+      live,
       note:
         live && index !== null
           ? 'No reading has been published for this occupation yet.'
@@ -170,6 +174,7 @@ export function landingIndexSection(
 
   return {
     occupation,
+    live,
     reading: {
       distance: headline.distance,
       trend: headline.trend,
@@ -183,6 +188,37 @@ export function landingIndexSection(
     },
     note: live ? null : staleNote(index.as_of),
   };
+}
+
+export interface TickerReading {
+  readonly occupation: string;
+  /** "0.7 points away", "on the line" or "claims open". */
+  readonly gap: string;
+}
+
+/**
+ * The readings the ticker under the hero runs.
+ *
+ * All fifteen groups, one reading each, in the explorer's own order of closest
+ * to a payout first, with the occupation this page speaks for moved to the
+ * front so that the first thing the eye catches is the one the hero card and
+ * the price are about.
+ *
+ * The wording is the explorer's, through `rankByDistance`, rather than a second
+ * vocabulary invented here for the same measurement. A group the feed had no
+ * reading for still appears and says so, because leaving it out would make the
+ * ticker a list of the occupations that happen to be measurable today.
+ */
+export function tickerReadings(
+  occupations: readonly ExplorerOccupation[],
+  group: string = LANDING_GROUP,
+): readonly TickerReading[] {
+  const ranked = rankByDistance(occupations);
+  const ordered = [
+    ...ranked.filter((entry) => entry.occupation.key === group),
+    ...ranked.filter((entry) => entry.occupation.key !== group),
+  ];
+  return ordered.map((entry) => ({ occupation: entry.occupation.label, gap: entry.gap }));
 }
 
 /** What the page says over a reading it could not confirm is the newest. */

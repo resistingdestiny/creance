@@ -2,13 +2,15 @@ import type { ReactNode } from 'react';
 
 import { beginPurchase } from '../../app/purchase-actions';
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
-import { formatAmount } from '../../lib/format';
 import { COVERED_ANSWER, LANDING_STEPS, type LandingIndexSection } from '../../lib/landing-model';
 import type { LandingData } from '../../lib/landing-data';
 import { CoverCard } from '../cover-card';
 import { IndexChart } from '../index-chart';
-import { PillButton, PillLink } from '../pill-button';
+import { PillButton, PillLink, type PillButtonVariant } from '../pill-button';
 import { ReplayBar } from '../replay-bar';
+import { HeroAmount } from './hero-amount';
+import { HeroCardStack } from './hero-card-stack';
+import { IndexTicker } from './index-ticker';
 
 /**
  * The landing page, section for section from the design of record.
@@ -28,8 +30,16 @@ import { ReplayBar } from '../replay-bar';
  *
  * The one orchestrated moment on load is the hero card sliding into place,
  * which is the sheet's own `.cover-card-enter` with `motion-reduce:animate-none`
- * beside it. Under reduced motion the card is simply in place on the first
- * paint and the page is otherwise identical.
+ * beside it, and the cover amount counting up beside it. Under reduced motion
+ * the card is simply in place on the first paint with the amount at its true
+ * value, and the page is otherwise identical. The two continuous motions on the
+ * page, the ticker's travel and the card's drift, are the surface being alive
+ * rather than a reveal, and both stop dead under the same preference.
+ *
+ * The dark ground is two bands, the navigation with the hero and the ticker,
+ * and the closing line. It is on those sections and never on the body, so the
+ * marketing surface can be dark (docs/DESIGN-TOKENS-ADDENDUM.md) without the
+ * document itself changing colour under any other route.
  *
  * Every interactive element is a button or an anchor, so the base layer's
  * outline is the focus state on all of them. The design draws them as divs and
@@ -50,8 +60,11 @@ export function LandingScreen({ data }: { data: LandingData }) {
     <div className="flex flex-col bg-canvas">
       <Nav indexHref={indexHref} />
       <main>
-        <Hero priceLine={data.priceLine} />
-        <HeroCard occupation={data.index.occupation} />
+        <section className="bg-night">
+          <Hero live={data.index.live} priceLine={data.priceLine} />
+          <HeroCard occupation={data.index.occupation} />
+          <IndexTicker readings={data.ticker} />
+        </section>
         <Questions costLine={data.costLine} payLine={data.payLine} />
         <Steps />
         <IndexSection replayBadge={data.replayBadge} section={data.index} />
@@ -68,10 +81,24 @@ export function LandingScreen({ data }: { data: LandingData }) {
  * inside the app. The 44px minimum tap target is the sheet's rule and applies
  * to both.
  */
-function NavLink({ children, href }: { children: ReactNode; href: string }) {
+function NavLink({
+  children,
+  className,
+  href,
+  tone = 'day',
+}: {
+  children: ReactNode;
+  className?: string;
+  href: string;
+  tone?: 'day' | 'night';
+}) {
   return (
     <a
-      className="inline-flex min-h-11 items-center text-body text-ink-2 no-underline transition-opacity duration-200 ease-out hover:text-ink motion-reduce:transition-none"
+      className={[
+        'min-h-11 items-center text-body no-underline transition-opacity duration-200 ease-out motion-reduce:transition-none',
+        tone === 'night' ? 'text-white/66 hover:text-white' : 'text-ink-2 hover:text-ink',
+        className ?? 'inline-flex',
+      ].join(' ')}
       href={href}
     >
       {children}
@@ -80,10 +107,16 @@ function NavLink({ children, href }: { children: ReactNode; href: string }) {
 }
 
 /** "Get a quote", which is the same server action the old start screen submitted. */
-function QuoteButton({ className }: { className?: string }) {
+function QuoteButton({
+  className,
+  variant,
+}: {
+  className?: string;
+  variant?: PillButtonVariant;
+}) {
   return (
     <form action={beginPurchase} className={className}>
-      <PillButton className={className} type="submit">
+      <PillButton className={className} type="submit" variant={variant}>
         Get a quote
       </PillButton>
     </form>
@@ -98,63 +131,109 @@ function QuoteButton({ className }: { className?: string }) {
 function Nav({ indexHref }: { indexHref: string }) {
   return (
     <header
-      className={`flex min-h-18 flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-hairline py-3 ${PAGE}`}
+      className={`flex min-h-18 items-center justify-between gap-4 border-b border-white/10 bg-night py-3 ${PAGE}`}
     >
-      <span className="text-body font-semibold text-ink">Creance</span>
-      <nav aria-label="Main" className="flex flex-wrap items-center gap-x-6 gap-y-2 lg:gap-x-8">
-        <NavLink href={indexHref}>The index</NavLink>
-        <NavLink href="/invest">Investors</NavLink>
-        <QuoteButton />
+      <span className="whitespace-nowrap text-body font-semibold text-white">Creance</span>
+      {/* One line at every width. The two secondary links are hidden below the
+          medium breakpoint rather than wrapped, because a navigation that grows
+          a second row pushes the hero down the screen at 390 and the wordmark
+          and the one action are what has to survive. Both are still in the
+          markup and both are reachable from the footer and the hero. */}
+      <nav aria-label="Main" className="flex items-center gap-x-6 lg:gap-x-8">
+        <NavLink className="hidden md:inline-flex" href={indexHref} tone="night">
+          The index
+        </NavLink>
+        <NavLink className="hidden md:inline-flex" href="/invest" tone="night">
+          Investors
+        </NavLink>
+        <QuoteButton variant="night" />
       </nav>
     </header>
   );
 }
 
-function Hero({ priceLine }: { priceLine: string | null }) {
+/**
+ * The state of the index, from the reading the page was actually served.
+ *
+ * It says "live" when the feed answered on this request and says what it is
+ * showing instead when it did not, so the badge is a fact about this render and
+ * never a decoration that is always green. The dot is aria-hidden: the sentence
+ * beside it carries the state, which is the same rule the status pill follows,
+ * and it has to be, because the covered green is 2.9:1 on the night ground.
+ */
+function IndexLive({ live }: { live: boolean }) {
   return (
-    <section className={`pt-16 lg:pt-36 ${PAGE}`}>
+    <p className="mb-7 inline-flex items-center gap-2 rounded-full border border-white/16 px-3 py-1.5 text-secondary font-medium text-white/66 lg:mb-8">
+      <span
+        aria-hidden="true"
+        className={`size-1.5 shrink-0 rounded-full ${live ? 'bg-covered' : 'bg-watch'}`}
+      />
+      {live
+        ? 'Index live, updated monthly from public data'
+        : 'Showing the last reading we published'}
+    </p>
+  );
+}
+
+function Hero({ live, priceLine }: { live: boolean; priceLine: string | null }) {
+  return (
+    <div className={`pt-16 lg:pt-28 ${PAGE}`}>
       <div className="mx-auto flex max-w-[1060px] flex-col items-center text-center">
-        <h1 className="text-balance font-display text-headline font-semibold tracking-headline text-ink sm:text-display-l lg:text-landing-hero lg:tracking-landing-hero">
+        <IndexLive live={live} />
+        {/* White for headings and rgba(255,255,255,.66) for everything else, which
+            is the addendum's whole rule for text on this ground. */}
+        <h1 className="text-balance font-display text-headline font-semibold tracking-headline text-white sm:text-display-l lg:text-landing-hero lg:tracking-landing-hero">
           Cover for the day your job is automated.
         </h1>
-        <p className="mt-6 max-w-[500px] text-balance text-body-lg text-ink-2 lg:mt-8 lg:text-landing-lead">
+        <p className="mt-6 max-w-[500px] text-balance text-body-lg text-white/66 lg:mt-8 lg:text-landing-lead">
           A monthly payment now. A payout if your occupation is displaced.
         </p>
         <div className="mt-8 flex flex-col items-center gap-4 lg:mt-11 lg:flex-row lg:gap-6">
-          <QuoteButton />
+          <QuoteButton variant="night" />
           {/* No price, no line. The one thing this page may never do is name an
               amount nobody quoted. */}
-          {priceLine === null ? null : <p className="text-body text-ink-2">{priceLine}</p>}
+          {priceLine === null ? null : <p className="text-body text-white/66">{priceLine}</p>}
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
 /**
- * The signature object, at landing size, over the soft ground the design draws
- * behind it.
+ * The signature object, at landing size, over the soft ground behind it.
  *
  * The card goes through CoverCard rather than being drawn here, so that T30 can
  * switch its treatment behind one setting without touching this page. It is
  * 720 by 432 at 1440 and fluid at the same ratio below that.
+ *
+ * `depth` is what makes it an object rather than a picture of one, and it is
+ * asked for here and in no other place in the product. The stack around it
+ * carries the perspective and the angle; the enter animation stays on the stack
+ * so that it and the tilt are never the same element's transform.
+ *
+ * The amount is the one figure on this page that moves. It arrives in the
+ * server's HTML at its true value and counts up after hydration, so a browser
+ * that never runs the animation shows 5,000 rather than nothing.
  */
 function HeroCard({ occupation }: { occupation: string }) {
   return (
-    <section className={`relative flex justify-center pb-24 pt-16 lg:pb-36 lg:pt-28 ${PAGE}`}>
+    <div className={`relative flex justify-center pb-24 pt-16 lg:pb-32 lg:pt-24 ${PAGE}`}>
       <div
         aria-hidden="true"
         className="landing-glow pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-full max-w-[1100px] -translate-x-1/2 -translate-y-1/2 rounded-full"
       />
-      <CoverCard
-        amount={formatAmount(AMOUNT_DEFAULT)}
-        className="cover-card-enter relative aspect-[720/432] w-full max-w-[720px] motion-reduce:animate-none"
-        hero
-        occupation={occupation}
-        state="covered"
-        statusLabel="Covered"
-      />
-    </section>
+      <HeroCardStack className="cover-card-enter relative w-full max-w-[720px] motion-reduce:animate-none">
+        <CoverCard
+          amount={<HeroAmount value={AMOUNT_DEFAULT} />}
+          className="aspect-[720/432] w-full"
+          depth
+          hero
+          occupation={occupation}
+          state="covered"
+          statusLabel="Covered"
+        />
+      </HeroCardStack>
+    </div>
   );
 }
 
@@ -293,20 +372,26 @@ function IndexSection({
   );
 }
 
+/**
+ * The closing line, on the same dark ground as the hero, which is the second
+ * and last band of it on the page. The hairline that used to separate it from
+ * the section above is gone: the ground changes, and a hairline over a change
+ * of ground is a second separator doing the same job.
+ */
 function Closing({ investorLine }: { investorLine: string }) {
   return (
-    <section className="mx-5 border-t border-hairline py-16 lg:mx-16 lg:py-28">
+    <section className={`bg-night py-16 lg:py-28 ${PAGE}`}>
       <div className="mx-auto flex max-w-[800px] flex-col items-center text-center">
-        <h2 className="text-balance font-display text-headline font-semibold tracking-headline text-ink lg:text-display-xl lg:tracking-landing-tight">
+        <h2 className="text-balance font-display text-headline font-semibold tracking-headline text-white lg:text-display-xl lg:tracking-landing-tight">
           The quiet kind of ready.
         </h2>
         <div className="mt-8 flex w-full flex-col items-center gap-4 lg:mt-10 lg:w-auto lg:flex-row lg:gap-6">
-          <QuoteButton className="w-full lg:w-auto" />
-          <PillLink className="w-full lg:w-auto" href="/invest" variant="secondary">
+          <QuoteButton className="w-full lg:w-auto" variant="night" />
+          <PillLink className="w-full lg:w-auto" href="/invest" variant="night-secondary">
             I want to invest
           </PillLink>
         </div>
-        <p className="mt-6 text-secondary text-ink-2">{investorLine}</p>
+        <p className="mt-6 text-secondary text-white/66">{investorLine}</p>
       </div>
     </section>
   );

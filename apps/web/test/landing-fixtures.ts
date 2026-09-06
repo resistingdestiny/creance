@@ -1,3 +1,4 @@
+import { explorerOccupation } from '../src/lib/explorer-model.js';
 import {
   LANDING_GROUP,
   costAnswer,
@@ -5,9 +6,11 @@ import {
   investorLine,
   landingIndexSection,
   payAnswer,
+  tickerReadings,
 } from '../src/lib/landing-model.js';
 import type { LandingData } from '../src/lib/landing-data.js';
 
+import { EXPLORER_READINGS } from './explorer-fixtures.js';
 import { INDEX } from './worker-fixtures.js';
 
 /**
@@ -26,6 +29,13 @@ import { INDEX } from './worker-fixtures.js';
 
 const READING = { ...INDEX, group: LANDING_GROUP };
 
+/**
+ * The ticker, from the same fifteen recorded readings the explorer tests use,
+ * through the same function the server calls. The landing does not have a
+ * second source for these: it asks the explorer's round for them.
+ */
+const TICKER = tickerReadings(EXPLORER_READINGS.map(explorerOccupation), LANDING_GROUP);
+
 function landing(index: typeof READING | null, live: boolean, premium: string | null): LandingData {
   return {
     group: LANDING_GROUP,
@@ -37,6 +47,7 @@ function landing(index: typeof READING | null, live: boolean, premium: string | 
     ),
     investorLine: investorLine('8 percent a year, paid monthly'),
     index: landingIndexSection(LANDING_GROUP, index, live),
+    ticker: TICKER,
     replayBadge: null,
   };
 }

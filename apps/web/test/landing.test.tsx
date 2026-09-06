@@ -235,9 +235,9 @@ describe('motion and focus', () => {
     expect(live).not.toContain('focus:outline');
   });
 
-  it('sends the two index links to the group the page speaks for', () => {
-    expect(live).toContain(`href="/cover/index?group=${LANDING_GROUP}"`);
-    expect(live.match(/href="\/cover\/index\?group=computer_math"/g)).toHaveLength(2);
+  it('sends the two index links to the public explorer', () => {
+    expect(live.match(/href="\/index"/g)).toHaveLength(2);
+    expect(live).not.toContain('/cover/index');
     expect(live).toContain('href="/invest"');
   });
 });

@@ -157,8 +157,17 @@ export function ExplorerChart({
         onPointerCancel={() => (dragging.current = false)}
         onPointerDown={(event) => {
           dragging.current = true;
-          event.currentTarget.setPointerCapture(event.pointerId);
+          // The scrub first, then the capture. Capture keeps a drag that leaves
+          // the chart on the chart, and it throws for a pointer id the element
+          // has not seen; a tap that moves the handle matters more than a drag
+          // that follows the finger off the edge.
           scrubFromPointer(event);
+          try {
+            event.currentTarget.setPointerCapture(event.pointerId);
+          } catch {
+            // Nothing to do. The pointermove handler still tracks the drag
+            // while the pointer is over the chart.
+          }
         }}
         onPointerMove={(event) => {
           if (dragging.current) scrubFromPointer(event);
@@ -234,14 +243,14 @@ export function ExplorerChart({
       </svg>
 
       {/* The sheet's own slider, painted by the `.amount-slider` rules: a 3px
-          track and a 28px thumb, which clears the 44px tap target with its
-          padding. The label is for a screen reader; the two axis labels under
-          it already say what the ends are. */}
+          track and a 28px thumb, raised to a 44px box so the whole control is a
+          tap target rather than only the thumb. The label is for a screen
+          reader; the two axis labels under it already say what the ends are. */}
       <label className="flex min-h-11 items-center">
         <span className="sr-only">{scrubLabel}</span>
         <input
           aria-valuetext={month === undefined ? undefined : formatPeriod(month.period)}
-          className="amount-slider"
+          className="amount-slider h-11"
           max={Math.max(0, last)}
           min={0}
           onChange={(event) => onScrub(Number(event.target.value))}

@@ -3,6 +3,7 @@
 import { useId, useMemo, useState, type ReactNode } from 'react';
 
 import { ExplorerChart } from '../../components/explorer-chart';
+import { ChevronRight } from '../../components/icons';
 import { PlainChart } from '../../components/plain-chart';
 import { ReplayBar } from '../../components/replay-bar';
 import { StatusPill } from '../../components/status-pill';
@@ -136,7 +137,10 @@ export function ExplorerScreen({
 
       <header className={`border-b border-hairline py-4 ${PAGE}`}>
         <div className={`flex min-h-11 items-center justify-between gap-6 ${CONTENT}`}>
-          <a className="text-body font-semibold text-ink no-underline" href="/">
+          <a
+            className="inline-flex min-h-11 items-center text-body font-semibold text-ink no-underline"
+            href="/"
+          >
             Creance
           </a>
           <nav aria-label="Main">
@@ -380,7 +384,7 @@ function Verdict({
           {month === null ? '' : `, ${formatPeriod(month.period)}`}
         </p>
         <p
-          className={`font-display text-display-l font-semibold tracking-display tabular-nums ${
+          className={`font-display text-headline font-semibold tracking-headline tabular-nums lg:text-display-l lg:tracking-display ${
             state === 'open' ? 'text-triggered' : 'text-ink'
           }`}
         >
@@ -466,7 +470,7 @@ function Price({
             </label>
             <input
               aria-valuetext={`${String(capacity)} percent of this pool already used`}
-              className="amount-slider"
+              className="amount-slider h-11"
               id={capacityId}
               max={CAPACITY_MAX}
               min={0}
@@ -557,8 +561,11 @@ function Step({
  */
 function Disclosure({ children, summary }: { children: ReactNode; summary: string }) {
   return (
-    <details className="border-t border-hairline pt-6">
-      <summary className="flex min-h-11 cursor-pointer items-center text-body-lg font-medium text-ink">
+    <details className="group border-t border-hairline pt-6">
+      {/* A flex summary loses the browser's own marker, so the chevron is the
+          affordance and it turns a quarter when the disclosure opens. */}
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 text-body-lg font-medium text-ink [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="shrink-0 transition-transform duration-200 ease-out group-open:rotate-90 motion-reduce:transition-none" />
         {summary}
       </summary>
       <div className="pt-6">{children}</div>

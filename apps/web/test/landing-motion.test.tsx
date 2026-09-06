@@ -99,6 +99,31 @@ describe('the cover amount counts up without ever being the source of truth', ()
     expect(document.body.textContent).toBe('5,000');
   });
 
+  it('never paints a negative figure when a frame arrives before it started', async () => {
+    // The timestamp a frame callback is given is the moment that frame's work
+    // began, which can precede the performance.now() the effect took. Elapsed
+    // time is negative there, and an unclamped cubic ease turns that into a
+    // negative multiplier: the card paints -52 for one frame on the way up.
+    stubMatchMedia({});
+    const frames = stubFrames();
+    vi.spyOn(performance, 'now').mockReturnValue(20);
+
+    await act(async () => {
+      render(<HeroAmount value={5000} />);
+    });
+    await act(async () => {
+      frames.flush(4);
+    });
+    const first = document.body.textContent;
+    await act(async () => {
+      frames.flush(200);
+    });
+
+    expect(first).toBe('0');
+    expect(first).not.toContain('-');
+    expect(document.body.textContent).not.toContain('-');
+  });
+
   it('never asks for a frame in a background tab, and keeps the figure', async () => {
     stubMatchMedia({});
     const frames = stubFrames();

@@ -64,7 +64,12 @@ export function HeroAmount({ value }: { value: number }) {
 
     const start = performance.now();
     const step = (now: number) => {
-      const progress = Math.min(1, (now - start) / DURATION_MS);
+      // Clamped at both ends. The timestamp a frame callback is given is the
+      // moment that frame's work began, which can precede the performance.now()
+      // taken here a line earlier, so the first frame's elapsed time is often
+      // negative. Unclamped, the cubic ease turns that into a negative
+      // multiplier and the card paints a negative amount for one frame.
+      const progress = Math.min(1, Math.max(0, (now - start) / DURATION_MS));
       const eased = 1 - (1 - progress) ** 3;
       setShown(Math.round(value * eased));
       if (progress < 1) frame = requestAnimationFrame(step);

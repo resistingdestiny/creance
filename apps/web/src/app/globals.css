@@ -45,8 +45,9 @@
   --color-current: currentColor;
 
   /* Marketing surface only, from docs/DESIGN-TOKENS-ADDENDUM.md. No worker or
-     investor screen may use these. The landing page of record is light
-     throughout, so night and night-2 are still unused. */
+     investor screen may use these. The landing page carries them on the hero
+     band and on the closing band and nowhere else; the body stays canvas, so
+     the dark ground is a section and never the document. */
   --color-night: #0a0d12;
   --color-night-2: #11151c;
 
@@ -120,8 +121,9 @@
 }
 
 /* The single permitted elevation, landing hero card only, from
-   docs/DESIGN-TOKENS-ADDENDUM.md. It is declared here so nobody invents a
-   second one. Nothing in the product uses it and nothing in this ticket does. */
+   docs/DESIGN-TOKENS-ADDENDUM.md. `.cover-card--depth` below is the one rule
+   that applies it, and CoverCard only carries that class when a caller asks
+   for depth, which is the landing hero and nothing else. */
 :root {
   --elevation-hero: 0 40px 80px -32px rgba(0, 0, 0, 0.55);
 }
@@ -194,6 +196,112 @@
   .cover-card__content {
     position: relative;
     z-index: 10;
+  }
+
+  /* The landing hero only: the card as an object with thickness.
+     docs/DESIGN-TOKENS-ADDENDUM.md permits one elevation and this is the rule
+     that spends it. Everything here is opt in through CoverCard's `depth`
+     prop, so every other card in the product is drawn exactly as it was.
+
+     `overflow` goes back to visible. A grouping property forces transform-style
+     to flat, so a card that clips its own overflow cannot have a third
+     dimension at all; the two light layers clip themselves to the radius
+     instead, which is all the overflow was doing for them. */
+  .cover-card--depth {
+    overflow: visible;
+    transform-style: preserve-3d;
+    box-shadow: var(--elevation-hero);
+  }
+
+  .cover-card--depth::before,
+  .cover-card--depth::after {
+    border-radius: inherit;
+    overflow: hidden;
+  }
+
+  /* The pointer glare. z-index 1 puts it over the sheen and the brushing and
+     under .cover-card__content at 10, so no light layer on this card is ever
+     above the occupation or the amount. The position comes from two custom
+     properties the stack sets, which inherit down to here, so this layer needs
+     no script of its own. */
+  .cover-card__glare {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 350ms ease;
+    background: radial-gradient(
+      320px circle at var(--card-glare-x, 50%) var(--card-glare-y, 50%),
+      rgba(255, 255, 255, 0.55),
+      rgba(255, 255, 255, 0.12) 45%,
+      transparent 70%
+    );
+  }
+
+  .cover-card-stack.is-tracking .cover-card__glare {
+    opacity: 0.8;
+  }
+
+  /* The card's own thickness, behind its face, seen only as it turns. */
+  .cover-card__edge {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    transform: translateZ(-14px);
+    background: linear-gradient(118deg, #c3c8d0, #9fa6b0);
+  }
+
+  /* The depth planes the contents sit on, so they move against each other as
+     the card turns. A group carries preserve-3d so that a plane inside it
+     still lifts, and the lifts compose: the wallet amount is a 24 inside a 16
+     and lands at the same 40 the other two treatments reach directly. */
+  .cover-card__planes {
+    transform-style: preserve-3d;
+  }
+
+  .cover-card__lift-16 {
+    transform: translateZ(16px);
+  }
+
+  .cover-card__lift-24 {
+    transform: translateZ(24px);
+  }
+
+  .cover-card__lift-40 {
+    transform: translateZ(40px);
+  }
+
+  /* The frame the hero card turns inside. The perspective is on the stack and
+     the rotation on the sheet within it, so the one orchestrated moment on
+     load stays a CSS animation on the stack and the two transforms never fight
+     over one element. */
+  .cover-card-stack {
+    perspective: 1100px;
+  }
+
+  .cover-card-tilt {
+    transform-style: preserve-3d;
+    will-change: transform;
+    transition: transform 500ms cubic-bezier(0.22, 0.7, 0.3, 1);
+  }
+
+  /* While the pointer is on it the card follows immediately; when the pointer
+     leaves, the transform is cleared and the half second above eases it back
+     rather than snapping it. */
+  .cover-card-stack.is-tracking .cover-card-tilt {
+    transition-duration: 120ms;
+    transition-timing-function: ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cover-card-tilt,
+    .cover-card__glare {
+      transition: none;
+    }
   }
 
   /* Direction 1b of the design file, Certificate: a symmetrical face inside a

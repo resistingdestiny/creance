@@ -182,6 +182,7 @@ describe('the gallery', () => {
       'index-chart-small',
       'index-chart-large',
       'cover-card',
+      'home-directions',
       'upload',
       'checkbox',
       'segmented',

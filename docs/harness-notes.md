@@ -2432,3 +2432,45 @@ same measurement on the rebuilt Option B tree:
 
 and the Option A build ships no Geist file at all, which is the property the
 switch exists to keep.
+
+## Turbopack does not apply TypeScript's `.js` to `.ts` resolution to workspace source
+
+Next 16.3.4, `next build` and `next dev`, on the T32 branch.
+
+The TypeScript documentation for `moduleResolution: nodenext` requires a
+relative import to name the emitted file, so every module inside
+packages/index-model imports its neighbours as `./dataset.js` and the compiler
+maps that back to `./dataset.ts`. Node with tsx does the same, and so does
+Vite, which is why the workspace's own tests import these modules without a
+word about it.
+
+Turbopack does not. Importing `@creance/index-model/src/pricing` from either a
+client component or a server component fails the build with six
+`Module not found: Can't resolve './dataset.js'` errors, one per relative
+import in that file. Three documented knobs were tried and none of them
+changes it:
+
+    transpilePackages: ['@creance/index-model']
+    experimental.extensionAlias: { '.js': ['.ts', '.tsx', '.js'] }
+    turbopack.resolveExtensions
+
+`extensionAlias` is a webpack resolve option that Next accepts in its
+configuration type and Turbopack ignores; `resolveExtensions` only affects an
+import written without an extension, which is not this case.
+
+The comment at the top of apps/web/src/lib/payer.ts had already met this and
+worked around it by importing only modules from @creance/client that import
+nothing of their own. The same rule applies here and is the whole fix: a
+workspace module the web app imports must be a leaf, or the bundler will not
+resolve it. See docs/DECISIONS.md, "The explorer imports the index model's
+pricing, which meant splitting it".
+
+## `Number.prototype.toFixed` rounds 0.85 down to 0.8
+
+Node 22. Not a documentation disagreement so much as one worth writing down
+once, because the explorer prints distances to one decimal and a test asserted
+the wrong thing first. `(0.85).toFixed(1)` is `"0.8"`, because the double
+nearest 0.85 is slightly below it; `(0.92).toFixed(1)` is `"0.9"` as expected.
+Nothing on the index explorer depends on a half-point boundary, so the figures
+stand, but an expectation written on a `.x5` value will look like a bug in the
+code rather than in the expectation.

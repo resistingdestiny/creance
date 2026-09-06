@@ -183,6 +183,65 @@ describe('the three home card directions', () => {
       expect(outer).not.toMatch(/\bm[trblxy]?-/);
     }
   });
+
+  describe('depth is opt in, and treatment agnostic when it is asked for', () => {
+    function withDepth(treatment: CardTreatment): string {
+      return renderToStaticMarkup(
+        <CoverCard
+          amount="5,000"
+          depth
+          hero
+          occupation="Office and administrative support"
+          state="covered"
+          statusLabel="Covered"
+          treatment={treatment}
+        />,
+      );
+    }
+
+    it('changes not one character of a card that did not ask for it', () => {
+      // The landing hero is the only caller that asks. Every other card in the
+      // product has to render exactly what it rendered before, which is what
+      // the gallery snapshot beside this also holds.
+      for (const treatment of TREATMENTS) {
+        const markup = render(treatment);
+        for (const depthOnly of [
+          'cover-card--depth',
+          'cover-card__planes',
+          'cover-card__lift-',
+          'cover-card__glare',
+          'cover-card__edge',
+        ]) {
+          expect(markup, `${treatment} carries ${depthOnly}`).not.toContain(depthOnly);
+        }
+      }
+    });
+
+    it('puts all three faces on more than one plane', () => {
+      // Which classes a face uses is the face's own anatomy: the wallet and the
+      // ingot reach 40 as a 24 inside a 16, the certificate is a flat column
+      // and names 40 directly. What has to hold for every one of them is that
+      // the contents are on separate planes, so they move against each other.
+      for (const treatment of TREATMENTS) {
+        const markup = withDepth(treatment);
+        expect(markup, treatment).toContain('cover-card__planes');
+        const lifts = new Set(
+          [...markup.matchAll(/cover-card__lift-(\d+)/g)].map((match) => match[1]),
+        );
+        expect(lifts.size, `${treatment} sits on one plane`).toBeGreaterThan(1);
+      }
+    });
+
+    it('puts every light layer before the content in all three', () => {
+      for (const treatment of TREATMENTS) {
+        const markup = withDepth(treatment);
+        for (const layer of ['cover-card__edge', 'cover-card__glare']) {
+          expect(markup.indexOf(layer), `${treatment} ${layer}`).toBeGreaterThan(-1);
+          expect(markup.indexOf(layer)).toBeLessThan(markup.indexOf('cover-card__content'));
+        }
+      }
+    });
+  });
 });
 
 describe('the gallery', () => {

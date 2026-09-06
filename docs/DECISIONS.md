@@ -3921,7 +3921,7 @@ It is recorded because it is a real operating cost of the demonstration: the
 demo account pays 0.06 TUSD per page view, including every reload during a take,
 and five sixths of that is the from price rather than the reading.
 
-## T30, the three home card directions
+## T30, the three home card directions, 6 September 2026
 
 ### All three directions stay buildable, and the default stays Option A and 1a
 

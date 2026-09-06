@@ -11,8 +11,13 @@ import { activeFontOption } from './src/lib/font-option';
  * families to the browser. Aliasing the specifier means only the chosen module
  * is ever resolved and the other family leaves the build entirely.
  */
-const fontModule =
-  activeFontOption === 'B' ? './src/lib/fonts.option-b.ts' : './src/lib/fonts.option-a.ts';
+const fontModules: Record<typeof activeFontOption, string> = {
+  A: './src/lib/fonts.option-a.ts',
+  B: './src/lib/fonts.option-b.ts',
+  C: './src/lib/fonts.option-c.ts',
+};
+
+const fontModule = fontModules[activeFontOption];
 
 const config: NextConfig = {
   reactStrictMode: true,

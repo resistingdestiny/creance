@@ -247,6 +247,15 @@
     --font-display-family: var(--font-geist-sans);
     --font-text-family: var(--font-geist-sans);
   }
+
+  /* Option C of the same section, General Sans for everything. It is not self
+     hosted by next/font, so there is no generated variable to point at and the
+     family is named here. The @font-face rules come from the Fontshare
+     stylesheet the active font module asks the layout to link. */
+  .font-option-c {
+    --font-display-family: "General Sans";
+    --font-text-family: "General Sans";
+  }
 }
 
 @layer components {

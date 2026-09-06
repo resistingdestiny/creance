@@ -23,6 +23,8 @@ export interface IndexPoint {
 
 export type IndexChartState = 'flat' | 'rising' | 'triggered';
 
+export type IndexChartSize = 'small' | 'large' | 'landing';
+
 export interface IndexChartProps {
   readonly points: readonly IndexPoint[];
   /** The attachment for this series. Always inside the drawn y domain. */
@@ -30,7 +32,7 @@ export interface IndexChartProps {
   readonly state: IndexChartState;
   /** What the chart is of, for the accessible name: "Computer and mathematical". */
   readonly label: string;
-  readonly size?: 'small' | 'large';
+  readonly size?: IndexChartSize;
   readonly width?: number;
   readonly height?: number;
   /** The large chart's data table, which is the chart's text alternative. */
@@ -53,7 +55,24 @@ const BAND_EDGE = 'rgba(209,59,59,0.4)';
 const DEFAULTS = {
   small: { width: 64, height: 20, stroke: 1.25 },
   large: { width: 320, height: 180, stroke: 1.5 },
+  landing: { width: 1080, height: 300, stroke: 1.75 },
 } as const;
+
+/**
+ * The landing chart is the only fluid one: it fills the content width at every
+ * width from 390 to 1440, where the other two draw at the size they are given.
+ *
+ * The viewBox keeps the design's 1080 by 300 coordinates and the box decides
+ * the pixels, so the aspect ratio is free. That is not a distortion of a line
+ * chart, it is the same data at another aspect, and it is how the sheet's two
+ * heights (180 on a phone, 300 on the web) are reached from one drawing. The
+ * stroke is the one thing that must not scale with the box, so every stroked
+ * element asks for its width in device space and the 1.75px line the sheet
+ * specifies stays 1.75px on a phone instead of collapsing to 0.6px.
+ *
+ * https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Attribute/vector-effect
+ */
+const FLUID_BOX = 'h-45 w-full lg:h-75';
 
 interface Scale {
   readonly x: (index: number) => number;
@@ -137,6 +156,7 @@ export function IndexChart({
   description,
 }: IndexChartProps) {
   const defaults = DEFAULTS[size];
+  const fluid = size === 'landing';
   const w = width ?? defaults.width;
   const h = height ?? defaults.height;
 
@@ -152,9 +172,10 @@ export function IndexChart({
     points.length,
   );
 
-  // Small charts carry the band only when the state is triggered. Large charts
-  // always carry it: the band is what the chart is about.
-  const showBand = size === 'large' || state === 'triggered';
+  // Small charts carry the band only when the state is triggered. The two big
+  // charts always carry it: the band is what the chart is about.
+  const wide = size !== 'small';
+  const showBand = wide || state === 'triggered';
   const bandY = Math.max(0, Math.min(h, scale.y(threshold)));
 
   const first = points[0];
@@ -168,11 +189,18 @@ export function IndexChart({
 
   return (
     <figure className="m-0 flex flex-col gap-2">
-      <div aria-label={ariaLabel} role="img">
+      <div aria-label={ariaLabel} className={fluid ? FLUID_BOX : undefined} role="img">
         {/* The viewBox is in pixels, not in data coordinates, and the data is
-            mapped to pixels above. Nothing is scaled non-uniformly, so the
-            stroke width is the width it says it is. */}
-        <svg className="block" height={h} viewBox={`0 0 ${w} ${h}`} width={w}>
+            mapped to pixels above. At the two fixed sizes nothing is scaled at
+            all, so the stroke width is the width it says it is; the landing
+            size scales and keeps that true with FLUID_BOX's vector effect. */}
+        <svg
+          className={fluid ? 'block size-full' : 'block'}
+          height={fluid ? undefined : h}
+          preserveAspectRatio={fluid ? 'none' : undefined}
+          viewBox={`0 0 ${w} ${h}`}
+          width={fluid ? undefined : w}
+        >
           {showBand ? (
             <>
               <rect
@@ -188,6 +216,7 @@ export function IndexChart({
                 shapeRendering="crispEdges"
                 stroke={BAND_EDGE}
                 strokeWidth={1}
+                vectorEffect={fluid ? 'non-scaling-stroke' : undefined}
                 x1={0}
                 x2={w}
                 y1={bandY}
@@ -205,11 +234,12 @@ export function IndexChart({
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={defaults.stroke}
+              vectorEffect={fluid ? 'non-scaling-stroke' : undefined}
             />
           ))}
         </svg>
       </div>
-      {size === 'large' && first && last ? (
+      {wide && first && last ? (
         <figcaption className="flex items-baseline justify-between text-caption">
           <span className="text-ink-2">{formatPeriodShort(first.period)}</span>
           <span className="text-triggered">{caption}</span>

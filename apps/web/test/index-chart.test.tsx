@@ -210,3 +210,50 @@ describe('the accessible name', () => {
     expect(caption).toContain('Pays out above 2.00');
   });
 });
+
+describe('the landing size', () => {
+  const landing = () =>
+    renderToStaticMarkup(
+      <IndexChart
+        bandLabel="Pays out within 0.68 of average"
+        label="Computer and mathematical"
+        points={months([-1.4, -1.1, -0.7])}
+        size="landing"
+        state="flat"
+        threshold={-0.9}
+      />,
+    );
+
+  it('draws the sheet landing stroke', () => {
+    expect(landing()).toContain('stroke-width="1.75"');
+  });
+
+  it('scales to its box and keeps the stroke in device space', () => {
+    const markup = landing();
+    expect(markup).toContain('viewBox="0 0 1080 300"');
+    expect(markup).toContain('preserveAspectRatio="none"');
+    // Neither a width nor a height attribute, so the box decides the pixels.
+    expect(markup).not.toMatch(/<svg[^>]*\swidth="/);
+    expect(markup).not.toMatch(/<svg[^>]*\sheight="/);
+    for (const tag of [...markup.matchAll(/<(path|line)[^>]*>/g)].map((match) => match[0])) {
+      expect(tag).toContain('vector-effect="non-scaling-stroke"');
+    }
+  });
+
+  it('carries the band and the two axis labels, like the large chart', () => {
+    const markup = landing();
+    expect(markup).toContain('data-testid="index-chart-band"');
+    expect(markup).toContain('Pays out within 0.68 of average');
+    expect(markup).toContain('Jan 2025');
+    expect(markup).toContain('Mar 2025');
+  });
+
+  it('leaves the two fixed sizes unscaled', () => {
+    const large = renderToStaticMarkup(
+      <IndexChart label="Legal" points={months([0.1, 0.2])} state="flat" threshold={2} />,
+    );
+    expect(large).not.toContain('preserveAspectRatio');
+    expect(large).not.toContain('non-scaling-stroke');
+    expect(large).toContain('width="320"');
+  });
+});

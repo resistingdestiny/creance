@@ -241,6 +241,33 @@ export function fetchIndex(group: string): Promise<IndexView> {
 }
 
 /**
+ * The free index catalogue, `GET /v1/index`.
+ *
+ * It carries the group keys, the frozen trigger lines and which groups have a
+ * reading, and no index values, which is why it costs nothing. The landing page
+ * reads it only when the metered reading could not be had: the trigger lines
+ * are frozen at issuance and published on the topic, so a page that cannot show
+ * this month's reading can still say truthfully what the level is that opens
+ * claims. Every other screen takes both from the reading itself.
+ */
+export interface IndexCatalogueGroup {
+  readonly group: string;
+  readonly label: string;
+  readonly series_id: string | null;
+  readonly attachment_shock: string | null;
+  readonly level_line: string | null;
+  readonly latest_period: string | null;
+}
+
+export interface IndexCatalogueView {
+  readonly groups: readonly IndexCatalogueGroup[];
+}
+
+export function fetchIndexCatalogue(): Promise<IndexCatalogueView> {
+  return getJson<IndexCatalogueView>('/v1/index');
+}
+
+/**
  * The NFT is minted after `CoverPool.bind` has returned, so a 201 from
  * /v1/bind can carry a null serial and the serial appears a moment later. The
  * API's own comment says the web app polls this endpoint for it, so this is

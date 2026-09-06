@@ -55,7 +55,10 @@ export function CoverCard({
           <p className="text-secondary text-ink">Cover</p>
           <p
             className={[
-              hero ? 'text-display-xl' : 'text-display-l',
+              // The landing card is 720 wide and its amount is 108px there.
+              // Below the landing breakpoint it steps back onto the sheet's
+              // own scale, which tops out at display-xl.
+              hero ? 'text-display-xl lg:text-landing-amount lg:tracking-landing-ledger' : 'text-display-l',
               'font-display font-semibold tracking-display tabular-nums text-ink',
             ].join(' ')}
           >

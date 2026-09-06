@@ -70,6 +70,34 @@ describe('the theme block is the config', () => {
     }
   });
 
+  it('carries the landing scale with its ratios attached', () => {
+    // docs/DESIGN-TOKENS.md section 2, "Landing (web) adds", plus the three
+    // sizes the design of record draws at 1440. Marketing surface only.
+    for (const [role, size, lineHeight] of [
+      ['landing-hero', '104px', '1.02'],
+      ['landing-amount', '108px', '0.95'],
+      ['landing-reading', '96px', '1'],
+      ['landing-step', '72px', '1'],
+      ['landing-ledger', '56px', '1.1'],
+      ['landing-head', '44px', '1.15'],
+      ['landing-lead', '22px', '1.5'],
+    ] as const) {
+      expect(css).toContain(`--text-${role}: ${size}`);
+      expect(css).toContain(`--text-${role}--line-height: ${lineHeight}`);
+    }
+    for (const [role, value] of [
+      ['landing-hero', '-0.035em'],
+      ['landing-tight', '-0.03em'],
+      ['landing-ledger', '-0.025em'],
+    ] as const) {
+      expect(css).toContain(`--tracking-${role}: ${value}`);
+    }
+  });
+
+  it('keeps the step numeral grey as a named token rather than an arbitrary value', () => {
+    expect(css).toContain('--color-landing-numeral: #c9cdd4');
+  });
+
   it('carries the four radii', () => {
     expect(css).toContain('--radius-field: 12px');
     expect(css).toContain('--radius-group: 16px');
@@ -136,6 +164,10 @@ describe('hairlines and the card', () => {
     expect(css).toMatch(/\.cover-card::before\s*\{[^}]*pointer-events:\s*none/);
     expect(css).toMatch(/\.cover-card--hero::after\s*\{[^}]*pointer-events:\s*none/);
     expect(css).toMatch(/\.cover-card__content\s*\{[^}]*z-index:\s*10/);
+  });
+
+  it('puts the landing glow behind the card as a gradient, not an elevation', () => {
+    expect(css).toMatch(/\.landing-glow\s*\{[^}]*radial-gradient/);
   });
 
   it('gives the body tabular figures', () => {

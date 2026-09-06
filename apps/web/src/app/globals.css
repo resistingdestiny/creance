@@ -387,9 +387,16 @@
      it with its finished state, which is the readings standing still and fully
      legible, and the hover pause is animation-play-state on the strip.
 
-     The strip carries every reading twice and travels half its own width, so
-     the loop closes on itself. The row clears the sheet's 44px minimum,
-     because hovering it is an action and the strip is the target. */
+     The strip carries every reading twice and travels half its own width. That
+     is one period only because the 56px of separation is a trailing margin on
+     each item and not a gap on the row: n items with n gaps between them are
+     n - 1 gaps wide, so half the row is half a gap short of the distance from
+     an item to its duplicate and the strip jumps by that half gap once per
+     loop. A trailing margin makes every item the same width including its
+     separation, and half of thirty of them is exactly fifteen of them.
+
+     The row clears the sheet's 44px minimum, because hovering it is an action
+     and the strip is the target. */
   .landing-ticker {
     overflow: hidden;
     -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
@@ -399,9 +406,14 @@
   .landing-ticker__row {
     display: flex;
     width: max-content;
-    gap: 56px;
     padding: 12px 0;
     animation: landing-ticker 48s linear infinite;
+  }
+
+  /* The separation, as part of the item rather than between items. Never a
+     row gap: see above, it is what makes the loop close. */
+  .landing-ticker__item {
+    margin-inline-end: 56px;
   }
 
   .landing-ticker:hover .landing-ticker__row {

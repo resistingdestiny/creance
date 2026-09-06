@@ -203,6 +203,21 @@ describe('hairlines and the card', () => {
     );
   });
 
+  it('separates the ticker items with a trailing margin and never a row gap', () => {
+    // The travel is translateX(-50%) and the loop only closes if half the row
+    // is exactly the distance from an item to its duplicate. Thirty items with
+    // a row gap are twenty nine gaps wide, so half of them is half a gap short
+    // and the strip jumps 28px once per loop. A trailing margin on the item
+    // makes every item the same width including its separation.
+    const row = blocksMatching(/^\.landing-ticker__row$/)[0]?.[1] ?? '';
+    expect(row).toMatch(/animation:\s*landing-ticker/);
+    expect(row).not.toMatch(/(^|;)\s*gap:/);
+    expect(row).not.toMatch(/column-gap:/);
+    const item = blocksMatching(/^\.landing-ticker__item$/)[0]?.[1] ?? '';
+    expect(item).toMatch(/margin-inline-end:\s*56px/);
+    expect(css).toMatch(/@keyframes landing-ticker[^}]*\{[^}]*translateX\(-50%\)/);
+  });
+
   it('replaces the ticker and the tilt with their finished state under reduced motion', () => {
     // The ticker's own animation is turned off by the motion-reduce utility on
     // the element; the tilt's ease back is a transition, which only CSS can

@@ -297,6 +297,13 @@ describe('the ticker of occupation readings', () => {
     expect(live).toContain('<div aria-hidden="true" class="landing-ticker');
   });
 
+  it('carries its separation on every item, which is what closes the loop', () => {
+    // The stylesheet puts the 56px on the item rather than between items, so
+    // half the row is exactly the distance from an item to its duplicate. Every
+    // item has to carry the class or the period is wrong by part of a gap.
+    expect(live.match(/landing-ticker__item/g)).toHaveLength(30);
+  });
+
   it('is absent altogether when no reading could be bought', () => {
     const markup = renderToStaticMarkup(<LandingScreen data={{ ...LIVE, ticker: [] }} />);
     expect(markup).not.toContain('landing-ticker');

@@ -83,9 +83,10 @@ describe('the greys the design leans on', () => {
 });
 
 describe('the typeface switch', () => {
-  it('is Option A unless the environment asks for B', async () => {
+  it('is Option A unless the environment asks for B or C', async () => {
     const { activeFontOption } = await import('../src/lib/font-option.js');
-    expect(activeFontOption).toBe(process.env.NEXT_PUBLIC_FONT_OPTION === 'B' ? 'B' : 'A');
+    const asked = process.env.NEXT_PUBLIC_FONT_OPTION;
+    expect(activeFontOption).toBe(asked === 'B' || asked === 'C' ? asked : 'A');
   });
 
   // The two font modules cannot be imported here: next/font only runs inside

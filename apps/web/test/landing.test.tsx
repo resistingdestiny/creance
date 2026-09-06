@@ -172,6 +172,22 @@ describe('the degraded index section', () => {
     expect(text).not.toContain('0.00');
   });
 
+  it('says nothing is published rather than blaming a feed that answered', () => {
+    // A group the index has no month for comes back with a null headline from a
+    // working endpoint. Calling that an outage would be false.
+    const unpublished = { ...INDEX, group: LANDING_GROUP, headline: null };
+    const section = landingIndexSection(LANDING_GROUP, unpublished, true);
+    expect(section.reading).toBeNull();
+    expect(section.note).toBe('No reading has been published for this occupation yet.');
+    expect(section.note).not.toContain('not answering');
+  });
+
+  it('blames the feed only when the feed is what failed', () => {
+    expect(landingIndexSection(LANDING_GROUP, null, false).note).toBe(
+      'The live feed is not answering, so there is no reading to show.',
+    );
+  });
+
   it('never degrades to a zero, whichever way it degrades', () => {
     for (const markup of [stale, cold]) {
       expect(visibleText(markup)).not.toMatch(/\b0\.00\b/);

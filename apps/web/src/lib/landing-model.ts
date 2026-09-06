@@ -154,10 +154,17 @@ export function landingIndexSection(
   const occupation = occupationLabel(group);
   const headline = index === null ? null : headlineReading(index);
   if (index === null || headline === null) {
+    // Two different things and two different notes. A feed that did not answer
+    // is an outage; a feed that answered with no headline is an occupation the
+    // index has not published for yet, and saying the feed is down in that case
+    // would be a false statement about a working endpoint.
     return {
       occupation,
       reading: null,
-      note: 'The live feed is not answering, so there is no reading to show.',
+      note:
+        live && index !== null
+          ? 'No reading has been published for this occupation yet.'
+          : 'The live feed is not answering, so there is no reading to show.',
     };
   }
 

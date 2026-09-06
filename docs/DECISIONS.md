@@ -4248,3 +4248,114 @@ packages/index-model/src/hazard.ts, which is where it belonged: it reads the
 whole archive and the three pricing functions read nothing. pricing.ts now
 imports one type and nothing else, the barrel and its callers are unchanged, and
 the web app and the API price from the same functions.
+
+## T33, the landing page brought up to the prototype, 6 September 2026
+
+### The dark ground is three sections, and never the body
+
+docs/DESIGN-TOKENS-ADDENDUM.md permits `night` and `night-2` on the marketing
+surface only, and the worker and investor screens stay light. The safest way to
+keep that true is to put the ground on the sections that need it, which are the
+navigation, the hero with its card and its ticker, and the closing line, rather
+than on the document. The body in the root layout stays canvas, so no other
+route can be darkened by a change to this page, and the sections between the two
+bands, the three questions, the three steps and the index section, are exactly
+what they were.
+
+`night-2` is still unused. The addendum draws it as a raised ground and nothing
+on this page is raised off the dark; the card is a light object over it, not a
+panel in it.
+
+### The card's depth is a prop, so no other card in the product moves
+
+The hero card needs thickness, planes, a glare and the one permitted elevation.
+Every other card in the product needs none of them, and the gallery holds a
+byte-for-byte snapshot of what those render. `CoverCard` therefore takes a
+`depth` prop that adds all of it, and the landing hero is the only caller that
+passes it. The component tests assert both halves: that a card without the prop
+carries none of the depth classes, and that all three treatments put their
+contents on separate planes and their light layers before their content when it
+is passed.
+
+### The depth card gives its overflow back, or it could have no depth at all
+
+`.cover-card` clipped its overflow so the two light overlays stopped at the
+radius. Overflow is a grouping property: an element whose overflow is not
+visible computes `transform-style: flat` whatever it declares, so a card that
+clips itself cannot have a third dimension. The depth card sets overflow back to
+visible and the two pseudo-elements clip themselves to the inherited radius
+instead, which is the only thing the overflow was doing for them.
+
+### The tilt is on a sheet inside the stack, not on the card
+
+A CSS animation outranks an inline style. The card's entrance is
+`.cover-card-enter`, a CSS animation with `both` fill, so a card carrying both
+the entrance and an inline tilt transform would be pinned by the animation and
+would never turn. The stack holds the perspective and the entrance; a sheet
+inside it holds the angle; the card is inside that. Nothing writes two
+transforms to one element.
+
+### A coarse pointer gets no drift at all
+
+The ticket says the card is simply still on a coarse pointer. The prototype
+drifts on every device and only gates the pointer tracking, which on a phone is
+a card that moves under a thumb for no reason and a frame loop that never stops.
+The drift and the tracking are both behind `matchMedia('(pointer: fine)')`, so
+at 390 the card is square on and nothing is scheduled.
+
+### The ticker reads the explorer's round and takes the explorer's words
+
+The only public route with values on it is the metered `GET /v1/index/{group}`;
+the free catalogue carries the trigger lines and no readings. Fifteen of those
+is exactly the round the public explorer buys, which src/lib/explorer-data.ts
+holds for ten minutes, so the landing asks for that round rather than buying a
+sixteenth of its own and pays nothing extra while it is warm. The order is the
+explorer's `rankByDistance`, closest to a payout first, with the occupation the
+page speaks for moved to the front, and the wording is `rankByDistance`'s own
+gap phrase rather than a second vocabulary for the same measurement.
+
+It is aria-hidden. The same readings, in the same words, are the substance of
+`/index`, which this page links twice, and a strip of fifteen occupations
+travelling past is texture for the eye that would be a wall of unordered figures
+read aloud.
+
+### The ticker carries no state colour
+
+The state palette is defined against the light ground and the addendum leaves it
+unchanged. `covered` is 2.9:1 on `night`, which is below the 3:1 an indicator
+needs, and inventing a lighter green for the dark ground would be a sixteenth
+colour. The strip uses the ground's own two weights, white for the occupation
+and the addendum's `rgba(255,255,255,.66)` for the reading, and the gap phrase
+says the state in words.
+
+### The index live badge is a fact about this render
+
+`landingIndexSection` already knew whether the feed answered; it now carries the
+boolean out. The badge says "Index live" when it did and says what it is showing
+instead when it did not, so it is never a decoration that is always green. Its
+dot is aria-hidden for the same contrast reason as the ticker, and the sentence
+beside it carries the state.
+
+### The pills get a night variant rather than an override
+
+A primary pill is `bg-ink`, which on `#0A0D12` is 1.1:1 and invisible, and the
+secondary pill's hairline border disappears into the same ground. Overriding the
+colour with a utility beside the variant's own would be decided by whichever of
+two same-property utilities compiles later, which is the exact failure the
+ticket names. `night` and `night-secondary` are variants in the same record as
+the other two, so the button has one skin and no cascade to lose.
+
+### The navigation hides its secondary links at 390 rather than wrapping them
+
+The wordmark and the one action have to fit on a line. A navigation that grows a
+second row pushes the hero down the screen on the smallest phone, and the demo
+is a screen recording of that screen. Both links are still in the markup and
+both are reachable, one from the footer bar and one from the closing line.
+
+### The count-up starts from the true value, not from zero
+
+The amount is rendered by the server at 5,000 and the first client render keeps
+it. The count-up only begins after hydration, only if the tab is visible, and it
+finishes on the spot if the tab is hidden part way through or if the frame loop
+has not finished by the time it should have. A browser that never runs an
+animation, for any reason, shows the figure rather than a zero.

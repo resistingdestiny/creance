@@ -42,12 +42,14 @@ COPY --chown=node:node packages/index-model packages/index-model
 COPY --chown=node:node apps/api apps/api
 
 # Read as data files rather than imported: the deployment record, the day 0
-# testnet resources, and the BLS archive the index history is computed from at
-# boot. packages/index-model finds the repository root by walking up to
+# testnet resources, the BLS archive the index history is computed from at
+# boot, and the attribution series GET /v1/attribution serves.
+# packages/index-model finds the repository root by walking up to
 # pnpm-workspace.yaml, so the workspace layout is preserved here on purpose.
 COPY --chown=node:node contracts/deployments contracts/deployments
 COPY --chown=node:node docs/hedera.testnet.json docs/hedera.testnet.json
 COPY --chown=node:node data/bls data/bls
+COPY --chown=node:node data/attribution data/attribution
 
 # The commit this image was built from. GET /health returns it, and that is the
 # line in MISSION's definition of done. A build argument and never a runtime

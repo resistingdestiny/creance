@@ -38,6 +38,12 @@ COPY --chown=node:node packages/client packages/client
 COPY --chown=node:node packages/index-model packages/index-model
 COPY --chown=node:node apps/web apps/web
 
+# The attribution series the index tab falls back to when the feed cannot be
+# reached. It is imported by src/lib/attribution-model.ts and bundled by the
+# build, not read from disk at runtime, so it has to be here before next build
+# rather than beside the running app.
+COPY --chown=node:node data/attribution data/attribution
+
 # The four public variables are build arguments, not runtime ones. A framework
 # public variable is inlined into the browser bundle when the build runs, so
 # setting it in the compose file afterwards would change nothing on the page.

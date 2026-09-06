@@ -1,0 +1,27 @@
+Attribution telemetry source. Not settlement data. Never used to open or close claims.
+
+challenger-ai-cuts-monthly.json
+  Monthly count of announced United States job cuts where the employer itself
+  cited artificial intelligence as the reason, as compiled by Challenger, Gray
+  and Christmas. Forty months, May 2023 to August 2026, 188,000 cumulative.
+  Compiled into a workbook by a research pass, then reduced to this series.
+  The category did not exist before May 2023, so 2022 is absent rather than zero.
+  Several monthly cells are derived from published year to date figures rather
+  than from a published monthly figure. The series carries no per month flag
+  saying which, so no month here can be told apart on that basis.
+
+Known limits, all of which belong next to any chart drawn from it:
+  Self reported by employers and contested by economists.
+  Announcements, not separations. Announced is not the same as happened.
+  National and industry level. It is NOT occupation coded, so it cannot be
+  bound to a BLS occupation group without an assumption that would need its
+  own defence.
+  Zero of 162 or more New York WARN filings ticked the artificial intelligence
+  box introduced in March 2025.
+  Verizon, Block and TCS each explicitly denied that headline cuts were AI driven.
+
+Measured against our own index over the tracked window: correlation with the
+smoothed excess margin is -0.44 for computer and mathematical, about zero for
+construction and farming. Differenced month on month it falls to -0.21 and
+nothing at three or six month leads, so the level relationship is substantially
+a shared trend. It is context, not a predictor.

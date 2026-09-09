@@ -19,6 +19,11 @@ import { useReducedMotion } from '../../lib/use-reduced-motion';
  *
  * Three rules from the ticket, in the order they are decided here:
  *
+ * - a card that is being written on is a card that holds still. The quote is on
+ *   its other face (T36), and a search field that sways under the cursor while
+ *   it is being typed into is the drift working against the thing the card is
+ *   for. `still` stops the loop and clears the angle, and the shimmer carries on,
+ *   so the surface is alive without the object moving;
  * - reduced motion is the finished state, which for a card at rest is the card
  *   square on. No frame loop is started and no listener is attached, so there is
  *   nothing to turn off later;
@@ -51,9 +56,12 @@ const SETTLE_MS = 520;
 export function HeroCardStack({
   children,
   className,
+  still = false,
 }: {
   children: ReactNode;
   className?: string;
+  /** Holds the card square on, for as long as something is being filled in on it. */
+  still?: boolean;
 }) {
   const stack = useRef<HTMLDivElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
@@ -63,7 +71,7 @@ export function HeroCardStack({
     const root = stack.current;
     const card = sheet.current;
     if (root === null || card === null) return;
-    if (reduced) return;
+    if (reduced || still) return;
     if (typeof window.matchMedia !== 'function') return;
     if (!window.matchMedia('(pointer: fine)').matches) return;
 
@@ -130,7 +138,7 @@ export function HeroCardStack({
       root.classList.remove('is-tracking');
       card.style.transform = '';
     };
-  }, [reduced]);
+  }, [reduced, still]);
 
   return (
     <div className={['cover-card-stack', className].filter(Boolean).join(' ')} ref={stack}>

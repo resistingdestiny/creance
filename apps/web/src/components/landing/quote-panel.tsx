@@ -66,6 +66,11 @@ const INDEX_ANCHOR = '#the-index';
  * page renders on the server. The frame around it is the same stack the hero
  * card has always stood in, so the drift, the pointer tilt and the entrance are
  * exactly what they were and the turn is one more transform inside them.
+ *
+ * The drift stops for as long as the quote is open. A card nobody is using can
+ * sway; a card with a search field and a slider on it cannot, because the sway
+ * is then working against the thing the card is for. The shimmer does not stop,
+ * so the surface is still alive under the step.
  */
 export function QuoteSlot({ card }: { card: ReactNode }) {
   const { step } = useQuote();
@@ -117,7 +122,10 @@ export function QuoteSlot({ card }: { card: ReactNode }) {
   };
 
   return (
-    <HeroCardStack className="cover-card-enter relative w-full max-w-[620px] motion-reduce:animate-none">
+    <HeroCardStack
+      className="cover-card-enter relative w-full max-w-[620px] motion-reduce:animate-none"
+      still={step !== 'closed'}
+    >
       <CardTurn
         at={at}
         back={face(faces.back)}
@@ -150,9 +158,10 @@ function QuoteFace({ children, current }: { children: ReactNode; current: boolea
 }
 
 /**
- * The step's title, and where focus lands when the face turns towards the
- * viewer. The turn moves focus here at the half turn, which is the moment this
- * face becomes the one on screen and the face it came from stops being one.
+ * The step's title, and where focus lands when the card starts turning towards
+ * this face. It moves at the start of the turn and not at the end, so a
+ * keyboard user is on the new step for the whole of it and is never left on a
+ * control that has just been turned away.
  *
  * The landing page's h1 is the hero headline, so these are h2s: the quote is a
  * section of that page and not a screen of its own. The heading is focused

@@ -217,6 +217,40 @@ describe('the three home card directions', () => {
       }
     });
 
+    it('leaves the metal finish off every card that did not ask for it', () => {
+      // The same rule as depth: the landing hero is the only caller. T34 adds
+      // the modifier and one light layer, and neither reaches Home, the
+      // receipt, the gallery or any other card.
+      for (const treatment of TREATMENTS) {
+        for (const metalOnly of ['cover-card--metal', 'cover-card__shimmer']) {
+          expect(render(treatment), `${treatment} carries ${metalOnly}`).not.toContain(metalOnly);
+          expect(withDepth(treatment), `${treatment} carries ${metalOnly}`).not.toContain(metalOnly);
+        }
+      }
+    });
+
+    it('draws the shimmer under the content in all three when it is asked for', () => {
+      for (const treatment of TREATMENTS) {
+        const markup = renderToStaticMarkup(
+          <CoverCard
+            amount="5,000"
+            depth
+            hero
+            metal
+            occupation="Office and administrative support"
+            state="covered"
+            statusLabel="Covered"
+            treatment={treatment}
+          />,
+        );
+        expect(markup, treatment).toContain('cover-card--metal');
+        expect(markup.indexOf('cover-card__shimmer')).toBeGreaterThan(-1);
+        expect(markup.indexOf('cover-card__shimmer')).toBeLessThan(
+          markup.indexOf('cover-card__content'),
+        );
+      }
+    });
+
     it('puts all three faces on more than one plane', () => {
       // Which classes a face uses is the face's own anatomy: the wallet and the
       // ingot reach 40 as a 24 inside a 16, the certificate is a flat column

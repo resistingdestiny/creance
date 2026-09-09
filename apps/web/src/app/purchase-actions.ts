@@ -16,6 +16,7 @@ import { DEMO_ACCOUNT } from '../lib/wallet';
 import {
   bindMessage,
   coverAmount,
+  noCoverForGroup,
   paysOutSentence,
   premiumAmount,
   priceFailure,
@@ -58,6 +59,33 @@ export async function chooseOccupation(formData: FormData): Promise<void> {
   }
   await updatePurchase({ group, limit: AMOUNT_DEFAULT, quoteId: null });
   redirect('/amount');
+}
+
+/**
+ * Landing page: the inline quote's occupation step.
+ *
+ * It is chooseOccupation and the Amount route's opening quote in one call,
+ * because inline there is no navigation between the two steps to hang a second
+ * read on, and a front door that paid for two quotes to show one price would be
+ * paying twice for the same figure.
+ *
+ * It writes the same server side session those two routes write, behind the same
+ * httpOnly cookie, so a quote begun on the landing page can be finished on
+ * /occupation and /amount and a link already shared still resumes it.
+ * updatePurchase starts a session when there is none, so a visitor who arrives
+ * cold needs no separate begin.
+ */
+export async function quoteOccupation(group: string): Promise<PriceResult> {
+  const occupation = findOccupation(group);
+  if (occupation === null || !hasCover(occupation)) {
+    // The picker does not offer an occupation with no series behind it, so this
+    // is a hand-made request rather than a person. It is answered with the
+    // sentence a quote for that group would have been answered with, and
+    // nothing is written to the session.
+    return noCoverForGroup(AMOUNT_DEFAULT);
+  }
+  await updatePurchase({ group, limit: AMOUNT_DEFAULT, quoteId: null });
+  return await priceCover(AMOUNT_DEFAULT);
 }
 
 /**

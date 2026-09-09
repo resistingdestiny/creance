@@ -496,16 +496,16 @@ describe('the card turns rather than swapping', () => {
 
   it('keeps the control that was pressed until the card has turned away from it', async () => {
     page();
-    await getAQuote();
-    fireEvent.click(row('Computer and mathematical'));
-    const pressed = continueButton();
+    await toAmount();
+    const pressed = screen.getByRole('button', { name: 'Back' });
     pressed.focus();
     fireEvent.click(pressed);
 
-    // Part way through the turn the occupation step is still the face on
-    // screen, so it still holds focus. Focus moves when the card is edge on.
+    // Part way through the turn the cover amount step is still the face on
+    // screen, so it still holds focus. Focus moves when the card is edge on and
+    // the face it was on stops being the one being read.
     expect(document.activeElement).toBe(pressed);
-    await waitFor(() => expect(document.activeElement?.textContent).toBe('Cover amount'));
+    await waitFor(() => expect(document.activeElement?.textContent).toBe('What do you do?'));
   });
 });
 
@@ -530,6 +530,33 @@ describe('motion and focus', () => {
     expect(faces.map((face) => face.dataset.facing)).toStrictEqual(['away', 'viewer']);
     expect(document.activeElement?.textContent).toBe('What do you do?');
     vi.unstubAllGlobals();
+  });
+
+  it('keeps focus in the quote while the price is being bought', async () => {
+    // The primary is disabled while the quote is in flight, and a disabled
+    // button that has focus loses it to the document. On testnet that is a
+    // second or two of a keyboard user standing at the top of the page in the
+    // middle of taking a quote.
+    let settle: (price: typeof PRICE) => void = () => {};
+    vi.mocked(quoteOccupation).mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    page();
+    await getAQuote();
+    fireEvent.click(row('Computer and mathematical'));
+    const pressed = continueButton();
+    pressed.focus();
+    fireEvent.click(pressed);
+
+    // Back on the question, not on the document. The card has nothing to turn
+    // to until the price comes back.
+    expect(document.activeElement?.textContent).toBe('What do you do?');
+    await act(async () => {
+      settle(PRICE);
+    });
+    await waitFor(() => expect(document.activeElement?.textContent).toBe('Cover amount'));
   });
 
   it('moves focus to the step, so a keyboard user can find it', async () => {

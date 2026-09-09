@@ -224,18 +224,6 @@ function OccupationFace({
   const chosen = findOccupation(group);
   const buyable = chosen !== null && hasCover(chosen);
 
-  // The primary is disabled while the price is being bought, and a disabled
-  // button that has focus loses it to the document. That is a second or two of
-  // a keyboard user standing at the top of the page in the middle of a quote,
-  // so focus goes back to the question, which is where they still are. The card
-  // has not started turning yet: there is nothing to turn to until the price
-  // comes back.
-  useEffect(() => {
-    if (!pending) return;
-    if (document.activeElement !== document.body) return;
-    heading.current?.focus();
-  }, [pending]);
-
   function continueWith(selected: string): void {
     startTransition(async () => {
       const price = await quoteOccupation(selected);
@@ -285,8 +273,16 @@ function OccupationFace({
       <PillButton
         disabled={!buyable}
         loading={pending}
-        onClick={() => {
-          if (chosen !== null && buyable) continueWith(chosen.key);
+        onClick={(event) => {
+          if (chosen === null || !buyable) return;
+          // This button is about to be disabled while the price is bought, and
+          // a disabled button that has focus loses it to the document. On
+          // testnet that is a second or two of a keyboard user standing at the
+          // top of the page in the middle of taking a quote. Focus goes back to
+          // the question, which is where they still are: the card has nothing
+          // to turn to until the price comes back.
+          if (document.activeElement === event.currentTarget) heading.current?.focus();
+          continueWith(chosen.key);
         }}
       >
         Continue

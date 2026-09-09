@@ -65,17 +65,29 @@ export interface CoverCardProps {
   className?: string;
 }
 
-export function CoverCard({
-  occupation,
-  amount,
-  state,
-  statusLabel,
+/**
+ * The card as a surface, with nothing said on it.
+ *
+ * The gradient, the sheen, the brushing, the thickness, the glare and the
+ * shimmer are all here; what the card says is the caller's. `CoverCard` below
+ * passes the treatment's own anatomy, and the landing quote passes the step it
+ * is asking, so the quote is drawn on the card rather than beside it. Both get
+ * the same light layers in the same order, which is the rule the addendum sets
+ * and built-css.test.ts holds: nothing lights the numbers.
+ *
+ * Children are expected to sit in `.cover-card__content`, which is what lifts
+ * them above the overlays.
+ */
+export function CoverCardShell({
   hero = false,
   depth = false,
   metal = false,
   treatment = activeCardTreatment,
   className,
-}: CoverCardProps) {
+  children,
+}: Pick<CoverCardProps, 'hero' | 'depth' | 'metal' | 'treatment' | 'className'> & {
+  children: ReactNode;
+}) {
   return (
     <div
       className={[
@@ -97,6 +109,30 @@ export function CoverCard({
         </>
       ) : null}
       {metal ? <span aria-hidden="true" className="cover-card__shimmer" /> : null}
+      {children}
+    </div>
+  );
+}
+
+export function CoverCard({
+  occupation,
+  amount,
+  state,
+  statusLabel,
+  hero = false,
+  depth = false,
+  metal = false,
+  treatment = activeCardTreatment,
+  className,
+}: CoverCardProps) {
+  return (
+    <CoverCardShell
+      className={className}
+      depth={depth}
+      hero={hero}
+      metal={metal}
+      treatment={treatment}
+    >
       {treatment === 'certificate' ? (
         <Certificate
           amount={amount}
@@ -125,7 +161,7 @@ export function CoverCard({
           statusLabel={statusLabel}
         />
       )}
-    </div>
+    </CoverCardShell>
   );
 }
 

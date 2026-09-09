@@ -1,17 +1,19 @@
 import type { ReactNode } from 'react';
 
-import { ExplorerPanel } from '../../app/index/explorer-panel';
-import { beginPurchase } from '../../app/purchase-actions';
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
 import type { ExplorerData } from '../../lib/explorer-data';
 import { COVERED_ANSWER } from '../../lib/landing-model';
 import type { LandingData } from '../../lib/landing-data';
 import { CoverCard } from '../cover-card';
-import { PillButton, PillLink, type PillButtonVariant } from '../pill-button';
+import { PillLink } from '../pill-button';
 import { ReplayBar } from '../replay-bar';
 import { HeroAmount } from './hero-amount';
 import { HeroCardStack } from './hero-card-stack';
 import { IndexTicker } from './index-ticker';
+import { LandingExplorer } from './landing-explorer';
+import { QuoteButton } from './quote-button';
+import { QuoteSlot } from './quote-panel';
+import { QuoteProvider } from './quote-state';
 
 /**
  * The landing page, section for section from the design of record.
@@ -45,6 +47,14 @@ import { IndexTicker } from './index-ticker';
  * Every interactive element is a button or an anchor, so the base layer's
  * outline is the focus state on all of them. The design draws them as divs and
  * spans, which would have neither focus nor keyboard.
+ *
+ * The quote happens here (T35). "Get a quote" opens it where the hero card
+ * stands rather than leaving for a route, the occupation it is for moves the
+ * index explorer below, and only verification and payment still have screens of
+ * their own. QuoteProvider is the one piece of state the page holds, and the
+ * sections around it are still rendered on the server: they are passed through
+ * it as children, so the marketing page is not a client bundle because three
+ * buttons share a step.
  */
 
 const PAGE = 'px-5 lg:px-16';
@@ -58,27 +68,29 @@ export function LandingScreen({ data }: { data: LandingData }) {
   const indexHref = '/index';
 
   return (
-    <div className="flex flex-col bg-canvas">
-      <Nav indexHref={indexHref} />
-      <main>
-        <section className="bg-night">
-          <HeroBand
-            live={data.index.live}
-            occupation={data.occupation}
-            priceLine={data.priceLine}
+    <QuoteProvider>
+      <div className="flex flex-col bg-canvas">
+        <Nav indexHref={indexHref} />
+        <main>
+          <section className="bg-night">
+            <HeroBand
+              live={data.index.live}
+              occupation={data.occupation}
+              priceLine={data.priceLine}
+            />
+            <IndexTicker readings={data.ticker} />
+          </section>
+          <Questions costLine={data.costLine} payLine={data.payLine} />
+          <IndexSection
+            explorer={data.explorer}
+            note={data.index.note}
+            replayBadge={data.replayBadge}
           />
-          <IndexTicker readings={data.ticker} />
-        </section>
-        <Questions costLine={data.costLine} payLine={data.payLine} />
-        <IndexSection
-          explorer={data.explorer}
-          note={data.index.note}
-          replayBadge={data.replayBadge}
-        />
-        <Closing investorLine={data.investorLine} />
-      </main>
-      <FooterBar indexHref={indexHref} />
-    </div>
+          <Closing investorLine={data.investorLine} />
+        </main>
+        <FooterBar indexHref={indexHref} />
+      </div>
+    </QuoteProvider>
   );
 }
 
@@ -110,23 +122,6 @@ function NavLink({
     >
       {children}
     </a>
-  );
-}
-
-/** "Get a quote", which is the same server action the old start screen submitted. */
-function QuoteButton({
-  className,
-  variant,
-}: {
-  className?: string;
-  variant?: PillButtonVariant;
-}) {
-  return (
-    <form action={beginPurchase} className={className}>
-      <PillButton className={className} type="submit" variant={variant}>
-        Get a quote
-      </PillButton>
-    </form>
   );
 }
 
@@ -206,7 +201,15 @@ function HeroBand({
     <div className={`pb-24 pt-16 lg:pb-32 lg:pt-24 ${PAGE}`}>
       <div className="mx-auto grid w-full max-w-[1240px] items-center gap-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)] lg:gap-20">
         <Hero live={live} priceLine={priceLine} />
-        <HeroCard occupation={occupation} />
+        {/* The card's own column, with the soft ground behind whichever of the
+            two is standing in it. */}
+        <div className="relative flex justify-center">
+          <div
+            aria-hidden="true"
+            className="landing-glow pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-full max-w-[1100px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+          />
+          <QuoteSlot card={<HeroCard occupation={occupation} />} />
+        </div>
       </div>
     </div>
   );
@@ -249,27 +252,25 @@ function Hero({ live, priceLine }: { live: boolean; priceLine: string | null }) 
  * The amount is the one figure on this page that moves. It arrives in the
  * server's HTML at its true value and counts up after hydration, so a browser
  * that never runs the animation shows 5,000 rather than nothing.
+ *
+ * It stands in the hero's second column until "Get a quote" is pressed, and the
+ * quote takes the same place. The glow behind it belongs to the column rather
+ * than to the card, so it is behind whichever of the two is there.
  */
 function HeroCard({ occupation }: { occupation: string }) {
   return (
-    <div className="relative flex justify-center">
-      <div
-        aria-hidden="true"
-        className="landing-glow pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-full max-w-[1100px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+    <HeroCardStack className="cover-card-enter relative w-full max-w-[620px] motion-reduce:animate-none">
+      <CoverCard
+        amount={<HeroAmount value={AMOUNT_DEFAULT} />}
+        className="aspect-[720/432] w-full"
+        depth
+        hero
+        metal
+        occupation={occupation}
+        state="covered"
+        statusLabel="Covered"
       />
-      <HeroCardStack className="cover-card-enter relative w-full max-w-[620px] motion-reduce:animate-none">
-        <CoverCard
-          amount={<HeroAmount value={AMOUNT_DEFAULT} />}
-          className="aspect-[720/432] w-full"
-          depth
-          hero
-          metal
-          occupation={occupation}
-          state="covered"
-          statusLabel="Covered"
-        />
-      </HeroCardStack>
-    </div>
+    </HeroCardStack>
   );
 }
 
@@ -312,6 +313,11 @@ function Question({ question, answer }: { question: string; answer: string }) {
  * reading are gone with it: two pictures of one index on one page is the thing
  * this ticket removes.
  *
+ * It follows the quote above it: the occupation the visitor picks to be quoted
+ * is the occupation this panel opens on, because those are one act and not two
+ * (T35). "How the index works" in the amount step opens this section, which is
+ * why it carries the id.
+ *
  * The note under it is the honest one. The explorer says nothing about the
  * metered reading behind the hero's live badge, so a feed that stopped
  * answering is still said in words, and an occupation the index has not
@@ -327,7 +333,7 @@ function IndexSection({
   replayBadge: string | null;
 }) {
   return (
-    <section className={`py-16 lg:py-28 ${PAGE}`}>
+    <section className={`py-16 lg:py-28 ${PAGE}`} id="the-index">
       <div className={`flex flex-col gap-10 ${CONTENT}`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
           <h2 className="max-w-[520px] text-balance font-display text-title font-semibold tracking-title text-ink lg:text-landing-head lg:tracking-display">
@@ -336,7 +342,7 @@ function IndexSection({
           {replayBadge === null ? null : <ReplayBar label={replayBadge} variant="compact" />}
         </div>
 
-        {explorer === null ? null : <ExplorerPanel data={explorer} />}
+        {explorer === null ? null : <LandingExplorer data={explorer} />}
 
         {note === null ? null : (
           <p className="max-w-[560px] text-body text-ink-2" data-testid="landing-index-note">

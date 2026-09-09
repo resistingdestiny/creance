@@ -66,6 +66,13 @@ const CAPACITY_MAX = 95;
 const CAPACITY_STEP = 5;
 const CAPACITY_DEFAULT = 45;
 
+/**
+ * The occupation the panel opens on when nobody has said otherwise. It is the
+ * one group with a series behind it, which is the same group the landing page
+ * speaks for.
+ */
+const OPENS_ON = 'computer_math';
+
 const DOT: Record<ExplorerState, string> = {
   covered: 'bg-covered',
   watch: 'bg-watch',
@@ -88,17 +95,48 @@ export const NO_READINGS = {
   line: 'Nothing on this page is shown from memory, so there is nothing to show. Try again.',
 } as const;
 
-export function ExplorerPanel({ data }: { data: ExplorerData }) {
+export function ExplorerPanel({
+  data,
+  follows = null,
+}: {
+  data: ExplorerData;
+  /**
+   * An occupation the panel follows, for a page that has a second reason to
+   * name one. The landing page passes the occupation its inline quote is for,
+   * so picking an occupation to be quoted and looking at that occupation's
+   * index are one act rather than two (T35). `/index` passes nothing and keeps
+   * its own selection entirely.
+   *
+   * It is followed rather than obeyed: the reader can still pick any of the
+   * fifteen here afterwards, and the next thing the quote names moves the panel
+   * again. That way the panel is never a control with two owners.
+   */
+  follows?: string | null;
+}) {
   const occupations = data.occupations;
-  const opening = occupations.findIndex((occupation) => occupation.key === 'computer_math');
-  const [selected, setSelected] = useState(opening === -1 ? 0 : opening);
+  const [chosen, setChosen] = useState(follows ?? OPENS_ON);
   const [query, setQuery] = useState('');
   const [capacity, setCapacity] = useState(CAPACITY_DEFAULT);
 
-  const occupation = occupations[selected];
-  const [at, setAt] = useState(() =>
-    occupation === undefined ? 0 : latestMonthIndex(occupation),
-  );
+  // React's own way to adjust state when a prop changes, rather than an effect
+  // that would paint the old occupation for a frame first.
+  // https://react.dev/learn/you-might-not-need-an-effect
+  const [followed, setFollowed] = useState(follows);
+  if (follows !== followed) {
+    setFollowed(follows);
+    if (follows !== null) setChosen(follows);
+  }
+
+  /**
+   * The month the reader has scrubbed to, remembered against the occupation it
+   * belongs to. A pick therefore lands on the month the feed published rather
+   * than on whichever month the reader last dragged to, without an effect
+   * having to reset anything.
+   */
+  const [scrub, setScrub] = useState<{ key: string; at: number } | null>(null);
+
+  const found = occupations.findIndex((entry) => entry.key === chosen);
+  const occupation = occupations[found === -1 ? 0 : found];
 
   const ranked = useMemo(() => rankByDistance(occupations), [occupations]);
   const matches = useMemo(() => {
@@ -117,6 +155,8 @@ export function ExplorerPanel({ data }: { data: ExplorerData }) {
     );
   }
 
+  const at =
+    scrub !== null && scrub.key === occupation.key ? scrub.at : latestMonthIndex(occupation);
   const month = occupation.months[clampMonth(occupation, at)] ?? null;
   const state = stateOf(month);
   const price = priceFor(month?.distance ?? null, capacity / 100);
@@ -124,10 +164,7 @@ export function ExplorerPanel({ data }: { data: ExplorerData }) {
   function pick(index: number) {
     const next = occupations[index];
     if (next === undefined) return;
-    setSelected(index);
-    // The newest month, so a pick always lands on the month the feed published
-    // rather than on whichever month the reader last dragged to.
-    setAt(latestMonthIndex(next));
+    setChosen(next.key);
   }
 
   return (
@@ -156,7 +193,7 @@ export function ExplorerPanel({ data }: { data: ExplorerData }) {
             at={clampMonth(occupation, at)}
             caption={bandCaption(occupation)}
             name={chartName(occupation, month)}
-            onScrub={(next) => setAt(clampMonth(occupation, next))}
+            onScrub={(next) => setScrub({ key: occupation.key, at: clampMonth(occupation, next) })}
             points={occupation.months.map((entry) => ({
               period: entry.period,
               value: entry.value,

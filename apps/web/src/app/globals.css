@@ -354,7 +354,7 @@
      The swap happens where the rotation is at ninety degrees, which is the one
      moment the card has no width on screen, so neither the swap nor the change
      of height that comes with it is seen. */
-  .cover-card-face[data-sizing="false"] {
+  .cover-card-face[data-facing="away"] {
     position: absolute;
     inset-inline: 0;
     top: 0;

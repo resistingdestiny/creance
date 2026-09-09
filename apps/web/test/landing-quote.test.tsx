@@ -61,9 +61,28 @@ function panel() {
   return within(document.querySelector('[data-testid="landing-quote"]') as HTMLElement);
 }
 
-/** "Get a quote", from the navigation, which is the first of the three. */
-function getAQuote(): void {
+/**
+ * "Get a quote", from the navigation, which is the first of the three, and the
+ * turn that follows it.
+ *
+ * The awaits through this file are the card turning. A step arrives when the
+ * card is edge on and not when the button is pressed: until then the face the
+ * visitor is looking at is still the one they pressed it from, and the step
+ * being turned to is not on screen, in the tab order or in the accessibility
+ * tree. Every query here goes through that tree, so each one waits for the same
+ * moment a person would.
+ */
+async function getAQuote(): Promise<void> {
   fireEvent.click(screen.getAllByRole('button', { name: 'Get a quote' })[0]!);
+  await turned('What do you do?');
+}
+
+/** Waits for the card to finish turning to the face that carries this. */
+async function turned(text: string): Promise<void> {
+  await waitFor(
+    () => expect(document.querySelector('[data-facing="viewer"]')?.textContent).toContain(text),
+    { timeout: 3000 },
+  );
 }
 
 function row(label: string): HTMLElement {
@@ -78,10 +97,17 @@ function continueButton(): HTMLElement {
 
 /** Picks an occupation and takes the quote through to the cover amount step. */
 async function toAmount(label = 'Computer and mathematical'): Promise<void> {
-  getAQuote();
+  await getAQuote();
   fireEvent.click(row(label));
   fireEvent.click(continueButton());
-  await waitFor(() => expect(screen.getByText('Cover amount')).toBeDefined());
+  await turned('Cover amount');
+}
+
+/** The whole quote, which is three half turns of the card. */
+async function toSettled(): Promise<void> {
+  await toAmount();
+  fireEvent.click(continueButton());
+  await turned('Monthly payment');
 }
 
 beforeEach(() => {
@@ -101,9 +127,9 @@ describe('the quote starts in place', () => {
     expect(document.querySelector('.cover-card')).not.toBeNull();
   });
 
-  it('puts the first step where the card stood, with no navigation', () => {
+  it('puts the first step where the card stood, with no navigation', async () => {
     page();
-    getAQuote();
+    await getAQuote();
 
     expect(document.querySelector('[data-testid="landing-quote"]')).not.toBeNull();
     // The hero, the questions and the index section are all still on the page:
@@ -112,25 +138,25 @@ describe('the quote starts in place', () => {
     expect(screen.getByText('One number decides. You can watch it.')).toBeDefined();
   });
 
-  it('opens from any of the three places the deck puts the button', () => {
+  it('opens from any of the three places the deck puts the button', async () => {
     page();
     expect(screen.getAllByRole('button', { name: 'Get a quote' })).toHaveLength(3);
     fireEvent.click(screen.getAllByRole('button', { name: 'Get a quote' }).at(-1)!);
-    expect(screen.getByText('What do you do?')).toBeDefined();
+    expect(await screen.findByText('What do you do?')).toBeDefined();
   });
 });
 
 describe('the occupation step keeps the deck', () => {
-  it('asks the deck question and labels the deck field', () => {
+  it('asks the deck question and labels the deck field', async () => {
     page();
-    getAQuote();
+    await getAQuote();
     expect(panel().getByRole('heading', { level: 2, name: 'What do you do?' })).toBeDefined();
     expect(panel().getByLabelText('Search occupations')).toBeDefined();
   });
 
-  it('lists the fifteen rows in the addendum order', () => {
+  it('lists the fifteen rows in the addendum order', async () => {
     page();
-    getAQuote();
+    await getAQuote();
     const rows = [
       ...(document.querySelector('[data-testid="landing-quote"]') as HTMLElement).querySelectorAll(
         'button',
@@ -141,9 +167,9 @@ describe('the occupation step keeps the deck', () => {
     expect(rows.at(-1)?.textContent).toContain('Farming, fishing and forestry');
   });
 
-  it('filters on the label and says when nothing matches', () => {
+  it('filters on the label and says when nothing matches', async () => {
     page();
-    getAQuote();
+    await getAQuote();
     const search = panel().getByLabelText('Search occupations');
 
     fireEvent.change(search, { target: { value: 'legal' } });
@@ -157,17 +183,17 @@ describe('the occupation step keeps the deck', () => {
     ).toBeDefined();
   });
 
-  it('carries the line the route screen carries under the rows', () => {
+  it('carries the line the route screen carries under the rows', async () => {
     page();
-    getAQuote();
+    await getAQuote();
     expect(
       screen.getByText('You tell us your occupation. We do not check it against an employer.'),
     ).toBeDefined();
   });
 
-  it('disables Continue until an occupation is chosen', () => {
+  it('disables Continue until an occupation is chosen', async () => {
     page();
-    getAQuote();
+    await getAQuote();
     expect(continueButton()).toHaveProperty('disabled', true);
     fireEvent.click(row('Computer and mathematical'));
     expect(continueButton()).toHaveProperty('disabled', false);
@@ -175,9 +201,9 @@ describe('the occupation step keeps the deck', () => {
 });
 
 describe('an occupation with no capacity behind it', () => {
-  it('says so on its row, in the words the route screen uses', () => {
+  it('says so on its row, in the words the route screen uses', async () => {
     page();
-    getAQuote();
+    await getAQuote();
     // Two of the fourteen carry the backtest line in the same caption, so the
     // sentence is asserted where it starts rather than as the whole string.
     const said = panel()
@@ -186,9 +212,9 @@ describe('an occupation with no capacity behind it', () => {
     expect(said).toHaveLength(14);
   });
 
-  it('says so in place when it is the one in hand, and quotes nothing', () => {
+  it('says so in place when it is the one in hand, and quotes nothing', async () => {
     page();
-    getAQuote();
+    await getAQuote();
     fireEvent.click(row('Legal'));
 
     expect(screen.getAllByText('No cover behind this occupation yet.').length).toBeGreaterThan(1);
@@ -199,19 +225,19 @@ describe('an occupation with no capacity behind it', () => {
 });
 
 describe('the occupation and the index are one act', () => {
-  it('moves the explorer to the occupation the quote is for', () => {
+  it('moves the explorer to the occupation the quote is for', async () => {
     page();
     expect(screen.getByText(/^Computer and mathematical, /)).toBeDefined();
 
-    getAQuote();
+    await getAQuote();
     fireEvent.click(row('Legal'));
 
     expect(screen.getByText(`Legal, ${formatPeriod('2026-07')}`)).toBeDefined();
   });
 
-  it('moves it before anything is quoted, so an occupation can be read first', () => {
+  it('moves it before anything is quoted, so an occupation can be read first', async () => {
     page();
-    getAQuote();
+    await getAQuote();
     fireEvent.click(row('Production'));
 
     expect(screen.getByText(`Production, ${formatPeriod('2026-07')}`)).toBeDefined();
@@ -254,7 +280,8 @@ describe('the cover amount step keeps the deck', () => {
     expect(continueButton()).toHaveProperty('disabled', false);
     expect(continueButton().getAttribute('type')).toBe('button');
     fireEvent.click(continueButton());
-    await waitFor(() => expect(screen.getByText('Monthly payment')).toBeDefined());
+    await turned('Monthly payment');
+    expect(screen.getByText('Monthly payment')).toBeDefined();
   });
 
   it('refuses to continue on a price it could not take', async () => {
@@ -276,6 +303,7 @@ describe('the cover amount step keeps the deck', () => {
     page();
     await toAmount();
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await turned('What do you do?');
 
     expect(screen.getByRole('heading', { level: 2, name: 'What do you do?' })).toBeDefined();
     expect(continueButton()).toHaveProperty('disabled', false);
@@ -387,13 +415,6 @@ describe('the slider is priced once per gesture', () => {
 });
 
 describe('the settled quote is the card, carrying its own figures', () => {
-  /** Takes the quote all the way, which is three half turns of the card. */
-  async function toSettled(): Promise<void> {
-    await toAmount();
-    fireEvent.click(continueButton());
-    await waitFor(() => expect(screen.getByText('Monthly payment')).toBeDefined());
-  }
-
   it('shows the occupation, the cover and the monthly payment', async () => {
     page();
     await toSettled();
@@ -426,8 +447,9 @@ describe('the settled quote is the card, carrying its own figures', () => {
     page();
     await toSettled();
     fireEvent.click(panel().getByRole('button', { name: 'Back' }));
+    await turned('Cover amount');
 
-    await waitFor(() => expect(screen.getByRole('slider', { name: 'Cover 5,000' })).toBeDefined());
+    expect(screen.getByRole('slider', { name: 'Cover 5,000' })).toBeDefined();
     expect(screen.getByTestId('landing-quote-premium').textContent).toBe('4.25 a month');
   });
 });
@@ -445,27 +467,45 @@ describe('the card turns rather than swapping', () => {
 
   it('turns half a turn forward for each step and the other way back', async () => {
     page();
-    getAQuote();
+    // The rotation is written the moment the step changes, so it leads the
+    // faces rather than following them: the card is already on its way.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Get a quote' })[0]!);
     expect(turn().style.transform).toBe('rotateY(180deg)');
     expect(document.querySelectorAll('.cover-card-face')).toHaveLength(2);
 
+    await screen.findByRole('heading', { level: 2, name: 'What do you do?' });
     fireEvent.click(row('Computer and mathematical'));
     fireEvent.click(continueButton());
-    await waitFor(() => expect(turn().style.transform).toBe('rotateY(360deg)'));
+    await turned('Cover amount');
+    expect(turn().style.transform).toBe('rotateY(360deg)');
 
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    await waitFor(() => expect(turn().style.transform).toBe('rotateY(180deg)'));
+    expect(turn().style.transform).toBe('rotateY(180deg)');
   });
 
-  it('keeps the step turned away from out of reach while it is still on screen', () => {
+  it('holds the step it turned away from, out of reach and not thrown away', async () => {
     page();
-    getAQuote();
+    await toAmount();
     const away = document.querySelector('[data-facing="away"]') as HTMLElement;
-    // The hero card is still painted for the first half of the turn, and it is
-    // already nothing a keyboard or a screen reader can land on.
     expect(away.getAttribute('aria-hidden')).toBe('true');
     expect(away.hasAttribute('inert')).toBe(true);
-    expect(away.querySelector('.cover-card')).not.toBeNull();
+    // The question is still there with the answer on it, which is what makes
+    // going back cost nothing.
+    expect(away.textContent).toContain('What do you do?');
+  });
+
+  it('keeps the control that was pressed until the card has turned away from it', async () => {
+    page();
+    await getAQuote();
+    fireEvent.click(row('Computer and mathematical'));
+    const pressed = continueButton();
+    pressed.focus();
+    fireEvent.click(pressed);
+
+    // Part way through the turn the occupation step is still the face on
+    // screen, so it still holds focus. Focus moves when the card is edge on.
+    expect(document.activeElement).toBe(pressed);
+    await waitFor(() => expect(document.activeElement?.textContent).toBe('Cover amount'));
   });
 });
 
@@ -482,16 +522,19 @@ describe('motion and focus', () => {
       removeEventListener: () => {},
     }));
     page();
-    getAQuote();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Get a quote' })[0]!);
 
+    // No turn to wait for: the face and the focus are there in the same tick
+    // the button was pressed in.
     const faces = [...document.querySelectorAll('.cover-card-face')] as HTMLElement[];
-    expect(faces.map((face) => face.dataset.sizing)).toStrictEqual(['false', 'true']);
+    expect(faces.map((face) => face.dataset.facing)).toStrictEqual(['away', 'viewer']);
+    expect(document.activeElement?.textContent).toBe('What do you do?');
     vi.unstubAllGlobals();
   });
 
   it('moves focus to the step, so a keyboard user can find it', async () => {
     page();
-    getAQuote();
+    await getAQuote();
     expect(document.activeElement?.textContent).toBe('What do you do?');
 
     fireEvent.click(row('Computer and mathematical'));
@@ -506,6 +549,7 @@ describe('motion and focus', () => {
     const start = screen.getAllByRole('button', { name: 'Get a quote' })[0]!;
     start.focus();
     fireEvent.click(start);
+    await screen.findByRole('heading', { level: 2, name: 'What do you do?' });
 
     const chosen = row('Computer and mathematical');
     chosen.focus();
@@ -515,15 +559,15 @@ describe('motion and focus', () => {
     const next = continueButton();
     next.focus();
     fireEvent.click(next);
-    await waitFor(() => expect(screen.getByText('Cover amount')).toBeDefined());
+    await turned('Cover amount');
     expect(screen.getByRole('slider', { name: 'Cover 5,000' })).toBeDefined();
   });
 });
 
 describe('the words T34 removed stay removed', () => {
-  it('does not grow them back when the quote is open', () => {
+  it('does not grow them back when the quote is open', async () => {
     page();
-    getAQuote();
+    await getAQuote();
     for (const cut of [
       'Two minutes, start to covered.',
       'Pick your occupation',

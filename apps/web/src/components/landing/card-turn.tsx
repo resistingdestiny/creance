@@ -19,19 +19,20 @@ import { useReducedMotion } from '../../lib/use-reduced-motion';
  * element cannot carry two transforms, and a keyframe animation there would
  * outrank the inline style and leave the card pinned square on for good.
  *
- * Two things change at two different moments, and the difference matters:
+ * The rotation starts the moment the step changes. Everything else waits until
+ * the card is edge on, and that is deliberate: which face is on screen, which
+ * face is in the tab order and the accessibility tree, how tall the object is,
+ * and where focus is, all change together at ninety degrees, where the card has
+ * no width and none of it can be seen.
  *
- * - what the page says changes at once. The face being turned to is the current
- *   step from the first frame of the turn, and focus moves to it then, so a
- *   keyboard user is on the new step for the whole of the turn rather than
- *   after it, and focus is never on a control that has just been taken away.
- *   Nothing of it is painted until it comes round;
- * - the face on screen, and how tall the object is, change when the card is
- *   edge on. That is not halfway through the duration, because the turn eases
- *   out; it is where the rotation reaches ninety degrees, which is the one
- *   moment the card has no width and a swap cannot be seen.
+ * Doing any of it sooner breaks one of the others. A hidden face cannot take
+ * focus, so focus cannot move ahead of the turn; and a face taken out of the tab
+ * order while it is still the one on screen takes the focus that was on it with
+ * it, which is focus lost in the middle of a turn. Held to the one moment, the
+ * visitor keeps the control they pressed until the card has turned away from
+ * it, and lands on the new step as it arrives.
  *
- * Under reduced motion both happen at once and there is no turn: the quote is
+ * Under reduced motion it all happens at once and there is no turn: the quote is
  * simply on the card. The stylesheet takes the transition off, so nothing here
  * has to know how the rotation is drawn.
  */
@@ -51,12 +52,12 @@ function axis(first: number, second: number, t: number): number {
 }
 
 /** Bisection, which is short, exact enough at 24 steps and has no failure case. */
-function solve(f: (t: number) => number, target: number): number {
+function solve(curve: (t: number) => number, target: number): number {
   let low = 0;
   let high = 1;
   for (let step = 0; step < 24; step += 1) {
     const mid = (low + high) / 2;
-    if (f(mid) < target) low = mid;
+    if (curve(mid) < target) low = mid;
     else high = mid;
   }
   return (low + high) / 2;
@@ -70,11 +71,9 @@ function eased(fraction: number): number {
 /**
  * The fraction of the duration at which the card is edge on.
  *
- * The curve above is symmetric, so this is a half; it is solved rather than
- * written as one because the curve is the thing that decides it, and a curve
- * changed later without this changing with it would swap the faces in plain
- * sight. Ninety degrees is the one moment the card has no width on screen and
- * nothing about the swap can be seen.
+ * The curve above is symmetric, so this is a half. It is solved rather than
+ * written as one because the curve is what decides it, and a curve changed
+ * later without this changing with it would swap the faces in plain sight.
  */
 const EDGE_ON = solve(eased, 0.5);
 
@@ -91,7 +90,9 @@ export function CardTurn({
 }) {
   const reduced = useReducedMotion();
   const turn = useRef<HTMLDivElement>(null);
-  const [sizing, setSizing] = useState(at);
+  // Which half turn the faces are dressed for, which lags `at` for as long as
+  // the card is on its way there.
+  const [shown, setShown] = useState(at);
   const travelling = useRef(at);
 
   useEffect(() => {
@@ -102,12 +103,11 @@ export function CardTurn({
     travelling.current = at;
 
     if (reduced || element === null) {
-      setSizing(at);
+      setShown(at);
       return;
     }
 
-    element.setAttribute('data-turning', '');
-    const half = setTimeout(() => setSizing(at), TURN_MS * EDGE_ON);
+    const edge = setTimeout(() => setShown(at), TURN_MS * EDGE_ON);
     const started = performance.now();
     // The shimmer is a CSS animation and stays one. This tells it where the
     // surface is pointing, which is the one thing CSS cannot work out, by
@@ -119,62 +119,47 @@ export function CardTurn({
         '--card-shimmer-shift',
         `${(Math.sin(angle) * SHIMMER_TRAVEL).toFixed(1)}px`,
       );
-      if (done < 1) {
-        frame = requestAnimationFrame(shift);
-        return;
-      }
-      element.removeAttribute('data-turning');
+      if (done < 1) frame = requestAnimationFrame(shift);
     };
     let frame = requestAnimationFrame(shift);
 
     return () => {
-      clearTimeout(half);
+      clearTimeout(edge);
       cancelAnimationFrame(frame);
-      element.removeAttribute('data-turning');
       element.style.removeProperty('--card-shimmer-shift');
     };
   }, [at, reduced]);
 
-  // A layout effect, so focus lands in the same commit that made the face it
-  // came from inert. An effect would let the browser paint a frame in which the
-  // control that was pressed is gone and focus is on the document.
+  // A layout effect, so focus moves in the same commit that hides the face it
+  // was on. An effect would let the browser paint a frame in which the control
+  // holding focus is gone and focus is on the document.
   //
-  // The scroll is prevented here and taken below instead. Focusing the heading
-  // would scroll the heading into view, and the heading is the top of a face
-  // whose height is still the old face's until the half turn, so the browser
-  // would settle on a card that is about to grow past the bottom of the screen.
-  const focused = useRef(at);
+  // The scroll is prevented on the focus call and taken separately, because the
+  // heading is the top of the new face and scrolling to it would leave the rest
+  // of a taller face below the bottom of the screen. `nearest` on the object
+  // itself brings the whole card in. At 1440 it is beside the hero text and
+  // already on screen, so nothing scrolls at all; at 390 it stands under the
+  // hero, and without this a tap on "Get a quote" turns a card nobody can see.
+  // It is instant rather than smooth: this is the page following an action.
+  const settled = useRef(shown);
   useLayoutEffect(() => {
-    if (focused.current === at) return;
-    focused.current = at;
-    const target = turn.current?.querySelector('[data-facing="viewer"] [data-quote-focus]');
-    if (target instanceof HTMLElement) target.focus({ preventScroll: true });
-  }, [at]);
-
-  // Once the card is edge on the object is the height of the face that is
-  // arriving, so this is the first moment it can be brought into view as the
-  // thing it is about to be. At 1440 the card is beside the hero text and already on
-  // screen, and `nearest` then scrolls nothing at all; at 390 it stands under
-  // the hero, and without this a tap on "Get a quote" turns a card the visitor
-  // cannot see. It is not a smooth scroll: this is the page following an
-  // action, not an animation, so it is instant under any motion preference.
-  const settled = useRef(sizing);
-  useLayoutEffect(() => {
-    if (settled.current === sizing) return;
-    settled.current = sizing;
+    if (settled.current === shown) return;
+    settled.current = shown;
     const element = turn.current;
+    const target = element?.querySelector('[data-facing="viewer"] [data-quote-focus]');
+    if (target instanceof HTMLElement) target.focus({ preventScroll: true });
     // Guarded the way the stack guards matchMedia: an environment with no
     // layout, which is where this is tested, has no scrollIntoView to call.
     if (typeof element?.scrollIntoView === 'function') element.scrollIntoView({ block: 'nearest' });
-  }, [sizing]);
+  }, [shown]);
 
   return (
     <div className="cover-card-turn" ref={turn} style={{ transform: `rotateY(${at * 180}deg)` }}>
-      <Face facing={side(0, at)} side="front" sizing={side(0, sizing) === 'viewer'}>
+      <Face facing={side(0, shown)} side="front">
         {front}
       </Face>
       {back === null ? null : (
-        <Face facing={side(1, at)} side="back" sizing={side(1, sizing) === 'viewer'}>
+        <Face facing={side(1, shown)} side="back">
           {back}
         </Face>
       )}
@@ -183,28 +168,26 @@ export function CardTurn({
 }
 
 /** A face points at the viewer when its side matches the half turn's. */
-function side(face: 0 | 1, at: number): 'viewer' | 'away' {
-  return Math.abs(at % 2) === face ? 'viewer' : 'away';
+function side(face: 0 | 1, shown: number): 'viewer' | 'away' {
+  return Math.abs(shown % 2) === face ? 'viewer' : 'away';
 }
 
 /**
  * One face.
  *
- * `inert` and `aria-hidden` follow the step and not the paint. The face being
- * turned away from stops being reachable the moment the step changes, even
- * though it is still on screen for the first half of the turn, and the face
- * being turned to is reachable from that same moment, which is what lets focus
- * move at the start of the turn rather than after it.
+ * The stylesheet hides the away face, which is enough to take it out of the tab
+ * order in a browser. `inert` says the same thing to anything that reads the
+ * tree rather than the paint, and `aria-hidden` keeps the step the card has
+ * turned away from out of a screen reader's reach while it is still in the
+ * document holding what was entered on it.
  */
 function Face({
   facing,
   side: which,
-  sizing,
   children,
 }: {
   facing: 'viewer' | 'away';
   side: 'front' | 'back';
-  sizing: boolean;
   children: ReactNode;
 }) {
   const away = facing === 'away';
@@ -213,7 +196,6 @@ function Face({
       aria-hidden={away ? true : undefined}
       className={`cover-card-face cover-card-face--${which}`}
       data-facing={facing}
-      data-sizing={sizing ? 'true' : 'false'}
       inert={away}
     >
       {children}

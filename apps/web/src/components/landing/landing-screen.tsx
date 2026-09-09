@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 
+import { ExplorerPanel } from '../../app/index/explorer-panel';
 import { beginPurchase } from '../../app/purchase-actions';
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
-import { COVERED_ANSWER, LANDING_STEPS, type LandingIndexSection } from '../../lib/landing-model';
+import type { ExplorerData } from '../../lib/explorer-data';
+import { COVERED_ANSWER, LANDING_STEPS } from '../../lib/landing-model';
 import type { LandingData } from '../../lib/landing-data';
 import { CoverCard } from '../cover-card';
-import { IndexChart } from '../index-chart';
 import { PillButton, PillLink, type PillButtonVariant } from '../pill-button';
 import { ReplayBar } from '../replay-bar';
 import { HeroAmount } from './hero-amount';
@@ -62,12 +63,16 @@ export function LandingScreen({ data }: { data: LandingData }) {
       <main>
         <section className="bg-night">
           <Hero live={data.index.live} priceLine={data.priceLine} />
-          <HeroCard occupation={data.index.occupation} />
+          <HeroCard occupation={data.occupation} />
           <IndexTicker readings={data.ticker} />
         </section>
         <Questions costLine={data.costLine} payLine={data.payLine} />
         <Steps />
-        <IndexSection replayBadge={data.replayBadge} section={data.index} />
+        <IndexSection
+          explorer={data.explorer}
+          note={data.index.note}
+          replayBadge={data.replayBadge}
+        />
         <Closing investorLine={data.investorLine} />
       </main>
       <FooterBar indexHref={indexHref} />
@@ -297,73 +302,44 @@ function Steps() {
 }
 
 /**
- * The index section, live.
+ * The index section: the public explorer, on the front door.
  *
- * The figure is the distance to a payout that the Index tab shows, read through
- * the same helpers from the same endpoint, so the number on the front door is
- * the number the product would settle on. When the feed is not answering the
- * section prints the last reading this server published with the note that says
- * so, and when there has never been one it prints the note alone. It never
- * prints a zero and it never prints an invented figure.
+ * It is the same ExplorerPanel `/index` renders, not a second drawing of it, so
+ * the readings, the trigger band, the four steps behind the number and the
+ * guide price where an occupation has no capacity all behave here exactly as
+ * they do there, and the round of fifteen behind them is bought once every ten
+ * minutes for both pages (T34). The landing's own chart and its headline
+ * reading are gone with it: two pictures of one index on one page is the thing
+ * this ticket removes.
+ *
+ * The note under it is the honest one. The explorer says nothing about the
+ * metered reading behind the hero's live badge, so a feed that stopped
+ * answering is still said in words, and an occupation the index has not
+ * published for yet is still told apart from an outage.
  */
 function IndexSection({
-  section,
+  explorer,
+  note,
   replayBadge,
 }: {
-  section: LandingIndexSection;
+  explorer: ExplorerData | null;
+  note: string | null;
   replayBadge: string | null;
 }) {
-  const { occupation, reading, note } = section;
-
   return (
-    <section className={`py-16 lg:py-36 ${PAGE}`}>
-      <div className={CONTENT}>
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
-          <div>
-            <h2 className="max-w-[520px] text-balance font-display text-title font-semibold tracking-title text-ink lg:text-landing-head lg:tracking-display">
-              One number decides. You can watch it.
-            </h2>
-            <p className="mt-5 max-w-[460px] text-body-lg text-ink-2">
-              Unemployment in your occupation, compared with everyone, smoothed over three months,
-              compared with a year ago. No adjuster, no claim forms.
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 lg:items-end lg:text-right">
-            {replayBadge === null ? null : <ReplayBar label={replayBadge} variant="compact" />}
-            <p className="text-secondary text-ink-2">{occupation}</p>
-            {reading === null ? null : (
-              <>
-                <p className="font-display text-display-xl font-semibold tracking-landing-tight text-ink lg:text-landing-reading">
-                  {reading.distance}
-                </p>
-                <p className="text-secondary text-ink-2">{reading.trend}</p>
-              </>
-            )}
-          </div>
+    <section className={`py-16 lg:py-28 ${PAGE}`}>
+      <div className={`flex flex-col gap-10 ${CONTENT}`}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
+          <h2 className="max-w-[520px] text-balance font-display text-title font-semibold tracking-title text-ink lg:text-landing-head lg:tracking-display">
+            One number decides. You can watch it.
+          </h2>
+          {replayBadge === null ? null : <ReplayBar label={replayBadge} variant="compact" />}
         </div>
 
-        {reading === null ? null : (
-          <div className="mt-12 lg:mt-16">
-            <IndexChart
-              bandLabel={reading.bandLabel}
-              description={reading.description}
-              label={occupation}
-              points={reading.points}
-              size="landing"
-              state={reading.open ? 'triggered' : 'flat'}
-              threshold={reading.threshold}
-            />
-            {reading.negativeLine ? (
-              <p className="mt-4 max-w-[560px] text-secondary text-ink-2">
-                People in this occupation are usually unemployed less than average. The trigger is
-                about getting worse than their own normal, not about being above zero.
-              </p>
-            ) : null}
-          </div>
-        )}
+        {explorer === null ? null : <ExplorerPanel data={explorer} />}
 
         {note === null ? null : (
-          <p className="mt-6 max-w-[560px] text-body text-ink-2" data-testid="landing-index-note">
+          <p className="max-w-[560px] text-body text-ink-2" data-testid="landing-index-note">
             {note}
           </p>
         )}

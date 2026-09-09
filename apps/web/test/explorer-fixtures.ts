@@ -1,3 +1,5 @@
+import { explorerOccupation } from '../src/lib/explorer-model.js';
+import type { ExplorerData } from '../src/lib/explorer-data.js';
 import type { IndexView } from '../src/lib/worker-api.js';
 
 /**
@@ -1294,3 +1296,31 @@ export const EXPLORER_READINGS: readonly IndexView[] = [
 
 /** The group the explorer opens on, and the one with a series behind it. */
 export const EXPLORER_DEFAULT = 'computer_math';
+
+/**
+ * A round of the fifteen, as the explorer and the landing page both receive it.
+ *
+ * The provenance is what the API answered beside the readings on the same day.
+ * It is one builder rather than two so that a page which renders the explorer
+ * is tested against the same round the explorer itself is.
+ */
+export function explorerData(patch: Partial<ExplorerData> = {}): ExplorerData {
+  return {
+    occupations: EXPLORER_READINGS.map(explorerOccupation),
+    missing: [],
+    provenance: {
+      source:
+        'US Bureau of Labor Statistics, Current Population Survey, unemployment rate by occupation, not seasonally adjusted',
+      asOf: '2026-07',
+      from: '2021-05',
+      to: '2026-07',
+      months: 60,
+      topicId: '0.0.10366470',
+      hashscan: 'https://hashscan.io/testnet/topic/0.0.10366470',
+      seriesHash: EXPLORER_READINGS[0]?.source.hash ?? null,
+    },
+    replayBadge: null,
+    readAt: '2026-09-06T12:00:00.000Z',
+    ...patch,
+  };
+}

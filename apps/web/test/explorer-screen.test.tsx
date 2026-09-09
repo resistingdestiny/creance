@@ -3,11 +3,10 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ExplorerScreen } from '../src/app/index/explorer-screen.js';
-import type { ExplorerData } from '../src/lib/explorer-data.js';
 import { explorerOccupation, latestMonth, priceFor } from '../src/lib/explorer-model.js';
 import { formatPeriod } from '../src/lib/format.js';
 
-import { EXPLORER_READINGS } from './explorer-fixtures.js';
+import { EXPLORER_READINGS, explorerData as data } from './explorer-fixtures.js';
 
 /// The explorer, rendered against the fifteen readings recorded from the API on
 /// Hedera testnet.
@@ -18,27 +17,6 @@ import { EXPLORER_READINGS } from './explorer-fixtures.js';
 /// printing a figure of its own would fail rather than pass quietly.
 
 const occupations = EXPLORER_READINGS.map(explorerOccupation);
-
-function data(patch: Partial<ExplorerData> = {}): ExplorerData {
-  return {
-    occupations,
-    missing: [],
-    provenance: {
-      source:
-        'US Bureau of Labor Statistics, Current Population Survey, unemployment rate by occupation, not seasonally adjusted',
-      asOf: '2026-07',
-      from: '2021-05',
-      to: '2026-07',
-      months: 60,
-      topicId: '0.0.10366470',
-      hashscan: 'https://hashscan.io/testnet/topic/0.0.10366470',
-      seriesHash: EXPLORER_READINGS[0]?.source.hash ?? null,
-    },
-    replayBadge: null,
-    readAt: '2026-09-06T12:00:00.000Z',
-    ...patch,
-  };
-}
 
 afterEach(() => {
   document.body.innerHTML = '';

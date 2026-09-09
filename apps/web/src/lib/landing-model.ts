@@ -15,19 +15,7 @@
 
 import { rankByDistance, type ExplorerOccupation } from './explorer-model';
 import { formatPeriod } from './format';
-import { occupationLabel } from './occupations';
-import type { IndexPoint } from '../components/index-chart';
-import type { IndexTrend } from './worker-model';
-import {
-  bandLabelFor,
-  chartDescription,
-  chartPoints,
-  chartThreshold,
-  exhaustionFor,
-  headlineReading,
-  lineIsNegative,
-  pointsInProse,
-} from './worker-model';
+import { exhaustionFor, headlineReading, pointsInProse } from './worker-model';
 import type { IndexCatalogueView, IndexView } from './worker-api';
 
 /**
@@ -118,22 +106,7 @@ export function investorLine(coupon: string | null): string {
   return `Investors fund the cover and earn ${coupon}.`;
 }
 
-export interface LandingReading {
-  readonly distance: string;
-  readonly trend: IndexTrend;
-  readonly points: readonly IndexPoint[];
-  readonly threshold: number;
-  readonly bandLabel: string;
-  readonly description: string;
-  readonly negativeLine: boolean;
-  readonly open: boolean;
-  /** The period the reading is for, "2026-07". */
-  readonly period: string;
-}
-
 export interface LandingIndexSection {
-  readonly occupation: string;
-  readonly reading: LandingReading | null;
   /** Whether the feed answered on this request. The page's "index live" state. */
   readonly live: boolean;
   /** Null while the feed answers, the honest note when it does not. */
@@ -141,20 +114,15 @@ export interface LandingIndexSection {
 }
 
 /**
- * The index section, from whatever reading could be had.
+ * What the page says about the state of the feed it was served by.
  *
- * The figure is the distance to a payout that the Index tab shows, chosen
- * server side and taken through the same helpers, so the number on the front
- * door and the number inside the app cannot disagree. A consumer is never
- * shown a signed index value (docs/DECISIONS.md), which is why the headline is
- * a distance and the band is labelled rather than numbered.
+ * The readings themselves are the explorer's, which the page now carries whole
+ * (T34), so this is no longer a second drawing of one occupation's chart. What
+ * it still decides is the one thing the explorer cannot: whether the metered
+ * reading behind the hero's live badge and the trigger level in the copy came
+ * from a feed that answered, and what to say when it did not.
  */
-export function landingIndexSection(
-  group: string,
-  index: IndexView | null,
-  live: boolean,
-): LandingIndexSection {
-  const occupation = occupationLabel(group);
+export function landingIndexSection(index: IndexView | null, live: boolean): LandingIndexSection {
   const headline = index === null ? null : headlineReading(index);
   if (index === null || headline === null) {
     // Two different things and two different notes. A feed that did not answer
@@ -162,8 +130,6 @@ export function landingIndexSection(
     // index has not published for yet, and saying the feed is down in that case
     // would be a false statement about a working endpoint.
     return {
-      occupation,
-      reading: null,
       live,
       note:
         live && index !== null
@@ -172,22 +138,7 @@ export function landingIndexSection(
     };
   }
 
-  return {
-    occupation,
-    live,
-    reading: {
-      distance: headline.distance,
-      trend: headline.trend,
-      points: chartPoints(index),
-      threshold: chartThreshold(index),
-      bandLabel: bandLabelFor(index),
-      description: chartDescription(index),
-      negativeLine: lineIsNegative(index),
-      open: headline.open,
-      period: index.as_of,
-    },
-    note: live ? null : staleNote(index.as_of),
-  };
+  return { live, note: live ? null : staleNote(index.as_of) };
 }
 
 export interface TickerReading {

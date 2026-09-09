@@ -497,6 +497,26 @@
     }
   }
 
+  /* Landing only: the inline quote changing step. docs/DESIGN-TOKENS.md
+     section 6 gives 200ms ease-out for anything that moves on a user action,
+     and asks for an instant state change under reduced motion, which is the
+     `motion-reduce:animate-none` the element carries beside this class. The
+     step is then simply there on the first paint. */
+  .landing-quote-step {
+    animation: landing-quote-step 200ms ease-out both;
+  }
+
+  @keyframes landing-quote-step {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   /* Gallery only: shows the padded hit area of a text link so a reviewer can
      see that it clears 44px. Never used by a product screen. */
   .debug-hit-area {

@@ -16,6 +16,7 @@ import { DEMO_ACCOUNT } from '../lib/wallet';
 import {
   bindMessage,
   coverAmount,
+  noCoverForGroup,
   paysOutSentence,
   premiumAmount,
   priceFailure,
@@ -41,7 +42,18 @@ import {
  * the chain directly.
  */
 
-/** Start screen: "Get a quote". */
+/**
+ * Start screen: "Get a quote". Nothing calls this since T35.
+ *
+ * It was the landing page's button, which started a session and left for the
+ * picker. The quote happens on the landing page now and starts its session by
+ * writing to it, so there is no caller left in the app.
+ *
+ * It is kept rather than deleted because /occupation is still a live route that
+ * a shared link opens, and this is the one action that starts a purchase
+ * without also writing to it: the entry to the route path, named. `startAgain`
+ * below is the same pair of calls from /home.
+ */
 export async function beginPurchase(): Promise<void> {
   await startPurchase();
   redirect('/occupation');
@@ -58,6 +70,33 @@ export async function chooseOccupation(formData: FormData): Promise<void> {
   }
   await updatePurchase({ group, limit: AMOUNT_DEFAULT, quoteId: null });
   redirect('/amount');
+}
+
+/**
+ * Landing page: the inline quote's occupation step.
+ *
+ * It is chooseOccupation and the Amount route's opening quote in one call,
+ * because inline there is no navigation between the two steps to hang a second
+ * read on, and a front door that paid for two quotes to show one price would be
+ * paying twice for the same figure.
+ *
+ * It writes the same server side session those two routes write, behind the same
+ * httpOnly cookie, so a quote begun on the landing page can be finished on
+ * /occupation and /amount and a link already shared still resumes it.
+ * updatePurchase starts a session when there is none, so a visitor who arrives
+ * cold needs no separate begin.
+ */
+export async function quoteOccupation(group: string): Promise<PriceResult> {
+  const occupation = findOccupation(group);
+  if (occupation === null || !hasCover(occupation)) {
+    // The picker does not offer an occupation with no series behind it, so this
+    // is a hand-made request rather than a person. It is answered with the
+    // sentence a quote for that group would have been answered with, and
+    // nothing is written to the session.
+    return noCoverForGroup(AMOUNT_DEFAULT);
+  }
+  await updatePurchase({ group, limit: AMOUNT_DEFAULT, quoteId: null });
+  return await priceCover(AMOUNT_DEFAULT);
 }
 
 /**

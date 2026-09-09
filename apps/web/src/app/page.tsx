@@ -5,10 +5,12 @@ import { readLanding } from '../lib/landing-data';
  * The front door, from the design of record.
  *
  * It replaces the worker flow's start screen, which was this route until T29,
- * and it keeps that screen's two actions: "Get a quote" submits the same
- * beginPurchase server action and "I want to invest" goes to /invest. The four
- * routes that send a visitor here when their purchase session is missing
- * therefore still land on a page that can start one.
+ * and it keeps that screen's two actions. "I want to invest" goes to /invest.
+ * "Get a quote" opened /occupation through a server action and a redirect until
+ * T35; it now opens the quote in place, on this page. The purchase session is
+ * started by the first thing that quote writes, because updatePurchase starts
+ * one when there is none, so the four routes that send a visitor here when
+ * their session is missing still land on a page that can start one.
  *
  * Dynamic and uncached, because the price, the reading and the demo clock on it
  * are live state and a front door that shows yesterday's premium is worse than

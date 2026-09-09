@@ -4480,3 +4480,139 @@ with the navigation still on one line.
 The glow behind the card is `w-full` inside that column. A percentage wider than
 its parent put 24px of horizontal scroll on the page at 1440 and 50px at 390,
 which is the kind of defect a screen recording shows and a test does not.
+
+## T35, the quote on the landing page, 9 September 2026
+
+The design of record draws the occupation question and the cover amount as two
+standalone mobile screens, and the build followed it: "Get a quote" started a
+session and left for `/occupation`, then `/amount`. This ticket puts both on the
+landing page. The reason the backlog gives is the reason recorded here: the
+design was drawn phone first, where a screen is the whole viewport and a step is
+therefore a screen, and the landing page is not a phone screen. At 1440 the
+quote takes the column the hero card stands in and the page around it never
+moves; at 390 it takes the same place, under the hero text, where the card was.
+Leaving the page for a plainer route in the middle of reading it was the part
+that read as two products.
+
+### Only the quote moved
+
+Verification and payment keep their routes. A signature, a World proof and a
+payment are each a moment worth a screen, and the World flow on `/verify` is
+what a prize depends on. "Continue" on the cover amount step is the same
+`continueToVerify` the Amount screen submits and it still redirects.
+
+Nothing was deleted. `/occupation` and `/amount` keep their routes, their
+metadata and their tests, and they read and write the same server side purchase
+session the inline steps write, behind the same httpOnly cookie. A link already
+shared still opens the step it names and resumes a quote begun on the landing
+page. Verified in a browser: a quote taken inline to 7,000 was still 7.00 a
+month with the slider at 7,000 on `/amount`, and `/occupation` still had the
+occupation checked.
+
+### The occupation is one selection, and it drives the explorer
+
+`ExplorerPanel` held its own selection and opened on computer and mathematical.
+It now takes a `follows` prop, and the landing page passes the occupation its
+quote is for. `/index` passes nothing and behaves exactly as it did.
+
+It is followed and not obeyed. The reader can still pick any of the fifteen in
+the explorer afterwards, and the next occupation the quote names moves the panel
+again. A panel that snapped back to the quote's occupation would be one control
+with two owners.
+
+### All fifteen can be picked in the inline step, and fourteen are still not for sale
+
+The route's picker disables the fourteen occupations with no series behind them,
+because there is nothing else that screen can do with one. On the landing page
+that would make the point of the ticket unreachable: the explorer opens on the
+one occupation that can be selected, so an occupation nobody can pick is an
+occupation the explorer can never be pointed at, and "picking an occupation for
+a quote and exploring its index are the same act" would be true of exactly one
+occupation.
+
+So the inline rows can all be chosen and nothing is quoted for the fourteen. The
+row still carries the picker's own sentence, "No cover behind this occupation
+yet."; the line under the rows says the same sentence in the same words when
+such an occupation is the one in hand, so the disabled "Continue" is not left
+unexplained; and `quoteOccupation` refuses the group on the server as well. The
+string is exported from the picker rather than written twice, and the explorer's
+own no-capacity treatment from T32, the guide price with no slider, is
+untouched. No third wording was invented.
+
+### The inline slider is priced once per gesture, not once per pause
+
+`POST /v1/quote` is 0.05 TUSD behind the x402 gate. The Amount screen re-prices
+250ms after the slider settles, which is one paid call per pause of the thumb.
+Behind a session that was acceptable; on a public front door anyone can drag,
+and each pause would be a Hedera settlement the demo account pays for.
+
+The inline slider takes the price when the gesture ends: a pointer released, a
+key released, a touch lifted, or the slider losing focus with a value nobody
+asked a price for. The 250ms debounce is kept after that. A drag across the
+whole range is one quote rather than one per pause, and while the thumb is ahead
+of the price the figure stays on screen in ink-3, which is what the Amount
+screen already does while a new price loads. The label under the slider carries
+the cover as a figure the whole time, so nothing on screen is ever unlabelled.
+
+The events are taken on a wrapper around the shared `AmountSlider` because they
+all bubble from the input, so the component every other screen renders is
+unchanged.
+
+### What a visit costs, measured
+
+T29 recorded 0.06 TUSD for one render of the front door: `GET /v1/index/:group`
+at 0.01 and the from price at 0.05. Taking the whole quote inline was measured
+against the API on Hedera testnet, from a cold browser at 1440: six x402
+settlements, 0.22 TUSD. They are the landing render (0.06), the occupation
+step's quote (0.05), a second landing render (0.06), and one slider gesture over
+eight steps (0.05).
+
+The second landing render is the part that was not obvious. The first inline
+action starts the purchase session, which sets the cookie, and a server action
+that writes a cookie makes the framework re-render the route it was called from.
+The landing page is `force-dynamic`, so that re-render buys the reading and the
+from price again. The second action, which writes no cookie, causes no such
+render: two actions produced one extra render and not two. It is one extra 0.06
+per cold visit that takes a quote, and it is not avoidable while the session
+needs a cookie and the page refuses to cache its price.
+
+For comparison, the same journey over the three routes was measured at four
+settlements and 0.21 TUSD: the landing render (0.06), `/occupation` free, the
+`/amount` render (0.05), and two re-quotes during the same eight step drag
+(0.10). The two paths cost about the same for one careful visitor. The
+difference is in the tails: the routes charge per pause of a thumb that anyone
+can drag, and the inline page charges one extra render once.
+
+Caching the from price would remove that render's cost and is deliberately not
+done. "The from price is a quote, not a figure in the copy" above is the reason,
+and it has not changed.
+
+### The premium steps down a size at 390, and the copy does not
+
+The Amount route has the whole width of a phone for "{premium} a month" at
+display-l. The inline step has a card's width inside a panel, where 56px wraps
+the figure onto two lines. It is the sheet's headline at 390 and its display-l
+from the landing breakpoint up, which is the same thing T33 did to the hero
+headline when the card took half the band. The string is the deck's either way.
+
+### The step change is a 200ms animation with a reduced branch, and focus follows it
+
+`.landing-quote-step` is 200ms ease-out, which is section 6's time for anything
+that moves on a user action, with `motion-reduce:animate-none` beside it so the
+step is simply there under the preference. Confirmed in a browser: with reduced
+motion the step's computed animation name is `none`.
+
+Focus moves to the new step's heading, which is a focusable h2. The landing
+page's h1 is the hero headline and the quote is a section of that page, not a
+screen. Without it, pressing "Get a quote" in the navigation or the closing band
+would change something a keyboard user is nowhere near.
+
+### The page is still rendered on the server
+
+The quote is three client components and a context: the button, the panel and
+the explorer wrapper. Everything else on the landing page is passed through the
+provider as children and is still rendered on the server. A marketing page does
+not become a client bundle because three buttons share a step.
+
+Every call to the API is still made in `src/app/purchase-actions.ts`, on the
+server, so the eligibility credential never reaches a browser.

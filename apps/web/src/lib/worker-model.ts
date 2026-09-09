@@ -336,12 +336,31 @@ export function priceFailure(limit: number, cause: unknown): PriceResult {
     };
   }
   if (cause instanceof ApiError && cause.code === 'no_capacity_for_group') {
-    return { ...empty, full: true, error: 'There is no cover behind this occupation yet.' };
+    return noCoverForGroup(limit);
   }
   return {
     ...empty,
     full: false,
     error: "We couldn't get a price. Check that the API is running, then try again.",
+  };
+}
+
+/**
+ * The price for an occupation with no series behind it: none, and the reason.
+ *
+ * It is the sentence the API answers a quote for such a group with, and it is
+ * also what the landing page's inline quote answers without making the call,
+ * because a group nothing has been committed to is knowable from the occupation
+ * list. One function, so the two paths cannot come to say it differently.
+ */
+export function noCoverForGroup(limit: number): PriceResult {
+  return {
+    limit: String(limit),
+    premium: '',
+    sentence: '',
+    usedPercent: 0,
+    full: true,
+    error: 'There is no cover behind this occupation yet.',
   };
 }
 

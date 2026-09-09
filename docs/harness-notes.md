@@ -2494,3 +2494,29 @@ anything that only happens after hydration, and the failure is silent: the page
 looks finished and simply does nothing.
 
 Verify a client behaviour against a production build.
+
+### Corrected under T35: it is the origin the browser used, not the host
+
+The conclusion above is wrong and the workaround is not needed. The cause is the
+address the browser was pointed at. `next dev` treats anything other than the
+host it was started for as a cross origin request for its development resources
+and refuses to serve them, so a browser opened on `http://127.0.0.1:PORT` gets
+the page but not the development client, and the hot reload socket fails exactly
+as above while nothing else in the network log does. The server prints the
+reason itself, in the terminal rather than in the browser, which is why it was
+missed:
+
+    Blocked cross-origin request to Next.js dev resource /_next/hmr from
+    "127.0.0.1". Cross-origin access to Next.js dev resources is blocked by
+    default for safety.
+
+Open `http://localhost:PORT` instead and everything hydrates. If a tool has to
+use the numeric address, the server names the other fix in the same message:
+`allowedDevOrigins: ['127.0.0.1']` in next.config.ts.
+
+Met again under T35, driving the landing page's inline quote with Playwright:
+on `127.0.0.1` no client component reacted to a click and no element carried a
+`__react*` property; on `localhost`, unchanged in every other way, the whole
+quote ran. `next dev` is usable for client behaviour on this host.
+
+https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins

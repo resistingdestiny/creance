@@ -280,7 +280,16 @@
      load stays a CSS animation on the stack and the two transforms never fight
      over one element. */
   .cover-card-stack {
-    perspective: 1100px;
+    /* Flatter at narrow widths. The same rotation over a smaller card reads as
+       a wider swing, and a card that appears to leave its own column on a
+       phone is the most common way a three dimensional turn goes wrong. */
+    perspective: 1600px;
+  }
+
+  @media (min-width: 640px) {
+    .cover-card-stack {
+      perspective: 1100px;
+    }
   }
 
   .cover-card-tilt {
@@ -295,6 +304,64 @@
   .cover-card-stack.is-tracking .cover-card-tilt {
     transition-duration: 120ms;
     transition-timing-function: ease-out;
+  }
+
+  /* T36: the card turning over to become the quote.
+
+     It is a third element inside the tilt and not the tilt itself. The tilt
+     carries an inline transform written per frame by the stack, and one
+     element cannot hold two transforms; a keyframe animation there would also
+     outrank the inline style and pin the card square on for good.
+
+     The turn is longer than the sheet's 200ms because 180 degrees in 200ms is
+     a flicker rather than an object turning over. docs/DECISIONS.md carries the
+     departure. */
+  .cover-card-turn {
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 480ms cubic-bezier(0.22, 0.7, 0.3, 1);
+  }
+
+  .cover-card-face {
+    transform-style: preserve-3d;
+  }
+
+  /* A pixel of depth each, on the side each face looks out of, so the two
+     never occupy the same plane and neither flickers through the other. */
+  .cover-card-face--front {
+    transform: translateZ(1px);
+  }
+
+  .cover-card-face--back {
+    transform: rotateY(180deg) translateZ(1px);
+  }
+
+  /* The face turned away from the viewer.
+
+     backface-visibility is deliberately not used. Safari applies it down
+     through a preserve-3d subtree, and this card's contents sit on planes of
+     their own, so the face that should be hidden takes its lifted content with
+     it and the face that should be visible loses hers. Hiding the away face
+     outright is the same picture in every engine.
+
+     The swap happens at the half turn, where the card is edge on and neither
+     face has any width on screen, so the change of height that comes with it
+     is not seen either. That is also why the away face leaves the flow: the
+     object is exactly as tall as the face being read. */
+  .cover-card-face[data-facing="away"] {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    visibility: hidden;
+  }
+
+  /* Reduced motion is the finished state: the quote replaces the card face
+     with no turn at all. The rotation is still written, so the right face is
+     the one on screen; it simply arrives rather than travels. */
+  @media (prefers-reduced-motion: reduce) {
+    .cover-card-turn {
+      transition: none;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -401,12 +468,20 @@
     animation: cover-card-shimmer 9s linear infinite;
   }
 
+  /* The band's own travel, plus whatever the turn adds to it.
+
+     `--card-shimmer-shift` is written on the turning element while the card is
+     turning, so the highlight moves across the metal as the surface swings
+     through the light rather than sitting still on a rotating card. A custom
+     property inside a keyframe is re-resolved when the property changes, so
+     the running animation picks it up without being restarted. It is unset
+     everywhere else, and under reduced motion it is never written at all. */
   @keyframes cover-card-shimmer {
     from {
-      transform: translateX(-30%);
+      transform: translateX(calc(-30% + var(--card-shimmer-shift, 0px)));
     }
     to {
-      transform: translateX(30%);
+      transform: translateX(calc(30% + var(--card-shimmer-shift, 0px)));
     }
   }
 
@@ -494,26 +569,6 @@
   @keyframes landing-ticker {
     to {
       transform: translateX(-50%);
-    }
-  }
-
-  /* Landing only: the inline quote changing step. docs/DESIGN-TOKENS.md
-     section 6 gives 200ms ease-out for anything that moves on a user action,
-     and asks for an instant state change under reduced motion, which is the
-     `motion-reduce:animate-none` the element carries beside this class. The
-     step is then simply there on the first paint. */
-  .landing-quote-step {
-    animation: landing-quote-step 200ms ease-out both;
-  }
-
-  @keyframes landing-quote-step {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
     }
   }
 

@@ -122,6 +122,22 @@ function panel() {
   return within(document.querySelector('[data-testid="landing-quote"]') as HTMLElement);
 }
 
+/**
+ * A button on the face being read, by the name it carries when it is idle.
+ *
+ * A PillButton that is working keeps its label in the layout and paints the
+ * pulsing dots over it, and the dots carry an sr-only "Working", so a button
+ * mid-transition is named "RetryWorking" rather than "Retry" and is disabled.
+ * Asking for the settled name is therefore also the wait for the transition
+ * behind it, which is a separate commit from the one that put the step on
+ * screen and can outlive it when the vitest workers are busy.
+ */
+async function settledButton(name: string): Promise<HTMLElement> {
+  // Longer than testing-library's own second, because the transition being
+  // waited for is a server action and the workers are all busy.
+  return await waitFor(() => panel().getByRole('button', { name }), { timeout: 5000 });
+}
+
 /** Waits for the card to finish turning to the face that carries this. */
 async function turned(text: string): Promise<void> {
   await waitFor(
@@ -141,11 +157,11 @@ async function toCheck(): Promise<void> {
   fireEvent.click(screen.getAllByRole('button', { name: 'Get a quote' })[0]!);
   await turned('What do you do?');
   fireEvent.click(row('Computer and mathematical'));
-  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+  fireEvent.click(await settledButton('Continue'));
   await turned('Cover amount');
-  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+  fireEvent.click(await settledButton('Continue'));
   await turned('Monthly payment');
-  fireEvent.click(panel().getByRole('button', { name: 'Continue' }));
+  fireEvent.click(await settledButton('Continue'));
   await turned("Confirm you're a real person.");
 }
 
@@ -165,7 +181,7 @@ async function toPayment(): Promise<void> {
   await toCheck();
   await passTheCheck();
   await waitFor(() => expect(panel().getByText("You're verified")).toBeDefined());
-  fireEvent.click(panel().getByRole('button', { name: 'Continue' }));
+  fireEvent.click(await settledButton('Continue'));
   await turned('Confirm your cover');
 }
 
@@ -306,7 +322,8 @@ describe('the check step is the verify screen, on the card', () => {
       ).toBeDefined(),
     );
     expect(panel().getByText('Try again, or use a different device.')).toBeDefined();
-    expect(panel().getByRole('button', { name: 'Try again' })).toBeDefined();
+    const retry = await settledButton('Try again');
+    expect(retry).toHaveProperty('disabled', false);
   });
 
   it('reads one person one cover as a rule and offers the cover they have', async () => {
@@ -338,7 +355,7 @@ describe('the pay step is the pay sheet, on the card', () => {
     await waitFor(() => expect(panel().getByText("You're verified")).toBeDefined());
     expect(openPayment).not.toHaveBeenCalled();
 
-    fireEvent.click(panel().getByRole('button', { name: 'Continue' }));
+    fireEvent.click(await settledButton('Continue'));
     await turned('Confirm your cover');
     expect(openPayment).toHaveBeenCalledTimes(1);
   });
@@ -399,12 +416,13 @@ describe('the pay step is the pay sheet, on the card', () => {
     await toCheck();
     await passTheCheck();
     await waitFor(() => expect(panel().getByText("You're verified")).toBeDefined());
-    fireEvent.click(panel().getByRole('button', { name: 'Continue' }));
+    fireEvent.click(await settledButton('Continue'));
     await turned("We can't reach the index right now.");
 
     // No premium is invented and no button names one.
     expect(panel().queryByText(/^Pay /)).toBeNull();
-    expect(panel().getByRole('button', { name: 'Retry' })).toBeDefined();
+    const retry = await settledButton('Retry');
+    expect(retry).toHaveProperty('disabled', false);
   });
 });
 
@@ -484,7 +502,7 @@ describe('the journey never leaves the page', () => {
       props['onSuccess']?.(undefined);
     });
 
-    const onward = await waitFor(() => panel().getByRole('button', { name: 'Continue' }));
+    const onward = await settledButton('Continue');
     onward.focus();
     fireEvent.click(onward);
     await turned('Confirm your cover');

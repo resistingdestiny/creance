@@ -1,14 +1,8 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { reportUnreachable } from '../../lib/api';
-
-import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
-import { occupationLabel } from '../../lib/occupations';
-import { readPurchase, updatePurchase } from '../../lib/purchase-session';
-import { DEMO_ACCOUNT, DEMO_WALLET_LABEL } from '../../lib/wallet';
-import { requestQuote, toMinorUnits } from '../../lib/worker-api';
-import { coverAmount, premiumAmount } from '../../lib/worker-model';
+import { readPurchase } from '../../lib/purchase-session';
+import { openPayment } from '../purchase-actions';
 import { PayScreen } from './pay-screen';
 import { WorkerUnavailable } from '../unavailable';
 
@@ -18,9 +12,12 @@ import { WorkerUnavailable } from '../unavailable';
  * It is a route and not only a sheet. The person is about to make a payment and
  * may be bounced to a wallet, and coming back to a page whose sheet has closed
  * and whose quote has expired is the worst moment in the flow to lose state.
+ * T37 puts the same step on the landing card as well; this route is unchanged
+ * and still resumes a purchase begun there.
  *
  * The quote is taken fresh on entry, because the figure on the button is the
- * figure that will be bound and a quote lasts fifteen minutes.
+ * figure that will be bound and a quote lasts fifteen minutes. `openPayment` is
+ * that read, shared with the landing page so there is one of it.
  */
 
 export const metadata: Metadata = { title: 'Confirm your cover' };
@@ -32,26 +29,16 @@ export default async function PayPage() {
   if (!session?.group) redirect('/occupation');
   if (session.credential === null) redirect('/verify');
 
-  const group = session.group;
-  const limit = session.limit ?? AMOUNT_DEFAULT;
-  try {
-    const quote = await requestQuote({
-      group,
-      limit: toMinorUnits(limit),
-      wallet: DEMO_ACCOUNT.accountId,
-    });
-    await updatePurchase({ quoteId: quote.quote_id, premiumMinorUnits: quote.premium.amount });
-    return (
-      <PayScreen
-        cover={coverAmount(quote.limit)}
-        occupation={occupationLabel(group)}
-        paysFrom={quote.pays_from}
-        premium={premiumAmount(quote.premium)}
-        walletLabel={DEMO_WALLET_LABEL}
-      />
-    );
-  } catch (cause) {
-    reportUnreachable('the pay sheet', cause);
-    return <WorkerUnavailable retryHref="/pay" />;
-  }
+  const confirmation = await openPayment();
+  if (confirmation === null) return <WorkerUnavailable retryHref="/pay" />;
+
+  return (
+    <PayScreen
+      cover={confirmation.cover}
+      occupation={confirmation.occupation}
+      paysFrom={confirmation.paysFrom}
+      premium={confirmation.premium}
+      walletLabel={confirmation.walletLabel}
+    />
+  );
 }

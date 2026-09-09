@@ -4998,3 +4998,24 @@ the World App Mini App surface, which needs the Mini App registered. Both are
 reasoned about, and the reasoning is the one thing this ticket could make
 checkable: the card and the route are handed the same request object by the same
 hook, which world-app-screens.test.tsx asserts by comparing the two.
+
+### The card does not carry a credential the session already holds
+
+Reviewed under T37: /verify is told `alreadyVerified` from the session, and the
+card is not, so somebody who has already passed the check and comes back to the
+landing page is asked for it again on the card where the route would not.
+
+That is true and it is deliberate. Passing it would make the card behave exactly
+like the route, and it would also inherit the route's own hazard. Nothing clears
+the eligibility credential when the occupation changes: `chooseOccupation` and
+`quoteOccupation` both write a new group and leave `credential` alone. On the
+route that hazard needs somebody to navigate back to /occupation on purpose; on
+the card the occupation step is on the way to every quote, so it would be the
+ordinary path, and the card would say "You're verified" over a credential issued
+against a different occupation and carry it into a bind the API would refuse.
+
+The fix is to clear the credential when the group changes, which is a change to
+the purchase path, and this ticket may not make one. So the card asks again,
+which costs a check and is never wrong, and the credential clearing is left as a
+ticket of its own. Recorded here rather than fixed quietly, because the second
+half of it is a real defect on the routes today.

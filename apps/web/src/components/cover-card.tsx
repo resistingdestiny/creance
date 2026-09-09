@@ -82,10 +82,13 @@ export function CoverCardShell({
   hero = false,
   depth = false,
   metal = false,
+  padded = true,
   treatment = activeCardTreatment,
   className,
   children,
 }: Pick<CoverCardProps, 'hero' | 'depth' | 'metal' | 'treatment' | 'className'> & {
+  /** Off when the caller needs its own padding, which the landing quote does. */
+  padded?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -96,7 +99,7 @@ export function CoverCardShell({
         hero ? 'cover-card--hero' : undefined,
         depth ? 'cover-card--depth' : undefined,
         metal ? 'cover-card--metal' : undefined,
-        hero ? 'p-8' : 'p-5',
+        padded ? (hero ? 'p-8' : 'p-5') : undefined,
         className,
       ]
         .filter(Boolean)

@@ -255,7 +255,7 @@ function HeroCard({ occupation }: { occupation: string }) {
     <div className="relative flex justify-center">
       <div
         aria-hidden="true"
-        className="landing-glow pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-[140%] max-w-[1100px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        className="landing-glow pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-full max-w-[1100px] -translate-x-1/2 -translate-y-1/2 rounded-full"
       />
       <HeroCardStack className="cover-card-enter relative w-full max-w-[620px] motion-reduce:animate-none">
         <CoverCard

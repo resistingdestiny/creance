@@ -62,8 +62,11 @@ export function LandingScreen({ data }: { data: LandingData }) {
       <Nav indexHref={indexHref} />
       <main>
         <section className="bg-night">
-          <Hero live={data.index.live} priceLine={data.priceLine} />
-          <HeroCard occupation={data.occupation} />
+          <HeroBand
+            live={data.index.live}
+            occupation={data.occupation}
+            priceLine={data.priceLine}
+          />
           <IndexTicker readings={data.ticker} />
         </section>
         <Questions costLine={data.costLine} payLine={data.payLine} />
@@ -179,25 +182,53 @@ function IndexLive({ live }: { live: boolean }) {
   );
 }
 
+/**
+ * The hero band: the text on the left and the card on the right at 1440, one
+ * column at 390 with the card under the text.
+ *
+ * The design of record centres the hero and stands the card under it. Benedict
+ * asked for the card to the right, and the two cannot both have the full width,
+ * so the headline steps from the landing scale's 104px to the sheet's own
+ * display-xl at 1440 and the band is a two column grid. Recorded in
+ * docs/DECISIONS.md. Below the landing breakpoint nothing about the order
+ * changes: the text, then the card, in one readable column.
+ */
+function HeroBand({
+  live,
+  occupation,
+  priceLine,
+}: {
+  live: boolean;
+  occupation: string;
+  priceLine: string | null;
+}) {
+  return (
+    <div className={`pb-24 pt-16 lg:pb-32 lg:pt-24 ${PAGE}`}>
+      <div className="mx-auto grid w-full max-w-[1240px] items-center gap-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)] lg:gap-20">
+        <Hero live={live} priceLine={priceLine} />
+        <HeroCard occupation={occupation} />
+      </div>
+    </div>
+  );
+}
+
 function Hero({ live, priceLine }: { live: boolean; priceLine: string | null }) {
   return (
-    <div className={`pt-16 lg:pt-28 ${PAGE}`}>
-      <div className="mx-auto flex max-w-[1060px] flex-col items-center text-center">
-        <IndexLive live={live} />
-        {/* White for headings and rgba(255,255,255,.66) for everything else, which
-            is the addendum's whole rule for text on this ground. */}
-        <h1 className="text-balance font-display text-headline font-semibold tracking-headline text-white sm:text-display-l lg:text-landing-hero lg:tracking-landing-hero">
-          Cover for the day your job is automated.
-        </h1>
-        <p className="mt-6 max-w-[500px] text-balance text-body-lg text-white/66 lg:mt-8 lg:text-landing-lead">
-          A monthly payment now. A payout if your occupation is displaced.
-        </p>
-        <div className="mt-8 flex flex-col items-center gap-4 lg:mt-11 lg:flex-row lg:gap-6">
-          <QuoteButton variant="night" />
-          {/* No price, no line. The one thing this page may never do is name an
-              amount nobody quoted. */}
-          {priceLine === null ? null : <p className="text-body text-white/66">{priceLine}</p>}
-        </div>
+    <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+      <IndexLive live={live} />
+      {/* White for headings and rgba(255,255,255,.66) for everything else, which
+          is the addendum's whole rule for text on this ground. */}
+      <h1 className="text-balance font-display text-headline font-semibold tracking-headline text-white sm:text-display-l lg:text-display-xl lg:tracking-landing-tight">
+        Cover for the day your job is automated.
+      </h1>
+      <p className="mt-6 max-w-[500px] text-balance text-body-lg text-white/66 lg:mt-8 lg:text-landing-lead">
+        A monthly payment now. A payout if your occupation is displaced.
+      </p>
+      <div className="mt-8 flex flex-col items-center gap-4 lg:mt-11 lg:flex-row lg:gap-6">
+        <QuoteButton variant="night" />
+        {/* No price, no line. The one thing this page may never do is name an
+            amount nobody quoted. */}
+        {priceLine === null ? null : <p className="text-body text-white/66">{priceLine}</p>}
       </div>
     </div>
   );
@@ -207,13 +238,13 @@ function Hero({ live, priceLine }: { live: boolean; priceLine: string | null }) 
  * The signature object, at landing size, over the soft ground behind it.
  *
  * The card goes through CoverCard rather than being drawn here, so that T30 can
- * switch its treatment behind one setting without touching this page. It is
- * 720 by 432 at 1440 and fluid at the same ratio below that.
+ * switch its treatment behind one setting without touching this page. It keeps
+ * the design's 720 by 432 ratio and is fluid inside its column.
  *
  * `depth` is what makes it an object rather than a picture of one, and it is
- * asked for here and in no other place in the product. The stack around it
- * carries the perspective and the angle; the enter animation stays on the stack
- * so that it and the tilt are never the same element's transform.
+ * asked for here and in no other place in the product. The stack
+ * around it carries the perspective and the angle; the enter animation stays on
+ * the stack so that it and the tilt are never the same element's transform.
  *
  * The amount is the one figure on this page that moves. It arrives in the
  * server's HTML at its true value and counts up after hydration, so a browser
@@ -221,12 +252,12 @@ function Hero({ live, priceLine }: { live: boolean; priceLine: string | null }) 
  */
 function HeroCard({ occupation }: { occupation: string }) {
   return (
-    <div className={`relative flex justify-center pb-24 pt-16 lg:pb-32 lg:pt-24 ${PAGE}`}>
+    <div className="relative flex justify-center">
       <div
         aria-hidden="true"
-        className="landing-glow pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-full max-w-[1100px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        className="landing-glow pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-[140%] max-w-[1100px] -translate-x-1/2 -translate-y-1/2 rounded-full"
       />
-      <HeroCardStack className="cover-card-enter relative w-full max-w-[720px] motion-reduce:animate-none">
+      <HeroCardStack className="cover-card-enter relative w-full max-w-[620px] motion-reduce:animate-none">
         <CoverCard
           amount={<HeroAmount value={AMOUNT_DEFAULT} />}
           className="aspect-[720/432] w-full"

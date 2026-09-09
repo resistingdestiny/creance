@@ -353,6 +353,16 @@ describe('the hero card as an object', () => {
     expect(live).toContain('cover-card-tilt');
   });
 
+  it('sits to the right of the hero text at 1440 and under it at 390', () => {
+    // One grid, two columns above the landing breakpoint and one below it, so
+    // the order in the markup is the order at 390: the text, then the card.
+    const band = /<div class="mx-auto grid[^"]*"/.exec(live)?.[0] ?? '';
+    expect(band).toContain('lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)]');
+    expect(live.indexOf('Cover for the day your job is automated.')).toBeLessThan(
+      live.indexOf('cover-card-stack'),
+    );
+  });
+
   it('paints its light layers beneath its content, in every treatment', () => {
     // The glare is a sibling of the face and precedes it, and the face is the
     // element the stylesheet lifts. The stylesheet test asserts the z-indexes.

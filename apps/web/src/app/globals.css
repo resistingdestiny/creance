@@ -347,6 +347,77 @@
     background-image: none;
   }
 
+  /* T34, the landing hero only: the metal finish.
+     Benedict asked for a metal card with a rainbow shimmer.
+     docs/DESIGN-TOKENS-ADDENDUM.md says the card gradient, its sheen and its
+     brushing are unchanged, so this is a departure and docs/DECISIONS.md
+     carries it with its contrast argument. It is a modifier over whichever
+     treatment is drawn, the way T30's two were, and never an edit to the
+     `.cover-card` rule above: the gradient, the sheen and the brushing under it
+     are untouched and only the edge colour and one new light layer are added.
+
+     The edge is the cooler grey a milled metal edge catches. It is a border
+     colour on the modifier, so the base rule's one pixel hairline is what
+     carries it and no second element is introduced. */
+  .cover-card--metal {
+    border-color: #cfd4dc;
+  }
+
+  /* The shimmer. z-index 2 puts it over the pointer glare at 1 and under
+     .cover-card__content at 10, which is the addendum's rule that no light
+     layer on this card is ever above the occupation or the amount.
+
+     The colour is on a child rather than on this element so that the travel is
+     a transform on a wider band clipped by the parent, rather than an animated
+     background-position, which cannot be composited and repaints the card on
+     every frame. */
+  .cover-card__shimmer {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: inherit;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  /* Every stop is a pale hue at 16 percent, so the darkest composite over the
+     darkest gradient stop of any treatment leaves black text far above the
+     4.5:1 floor. built-css.test.ts computes that from this rule rather than
+     taking it on trust. */
+  .cover-card__shimmer::before {
+    content: "";
+    position: absolute;
+    inset: -25% -60%;
+    background: linear-gradient(
+      118deg,
+      transparent 34%,
+      rgba(255, 122, 182, 0.16) 40%,
+      rgba(255, 209, 122, 0.16) 45%,
+      rgba(138, 230, 172, 0.16) 50%,
+      rgba(122, 186, 255, 0.16) 55%,
+      rgba(186, 148, 255, 0.16) 60%,
+      transparent 66%
+    );
+    animation: cover-card-shimmer 9s linear infinite;
+  }
+
+  @keyframes cover-card-shimmer {
+    from {
+      transform: translateX(-30%);
+    }
+    to {
+      transform: translateX(30%);
+    }
+  }
+
+  /* Reduced motion is the finished state, and for a finish that means the
+     light standing still. The card keeps its colour and loses its travel. */
+  @media (prefers-reduced-motion: reduce) {
+    .cover-card__shimmer::before {
+      animation: none;
+    }
+  }
+
   /* docs/DESIGN-TOKENS.md section 6, the one orchestrated moment: the card
      slides up into Home over 420ms ease-out, once, after a payment confirms.
 

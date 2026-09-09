@@ -37,6 +37,16 @@ import { StatusPill, type StatusState } from './status-pill';
  * hold. The glare goes under `.cover-card__content` and over the two light
  * overlays, so nothing on this card ever paints light across the occupation
  * or the amount, in any treatment.
+ *
+ * `metal` is T34's finish: a cooler edge and a rainbow shimmer travelling
+ * across the metal, the way light moves on a brushed surface that is not quite
+ * flat. It is a modifier over whichever treatment is drawn and it changes
+ * neither the gradient nor the sheen nor the brushing under it. Like `depth`
+ * it is opt in and the landing hero is the only caller. The shimmer is its own
+ * layer at z-index 2, over the glare at 1 and under the content at 10, so it
+ * is light on the card and never light over the numbers, and it stops dead
+ * under prefers-reduced-motion. docs/DECISIONS.md carries the departure from
+ * docs/DESIGN-TOKENS-ADDENDUM.md and the contrast argument for it.
  */
 
 export interface CoverCardProps {
@@ -48,6 +58,8 @@ export interface CoverCardProps {
   hero?: boolean;
   /** The landing hero only: thickness, depth planes and the pointer glare. */
   depth?: boolean;
+  /** The landing hero only: the metal edge and the rainbow shimmer over it. */
+  metal?: boolean;
   /** Defaults to the treatment the active font option selects. */
   treatment?: CardTreatment;
   className?: string;
@@ -60,6 +72,7 @@ export function CoverCard({
   statusLabel,
   hero = false,
   depth = false,
+  metal = false,
   treatment = activeCardTreatment,
   className,
 }: CoverCardProps) {
@@ -70,6 +83,7 @@ export function CoverCard({
         treatment === 'wallet' ? undefined : `cover-card--${treatment}`,
         hero ? 'cover-card--hero' : undefined,
         depth ? 'cover-card--depth' : undefined,
+        metal ? 'cover-card--metal' : undefined,
         hero ? 'p-8' : 'p-5',
         className,
       ]
@@ -82,6 +96,7 @@ export function CoverCard({
           <span aria-hidden="true" className="cover-card__glare" />
         </>
       ) : null}
+      {metal ? <span aria-hidden="true" className="cover-card__shimmer" /> : null}
       {treatment === 'certificate' ? (
         <Certificate
           amount={amount}

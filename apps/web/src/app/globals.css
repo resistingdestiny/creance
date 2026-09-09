@@ -280,7 +280,16 @@
      load stays a CSS animation on the stack and the two transforms never fight
      over one element. */
   .cover-card-stack {
-    perspective: 1100px;
+    /* Flatter at narrow widths. The same rotation over a smaller card reads as
+       a wider swing, and a card that appears to leave its own column on a
+       phone is the most common way a three dimensional turn goes wrong. */
+    perspective: 1600px;
+  }
+
+  @media (min-width: 640px) {
+    .cover-card-stack {
+      perspective: 1100px;
+    }
   }
 
   .cover-card-tilt {
@@ -295,6 +304,70 @@
   .cover-card-stack.is-tracking .cover-card-tilt {
     transition-duration: 120ms;
     transition-timing-function: ease-out;
+  }
+
+  /* T36: the card turning over to become the quote.
+
+     It is a third element inside the tilt and not the tilt itself. The tilt
+     carries an inline transform written per frame by the stack, and one
+     element cannot hold two transforms; a keyframe animation there would also
+     outrank the inline style and pin the card square on for good.
+
+     The turn is longer than the sheet's 200ms because 180 degrees in 200ms is
+     a flicker rather than an object turning over, and it eases in as well as
+     out because a thing with mass does not start at full speed. Both are
+     departures and docs/DECISIONS.md carries them. The curve is the symmetric
+     one, so the card is edge on at exactly half the duration, which is where
+     the face on screen is swapped. */
+  .cover-card-turn {
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 480ms cubic-bezier(0.65, 0, 0.35, 1);
+  }
+
+  .cover-card-face {
+    transform-style: preserve-3d;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+
+  /* A pixel of depth each, on the side each face looks out of, so the two
+     never occupy the same plane and neither flickers through the other. */
+  .cover-card-face--front {
+    transform: translateZ(1px);
+  }
+
+  .cover-card-face--back {
+    transform: rotateY(180deg) translateZ(1px);
+  }
+
+  /* One face at a time, and the same one sizes the object, so the card is as
+     tall as the face being read and not as tall as both.
+
+     It is hidden outright and not left to backface-visibility above.
+     backface-visibility applies to the element that carries it and not to the
+     preserve-3d subtree under it, and this card's contents sit on planes of
+     their own: the face turns away, its thickness and its lifted content do
+     not, and they are what shows through. Hiding the face takes the whole
+     subtree with it, which no engine can get wrong.
+
+     The swap happens where the rotation is at ninety degrees, which is the one
+     moment the card has no width on screen, so neither the swap nor the change
+     of height that comes with it is seen. */
+  .cover-card-face[data-facing="away"] {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    visibility: hidden;
+  }
+
+  /* Reduced motion is the finished state: the quote replaces the card face
+     with no turn at all. The rotation is still written, so the right face is
+     the one on screen; it simply arrives rather than travels. */
+  @media (prefers-reduced-motion: reduce) {
+    .cover-card-turn {
+      transition: none;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -401,12 +474,20 @@
     animation: cover-card-shimmer 9s linear infinite;
   }
 
+  /* The band's own travel, plus whatever the turn adds to it.
+
+     `--card-shimmer-shift` is written on the turning element while the card is
+     turning, so the highlight moves across the metal as the surface swings
+     through the light rather than sitting still on a rotating card. A custom
+     property inside a keyframe is re-resolved when the property changes, so
+     the running animation picks it up without being restarted. It is unset
+     everywhere else, and under reduced motion it is never written at all. */
   @keyframes cover-card-shimmer {
     from {
-      transform: translateX(-30%);
+      transform: translateX(calc(-30% + var(--card-shimmer-shift, 0px)));
     }
     to {
-      transform: translateX(30%);
+      transform: translateX(calc(30% + var(--card-shimmer-shift, 0px)));
     }
   }
 
@@ -497,31 +578,33 @@
     }
   }
 
-  /* Landing only: the inline quote changing step. docs/DESIGN-TOKENS.md
-     section 6 gives 200ms ease-out for anything that moves on a user action,
-     and asks for an instant state change under reduced motion, which is the
-     `motion-reduce:animate-none` the element carries beside this class. The
-     step is then simply there on the first paint. */
-  .landing-quote-step {
-    animation: landing-quote-step 200ms ease-out both;
-  }
-
-  @keyframes landing-quote-step {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
   /* Gallery only: shows the padded hit area of a text link so a reviewer can
      see that it clears 44px. Never used by a product screen. */
   .debug-hit-area {
     outline: 1px dashed var(--color-triggered);
     outline-offset: 0;
+  }
+}
+
+/* Every label on a card face is ink, and never ink-2.
+
+   src/components/cover-card.tsx carries the arithmetic: the darkest gradient
+   stop of any treatment is #d9dce2, where ink-2 is 3.47:1 and fails the 4.5:1
+   floor, while black is 15.29:1. The card's own anatomy has always been written
+   in ink for that reason.
+
+   The landing quote puts steps on the card face, and those steps are built from
+   the same form field, list rows and slider the routes use. Those components
+   stand on canvas everywhere else, where ink-2 is 5.2:1 and correct, so the
+   colour is corrected here, on the one ground where it is wrong, rather than in
+   components that five other screens share.
+
+   It is in the utilities layer because it has to outrank the `text-ink-2`
+   utility on the element itself, and a rule in the components layer cannot,
+   whatever its specificity. */
+@layer utilities {
+  .cover-card__content .text-ink-2 {
+    color: var(--color-ink);
   }
 }
 
@@ -631,6 +714,19 @@
     border: none;
     border-radius: 999px;
     background: var(--color-ink);
+  }
+
+  /* The slider is the one control the sheet draws smaller than its own 44px
+     minimum: the thumb is 28 and the input is the thumb. On a card face it is
+     given the target, by padding the hit area and not the glyph, which is what
+     section 9 asks for. The track stays centred in the input and the thumb
+     stays centred on the track, so nothing about the drawing moves.
+
+     Scoped to the card because that is the surface this was asked for. The
+     /amount and /pay screens render the same component at the size the sheet
+     draws it, and moving them belongs to a ticket that owns them. */
+  .cover-card__content .amount-slider {
+    height: 44px;
   }
 
   /* The focus outline lands on the input, not on the thumb, which is what a

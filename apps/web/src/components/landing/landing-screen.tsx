@@ -8,7 +8,6 @@ import { CoverCard } from '../cover-card';
 import { PillLink } from '../pill-button';
 import { ReplayBar } from '../replay-bar';
 import { HeroAmount } from './hero-amount';
-import { HeroCardStack } from './hero-card-stack';
 import { IndexTicker } from './index-ticker';
 import { LandingExplorer } from './landing-explorer';
 import { QuoteButton } from './quote-button';
@@ -245,32 +244,31 @@ function Hero({ live, priceLine }: { live: boolean; priceLine: string | null }) 
  * the design's 720 by 432 ratio and is fluid inside its column.
  *
  * `depth` and `metal` are what make it an object rather than a picture of one,
- * and they are asked for here and in no other place in the product. The stack
- * around it carries the perspective and the angle; the enter animation stays on
- * the stack so that it and the tilt are never the same element's transform.
+ * and they are asked for here and in no other place in the product.
  *
  * The amount is the one figure on this page that moves. It arrives in the
  * server's HTML at its true value and counts up after hydration, so a browser
  * that never runs the animation shows 5,000 rather than nothing.
  *
- * It stands in the hero's second column until "Get a quote" is pressed, and the
- * quote takes the same place. The glow behind it belongs to the column rather
- * than to the card, so it is behind whichever of the two is there.
+ * This is the card at rest, and it is one face of it. QuoteSlot stands it in
+ * the stack that carries the perspective, the drift and the turn, and puts the
+ * quote on the face behind it, so pressing "Get a quote" turns this card over
+ * rather than replacing it. It is still rendered on the server and handed to
+ * that client component as a node. The glow belongs to the column rather than
+ * to the card, so it is behind the card at whatever angle it is holding.
  */
 function HeroCard({ occupation }: { occupation: string }) {
   return (
-    <HeroCardStack className="cover-card-enter relative w-full max-w-[620px] motion-reduce:animate-none">
-      <CoverCard
-        amount={<HeroAmount value={AMOUNT_DEFAULT} />}
-        className="aspect-[720/432] w-full"
-        depth
-        hero
-        metal
-        occupation={occupation}
-        state="covered"
-        statusLabel="Covered"
-      />
-    </HeroCardStack>
+    <CoverCard
+      amount={<HeroAmount value={AMOUNT_DEFAULT} />}
+      className="aspect-[720/432] w-full"
+      depth
+      hero
+      metal
+      occupation={occupation}
+      state="covered"
+      statusLabel="Covered"
+    />
   );
 }
 

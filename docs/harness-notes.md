@@ -2520,3 +2520,47 @@ on `127.0.0.1` no client component reacted to a click and no element carried a
 quote ran. `next dev` is usable for client behaviour on this host.
 
 https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+
+## `backface-visibility` does not hide a face's `preserve-3d` descendants
+
+Building a two sided card with `backface-visibility: hidden` on both faces is
+the usual recipe and it is not enough when the faces have three dimensional
+contents of their own. The property applies to the element that carries it. It
+does not apply down a `transform-style: preserve-3d` subtree, and every element
+in that subtree decides for itself.
+
+Met on T36, turning the landing hero card over to show the quote on its other
+face. The card's thickness sits at `translateZ(-14px)` and its contents sit on
+planes at 16, 24 and 40, all inside a `preserve-3d` card inside the face. Past
+ninety degrees the face itself stopped painting, exactly as asked, and its
+thickness and its lifted content carried on: at 1440 the half turn showed a grey
+slab where the card had been with a line of the next step's caption hanging
+below it. Chromium 148, and the specification says this is correct.
+
+Hiding the face outright with `visibility: hidden` takes the whole subtree with
+it and behaves the same in every engine. The one cost is that it has to be timed:
+the face is hidden and shown at the moment the rotation reaches ninety degrees,
+which is where the card has no width and the swap cannot be seen. That moment is
+not half the duration unless the easing is symmetric, and with the ease-out the
+rest of this page uses it is at 0.17 of it.
+
+Two smaller things from the same ticket. `Element.focus()` does nothing on an
+element inside a `visibility: hidden` subtree, so focus cannot be moved to a face
+before that face is shown. And jsdom implements no layout, so it has no
+`Element.prototype.scrollIntoView`: calling it unguarded throws inside a layout
+effect and takes the render with it, which surfaces as every query in the test
+failing rather than as the missing method.
+
+https://drafts.csswg.org/css-transforms-2/#backface-visibility-property
+
+## WebKit cannot be launched on this host, so iOS Safari was not reached
+
+`npx playwright install webkit` downloads WebKit 26.6 without complaint and it
+will not start: the host is missing `libgtk-4.so.1`, `libgraphene-1.0.so.0` and
+`libevent-2.1.so.7`, and `playwright install-deps` needs root. The browser sits
+in `~/.cache/ms-playwright/webkit-2359` unusable until those are installed.
+
+So anything an acceptance asks to be confirmed on iOS Safari cannot be confirmed
+by an agent on this host, and Playwright's WebKit would not have settled it
+anyway: it does not reproduce iOS viewport height behaviour or the mobile
+compositor. T36 needed this and left it to Root on a real device.

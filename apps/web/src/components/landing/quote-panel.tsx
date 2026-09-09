@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useTransition, type ReactNode, type Ref } from 'react';
 
 import { NO_COVER_YET, captionFor } from '../../app/occupation/occupation-picker';
 import { continueToVerify, priceCover, quoteOccupation } from '../../app/purchase-actions';
@@ -14,34 +14,43 @@ import {
 } from '../../lib/occupations';
 import type { PriceResult } from '../../lib/worker-model';
 import { AmountSlider } from '../amount-slider';
+import { CoverCardShell } from '../cover-card';
 import { FormField } from '../form-field';
 import { ListRow } from '../list-row';
 import { PillButton } from '../pill-button';
-import { SurfaceGroup } from '../surface-group';
 import { TextLink } from '../text-link';
-import { useQuote } from './quote-state';
+import { CardTurn } from './card-turn';
+import { HeroCardStack } from './hero-card-stack';
+import { stepIndex, useQuote, type QuoteStep } from './quote-state';
 
 /**
- * The quote, on the landing page, where the hero card stands.
+ * The quote, on the landing page, on the card that was already standing there.
  *
- * The two steps are the /occupation and /amount screens with nothing added and
+ * T35 put the two steps on this page and swapped the hero card out for a
+ * bordered panel. This is the same two steps on the card itself: pressing "Get
+ * a quote" turns the card over on its vertical axis and the question is on the
+ * face that comes round. Each step turns it again, forward one way and back the
+ * other, and the last turn settles on the quote laid out the way the card lays
+ * out a policy.
+ *
+ * The steps are the /occupation and /amount screens with nothing added and
  * nothing rewritten: the same questions in the same words, the same rows, the
- * same slider and the same interpolated sentence. What changed is that they no
- * longer take the visitor off the page they are reading, and that the occupation
- * they pick moves the index explorer below them at the same time.
- *
- * Both routes are untouched and still hold the same session, so a link already
- * shared still opens the step it names and resumes the quote the landing page
- * started. Verification and payment are not here: a signature, a World proof and
- * a payment each deserve a screen, and "Continue" on the second step is the same
- * server action the Amount screen submits, which redirects to /verify.
+ * same slider and the same interpolated sentence. Both routes are untouched and
+ * still hold the same session, so a link already shared still opens the step it
+ * names and resumes the quote the landing page started. Verification and payment
+ * are not here: a signature, a World proof and a payment each deserve a screen,
+ * and "Continue" on the settled quote is the same server action the Amount
+ * screen submits, which redirects to /verify.
  *
  * Every call to the API is still made on the server, in src/app/purchase-actions,
  * so the eligibility credential never reaches a browser.
  *
- * Motion is the sheet's: 200ms ease-out on a user action, and under reduced
- * motion the step is simply there. Focus follows the step, because a step that
- * changed somewhere else on the page is a step a keyboard user cannot find.
+ * Everything a step has been told lives here rather than on a face, because a
+ * face is unmounted and remounted as the card turns through it and an answer
+ * that did not survive going back would be an answer lost. The card only ever
+ * has two faces, so the step being turned to is written onto whichever of the
+ * two is about to point at the viewer, and the step being turned away from
+ * keeps the other until it is needed again.
  */
 
 /** How long after the slider is let go the price is asked for. */
@@ -51,62 +60,120 @@ const DEBOUNCE_MS = 250;
 const INDEX_ANCHOR = '#the-index';
 
 /**
- * The hero's right hand column: the cover card, or the quote in its place.
+ * The hero's right hand column: the card, with the quote on its other face.
  *
- * The card is passed in rather than imported so that it stays what the page
- * renders on the server, and so that the swap is one line a reader can check.
+ * The card at rest is passed in rather than imported so that it stays what the
+ * page renders on the server. The frame around it is the same stack the hero
+ * card has always stood in, so the drift, the pointer tilt and the entrance are
+ * exactly what they were and the turn is one more transform inside them.
+ *
+ * The drift stops for as long as the quote is open. A card nobody is using can
+ * sway; a card with a search field and a slider on it cannot, because the sway
+ * is then working against the thing the card is for. The shimmer does not stop,
+ * so the surface is still alive under the step.
  */
 export function QuoteSlot({ card }: { card: ReactNode }) {
   const { step } = useQuote();
-  return step === 'closed' ? card : <QuotePanel step={step} />;
-}
+  const at = stepIndex(step);
 
-function QuotePanel({ step }: { step: 'occupation' | 'amount' }) {
+  // The two faces, and which step each is currently carrying. Adjusted during
+  // render rather than in an effect so the face turning towards the viewer has
+  // the new step on it from the first frame of the turn, never a frame later.
+  const [faces, setFaces] = useState<{ front: QuoteStep; back: QuoteStep | null }>({
+    front: 'closed',
+    back: null,
+  });
+  const onFront = at % 2 === 0;
+  if (onFront ? faces.front !== step : faces.back !== step) {
+    setFaces(onFront ? { ...faces, front: step } : { ...faces, back: step });
+  }
+
   const [price, setPrice] = useState<PriceResult | null>(null);
   const [limit, setLimit] = useState(AMOUNT_DEFAULT);
+  const [query, setQuery] = useState('');
+
+  const face = (on: QuoteStep | null) => {
+    if (on === null || on === 'closed') return null;
+    if (on === 'occupation') {
+      return (
+        <OccupationFace
+          current={step === on}
+          onPriced={(result) => {
+            setPrice(result);
+            setLimit(AMOUNT_DEFAULT);
+          }}
+          onQuery={setQuery}
+          query={query}
+        />
+      );
+    }
+    if (on === 'amount') {
+      return (
+        <AmountFace
+          current={step === on}
+          limit={limit}
+          onLimit={setLimit}
+          onPrice={setPrice}
+          price={price}
+        />
+      );
+    }
+    return <CompleteFace current={step === on} limit={limit} price={price} />;
+  };
 
   return (
-    <div
-      className="relative w-full max-w-[620px] rounded-hero border border-hairline bg-canvas p-6 lg:p-8"
-      data-testid="landing-quote"
+    <HeroCardStack
+      className="cover-card-enter relative w-full max-w-[620px] motion-reduce:animate-none"
+      still={step !== 'closed'}
     >
-      {/* Keyed on the step, so the entrance runs again on every change rather
-          than once for the panel. */}
-      <div className="landing-quote-step motion-reduce:animate-none" key={step}>
-        {step === 'occupation' ? (
-          <OccupationStep
-            onPriced={(result) => {
-              setPrice(result);
-              setLimit(AMOUNT_DEFAULT);
-            }}
-          />
-        ) : (
-          <AmountStep limit={limit} onLimit={setLimit} onPrice={setPrice} price={price} />
-        )}
-      </div>
-    </div>
+      <CardTurn
+        at={at}
+        back={face(faces.back)}
+        front={faces.front === 'closed' ? card : face(faces.front)}
+      />
+    </HeroCardStack>
   );
 }
 
 /**
- * The step's title, and where focus lands when the step changes.
+ * One face of the card with a step written on it.
+ *
+ * It is the card, not a panel over the card: the same shell, the same
+ * gradient, the same thickness, the same glare and the same shimmer, with the
+ * step where the occupation and the amount would be. The padding is the
+ * caller's because the card face gives a step less room at 390 than the hero
+ * card's own 32 does.
+ */
+function QuoteFace({ children, current }: { children: ReactNode; current: boolean }) {
+  return (
+    <CoverCardShell className="w-full" depth hero metal padded={false}>
+      <div
+        className="cover-card__content flex flex-col gap-5 p-6 lg:p-8"
+        data-testid={current ? 'landing-quote' : undefined}
+      >
+        {children}
+      </div>
+    </CoverCardShell>
+  );
+}
+
+/**
+ * The step's title, and where focus lands when the card starts turning towards
+ * this face. It moves at the start of the turn and not at the end, so a
+ * keyboard user is on the new step for the whole of it and is never left on a
+ * control that has just been turned away.
  *
  * The landing page's h1 is the hero headline, so these are h2s: the quote is a
  * section of that page and not a screen of its own. The heading is focused
  * rather than the first control, so a screen reader reads the question before
  * the answers.
  */
-function StepHeading({ children }: { children: ReactNode }) {
-  const heading = useRef<HTMLHeadingElement>(null);
-
-  useEffect(() => {
-    heading.current?.focus();
-  }, []);
-
+function StepHeading({ children, ref }: { children: ReactNode; ref?: Ref<HTMLHeadingElement> }) {
   return (
     <h2
       className="font-display text-title font-semibold tracking-title text-ink"
-      ref={heading}
+      data-quote-focus=""
+      ref={ref}
       tabIndex={-1}
     >
       {children}
@@ -128,11 +195,31 @@ function StepHeading({ children }: { children: ReactNode }) {
  * at. Nothing is quoted for the other fourteen. The row says so, the line under
  * the rows says so in the same words, and "Continue" is disabled.
  * docs/DECISIONS.md.
+ *
+ * The rows sit on the metal rather than in a surface group. On every other
+ * screen the group is what separates the list from the page; on the card the
+ * card is already that, and a grey slab on a metal face is a form pasted over
+ * a card. The rows and their separators are the sheet's, unchanged.
+ *
+ * Every row reads in ink. The route's picker dims the fourteen with no capacity
+ * behind them, and on the metal that dimming is 3.47:1 at the card's darkest
+ * stop. The caption under each row says the same thing in words, so nothing is
+ * lost by taking the colour out of it.
  */
-function OccupationStep({ onPriced }: { onPriced: (price: PriceResult) => void }) {
+function OccupationFace({
+  current,
+  onPriced,
+  onQuery,
+  query,
+}: {
+  current: boolean;
+  onPriced: (price: PriceResult) => void;
+  onQuery: (query: string) => void;
+  query: string;
+}) {
   const { choose, go, group } = useQuote();
-  const [query, setQuery] = useState('');
   const [pending, startTransition] = useTransition();
+  const heading = useRef<HTMLHeadingElement>(null);
   const visible = filterOccupations(query);
   const chosen = findOccupation(group);
   const buyable = chosen !== null && hasCover(chosen);
@@ -146,13 +233,13 @@ function OccupationStep({ onPriced }: { onPriced: (price: PriceResult) => void }
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <StepHeading>What do you do?</StepHeading>
+    <QuoteFace current={current}>
+      <StepHeading ref={heading}>What do you do?</StepHeading>
 
       <FormField
         autoComplete="off"
         label="Search occupations"
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={(event) => onQuery(event.target.value)}
         placeholder="Search occupations"
         type="search"
         value={query}
@@ -163,24 +250,19 @@ function OccupationStep({ onPriced }: { onPriced: (price: PriceResult) => void }
           Nothing matches that. This cover is sold by occupation group, not by job title.
         </p>
       ) : (
-        <SurfaceGroup className="max-h-[292px] overflow-y-auto">
+        <div className="max-h-[212px] divide-y divide-hairline overflow-y-auto lg:max-h-[268px]">
           {visible.map((row) => {
-            const available = hasCover(row);
             return (
               <ListRow
                 caption={captionFor(row)}
                 key={row.key}
-                label={
-                  <span className={available ? 'text-body text-ink' : 'text-body text-ink-2'}>
-                    {row.label}
-                  </span>
-                }
+                label={<span className="text-body text-ink">{row.label}</span>}
                 onSelect={() => choose(row.key)}
                 trailing={group === row.key ? 'check' : 'none'}
               />
             );
           })}
-        </SurfaceGroup>
+        </div>
       )}
 
       <p className="text-secondary text-ink-2">
@@ -191,13 +273,21 @@ function OccupationStep({ onPriced }: { onPriced: (price: PriceResult) => void }
       <PillButton
         disabled={!buyable}
         loading={pending}
-        onClick={() => {
-          if (chosen !== null && buyable) continueWith(chosen.key);
+        onClick={(event) => {
+          if (chosen === null || !buyable) return;
+          // This button is about to be disabled while the price is bought, and
+          // a disabled button that has focus loses it to the document. On
+          // testnet that is a second or two of a keyboard user standing at the
+          // top of the page in the middle of taking a quote. Focus goes back to
+          // the question, which is where they still are: the card has nothing
+          // to turn to until the price comes back.
+          if (document.activeElement === event.currentTarget) heading.current?.focus();
+          continueWith(chosen.key);
         }}
       >
         Continue
       </PillButton>
-    </div>
+    </QuoteFace>
   );
 }
 
@@ -214,12 +304,14 @@ function OccupationStep({ onPriced }: { onPriced: (price: PriceResult) => void }
  * on screen in ink-3 rather than disappearing, which is what the Amount screen
  * does while a new price loads. Recorded in docs/DECISIONS.md.
  */
-function AmountStep({
+function AmountFace({
+  current,
   limit,
   onLimit,
   onPrice,
   price,
 }: {
+  current: boolean;
   limit: number;
   onLimit: (limit: number) => void;
   onPrice: (price: PriceResult) => void;
@@ -257,9 +349,10 @@ function AmountStep({
 
   const stale = pending || limit !== priced;
   const premium = price === null || price.premium === '' ? '' : `${price.premium} a month`;
+  const settled = price !== null && price.error === null && price.premium !== '';
 
   return (
-    <div className="flex flex-col gap-5">
+    <QuoteFace current={current}>
       <div className="flex flex-col gap-2">
         <StepHeading>Cover amount</StepHeading>
         <p className="text-secondary text-ink-2">{group === null ? '' : occupationLabel(group)}</p>
@@ -268,10 +361,10 @@ function AmountStep({
       <p
         aria-live="polite"
         className={[
-          // The Amount route has the whole width of a phone for this figure and
-          // the panel has a card's width inside it, so it is the sheet's
-          // headline at 390 and its display-l from the landing breakpoint up.
-          // The string is the deck's either way; only its size steps.
+          // The card face is narrower than a phone screen at 390, so this is
+          // the sheet's headline there and its display-l from the landing
+          // breakpoint up. The string is the deck's either way; only its size
+          // steps.
           'min-h-[60px] font-display text-headline font-semibold tracking-headline tabular-nums lg:text-display-l lg:tracking-display',
           stale ? 'text-ink-3' : 'text-ink',
         ].join(' ')}
@@ -291,35 +384,117 @@ function AmountStep({
 
       <p className="text-secondary text-ink-2">{price?.sentence ?? ''}</p>
 
+      {/* Ink, not the triggered red, which is 3.47:1 on the card's darkest
+          gradient stop. The sentence carries what happened, the same way the
+          index badge's sentence carries the state and its dot is decoration. */}
       {price?.error == null ? null : (
-        <p className="text-secondary text-triggered" role="status">
+        <p className="text-secondary font-medium text-ink" role="status">
           {price.error}
         </p>
       )}
 
       <div className="flex flex-col gap-3">
         <TextLink href={INDEX_ANCHOR}>How the index works</TextLink>
-        <form action={continueToVerify}>
-          <PillButton
-            className="w-full"
-            disabled={price === null || price.error !== null || price.premium === ''}
-            loading={pending}
-            type="submit"
+        <PillButton
+          className="w-full"
+          disabled={!settled}
+          loading={pending}
+          onClick={() => go('complete')}
+          type="button"
+        >
+          Continue
+        </PillButton>
+        <BackTo step="occupation" />
+      </div>
+    </QuoteFace>
+  );
+}
+
+/**
+ * The quote, settled, laid out the way the card lays out a policy: the
+ * occupation where the card puts the occupation, the cover where the card puts
+ * the amount, and the monthly payment beside it.
+ *
+ * There is no "Covered" pill on it. The card wears one on Home because there is
+ * cover behind it; here nothing has been verified and nothing has been paid, and
+ * a pill that said "Covered" would claim cover this visitor does not have. What
+ * the card can honestly do at this point is hold the figures, so that is what it
+ * holds. Recorded in docs/DECISIONS.md.
+ *
+ * "Cover" and "Monthly payment" are the deck's own labels, from the Home card
+ * and the pay sheet's rows. The primary is "Continue", the deck's word on the
+ * Amount screen, and it is the same `continueToVerify` the Amount route submits,
+ * so verification and payment keep their own screens.
+ */
+function CompleteFace({
+  current,
+  limit,
+  price,
+}: {
+  current: boolean;
+  limit: number;
+  price: PriceResult | null;
+}) {
+  const { group } = useQuote();
+
+  return (
+    <QuoteFace current={current}>
+      <h2
+        className="text-secondary font-medium text-ink"
+        data-quote-focus=""
+        tabIndex={-1}
+      >
+        {group === null ? '' : occupationLabel(group)}
+      </h2>
+
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="flex flex-col gap-1">
+          <p className="text-secondary text-ink">Cover</p>
+          <p className="font-display text-display-xl font-semibold tracking-display tabular-nums text-ink lg:text-landing-amount lg:tracking-landing-ledger">
+            {formatAmount(limit)}
+          </p>
+        </div>
+        <div className="flex flex-col gap-1">
+          <p className="text-secondary text-ink">Monthly payment</p>
+          <p
+            className="font-display text-title font-semibold tracking-title tabular-nums text-ink"
+            data-testid="landing-quote-monthly"
           >
+            {price?.premium ?? ''}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <form action={continueToVerify}>
+          <PillButton className="w-full" type="submit">
             Continue
           </PillButton>
         </form>
-        {/* Not in the deck, because the deck's steps were separate screens and
-            the browser's own back was the way back. Inline there is no such
-            button, and a step nobody can leave is a trap. */}
-        <button
-          className="inline-flex min-h-11 items-center self-start text-body text-ink-2 underline underline-offset-[3px] transition-opacity duration-200 ease-out hover:opacity-70 motion-reduce:transition-none"
-          onClick={() => go('occupation')}
-          type="button"
-        >
-          Back
-        </button>
+        <BackTo step="amount" />
       </div>
-    </div>
+    </QuoteFace>
+  );
+}
+
+/**
+ * The way back, on every face that has one.
+ *
+ * Not in the deck, because the deck's steps were separate screens and the
+ * browser's own back was the way back. On a card that turns there is no such
+ * button, and a step nobody can leave is a trap. It turns the card the other
+ * way and nothing that was entered is lost, because nothing that was entered
+ * lives on a face.
+ */
+function BackTo({ step }: { step: QuoteStep }) {
+  const { go } = useQuote();
+  return (
+    <button
+      className="inline-flex min-h-11 items-center self-start text-body text-ink-2 underline underline-offset-[3px] transition-opacity duration-200 ease-out hover:opacity-70 motion-reduce:transition-none"
+      onClick={() => go(step)}
+      type="button"
+    >
+      Back
+    </button>
   );
 }

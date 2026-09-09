@@ -1,9 +1,19 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState, useTransition, type ReactNode, type Ref } from 'react';
 
 import { NO_COVER_YET, captionFor } from '../../app/occupation/occupation-picker';
-import { continueToVerify, priceCover, quoteOccupation } from '../../app/purchase-actions';
+import {
+  goToCover,
+  openPayment,
+  payAndBind,
+  priceCover,
+  quoteOccupation,
+  type PayConfirmation,
+} from '../../app/purchase-actions';
+import { useWorldCheck, type WorldCheckRun } from '../../app/verify/use-world-check';
+import { purchaseFailedCopy } from '../../lib/claim-model';
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
 import { formatAmount } from '../../lib/format';
 import {
@@ -12,14 +22,18 @@ import {
   hasCover,
   occupationLabel,
 } from '../../lib/occupations';
-import type { PriceResult } from '../../lib/worker-model';
+import { useSurface } from '../../lib/surface';
+import { verifyCopy, waitingLine, type PriceResult } from '../../lib/worker-model';
 import { AmountSlider } from '../amount-slider';
 import { CoverCardShell } from '../cover-card';
+import { DisplayNumber } from '../display-number';
 import { FormField } from '../form-field';
 import { ListRow } from '../list-row';
-import { PillButton } from '../pill-button';
+import { PillButton, PillLink } from '../pill-button';
+import { StatusPill } from '../status-pill';
 import { TextLink } from '../text-link';
-import { CardTurn } from './card-turn';
+import { FailureBody } from '../toast';
+import { CardTurn, useFacing } from './card-turn';
 import { HeroCardStack } from './hero-card-stack';
 import { stepIndex, useQuote, type QuoteStep } from './quote-state';
 
@@ -33,14 +47,20 @@ import { stepIndex, useQuote, type QuoteStep } from './quote-state';
  * other, and the last turn settles on the quote laid out the way the card lays
  * out a policy.
  *
- * The steps are the /occupation and /amount screens with nothing added and
- * nothing rewritten: the same questions in the same words, the same rows, the
- * same slider and the same interpolated sentence. Both routes are untouched and
- * still hold the same session, so a link already shared still opens the step it
- * names and resumes the quote the landing page started. Verification and payment
- * are not here: a signature, a World proof and a payment each deserve a screen,
- * and "Continue" on the settled quote is the same server action the Amount
- * screen submits, which redirects to /verify.
+ * The steps are the /occupation, /amount, /verify and /pay screens with nothing
+ * added and nothing rewritten: the same questions in the same words, the same
+ * rows, the same slider, the same interpolated sentence, the same World check
+ * and the same bind. All four routes are untouched and still hold the same
+ * session, so a link already shared still opens the step it names and resumes
+ * the quote the landing page started, and a flow interrupted on a route can be
+ * finished here.
+ *
+ * T37 brought the last two over. Verification is the same `useWorldCheck` the
+ * /verify route runs, with the same preset, the same signed rp_context, the
+ * same signal and the same server side verify; only where the widget hangs
+ * changed. Payment is the same `openPayment` read and the same `payAndBind`
+ * the /pay route makes, and the card settles into the covered state Home gives
+ * it, once, when the bind returns.
  *
  * Every call to the API is still made on the server, in src/app/purchase-actions,
  * so the eligibility credential never reaches a browser.
@@ -60,6 +80,14 @@ const DEBOUNCE_MS = 250;
 const INDEX_ANCHOR = '#the-index';
 
 /**
+ * Loaded only where a check runs, so the SDK stays out of every other bundle.
+ * It is the /verify route's own module, imported the way that route imports it.
+ */
+const WorldCheck = dynamic(() =>
+  import('../../app/verify/world-check').then((module) => module.WorldCheck),
+);
+
+/**
  * The hero's right hand column: the card, with the quote on its other face.
  *
  * The card at rest is passed in rather than imported so that it stays what the
@@ -71,9 +99,24 @@ const INDEX_ANCHOR = '#the-index';
  * sway; a card with a search field and a slider on it cannot, because the sway
  * is then working against the thing the card is for. The shimmer does not stop,
  * so the surface is still alive under the step.
+ *
+ * The World widget hangs beside the card and never on a face of it. IDKit puts
+ * its own overlay in a shadow-root host it appends to the document body, so where the
+ * element sits decides nothing about where the overlay is drawn; what it decides
+ * is when the element mounts and unmounts, and a widget inside a face is a
+ * widget a turn can unmount while a check is still out on somebody's phone. The
+ * check's state sits here with it, above every face, which is what makes a
+ * cancellation land back on the step the person left rather than at the start.
  */
-export function QuoteSlot({ card }: { card: ReactNode }) {
-  const { step } = useQuote();
+export function QuoteSlot({
+  card,
+  interim,
+}: {
+  card: ReactNode;
+  /** No World app id in this deployment, so the interim issuer answers. */
+  interim: boolean;
+}) {
+  const { go, step } = useQuote();
   const at = stepIndex(step);
 
   // The two faces, and which step each is currently carrying. Adjusted during
@@ -91,6 +134,22 @@ export function QuoteSlot({ card }: { card: ReactNode }) {
   const [price, setPrice] = useState<PriceResult | null>(null);
   const [limit, setLimit] = useState(AMOUNT_DEFAULT);
   const [query, setQuery] = useState('');
+
+  const check = useWorldCheck({ interim });
+  // The five rows of the pay step. Null is the API not answering, which the
+  // step says on the card rather than filling in with a premium nobody quoted.
+  const [confirmation, setConfirmation] = useState<PayConfirmation | null>(null);
+  const [taking, startTaking] = useTransition();
+
+  // The fresh quote the pay step stands on, which is the read /pay makes on
+  // entry. Taken before the card turns, so the step arrives with its figures
+  // on it rather than filling in after the turn has settled.
+  const takePayment = (turn: boolean) => {
+    startTaking(async () => {
+      setConfirmation(await openPayment());
+      if (turn) go('pay');
+    });
+  };
 
   const face = (on: QuoteStep | null) => {
     if (on === null || on === 'closed') return null;
@@ -118,20 +177,64 @@ export function QuoteSlot({ card }: { card: ReactNode }) {
         />
       );
     }
-    return <CompleteFace current={step === on} limit={limit} price={price} />;
+    if (on === 'complete') {
+      return <CompleteFace current={step === on} limit={limit} price={price} />;
+    }
+    if (on === 'verify') {
+      return (
+        <VerifyFace
+          check={check}
+          current={step === on}
+          interim={interim}
+          onContinue={() => takePayment(true)}
+          pending={taking}
+        />
+      );
+    }
+    if (on === 'pay') {
+      return (
+        <PayFace
+          confirmation={confirmation}
+          current={step === on}
+          onBound={() => go('covered')}
+          onRetake={() => takePayment(false)}
+          taking={taking}
+        />
+      );
+    }
+    return (
+      <CoveredFace
+        current={step === on}
+        limit={limit}
+        premium={confirmation?.premium ?? price?.premium ?? ''}
+      />
+    );
   };
 
   return (
-    <HeroCardStack
-      className="cover-card-enter relative w-full max-w-[620px] motion-reduce:animate-none"
-      still={step !== 'closed'}
-    >
-      <CardTurn
-        at={at}
-        back={face(faces.back)}
-        front={faces.front === 'closed' ? card : face(faces.front)}
-      />
-    </HeroCardStack>
+    <>
+      <HeroCardStack
+        className="cover-card-enter relative w-full max-w-[620px] motion-reduce:animate-none"
+        still={step !== 'closed'}
+      >
+        <CardTurn
+          at={at}
+          back={face(faces.back)}
+          front={faces.front === 'closed' ? card : face(faces.front)}
+        />
+      </HeroCardStack>
+
+      {check.context === null || interim ? null : (
+        <WorldCheck
+          context={check.context}
+          open={check.open}
+          onOpenChange={check.setOpen}
+          handleVerify={check.handleVerify}
+          onSuccess={check.onSuccess}
+          onError={check.onError}
+        />
+      )}
+    </>
   );
 }
 
@@ -423,8 +526,9 @@ function AmountFace({
  *
  * "Cover" and "Monthly payment" are the deck's own labels, from the Home card
  * and the pay sheet's rows. The primary is "Continue", the deck's word on the
- * Amount screen, and it is the same `continueToVerify` the Amount route submits,
- * so verification and payment keep their own screens.
+ * Amount screen. It was `continueToVerify`, which redirected to /verify; since
+ * T37 it is one more half turn to the check, which the /amount route still
+ * submits the redirect for.
  */
 function CompleteFace({
   current,
@@ -435,7 +539,7 @@ function CompleteFace({
   limit: number;
   price: PriceResult | null;
 }) {
-  const { group } = useQuote();
+  const { go, group } = useQuote();
 
   return (
     <QuoteFace current={current}>
@@ -466,13 +570,273 @@ function CompleteFace({
       </div>
 
       <div className="flex flex-col gap-3">
-        <form action={continueToVerify}>
-          <PillButton className="w-full" type="submit">
-            Continue
-          </PillButton>
-        </form>
+        <PillButton className="w-full" onClick={() => go('verify')} type="button">
+          Continue
+        </PillButton>
         <BackTo step="amount" />
       </div>
+    </QuoteFace>
+  );
+}
+
+/**
+ * "Confirm you're a real person.", docs/DESIGN-TOKENS.md section 8, with the
+ * copy verbatim and every one of the screen's states intact.
+ *
+ * The check is the /verify route's, unchanged, through `useWorldCheck`: a fresh
+ * signed rp_context per opening, the selfieCheckLegacy preset with the wallet id
+ * as the signal, the completed result forwarded to the API and no further, the
+ * credential kept in the server side session. Cancelling is not a failure and
+ * says nothing; an expired or malformed signature is retried once in silence;
+ * "One person, one cover" is a rule and sends the person to the cover they have.
+ *
+ * Inside World App the same widget runs over the native transport with no QR
+ * code, and only the copy changes, which is what `useSurface` decides here as it
+ * does on the route.
+ *
+ * The states are on the card and the widget is not. The overlay IDKit opens
+ * covers the page from its own shadow-root host, so what is on the face is the
+ * state of the check: idle before it, waiting while it is out, verified after
+ * it, and the deck's failure with "Try again" when it does not come back.
+ */
+function VerifyFace({
+  check,
+  current,
+  interim,
+  onContinue,
+  pending,
+}: {
+  check: WorldCheckRun;
+  current: boolean;
+  interim: boolean;
+  /** Takes the fresh quote and turns to the pay step. */
+  onContinue: () => void;
+  pending: boolean;
+}) {
+  const surface = useSurface();
+  const copy = verifyCopy(check.state, surface);
+
+  return (
+    <QuoteFace current={current}>
+      <StepHeading>{copy.heading}</StepHeading>
+      <p className="text-secondary text-ink-2">{copy.line}</p>
+
+      {check.state === 'verified' ? (
+        <p className="text-body-lg text-ink" data-testid="landing-verify-state" role="status">
+          You&apos;re verified
+        </p>
+      ) : null}
+      {check.state === 'waiting' ? (
+        <p className="text-body-lg text-ink" data-testid="landing-verify-state" role="status">
+          {waitingLine(surface)}
+        </p>
+      ) : null}
+      {interim ? (
+        <p className="text-secondary text-ink-2">
+          Interim check. Testnet only. This issues the eligibility credential without running a
+          World Selfie Check yet.
+        </p>
+      ) : null}
+
+      <div className="flex flex-col gap-3">
+        {check.state === 'verified' ? (
+          <PillButton className="w-full" loading={pending} onClick={onContinue} type="button">
+            {copy.button}
+          </PillButton>
+        ) : check.state === 'covered' ? (
+          // The one place this flow leaves the page on purpose. The rule has
+          // been read and the person already holds cover, so the destination is
+          // that cover and not another step of a purchase they cannot make.
+          <form action={goToCover}>
+            <PillButton className="w-full" type="submit">
+              {copy.button}
+            </PillButton>
+          </form>
+        ) : (
+          <PillButton
+            className="w-full"
+            loading={check.pending || check.state === 'waiting'}
+            onClick={check.start}
+            type="button"
+          >
+            {copy.button}
+          </PillButton>
+        )}
+        <BackTo step="complete" />
+      </div>
+    </QuoteFace>
+  );
+}
+
+/**
+ * "Confirm your cover" and its five rows, docs/DESIGN-TOKENS.md section 8,
+ * verbatim, with the button naming the outcome.
+ *
+ * The bind is `payAndBind`, the /pay route's own action, unchanged: the quote is
+ * bound with the credential from the server side session, an expired quote is
+ * re-priced once, and a price that moved is refused rather than paid. DESIGN.md
+ * 3.7 settles the premium over x402 on the server, so there is no wallet to
+ * bounce out to and nothing about being on this page makes the payment different
+ * from the payment the route makes.
+ *
+ * The rows sit on the metal rather than in a surface group, for the reason the
+ * occupation step's rows do: the card is already what separates them from the
+ * page, and a grey slab on a metal face is a form pasted over a card.
+ *
+ * A payment that does not go through opens the deck's Payment failed state in
+ * place, with the amount interpolated, exactly as the sheet does.
+ */
+function PayFace({
+  confirmation,
+  current,
+  onBound,
+  onRetake,
+  taking,
+}: {
+  confirmation: PayConfirmation | null;
+  current: boolean;
+  onBound: () => void;
+  onRetake: () => void;
+  taking: boolean;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const confirm = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await payAndBind();
+      if (result.ok) onBound();
+      else setError(result.error);
+    });
+  };
+
+  if (confirmation === null) {
+    // The words src/app/unavailable.tsx says when the API does not answer, said
+    // on the card because there is no screen to send anybody to. It invents no
+    // premium: a figure from a cached guess is worse than saying there is none.
+    return (
+      <QuoteFace current={current}>
+        <StepHeading>We can&apos;t reach the index right now.</StepHeading>
+        <p className="text-secondary text-ink-2">
+          The price and the index come from the API. Start it with pnpm api:dev, then try again.
+        </p>
+        <div className="flex flex-col gap-3">
+          <PillButton className="w-full" loading={taking} onClick={onRetake} type="button">
+            Retry
+          </PillButton>
+          <BackTo step="verify" />
+        </div>
+      </QuoteFace>
+    );
+  }
+
+  return (
+    <QuoteFace current={current}>
+      <StepHeading>Confirm your cover</StepHeading>
+
+      <div className="divide-y divide-hairline">
+        <ListRow label="Cover" value={confirmation.cover} />
+        <ListRow label="Occupation" value={confirmation.occupation} />
+        <ListRow label="Monthly payment" value={confirmation.premium} />
+        <ListRow label="First payment today" value={confirmation.premium} />
+        <ListRow
+          caption={confirmation.walletLabel}
+          label="Pays from"
+          value={<span className="tabular-nums">{confirmation.paysFrom}</span>}
+        />
+      </div>
+
+      <p className="text-secondary text-ink-2">
+        Testnet only. The first payment leaves the wallet above as soon as you press.
+      </p>
+
+      {error === null ? (
+        <div className="flex flex-col gap-3">
+          <PillButton className="w-full" loading={pending} onClick={confirm} type="button">
+            {`Pay ${confirmation.premium}`}
+          </PillButton>
+          <BackTo step="verify" />
+        </div>
+      ) : (
+        <div data-testid="landing-payment-failed">
+          <FailureBody {...purchaseFailedCopy(confirmation.premium, error)} onAction={confirm} />
+        </div>
+      )}
+    </QuoteFace>
+  );
+}
+
+/**
+ * The card, covered, which is the state Home gives it once the bind has settled.
+ *
+ * This is the one orchestrated moment docs/DESIGN-TOKENS.md section 6 allows,
+ * and it happens once. The card turning to this face is the settle, and the
+ * cover counts up beside it over 600ms in the same `DisplayNumber` Home uses.
+ * Nothing else moves and nothing replays: the card is already standing in the
+ * hero, so Home's 420ms slide is not run again over a card that never arrived.
+ *
+ * This is the first face allowed to say "Covered", because it is the first
+ * moment there is cover behind it. The pill is Home's own, in Home's own words.
+ *
+ * "See your cover" is a link and not part of the flow. The journey ends here,
+ * on this page; Home is where a policy lives afterwards, and it is reached
+ * without the query that would make it perform the moment a second time.
+ */
+function CoveredFace({
+  current,
+  limit,
+  premium,
+}: {
+  current: boolean;
+  limit: number;
+  premium: string;
+}) {
+  const { group } = useQuote();
+  // The count-up waits for the card to be edge on, which is when this face
+  // becomes the one being read. Started when the step changed it would run
+  // through the first half of the turn, behind a face pointing away, and be
+  // over by the time anybody could see it.
+  const facing = useFacing();
+
+  return (
+    <QuoteFace current={current}>
+      <div className="flex items-start justify-between gap-4">
+        <h2
+          className="text-secondary font-medium text-ink"
+          data-quote-focus=""
+          tabIndex={-1}
+        >
+          {group === null ? '' : occupationLabel(group)}
+        </h2>
+        <StatusPill state="covered">Covered</StatusPill>
+      </div>
+
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="flex flex-col gap-1">
+          <p className="text-secondary text-ink">Cover</p>
+          {/* The same size the settled quote puts the cover at, so the card
+              settles rather than shrinking as it turns to this face. */}
+          <DisplayNumber
+            className="lg:text-landing-amount lg:tracking-landing-ledger"
+            countUp={facing === 'viewer'}
+            value={limit}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <p className="text-secondary text-ink">Monthly payment</p>
+          <p
+            className="font-display text-title font-semibold tracking-title tabular-nums text-ink"
+            data-testid="landing-covered-monthly"
+          >
+            {premium}
+          </p>
+        </div>
+      </div>
+
+      <PillLink className="w-full" href="/home" variant="secondary">
+        See your cover
+      </PillLink>
     </QuoteFace>
   );
 }

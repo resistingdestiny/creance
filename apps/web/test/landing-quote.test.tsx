@@ -17,6 +17,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * PriceResult the two server actions return.
  */
 
+/**
+ * The whole landing page renders for every one of these, and the journeys on it
+ * are long. Vitest's five second default is not enough for that once the
+ * workers are running in parallel, and a test that fails only when its
+ * neighbours are busy is worse than a slow one.
+ */
+vi.setConfig({ testTimeout: 20_000 });
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   redirect: vi.fn(),
@@ -25,13 +33,26 @@ vi.mock('next/navigation', () => ({
 vi.mock('../src/app/purchase-actions.js', () => ({
   beginPurchase: vi.fn(),
   chooseOccupation: vi.fn(),
+  completeWorldCheck: vi.fn(),
+  continueToPay: vi.fn(),
   continueToVerify: vi.fn(),
+  goToCover: vi.fn(),
+  openPayment: vi.fn(),
+  payAndBind: vi.fn(),
   priceCover: vi.fn(),
   quoteOccupation: vi.fn(),
+  startAgain: vi.fn(),
+  startWorldCheck: vi.fn(),
+  verifyPerson: vi.fn(),
 }));
 
+/** The widget is the SDK's, and no test in this file runs a check. */
+vi.mock('../src/app/verify/world-check.js', () => ({ WorldCheck: () => null }));
+
 const { LandingScreen } = await import('../src/components/landing/landing-screen.js');
-const { priceCover, quoteOccupation } = await import('../src/app/purchase-actions.js');
+const { continueToVerify, priceCover, quoteOccupation } = await import(
+  '../src/app/purchase-actions.js'
+);
 const { formatPeriod } = await import('../src/lib/format.js');
 const { LIVE } = await import('./landing-fixtures.js');
 
@@ -433,14 +454,19 @@ describe('the settled quote is the card, carrying its own figures', () => {
     expect(panel().queryByText('Covered')).toBeNull();
   });
 
-  it('sends the quote to verification in the deck word', async () => {
+  it('turns to the check in the deck word, rather than leaving for it', async () => {
     page();
     await toSettled();
-    // The primary is the same server action the Amount screen submits, which
-    // redirects to /verify. A signature and a World proof still get a screen.
+    // The primary was `continueToVerify`, which redirected to /verify. Since
+    // T37 the check is one more half turn and the route still holds it for a
+    // link already shared. landing-purchase.test.tsx carries the step itself.
     const primary = panel().getByRole('button', { name: 'Continue' });
-    expect(primary.getAttribute('type')).toBe('submit');
-    expect(primary.closest('form')).not.toBeNull();
+    expect(primary.getAttribute('type')).toBe('button');
+    expect(primary.closest('form')).toBeNull();
+
+    fireEvent.click(primary);
+    await turned("Confirm you're a real person.");
+    expect(continueToVerify).not.toHaveBeenCalled();
   });
 
   it('turns back to the amount without losing the cover', async () => {

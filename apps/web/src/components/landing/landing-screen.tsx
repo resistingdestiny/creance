@@ -47,19 +47,32 @@ import { QuoteProvider } from './quote-state';
  * outline is the focus state on all of them. The design draws them as divs and
  * spans, which would have neither focus nor keyboard.
  *
- * The quote happens here (T35). "Get a quote" opens it where the hero card
- * stands rather than leaving for a route, the occupation it is for moves the
- * index explorer below, and only verification and payment still have screens of
- * their own. QuoteProvider is the one piece of state the page holds, and the
- * sections around it are still rendered on the server: they are passed through
- * it as children, so the marketing page is not a client bundle because three
- * buttons share a step.
+ * The whole purchase happens here. "Get a quote" opens it where the hero card
+ * stands rather than leaving for a route (T35), the card turns over to carry
+ * each step (T36), and since T37 the World check, the payment and the covered
+ * card are steps of the same turn: there is no full page navigation between the
+ * front door and cover being bought. The four routes are all still live and
+ * still hold the same session. QuoteProvider is the one piece of state the page
+ * holds, and the sections around it are still rendered on the server: they are
+ * passed through it as children, so the marketing page is not a client bundle
+ * because three buttons share a step.
  */
 
 const PAGE = 'px-5 lg:px-16';
 const CONTENT = 'mx-auto w-full max-w-[1080px]';
 
-export function LandingScreen({ data }: { data: LandingData }) {
+export function LandingScreen({
+  data,
+  interim = false,
+}: {
+  data: LandingData;
+  /**
+   * No World app id in this deployment, so the check step runs the interim
+   * issuer and says so. False is the World check running, which is what a
+   * configured deployment does and what a caller with nothing to say means.
+   */
+  interim?: boolean;
+}) {
   // Both index links open the public explorer, which is the page of record for
   // the index (T32). They pointed at the worker's Index tab, which is one
   // occupation inside the app frame and behind a tab bar; a visitor who has
@@ -73,6 +86,7 @@ export function LandingScreen({ data }: { data: LandingData }) {
         <main>
           <section className="bg-night">
             <HeroBand
+              interim={interim}
               live={data.index.live}
               occupation={data.occupation}
               priceLine={data.priceLine}
@@ -188,10 +202,12 @@ function IndexLive({ live }: { live: boolean }) {
  * changes: the text, then the card, in one readable column.
  */
 function HeroBand({
+  interim,
   live,
   occupation,
   priceLine,
 }: {
+  interim: boolean;
   live: boolean;
   occupation: string;
   priceLine: string | null;
@@ -207,7 +223,7 @@ function HeroBand({
             aria-hidden="true"
             className="landing-glow pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-full max-w-[1100px] -translate-x-1/2 -translate-y-1/2 rounded-full"
           />
-          <QuoteSlot card={<HeroCard occupation={occupation} />} />
+          <QuoteSlot card={<HeroCard occupation={occupation} />} interim={interim} />
         </div>
       </div>
     </div>

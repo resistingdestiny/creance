@@ -1145,6 +1145,15 @@ names" and does not say which trailing punctuation ends a token
 2026-09-05). A colon does not, because a colon is the variant separator, so
 `shadow:` reads as the start of a variant and the base utility is emitted. The
 comment was reworded. The test caught it, which is the argument for having it.
+
+Met again on T37, and the boundary is narrower still. A comment describing where
+IDKit draws its overlay said "in a shadow host it appends to the document body".
+A plain space after the word is enough: the same composite went into the built
+stylesheet and the same test failed. So a trailing comma ends the token and a
+trailing space does not, which means the safe rule for prose in a scanned file
+is not "avoid punctuation after a utility name" but "do not write a utility name
+as a bare word at all". Reworded to "shadow-root host", which is a candidate
+Tailwind has no rule for and is the more accurate phrase anyway.
 ## T08, x402 and Blocky402, 5 September 2026
 
 ### The Fastify middleware prices a route before the request body exists

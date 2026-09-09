@@ -1,6 +1,14 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { useReducedMotion } from '../../lib/use-reduced-motion';
 
@@ -172,6 +180,22 @@ function side(face: 0 | 1, shown: number): 'viewer' | 'away' {
   return Math.abs(shown % 2) === face ? 'viewer' : 'away';
 }
 
+const Facing = createContext<'viewer' | 'away'>('viewer');
+
+/**
+ * Whether the face this is asked from is the one being read.
+ *
+ * It is the same moment `data-facing` marks in the DOM: it turns at ninety
+ * degrees and not when the step changes. A step that has anything to perform on
+ * arrival waits for it, because a face is written and mounted at the start of
+ * the turn, while it is still pointing away, and a performance that ran there
+ * would be over before the card came round. The covered step's count-up is the
+ * one that asks.
+ */
+export function useFacing(): 'viewer' | 'away' {
+  return useContext(Facing);
+}
+
 /**
  * One face.
  *
@@ -198,7 +222,7 @@ function Face({
       data-facing={facing}
       inert={away}
     >
-      {children}
+      <Facing.Provider value={facing}>{children}</Facing.Provider>
     </div>
   );
 }

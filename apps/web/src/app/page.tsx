@@ -1,4 +1,5 @@
 import { LandingScreen } from '../components/landing/landing-screen';
+import { isInterimIssuer } from '../lib/eligibility';
 import { readLanding } from '../lib/landing-data';
 
 /**
@@ -15,10 +16,15 @@ import { readLanding } from '../lib/landing-data';
  * Dynamic and uncached, because the price, the reading and the demo clock on it
  * are live state and a front door that shows yesterday's premium is worse than
  * one that shows no premium.
+ *
+ * T37 brought the World check and the payment onto it too, so it now needs the
+ * one thing /verify needed from the server: whether this deployment has a World
+ * app id at all. A clone with none gets the interim issuer and says so, in the
+ * same words on the same step.
  */
 
 export const dynamic = 'force-dynamic';
 
 export default async function Landing() {
-  return <LandingScreen data={await readLanding()} />;
+  return <LandingScreen data={await readLanding()} interim={isInterimIssuer()} />;
 }

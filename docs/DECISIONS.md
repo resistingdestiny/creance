@@ -4790,3 +4790,232 @@ on any face is smaller than the sheet's 14px secondary or 13px caption, and the
 premium keeps T35's step down to the headline size at 390. The fifteen rows
 scroll inside the face at four rows on the landing breakpoint and two and a half
 at 390, which is what keeps the card a card rather than a column.
+
+## T37, verification and payment on the landing page, 9 September 2026
+
+T35 put the quote on the landing page and left the World check and the payment
+on their own routes; T36 made the card itself the quote. This ticket brings the
+last two steps over, so the journey from the front door to cover being bought is
+one page and no full page navigation. The card turns three more times: to the
+check, to the confirmation, and to the card in the state it will have as a real
+policy.
+
+### "Only the quote moved" is reversed, and the reasoning it rested on
+
+T35 recorded that verification and payment keep their routes, because a
+signature, a World proof and a payment are each a moment worth a screen and the
+World flow on /verify is what a prize depends on. That is the decision this
+ticket reverses, at Benedict's ask, and the reasoning is worth stating rather
+than quietly dropping.
+
+The first half of it does not survive contact with what the two steps actually
+are here. IDKit brings its own full screen overlay to whatever page hosts it, so
+the World proof already gets the whole screen and getting there through a
+navigation adds nothing to it. And the payment is settled server side over x402
+(DESIGN.md 3.7), so there is no wallet to be bounced out to and back from, which
+is the one thing a route protects against. The screen a payment deserves is the
+confirmation before it, and that is on the card.
+
+The second half stands and is the reason nothing about either step changed. The
+World flow is worth a prize and has still not been exercised on a device, so
+this is a relocation and not a rewrite: the rp_context construction and signing,
+the preset, the action, the signal, the call to the verify endpoint, the
+handling of the result and the nullifier storage are all untouched, and the bind
+is the same server action with the same re-price rule. What moved is where the
+widget hangs and where the button is.
+
+### The check is one state machine, lifted rather than copied
+
+The verify screen held its states, its two sets of error codes, its silent retry
+and its interim branch inline. Copying them onto a card face would have been the
+second implementation the constraint forbids, and the two would have drifted
+within a day.
+
+They are now `src/app/verify/use-world-check.ts`, a hook, and both the route and
+the card call it. The route renders exactly the states it rendered before with
+exactly the deck's strings, which its own tests still hold. Nothing about the
+request crossed into the landing page: `startWorldCheck`, `completeWorldCheck`
+and `verifyPerson` are the same three server actions, and the eligibility
+credential still never reaches a browser.
+
+It is a hook and not a component because the widget cannot live where the button
+lives, which is the next decision.
+
+### The widget hangs beside the card and never on a face of it
+
+IDKit renders its overlay into a shadow root on a div it appends to the document
+body, so where the element sits in the tree decides nothing about where the
+overlay is drawn: it is not clipped by the card, not rotated by it, and not
+reachable by the page's own stylesheet. What the element's position does decide
+is when it mounts and unmounts. A widget on a card face is a widget a turn can
+unmount while a check is still out on somebody's phone, and a face is also given
+`visibility: hidden` and `inert` for as long as it is pointing away.
+
+So the widget is a sibling of the card and the check's state sits above both
+faces. That is also what makes the acceptance's cancellation behave: the person
+comes back to the step they left, with the occupation, the cover and the price
+they entered still on the card, because none of it ever lived on a face and the
+card never turned.
+
+### The pay step takes the sheet's own fresh quote, and it is one read
+
+The /pay route takes a fresh quote on entry, because a quote lasts fifteen
+minutes and the figure on the button is the figure that will be bound. The card
+has to do the same or the button lies.
+
+Rather than write that read twice, it is `openPayment` in
+src/app/purchase-actions.ts and the route calls it too. The route keeps its own
+guards: no session redirects to /occupation, no credential redirects to /verify,
+and an API that does not answer is still the unavailable screen. On the card
+there is nowhere to redirect to, so the same three cases are one null, and the
+step says the unavailable screen's own two sentences rather than inventing a
+premium. It is taken while the "Continue" on the check is still loading, so the
+step arrives with its five rows already on it instead of filling in after the
+card has settled.
+
+The cost is unchanged. Over the routes the journey was one quote at /amount and
+one at /pay; on the card it is the same two.
+
+### The pay step did not need the bottom sheet either
+
+T36 recorded that none of the first four steps needed to expand to a sheet at
+390, and the two new ones do not either. Measured at 390 in Chromium, inside a
+card 350 wide: the check is 386 tall with the interim notice on it, the
+confirmation is 574 with its title, five rows at the sheet's 52px minimum, its
+sentence and its button, and the covered card is 260. The tallest of the six
+steps is still the cover amount at 594. The face grows to the step it is
+holding, as before.
+
+The rows sit on the metal rather than in a `SurfaceGroup`, for the reason T36
+gave for the occupation list: the card is already what separates them from the
+page, and a grey slab on a metal face is a form pasted over a card. The /pay
+route keeps its surface group, because on canvas that is what the group is for.
+
+### The card is allowed to say "Covered" only once the bind has returned
+
+T36 recorded that the settled quote wears no pill, because nothing had been
+verified and nothing paid and a pill that said "Covered" would claim cover the
+visitor did not have. That is exactly the condition the covered step satisfies:
+`payAndBind` has returned ok, the policy is minted, and the pill is Home's own,
+in Home's own words.
+
+It is the one orchestrated moment docs/DESIGN-TOKENS.md section 6 allows and it
+happens once. The card turning to this face is the settle, and the cover counts
+up beside it over 600ms in the same `DisplayNumber` Home uses. Home's 420ms
+slide is not replayed: that animation is a card arriving, and this card has been
+standing in the hero since the page loaded. Under reduced motion the count-up
+lands on the value in one step, as it does everywhere else, and the turn is
+already instant.
+
+The count-up waits for the card to be edge on rather than starting when the step
+changes. A face is written and mounted at the start of the turn, while it is
+still pointing away, so a count-up started there would run behind a hidden face
+and be over before anyone could see it. `useFacing` in card-turn.tsx publishes
+the same moment `data-facing` marks in the DOM, and the covered step reads it.
+
+### Home is a link from the covered card, not the end of the flow
+
+The backlog does not say what happens to /home once payment is inline. The
+journey ends on the landing page, because that is what the acceptance asks for:
+the card settles into its covered state there. Home is where a policy lives
+afterwards, so the covered card offers "See your cover" as a secondary link.
+
+It points at plain /home and not at /home?bound=1. That query is what makes Home
+perform the orchestrated moment, and the moment has just happened on the card.
+Once means once.
+
+The covered card carries no policy id and no receipt link. The bind returns
+`{ ok, error }` and adding the policy id to it would have been a change to the
+payment path this ticket is not allowed to make. Home reads the policy from the
+session and links to /receipt/:policyId itself when there is something to
+receipt, which is the page of record for it.
+
+### The check step's back leads to the check's own previous step
+
+Every face T36 built has a way back, because a step nobody can leave is a trap.
+The check goes back to the settled quote and the confirmation goes back to the
+check, which is one half turn each and the step the person actually came from.
+The confirmation does not go back to the cover amount, which is where the /pay
+route's sheet closes to: on a route that is the screen behind the sheet, and on
+the card the step behind it is the check.
+
+Nothing is lost either way. The credential is in the server side session, so a
+person who turns back from the confirmation and forward again finds the check
+still verified and "Continue" waiting.
+
+### The one navigation left in the flow is the one that should be
+
+"One person, one cover" is a rule and not a failure, and the person it speaks to
+already holds cover. The button under it is `goToCover`, the same server action
+the /verify route submits, and it leaves for /home. Sending them one more turn
+into a purchase they cannot make would be the wrong page.
+
+### The routes are all still live and still resume
+
+/occupation, /amount, /verify and /pay keep their routes, their metadata and
+their tests, and they read and write the same server side purchase session the
+card writes, behind the same httpOnly cookie. A link already shared still opens
+the step it names. A flow interrupted on the card is resumed by opening the
+route, and a flow interrupted on a route is resumed by the route.
+
+### What the journey costs, measured
+
+Landing to covered, taken in a browser against the API on Hedera testnet with
+no slider gesture: two metered index reads and four quotes, 0.22 TUSD, and then
+the bind, which settles the first month's premium.
+
+The two new steps add one of those four. The check costs nothing metered: the
+signed request context is not behind the gate. The confirmation costs the fresh
+quote `openPayment` takes, 0.05, which is the read /pay has always made on
+entry, so the journey over the card and the journey over the routes cost the
+same.
+
+### What was exercised and what was reasoned about
+
+In a browser at 390 and 1440, against the API on Hedera testnet:
+
+- The whole journey, landing to covered, with the interim issuer standing in for
+  the check. Two policies were bound for real, one per width. The page never
+  reloaded and the card never left the hero column, at either width, and neither
+  width scrolled horizontally.
+- The World widget itself, with a World app id configured. It opens its overlay
+  over the whole page, unclipped and unrotated, and shows the QR and the cross
+  device flow; the card behind it reads "Waiting for the World app".
+- The check completed through the staging simulator, which produced an Orb
+  proof because that simulator offers no Selfie or Face credential. World
+  accepted the signed request and returned a proof, our server action posted it
+  to the API, and the API refused the credential identifier, which is the
+  shipping configuration working. The card showed the deck's failure state in
+  place, with "Try again", and the page around it was untouched.
+- The keyboard alone, from the first Tab to the check. Focus lands on the
+  arriving step's heading at every turn, and from a step the tab order leaves
+  the card into the page below rather than being trapped on it.
+- Reduced motion: fifty milliseconds after the press the step is already the
+  face being read, and the turn's transition duration is 0s.
+
+Not exercised: a real Selfie Check, which needs the Sandbox App on a phone, and
+the World App Mini App surface, which needs the Mini App registered. Both are
+reasoned about, and the reasoning is the one thing this ticket could make
+checkable: the card and the route are handed the same request object by the same
+hook, which world-app-screens.test.tsx asserts by comparing the two.
+
+### The card does not carry a credential the session already holds
+
+Reviewed under T37: /verify is told `alreadyVerified` from the session, and the
+card is not, so somebody who has already passed the check and comes back to the
+landing page is asked for it again on the card where the route would not.
+
+That is true and it is deliberate. Passing it would make the card behave exactly
+like the route, and it would also inherit the route's own hazard. Nothing clears
+the eligibility credential when the occupation changes: `chooseOccupation` and
+`quoteOccupation` both write a new group and leave `credential` alone. On the
+route that hazard needs somebody to navigate back to /occupation on purpose; on
+the card the occupation step is on the way to every quote, so it would be the
+ordinary path, and the card would say "You're verified" over a credential issued
+against a different occupation and carry it into a bind the API would refuse.
+
+The fix is to clear the credential when the group changes, which is a change to
+the purchase path, and this ticket may not make one. So the card asks again,
+which costs a check and is never wrong, and the credential clearing is left as a
+ticket of its own. Recorded here rather than fixed quietly, because the second
+half of it is a real defect on the routes today.

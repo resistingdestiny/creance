@@ -2,17 +2,17 @@
 
 import { redirect } from 'next/navigation';
 
-import { ApiError } from '../lib/api';
+import { ApiError, reportUnreachable } from '../lib/api';
 import { issueEligibilityFor, type EligibilityRequest } from '../lib/eligibility';
 import { AMOUNT_DEFAULT } from '../lib/cover-amount';
-import { findOccupation, hasCover } from '../lib/occupations';
+import { findOccupation, hasCover, occupationLabel } from '../lib/occupations';
 import {
   readPurchase,
   startPurchase,
   updatePurchase,
   type PurchaseSession,
 } from '../lib/purchase-session';
-import { DEMO_ACCOUNT } from '../lib/wallet';
+import { DEMO_ACCOUNT, DEMO_WALLET_LABEL } from '../lib/wallet';
 import {
   bindMessage,
   coverAmount,
@@ -220,6 +220,52 @@ export async function continueToPay(): Promise<void> {
 /** Verify screen, when this person already holds cover: the cover they have. */
 export async function goToCover(): Promise<void> {
   redirect('/home');
+}
+
+/**
+ * Pay sheet: the five rows on it, and the price the button will name.
+ *
+ * The quote is taken fresh, because the figure on the button is the figure that
+ * will be bound and a quote lasts fifteen minutes. That is what /pay has always
+ * done on entry; this is the same read, named, so the route and the landing
+ * page take it once each and in the same way.
+ *
+ * Null is "there is nothing to confirm": no session, no credential, or the API
+ * did not answer. The route turns the first two into the redirects it always
+ * made and the third into the screen it always showed, and the landing page
+ * says so on the card. Neither invents a premium.
+ */
+export interface PayConfirmation {
+  readonly cover: string;
+  readonly occupation: string;
+  readonly premium: string;
+  readonly paysFrom: string;
+  readonly walletLabel: string | null;
+}
+
+export async function openPayment(): Promise<PayConfirmation | null> {
+  const session = await readPurchase();
+  if (!session?.group || session.credential === null) return null;
+
+  const group = session.group;
+  try {
+    const quote = await requestQuote({
+      group,
+      limit: toMinorUnits(session.limit ?? AMOUNT_DEFAULT),
+      wallet: DEMO_ACCOUNT.accountId,
+    });
+    await updatePurchase({ quoteId: quote.quote_id, premiumMinorUnits: quote.premium.amount });
+    return {
+      cover: coverAmount(quote.limit),
+      occupation: occupationLabel(group),
+      premium: premiumAmount(quote.premium),
+      paysFrom: quote.pays_from,
+      walletLabel: DEMO_WALLET_LABEL,
+    };
+  } catch (cause) {
+    reportUnreachable('the pay sheet', cause);
+    return null;
+  }
 }
 
 /**

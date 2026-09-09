@@ -4879,10 +4879,12 @@ one at /pay; on the card it is the same two.
 ### The pay step did not need the bottom sheet either
 
 T36 recorded that none of the first four steps needed to expand to a sheet at
-390, and the two new ones do not either. The confirmation is a title, five rows
-at the sheet's 52px minimum, one sentence and a button, which is 520px inside a
-card 350 wide; the check is a heading, two lines and a button. The face grows to
-the step it is holding, as before.
+390, and the two new ones do not either. Measured at 390 in Chromium, inside a
+card 350 wide: the check is 386 tall with the interim notice on it, the
+confirmation is 574 with its title, five rows at the sheet's 52px minimum, its
+sentence and its button, and the covered card is 260. The tallest of the six
+steps is still the cover amount at 594. The face grows to the step it is
+holding, as before.
 
 The rows sit on the metal rather than in a `SurfaceGroup`, for the reason T36
 gave for the occupation list: the card is already what separates them from the
@@ -4955,3 +4957,44 @@ their tests, and they read and write the same server side purchase session the
 card writes, behind the same httpOnly cookie. A link already shared still opens
 the step it names. A flow interrupted on the card is resumed by opening the
 route, and a flow interrupted on a route is resumed by the route.
+
+### What the journey costs, measured
+
+Landing to covered, taken in a browser against the API on Hedera testnet with
+no slider gesture: two metered index reads and four quotes, 0.22 TUSD, and then
+the bind, which settles the first month's premium.
+
+The two new steps add one of those four. The check costs nothing metered: the
+signed request context is not behind the gate. The confirmation costs the fresh
+quote `openPayment` takes, 0.05, which is the read /pay has always made on
+entry, so the journey over the card and the journey over the routes cost the
+same.
+
+### What was exercised and what was reasoned about
+
+In a browser at 390 and 1440, against the API on Hedera testnet:
+
+- The whole journey, landing to covered, with the interim issuer standing in for
+  the check. Two policies were bound for real, one per width. The page never
+  reloaded and the card never left the hero column, at either width, and neither
+  width scrolled horizontally.
+- The World widget itself, with a World app id configured. It opens its overlay
+  over the whole page, unclipped and unrotated, and shows the QR and the cross
+  device flow; the card behind it reads "Waiting for the World app".
+- The check completed through the staging simulator, which produced an Orb
+  proof because that simulator offers no Selfie or Face credential. World
+  accepted the signed request and returned a proof, our server action posted it
+  to the API, and the API refused the credential identifier, which is the
+  shipping configuration working. The card showed the deck's failure state in
+  place, with "Try again", and the page around it was untouched.
+- The keyboard alone, from the first Tab to the check. Focus lands on the
+  arriving step's heading at every turn, and from a step the tab order leaves
+  the card into the page below rather than being trapped on it.
+- Reduced motion: fifty milliseconds after the press the step is already the
+  face being read, and the turn's transition duration is 0s.
+
+Not exercised: a real Selfie Check, which needs the Sandbox App on a phone, and
+the World App Mini App surface, which needs the Mini App registered. Both are
+reasoned about, and the reasoning is the one thing this ticket could make
+checkable: the card and the route are handed the same request object by the same
+hook, which world-app-screens.test.tsx asserts by comparing the two.

@@ -346,6 +346,30 @@ describe('the public index explorer, on the front door', () => {
   });
 });
 
+describe('the front of the machine', () => {
+  it('offers the quote three times, as buttons rather than as a form post', () => {
+    // The button opened /occupation through a server action and a redirect. The
+    // quote is on this page now (T35), so it opens in place and there is no
+    // form on the page at all.
+    const buttons = [...live.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((match) =>
+      visibleText(match[1] ?? ''),
+    );
+    expect(buttons.filter((label) => label === 'Get a quote')).toHaveLength(3);
+    expect(live).not.toContain('<form');
+  });
+
+  it('stands the cover card in the hero until the quote is asked for', () => {
+    expect(live).toContain('cover-card-stack');
+    expect(live).not.toContain('data-testid="landing-quote"');
+  });
+
+  it('gives the index section the id the amount step opens', () => {
+    // "How the index works" in the quote is this section and not another route,
+    // because the occupation being quoted is the occupation it is showing.
+    expect(live).toContain('id="the-index"');
+  });
+});
+
 describe('the hero card as an object', () => {
   it('asks for depth here and in no other place in the product', () => {
     expect(live.match(/cover-card--depth/g)).toHaveLength(1);

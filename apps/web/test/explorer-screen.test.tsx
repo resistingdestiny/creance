@@ -2,6 +2,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { ExplorerPanel } from '../src/app/index/explorer-panel.js';
 import { ExplorerScreen } from '../src/app/index/explorer-screen.js';
 import { explorerOccupation, latestMonth, priceFor } from '../src/lib/explorer-model.js';
 import { formatPeriod } from '../src/lib/format.js';
@@ -102,6 +103,43 @@ describe('the picker', () => {
     const month = latestMonth(occupation!);
     expect(screen.getByText(`Legal, ${formatPeriod('2026-07')}`)).toBeDefined();
     expect(screen.getByText(`${month!.distance!.toFixed(1)} points from a payout`)).toBeDefined();
+  });
+});
+
+describe('the occupation another page names', () => {
+  it('opens on it rather than on the panel default', () => {
+    render(<ExplorerPanel data={data()} follows="legal" />);
+    expect(screen.getByText(`Legal, ${formatPeriod('2026-07')}`)).toBeDefined();
+  });
+
+  it('moves to it when the page names another one', () => {
+    const { rerender } = render(<ExplorerPanel data={data()} follows={null} />);
+    expect(screen.getByText(/^Computer and mathematical, /)).toBeDefined();
+
+    rerender(<ExplorerPanel data={data()} follows="legal" />);
+    expect(screen.getByText(`Legal, ${formatPeriod('2026-07')}`)).toBeDefined();
+  });
+
+  it('leaves the reader free to pick any of the fifteen afterwards', () => {
+    // Followed, not obeyed. A panel that snapped back to the quote's
+    // occupation would be a control with two owners.
+    render(<ExplorerPanel data={data()} follows="legal" />);
+    const chip = screen
+      .getAllByRole('button')
+      .find((button) => button.textContent?.startsWith('Production') === true);
+    fireEvent.click(chip!);
+    expect(screen.getByText(`Production, ${formatPeriod('2026-07')}`)).toBeDefined();
+  });
+
+  it('lands a followed occupation on the newest month, not the month last scrubbed to', () => {
+    const { rerender } = render(<ExplorerPanel data={data()} follows="legal" />);
+    fireEvent.change(screen.getByRole('slider', { name: 'Month, Legal' }), {
+      target: { value: '3' },
+    });
+    expect(screen.queryByText(`Legal, ${formatPeriod('2026-07')}`)).toBeNull();
+
+    rerender(<ExplorerPanel data={data()} follows="production" />);
+    expect(screen.getByText(`Production, ${formatPeriod('2026-07')}`)).toBeDefined();
   });
 });
 

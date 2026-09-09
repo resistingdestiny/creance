@@ -271,6 +271,17 @@ describe('hairlines and the card', () => {
     );
   });
 
+  it('reads every label on a card face in ink, whatever component drew it', () => {
+    // ink-2 is 3.47:1 on the darkest gradient stop of any treatment and fails
+    // the floor. The quote's steps are built from components that stand on
+    // canvas everywhere else, where the same colour is 5.2:1 and right.
+    const promoted = blocksMatching(/\.cover-card__content \.text-ink-2/);
+    expect(promoted).toHaveLength(1);
+    expect(promoted[0]?.[1]).toMatch(/color:\s*var\(--color-ink\)/);
+    expect(passesTextFloor(contrastRatio('#000000', '#d9dce2'))).toBe(true);
+    expect(passesTextFloor(contrastRatio('#6b6f76', '#d9dce2'))).toBe(false);
+  });
+
   it('draws the certificate edge without touching the base card rule', () => {
     // 1b is a modifier, never an edit to `.cover-card`: the base border above
     // still has to be the hairline. The metallic edge is one pixel of gradient

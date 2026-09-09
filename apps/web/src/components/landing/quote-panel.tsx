@@ -199,6 +199,11 @@ function StepHeading({ children }: { children: ReactNode }) {
  * screen the group is what separates the list from the page; on the card the
  * card is already that, and a grey slab on a metal face is a form pasted over
  * a card. The rows and their separators are the sheet's, unchanged.
+ *
+ * Every row reads in ink. The route's picker dims the fourteen with no capacity
+ * behind them, and on the metal that dimming is 3.47:1 at the card's darkest
+ * stop. The caption under each row says the same thing in words, so nothing is
+ * lost by taking the colour out of it.
  */
 function OccupationFace({
   current,
@@ -245,16 +250,11 @@ function OccupationFace({
       ) : (
         <div className="max-h-[212px] divide-y divide-hairline overflow-y-auto lg:max-h-[268px]">
           {visible.map((row) => {
-            const available = hasCover(row);
             return (
               <ListRow
                 caption={captionFor(row)}
                 key={row.key}
-                label={
-                  <span className={available ? 'text-body text-ink' : 'text-body text-ink-2'}>
-                    {row.label}
-                  </span>
-                }
+                label={<span className="text-body text-ink">{row.label}</span>}
                 onSelect={() => choose(row.key)}
                 trailing={group === row.key ? 'check' : 'none'}
               />
@@ -374,8 +374,11 @@ function AmountFace({
 
       <p className="text-secondary text-ink-2">{price?.sentence ?? ''}</p>
 
+      {/* Ink, not the triggered red, which is 3.47:1 on the card's darkest
+          gradient stop. The sentence carries what happened, the same way the
+          index badge's sentence carries the state and its dot is decoration. */}
       {price?.error == null ? null : (
-        <p className="text-secondary text-triggered" role="status">
+        <p className="text-secondary font-medium text-ink" role="status">
           {price.error}
         </p>
       )}

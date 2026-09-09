@@ -581,6 +581,28 @@
   }
 }
 
+/* Every label on a card face is ink, and never ink-2.
+
+   src/components/cover-card.tsx carries the arithmetic: the darkest gradient
+   stop of any treatment is #d9dce2, where ink-2 is 3.47:1 and fails the 4.5:1
+   floor, while black is 15.29:1. The card's own anatomy has always been written
+   in ink for that reason.
+
+   The landing quote puts steps on the card face, and those steps are built from
+   the same form field, list rows and slider the routes use. Those components
+   stand on canvas everywhere else, where ink-2 is 5.2:1 and correct, so the
+   colour is corrected here, on the one ground where it is wrong, rather than in
+   components that five other screens share.
+
+   It is in the utilities layer because it has to outrank the `text-ink-2`
+   utility on the element itself, and a rule in the components layer cannot,
+   whatever its specificity. */
+@layer utilities {
+  .cover-card__content .text-ink-2 {
+    color: var(--color-ink);
+  }
+}
+
 @layer base {
   /* Option B of the sheet's section 2. The Geist package names its own CSS
      variable, so the two family slots are pointed at it here rather than in

@@ -21,14 +21,28 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from 're
  */
 
 /**
- * Closed, then the two steps the two routes own, then the quote itself.
+ * Closed, then every step of the purchase, in the order it happens.
  *
  * The order is the order the card turns through: each step is one half turn
  * from the one before it, so the index of a step in this list is the number of
  * half turns the card has taken to reach it. Forward and back are then the same
  * turn in opposite directions and nothing has to be told which way to go.
+ *
+ * The last three are T37. Each one is the screen of the same name with nothing
+ * about it rewritten: `verify` runs the same World check `/verify` runs, `pay`
+ * binds the same quote `/pay` binds, and `covered` is the card in the state
+ * Home gives it once the bind has settled. The four routes still exist and
+ * still hold the same session, so a link already shared opens the step it names.
  */
-export const QUOTE_STEPS = ['closed', 'occupation', 'amount', 'complete'] as const;
+export const QUOTE_STEPS = [
+  'closed',
+  'occupation',
+  'amount',
+  'complete',
+  'verify',
+  'pay',
+  'covered',
+] as const;
 
 export type QuoteStep = (typeof QUOTE_STEPS)[number];
 

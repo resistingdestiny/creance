@@ -32,8 +32,10 @@ vi.mock('../src/app/purchase-actions.js', () => ({
   continueToPay: vi.fn(),
   continueToVerify: vi.fn(),
   goToCover: vi.fn(),
+  openPayment: vi.fn(),
   payAndBind: vi.fn(),
   priceCover: vi.fn(),
+  quoteOccupation: vi.fn(),
   startAgain: vi.fn(),
   startWorldCheck: vi.fn(),
   verifyPerson: vi.fn(),
@@ -65,10 +67,12 @@ vi.mock('../src/app/verify/world-check.js', () => ({
 }));
 
 const { Providers } = await import('../src/app/providers.js');
+const { LandingScreen } = await import('../src/components/landing/landing-screen.js');
 const { VerifyScreen } = await import('../src/app/verify/verify-screen.js');
 const { ConfirmScreen } = await import('../src/app/claim/confirm/confirm-screen.js');
-const { startWorldCheck } = await import('../src/app/purchase-actions.js');
+const { quoteOccupation, startWorldCheck } = await import('../src/app/purchase-actions.js');
 const { startClaimCheck } = await import('../src/app/claim-actions.js');
+const { LIVE } = await import('./landing-fixtures.js');
 
 /** The signed context the API answers with, as T11's own test records it. */
 const CONTEXT = {
@@ -211,5 +215,98 @@ describe('the claim check inside World App', () => {
     await openTheCheck();
 
     expect(screen.getByRole('status').textContent).toBe('Waiting for the World app');
+  });
+});
+
+/**
+ * The same check on the landing card, which is where T37 put it.
+ *
+ * The ticket's hard constraint is that the check was moved and not rewritten,
+ * so the comparison that matters is between the request the route hands the
+ * widget and the request the landing page hands it. They are the same object.
+ * The surface still decides only the copy, on the card as on the route.
+ */
+describe('the purchase check on the landing page', () => {
+  const PRICE = {
+    limit: '5,000',
+    premium: '4.25',
+    sentence: 'Pays out if the index rises 2 points above its trend.',
+    usedPercent: 6,
+    full: false,
+    error: null,
+  };
+
+  /** Waits for the card to finish turning to the face that carries this. */
+  async function turned(text: string) {
+    await waitFor(
+      () => expect(document.querySelector('[data-facing="viewer"]')?.textContent).toContain(text),
+      { timeout: 3000 },
+    );
+  }
+
+  /** Landing to the check step, which is four half turns of the card. */
+  async function toTheCheck() {
+    vi.mocked(quoteOccupation).mockResolvedValue(PRICE);
+    render(
+      <Providers>
+        <LandingScreen data={LIVE} interim={false} />
+      </Providers>,
+    );
+    fireEvent.click(screen.getAllByRole('button', { name: 'Get a quote' })[0]!);
+    await turned('What do you do?');
+    fireEvent.click(
+      screen
+        .getAllByRole('button')
+        .find((button) => button.textContent?.startsWith('Computer and mathematical') === true)!,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await turned('Cover amount');
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await turned('Monthly payment');
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await turned("Confirm you're a real person.");
+  }
+
+  it('hands the widget the request the route hands it, on either surface', async () => {
+    render(
+      <Providers>
+        <VerifyScreen alreadyVerified={false} interim={false} />
+      </Providers>,
+    );
+    await openTheCheck();
+    const onTheRoute = widgetProps.at(-1)?.['context'];
+
+    cleanup();
+    enterWorldApp();
+    await toTheCheck();
+    fireEvent.click(screen.getByRole('button', { name: 'Verify with World ID' }));
+    await waitFor(() => expect(widgetProps.length).toBeGreaterThan(1));
+    const onTheCard = widgetProps.at(-1)?.['context'];
+
+    expect(onTheCard).toEqual(onTheRoute);
+    expect(onTheCard).toEqual(CONTEXT);
+  });
+
+  it('says the check is being confirmed rather than waited for, inside World App', async () => {
+    enterWorldApp();
+    await toTheCheck();
+    fireEvent.click(screen.getByRole('button', { name: 'Verify with World ID' }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('landing-verify-state').textContent).toBe(
+        'Confirming with World ID',
+      ),
+    );
+  });
+
+  it('keeps the deck string in a browser', async () => {
+    await toTheCheck();
+    fireEvent.click(screen.getByRole('button', { name: 'Verify with World ID' }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('landing-verify-state').textContent).toBe(
+        'Waiting for the World app',
+      ),
+    );
   });
 });

@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { CardTurn, useFacing } from '../src/components/landing/card-turn.js';
 import { HeroAmount } from '../src/components/landing/hero-amount.js';
 import { HeroCardStack } from '../src/components/landing/hero-card-stack.js';
 
@@ -250,5 +251,53 @@ describe('the hero card takes an angle only where an angle means something', () 
     expect(root.className).not.toContain('is-tracking');
     expect(sheet().style.transform).toBe('');
     expect(frames.calls()).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The signal a face reads to know it is the one being read.
+ *
+ * The card's faces are written and mounted the moment the step changes, while
+ * the card is still pointing the other way, and swapped at ninety degrees. A
+ * step with anything to perform on arrival, which is the covered card's
+ * count-up, has to wait for the second moment and not the first, or the
+ * performance is over before it can be seen.
+ */
+describe('which face is being read', () => {
+  function Reader() {
+    return <span data-testid="reader">{useFacing()}</span>;
+  }
+
+  it('is the front until the card is edge on, and the back after it', async () => {
+    stubMatchMedia({ fine: true });
+
+    const { rerender } = await act(async () =>
+      render(<CardTurn at={0} back={<Reader />} front={<span>front</span>} />),
+    );
+    expect(screen.getByTestId('reader').textContent).toBe('away');
+
+    await act(async () => {
+      rerender(<CardTurn at={1} back={<Reader />} front={<span>front</span>} />);
+    });
+    // The rotation is written at once. The face has not been swapped yet, so
+    // the arriving face is still pointing away and knows it.
+    expect(screen.getByTestId('reader').textContent).toBe('away');
+
+    await waitFor(() => expect(screen.getByTestId('reader').textContent).toBe('viewer'), {
+      timeout: 3000,
+    });
+  });
+
+  it('is the arriving face at once under reduced motion, because there is no turn', async () => {
+    stubMatchMedia({ fine: true, reduced: true });
+
+    const { rerender } = await act(async () =>
+      render(<CardTurn at={0} back={<Reader />} front={<span>front</span>} />),
+    );
+    await act(async () => {
+      rerender(<CardTurn at={1} back={<Reader />} front={<span>front</span>} />);
+    });
+
+    expect(screen.getByTestId('reader').textContent).toBe('viewer');
   });
 });

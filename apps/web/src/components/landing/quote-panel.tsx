@@ -101,7 +101,7 @@ const WorldCheck = dynamic(() =>
  * so the surface is still alive under the step.
  *
  * The World widget hangs beside the card and never on a face of it. IDKit puts
- * its own overlay in a shadow host it appends to the document body, so where the
+ * its own overlay in a shadow-root host it appends to the document body, so where the
  * element sits decides nothing about where the overlay is drawn; what it decides
  * is when the element mounts and unmounts, and a widget inside a face is a
  * widget a turn can unmount while a check is still out on somebody's phone. The
@@ -595,7 +595,7 @@ function CompleteFace({
  * does on the route.
  *
  * The states are on the card and the widget is not. The overlay IDKit opens
- * covers the page from its own shadow host, so what is on the face is the state
+ * covers the page from its own shadow-root host, so what is on the face is the state
  * of the check: idle before it, waiting while it is out, verified after it, and
  * the deck's failure with "Try again" when it does not come back.
  */

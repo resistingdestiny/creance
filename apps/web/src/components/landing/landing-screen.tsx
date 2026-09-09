@@ -241,8 +241,8 @@ function Hero({ live, priceLine }: { live: boolean; priceLine: string | null }) 
  * switch its treatment behind one setting without touching this page. It keeps
  * the design's 720 by 432 ratio and is fluid inside its column.
  *
- * `depth` is what makes it an object rather than a picture of one, and it is
- * asked for here and in no other place in the product. The stack
+ * `depth` and `metal` are what make it an object rather than a picture of one,
+ * and they are asked for here and in no other place in the product. The stack
  * around it carries the perspective and the angle; the enter animation stays on
  * the stack so that it and the tilt are never the same element's transform.
  *
@@ -263,6 +263,7 @@ function HeroCard({ occupation }: { occupation: string }) {
           className="aspect-[720/432] w-full"
           depth
           hero
+          metal
           occupation={occupation}
           state="covered"
           statusLabel="Covered"

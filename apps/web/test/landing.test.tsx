@@ -353,6 +353,17 @@ describe('the hero card as an object', () => {
     expect(live).toContain('cover-card-tilt');
   });
 
+  it('is the metal finish, once, and asks for it nowhere else', () => {
+    expect(live.match(/cover-card--metal/g)).toHaveLength(1);
+    expect(live.match(/cover-card__shimmer/g)).toHaveLength(1);
+  });
+
+  it('keeps the shimmer beneath the card content, like every other light layer', () => {
+    const card = /<div class="cover-card [\s\S]*?cover-card__content/.exec(live)?.[0] ?? '';
+    expect(card).toContain('cover-card__shimmer');
+    expect(card.indexOf('cover-card__shimmer')).toBeLessThan(card.indexOf('cover-card__content'));
+  });
+
   it('sits to the right of the hero text at 1440 and under it at 390', () => {
     // One grid, two columns above the landing breakpoint and one below it, so
     // the order in the markup is the order at 390: the text, then the card.

@@ -261,7 +261,11 @@ function AmountStep({
       <p
         aria-live="polite"
         className={[
-          'min-h-[60px] font-display text-display-l font-semibold tracking-display tabular-nums',
+          // The Amount route has the whole width of a phone for this figure and
+          // the panel has a card's width inside it, so it is the sheet's
+          // headline at 390 and its display-l from the landing breakpoint up.
+          // The string is the deck's either way; only its size steps.
+          'min-h-[60px] font-display text-headline font-semibold tracking-headline tabular-nums lg:text-display-l lg:tracking-display',
           stale ? 'text-ink-3' : 'text-ink',
         ].join(' ')}
         data-testid="landing-quote-premium"

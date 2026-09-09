@@ -5,7 +5,7 @@ import postcss from 'postcss';
 import tailwind from '@tailwindcss/postcss';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { COLOUR_TOKENS } from '../src/lib/tokens.js';
+import { COLOUR_TOKENS, contrastRatio, passesTextFloor } from '../src/lib/tokens.js';
 
 /**
  * These run against the stylesheet as the browser receives it, not against the
@@ -263,5 +263,77 @@ describe('hairlines and the card', () => {
 
   it('gives the body tabular figures', () => {
     expect(css).toMatch(/body\s*\{[^}]*font-variant-numeric:\s*tabular-nums/);
+  });
+});
+
+describe('the metal finish and its rainbow shimmer', () => {
+  /**
+   * The darkest gradient stop of each of the three card treatments, from the
+   * table in src/components/cover-card.tsx: the wallet, the certificate and the
+   * ingot. The shimmer is a modifier over whichever one is drawn, so the worst
+   * case for a label on the card is the worst of these under the strongest
+   * stop of the shimmer.
+   */
+  const DARKEST = ['#dfe2e7', '#eff1f4', '#d9dce2'];
+
+  /** An rgba layer composited over an opaque ground, as the browser does it. */
+  function over(layer: readonly [number, number, number, number], ground: string): string {
+    const base = [1, 3, 5].map((at) => Number.parseInt(ground.slice(at, at + 2), 16));
+    const mixed = layer
+      .slice(0, 3)
+      .map((channel, at) => Math.round(channel * layer[3] + (base[at] ?? 0) * (1 - layer[3])));
+    return `#${mixed.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
+  }
+
+  it('is a modifier, and never an edit to the card rule or to its overlays', () => {
+    // The addendum says the card gradient, its sheen and its brushing are
+    // unchanged. The modifier adds an edge colour and one new layer, and it
+    // reopens neither pseudo-element the base rule positions.
+    const metal = blocksMatching(/^\.cover-card--metal$/)[0]?.[1] ?? '';
+    expect(metal).toMatch(/border-color:\s*#cfd4dc/);
+    expect(metal).not.toContain('background');
+    for (const [selector] of blocksMatching(/\.cover-card--metal/)) {
+      expect(selector).toBe('.cover-card--metal');
+    }
+  });
+
+  it('keeps the shimmer over the glare and under the content, like every other light layer', () => {
+    const shimmer = blocksMatching(/^\.cover-card__shimmer$/)[0]?.[1] ?? '';
+    expect(shimmer).toMatch(/z-index:\s*2\b/);
+    expect(shimmer).toMatch(/pointer-events:\s*none/);
+    const content = blocksMatching(/^\.cover-card__content$/)[0]?.[1] ?? '';
+    expect(Number(/z-index:\s*(\d+)/.exec(content)?.[1])).toBeGreaterThan(2);
+  });
+
+  it('stops dead under reduced motion, leaving the colour standing still', () => {
+    expect(css).toMatch(/@keyframes cover-card-shimmer/);
+    expect(css).toMatch(
+      /prefers-reduced-motion[\s\S]*?\.cover-card__shimmer::before[^}]*\{[^}]*animation:\s*none/,
+    );
+  });
+
+  it('leaves a label on the card far above the contrast floor wherever it lands', () => {
+    // Every stop is a pale hue at a low alpha, so the composite is lighter than
+    // the metal under it rather than darker. This computes that from the rule
+    // in the stylesheet rather than taking it on trust, because a stop darkened
+    // later is exactly how light over a card starts hiding the numbers.
+    const rule = blocksMatching(/^\.cover-card__shimmer::before$/)[0]?.[1] ?? '';
+    const stops = [...rule.matchAll(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/g)];
+    expect(stops.length).toBeGreaterThan(3);
+
+    for (const stop of stops) {
+      const layer = [
+        Number(stop[1]),
+        Number(stop[2]),
+        Number(stop[3]),
+        Number(stop[4]),
+      ] as const;
+      for (const ground of DARKEST) {
+        const composite = over(layer, ground);
+        // Ink, which is what every label on the card is.
+        expect(passesTextFloor(contrastRatio('#000000', composite)), composite).toBe(true);
+        expect(contrastRatio('#000000', composite)).toBeGreaterThan(12);
+      }
+    }
   });
 });

@@ -20,6 +20,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * it.
  */
 
+/**
+ * The whole landing page renders for every one of these, and the journeys on it
+ * are long. Vitest's five second default is not enough for that once the
+ * workers are running in parallel, and a test that fails only when its
+ * neighbours are busy is worse than a slow one.
+ */
+vi.setConfig({ testTimeout: 20_000 });
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   redirect: vi.fn(),
@@ -117,6 +125,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   delete (window as unknown as Record<string, unknown>)['WorldApp'];
   delete (window as unknown as Record<string, unknown>)['MiniKit'];
 });
@@ -244,8 +253,19 @@ describe('the purchase check on the landing page', () => {
     );
   }
 
-  /** Landing to the check step, which is four half turns of the card. */
+  /**
+   * Landing to the check step, which is four half turns of the card. Taken
+   * under prefers-reduced-motion, where the card arrives at each step rather
+   * than travelling to it, because what these three hold is the request and the
+   * copy and not the turn. landing-quote.test.tsx holds the turn.
+   */
   async function toTheCheck() {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
     vi.mocked(quoteOccupation).mockResolvedValue(PRICE);
     render(
       <Providers>

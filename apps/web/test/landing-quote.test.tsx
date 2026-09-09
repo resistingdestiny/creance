@@ -17,6 +17,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * PriceResult the two server actions return.
  */
 
+/**
+ * The whole landing page renders for every one of these, and the journeys on it
+ * are long. Vitest's five second default is not enough for that once the
+ * workers are running in parallel, and a test that fails only when its
+ * neighbours are busy is worse than a slow one.
+ */
+vi.setConfig({ testTimeout: 20_000 });
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   redirect: vi.fn(),

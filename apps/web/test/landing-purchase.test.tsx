@@ -16,7 +16,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * The widget is the SDK's and is stubbed the way every other check screen test
  * stubs it: it records what it was handed and gives the test the callbacks
  * IDKit would call, because a Selfie Check needs a phone and a World ID.
+ *
+ * Every test here runs under prefers-reduced-motion, which is the branch where
+ * the card arrives at the new step rather than travelling to it. That is a
+ * supported path and not a shortcut: the copy, the actions, the states and the
+ * focus are the same under it, and it is the whole reason the reduced branch
+ * exists. It is chosen because these are the longest journeys in the suite, six
+ * half turns to reach the covered card, and at 480ms a turn they were the
+ * slowest file by a distance and pushed their neighbours past the timeout when
+ * the workers ran in parallel. The turn itself is held at full speed by
+ * landing-quote.test.tsx and landing-motion.test.tsx.
  */
+
+/**
+ * The whole landing page renders for every one of these, and the journeys on it
+ * are long. Vitest's five second default is not enough for that once the
+ * workers are running in parallel, and a test that fails only when its
+ * neighbours are busy is worse than a slow one.
+ */
+vi.setConfig({ testTimeout: 20_000 });
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
@@ -151,7 +169,18 @@ async function toPayment(): Promise<void> {
   await turned('Confirm your cover');
 }
 
+/** The card arrives at the step rather than travelling to it. */
+function stubReducedMotion(): void {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('prefers-reduced-motion'),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
 beforeEach(() => {
+  stubReducedMotion();
   widgetProps.length = 0;
   vi.mocked(quoteOccupation).mockResolvedValue(PRICE);
   vi.mocked(priceCover).mockResolvedValue(PRICE);
@@ -412,13 +441,7 @@ describe('the card settles into covered', () => {
     expect(link.getAttribute('href')).toBe('/home');
   });
 
-  it('sets the cover in one step under reduced motion, with no frames asked for', async () => {
-    vi.stubGlobal('matchMedia', (query: string) => ({
-      matches: query.includes('prefers-reduced-motion'),
-      media: query,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    }));
+  it('sets the cover in one step, with no frames asked for', async () => {
     page();
     await toPayment();
     const frames = vi.spyOn(globalThis, 'requestAnimationFrame');

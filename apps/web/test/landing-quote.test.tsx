@@ -334,6 +334,54 @@ describe('the slider is priced once per gesture', () => {
 
     await waitFor(() => expect(priceCover).toHaveBeenCalledWith(5500));
   });
+
+  it('prices nothing when a nudge comes back before the debounce is up', async () => {
+    page();
+    await toAmount();
+    const slider = screen.getByRole('slider', { name: 'Cover 5,000' });
+
+    // Up one step and let go, then straight back down and let go inside the
+    // 250ms. The gesture ended where it started, so there is nothing to buy;
+    // the timer the way out queued has to go with it, or the price, the
+    // session's cover amount and the quote id all belong to a figure the
+    // slider is not showing.
+    fireEvent.change(slider, { target: { value: '5500' } });
+    await act(async () => {
+      fireEvent.keyUp(slider, { key: 'ArrowRight' });
+    });
+    fireEvent.change(slider, { target: { value: '5000' } });
+    await act(async () => {
+      fireEvent.keyUp(slider, { key: 'ArrowLeft' });
+    });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    expect(priceCover).not.toHaveBeenCalled();
+    expect(screen.getByRole('slider', { name: 'Cover 5,000' })).toBeDefined();
+    // The figure on screen is the one the slider is showing, and it is not
+    // left greyed out waiting for a price that is never coming.
+    expect(screen.getByTestId('landing-quote-premium').textContent).toBe('4.25 a month');
+    expect(screen.getByTestId('landing-quote-premium').className).toContain('text-ink');
+    expect(screen.getByTestId('landing-quote-premium').className).not.toContain('text-ink-3');
+  });
+
+  it('prices the cover the gesture ended on when the nudge does not come back', async () => {
+    page();
+    await toAmount();
+    const slider = screen.getByRole('slider', { name: 'Cover 5,000' });
+
+    fireEvent.change(slider, { target: { value: '5500' } });
+    await act(async () => {
+      fireEvent.keyUp(slider, { key: 'ArrowRight' });
+    });
+    fireEvent.change(slider, { target: { value: '7000' } });
+    await act(async () => {
+      fireEvent.keyUp(slider, { key: 'ArrowRight' });
+    });
+
+    await waitFor(() => expect(priceCover).toHaveBeenCalledTimes(1));
+    expect(priceCover).toHaveBeenCalledWith(7000);
+    expect(priceCover).not.toHaveBeenCalledWith(5500);
+  });
 });
 
 describe('motion and focus', () => {

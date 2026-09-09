@@ -238,8 +238,15 @@ function AmountStep({
   );
 
   function commit(): void {
-    if (limit === priced) return;
+    // Cleared before the guard and never after it. A gesture that ends on the
+    // cover the price is already for still has to cancel whatever an earlier
+    // gesture queued: returning first would leave a timer holding the cover the
+    // visitor moved away from, and that cover would be the one priced, the one
+    // written to the session and the one carried into /verify while the slider
+    // showed another.
     if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+    if (limit === priced) return;
     timer.current = setTimeout(() => {
       setPriced(limit);
       startTransition(async () => {

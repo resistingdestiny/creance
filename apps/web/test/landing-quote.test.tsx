@@ -246,13 +246,15 @@ describe('the cover amount step keeps the deck', () => {
     expect(document.querySelector('#the-index')).not.toBeNull();
   });
 
-  it('leaves verification on its own route', async () => {
+  it('turns to the settled quote rather than leaving the page', async () => {
     page();
     await toAmount();
-    // The primary is the same server action the Amount screen submits, which
-    // redirects to /verify. A signature and a World proof still get a screen.
+    // The cover amount step's Continue is one more half turn (T36), not a
+    // navigation. The card settles on the quote before anything leaves.
     expect(continueButton()).toHaveProperty('disabled', false);
-    expect(continueButton().getAttribute('type')).toBe('submit');
+    expect(continueButton().getAttribute('type')).toBe('button');
+    fireEvent.click(continueButton());
+    await waitFor(() => expect(screen.getByText('Monthly payment')).toBeDefined());
   });
 
   it('refuses to continue on a price it could not take', async () => {
@@ -384,12 +386,107 @@ describe('the slider is priced once per gesture', () => {
   });
 });
 
-describe('motion and focus', () => {
-  it('changes step instantly under reduced motion', () => {
+describe('the settled quote is the card, carrying its own figures', () => {
+  /** Takes the quote all the way, which is three half turns of the card. */
+  async function toSettled(): Promise<void> {
+    await toAmount();
+    fireEvent.click(continueButton());
+    await waitFor(() => expect(screen.getByText('Monthly payment')).toBeDefined());
+  }
+
+  it('shows the occupation, the cover and the monthly payment', async () => {
+    page();
+    await toSettled();
+
+    expect(panel().getByRole('heading', { level: 2, name: 'Computer and mathematical' })).toBeDefined();
+    expect(panel().getByText('Cover')).toBeDefined();
+    expect(panel().getByText('5,000')).toBeDefined();
+    expect(screen.getByTestId('landing-quote-monthly').textContent).toBe('4.25');
+  });
+
+  it('claims no cover it does not have', async () => {
+    page();
+    await toSettled();
+    // The card wears "Covered" on Home because there is cover behind it.
+    // Nothing has been verified and nothing has been paid at this point.
+    expect(panel().queryByText('Covered')).toBeNull();
+  });
+
+  it('sends the quote to verification in the deck word', async () => {
+    page();
+    await toSettled();
+    // The primary is the same server action the Amount screen submits, which
+    // redirects to /verify. A signature and a World proof still get a screen.
+    const primary = panel().getByRole('button', { name: 'Continue' });
+    expect(primary.getAttribute('type')).toBe('submit');
+    expect(primary.closest('form')).not.toBeNull();
+  });
+
+  it('turns back to the amount without losing the cover', async () => {
+    page();
+    await toSettled();
+    fireEvent.click(panel().getByRole('button', { name: 'Back' }));
+
+    await waitFor(() => expect(screen.getByRole('slider', { name: 'Cover 5,000' })).toBeDefined());
+    expect(screen.getByTestId('landing-quote-premium').textContent).toBe('4.25 a month');
+  });
+});
+
+describe('the card turns rather than swapping', () => {
+  function turn(): HTMLElement {
+    return document.querySelector('.cover-card-turn') as HTMLElement;
+  }
+
+  it('is one object with two faces, and one card until the quote is asked for', () => {
+    page();
+    expect(turn().style.transform).toBe('rotateY(0deg)');
+    expect(document.querySelectorAll('.cover-card-face')).toHaveLength(1);
+  });
+
+  it('turns half a turn forward for each step and the other way back', async () => {
     page();
     getAQuote();
-    const step = document.querySelector('.landing-quote-step');
-    expect(step?.className).toContain('motion-reduce:animate-none');
+    expect(turn().style.transform).toBe('rotateY(180deg)');
+    expect(document.querySelectorAll('.cover-card-face')).toHaveLength(2);
+
+    fireEvent.click(row('Computer and mathematical'));
+    fireEvent.click(continueButton());
+    await waitFor(() => expect(turn().style.transform).toBe('rotateY(360deg)'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await waitFor(() => expect(turn().style.transform).toBe('rotateY(180deg)'));
+  });
+
+  it('keeps the step turned away from out of reach while it is still on screen', () => {
+    page();
+    getAQuote();
+    const away = document.querySelector('[data-facing="away"]') as HTMLElement;
+    // The hero card is still painted for the first half of the turn, and it is
+    // already nothing a keyboard or a screen reader can land on.
+    expect(away.getAttribute('aria-hidden')).toBe('true');
+    expect(away.hasAttribute('inert')).toBe(true);
+    expect(away.querySelector('.cover-card')).not.toBeNull();
+  });
+});
+
+describe('motion and focus', () => {
+  it('turns instantly under reduced motion, with no step left behind', () => {
+    // The turn is a CSS transition on .cover-card-turn and the stylesheet
+    // removes it under the preference, which built-css.test.ts asserts. What
+    // this holds is the part JavaScript owns: the height and the hidden face
+    // follow the step in the same tick rather than at the half turn.
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    page();
+    getAQuote();
+
+    const faces = [...document.querySelectorAll('.cover-card-face')] as HTMLElement[];
+    expect(faces.map((face) => face.dataset.sizing)).toStrictEqual(['false', 'true']);
+    vi.unstubAllGlobals();
   });
 
   it('moves focus to the step, so a keyboard user can find it', async () => {

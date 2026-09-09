@@ -229,6 +229,48 @@ describe('hairlines and the card', () => {
     expect(css).toMatch(/prefers-reduced-motion[\s\S]*?\.cover-card-tilt[^}]*\{[^}]*transition:\s*none/);
   });
 
+  it('turns the card on an element of its own, and stands it still under the preference', () => {
+    // The tilt carries an inline transform written per frame, so the turn
+    // cannot share that element: one element holds one transform, and a
+    // keyframe animation there would outrank the inline style for good.
+    const turn = blocksMatching(/^\.cover-card-turn$/)[0]?.[1] ?? '';
+    expect(turn).toMatch(/transform-style:\s*preserve-3d/);
+    expect(turn).toMatch(/transition:\s*transform \d+ms/);
+    expect(css).toMatch(
+      /prefers-reduced-motion[\s\S]*?\.cover-card-turn[^}]*\{[^}]*transition:\s*none/,
+    );
+  });
+
+  it('shows one face at a time and lets one of them size the object', () => {
+    const face = blocksMatching(/^\.cover-card-face$/)[0]?.[1] ?? '';
+    expect(face).toMatch(/backface-visibility:\s*hidden/);
+    expect(face).toMatch(/transform-style:\s*preserve-3d/);
+    const sizing = blocksMatching(/\.cover-card-face\[data-sizing="false"\]/)[0]?.[1] ?? '';
+    expect(sizing).toMatch(/position:\s*absolute/);
+    expect(css).toMatch(
+      /\.cover-card-turn:not\(\[data-turning\]\)[^{]*data-facing="away"[^{]*\{[^}]*visibility:\s*hidden/,
+    );
+  });
+
+  it('flattens the perspective at narrow widths so the card stays in its column', () => {
+    const values = blocksMatching(/^\.cover-card-stack$/).map(
+      ([, body]) => /perspective:\s*(\d+)px/.exec(body)?.[1],
+    );
+    expect(values.filter(Boolean)).toHaveLength(2);
+    // The narrow one comes first and is the flatter of the two: the same
+    // rotation over a smaller card reads as a wider swing.
+    expect(Number(values[0])).toBeGreaterThan(Number(values[1]));
+  });
+
+  it('lets the turn carry the shimmer without taking the animation off it', () => {
+    // The band keeps its own travel and the turn adds an offset to it, so the
+    // highlight moves across the metal as the surface swings through the light
+    // instead of sitting still on a rotating card.
+    expect(css).toMatch(
+      /@keyframes cover-card-shimmer[\s\S]*?translateX\(calc\(-30% \+ var\(--card-shimmer-shift, 0px\)\)\)/,
+    );
+  });
+
   it('draws the certificate edge without touching the base card rule', () => {
     // 1b is a modifier, never an edit to `.cover-card`: the base border above
     // still has to be the hairline. The metallic edge is one pixel of gradient

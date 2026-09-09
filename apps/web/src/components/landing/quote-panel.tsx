@@ -595,9 +595,9 @@ function CompleteFace({
  * does on the route.
  *
  * The states are on the card and the widget is not. The overlay IDKit opens
- * covers the page from its own shadow-root host, so what is on the face is the state
- * of the check: idle before it, waiting while it is out, verified after it, and
- * the deck's failure with "Try again" when it does not come back.
+ * covers the page from its own shadow-root host, so what is on the face is the
+ * state of the check: idle before it, waiting while it is out, verified after
+ * it, and the deck's failure with "Try again" when it does not come back.
  */
 function VerifyFace({
   check,
@@ -815,7 +815,13 @@ function CoveredFace({
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="flex flex-col gap-1">
           <p className="text-secondary text-ink">Cover</p>
-          <DisplayNumber countUp={facing === 'viewer'} size="display-l" value={limit} />
+          {/* The same size the settled quote puts the cover at, so the card
+              settles rather than shrinking as it turns to this face. */}
+          <DisplayNumber
+            className="lg:text-landing-amount lg:tracking-landing-ledger"
+            countUp={facing === 'viewer'}
+            value={limit}
+          />
         </div>
         <div className="flex flex-col gap-1">
           <p className="text-secondary text-ink">Monthly payment</p>

@@ -2,7 +2,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { LandingScreen } from '../src/components/landing/landing-screen.js';
-import { explorerOccupation, rankByDistance } from '../src/lib/explorer-model.js';
+import {
+  explorerOccupation,
+  headlineFor,
+  latestMonth,
+  rankByDistance,
+} from '../src/lib/explorer-model.js';
 import {
   LANDING_GROUP,
   costAnswer,
@@ -58,13 +63,10 @@ describe('the sections, in the order of the design of record', () => {
       'What does it cost.',
       'When does it pay.',
       'Am I covered.',
-      // the three steps
-      'Two minutes, start to covered.',
-      'Pick your occupation',
-      'Choose your cover',
-      'Verify and pay',
-      // the index section
+      // the index section, which is the public explorer itself
       'One number decides. You can watch it.',
+      'Search occupations',
+      'How this number is built',
       // the closing line, then the investor line
       'The quiet kind of ready.',
       'I want to invest',
@@ -75,36 +77,46 @@ describe('the sections, in the order of the design of record', () => {
     expect(found).toStrictEqual([...found].sort((a, b) => a - b));
   });
 
-  it('says the index section sentence and the reading beside it', () => {
+  it('opens the explorer on the occupation the page speaks for', () => {
     const text = visibleText(live);
-    expect(text).toContain(
-      'Unemployment in your occupation, compared with everyone, smoothed over three months, compared with a year ago. No adjuster, no claim forms.',
+    const computer = EXPLORER_READINGS.map(explorerOccupation).find(
+      (entry) => entry.key === LANDING_GROUP,
     );
     expect(text).toContain('Computer and mathematical');
-    expect(text).toContain(LIVE.index.reading!.distance);
-    expect(text).toContain(LIVE.index.reading!.trend);
+    expect(text).toContain(headlineFor(latestMonth(computer!)));
   });
 });
 
-describe('the three steps are verbatim', () => {
+describe('the words this page cut', () => {
   const text = visibleText(live);
 
-  for (const [title, line] of [
-    ['Pick your occupation', 'Eleven groups, one tap. Each shows its index reading.'],
-    ['Choose your cover', '1,000 to 10,000. The monthly payment updates as you slide.'],
-    ["Verify and pay", "One person, one cover, verified with World ID. Pay and you're done."],
-  ] as const) {
-    it(`carries "${title}" with its own sentence`, () => {
-      expect(text).toContain(title);
-      expect(text).toContain(line);
+  // The steps described the flow in three sentences. T35 puts the flow itself
+  // on this page, so the description of it goes rather than being reworded.
+  for (const cut of [
+    'Two minutes, start to covered.',
+    'Pick your occupation',
+    'Eleven groups, one tap. Each shows its index reading.',
+    'Choose your cover',
+    '1,000 to 10,000. The monthly payment updates as you slide.',
+    'One person, one cover, verified with World ID.',
+  ]) {
+    it(`no longer says "${cut}"`, () => {
+      expect(text).not.toContain(cut);
     });
   }
 
-  it('numbers them without asking a screen reader to read the numerals', () => {
-    // The numerals are #C9CDD4 on surface, which is 1.4:1. They are decoration
-    // over an ordered list, and the list is what carries the order.
-    expect(live).toContain('<ol');
-    expect(live).toMatch(/<span aria-hidden="true"[^>]*>1<\/span>/);
+  it('no longer explains the index in its own words, because it shows it', () => {
+    expect(text).not.toContain(
+      'Unemployment in your occupation, compared with everyone, smoothed over three months',
+    );
+  });
+
+  it('keeps the strings it kept exactly as they were', () => {
+    // Copy is cut, never rewritten. What is left is the deck's own sentences.
+    expect(text).toContain('Cover for the day your job is automated.');
+    expect(text).toContain('A monthly payment now. A payout if your occupation is displaced.');
+    expect(text).toContain('One number decides. You can watch it.');
+    expect(text).toContain('The quiet kind of ready.');
   });
 });
 
@@ -159,19 +171,21 @@ describe('the degraded index section', () => {
     expect(LIVE.index.note).toBeNull();
   });
 
-  it('keeps the last published reading and says it is the last one', () => {
+  it('says the metered reading is the last one, and still shows the round it has', () => {
+    // The explorer's round is bought once every ten minutes and can be warm
+    // while a fresh metered read fails. The page says so and keeps the round.
     const text = visibleText(stale);
-    expect(text).toContain('0.69');
     expect(text).toContain(staleNote('2026-07'));
     expect(text).toContain('This is the last reading we published, for July 2026.');
+    expect(stale).toContain('data-testid="explorer-chart-line"');
   });
 
   it('shows the note and no figure when nothing has ever been published here', () => {
     const text = visibleText(cold);
     expect(text).toContain('The live feed is not answering, so there is no reading to show.');
-    expect(COLD.index.reading).toBeNull();
+    expect(COLD.explorer).toBeNull();
     // No chart, no reading, and above all no zero standing in for one.
-    expect(cold).not.toContain('data-testid="index-chart-line"');
+    expect(cold).not.toContain('data-testid="explorer-chart-line"');
     expect(text).not.toContain('0.00');
   });
 
@@ -179,23 +193,15 @@ describe('the degraded index section', () => {
     // A group the index has no month for comes back with a null headline from a
     // working endpoint. Calling that an outage would be false.
     const unpublished = { ...INDEX, group: LANDING_GROUP, headline: null };
-    const section = landingIndexSection(LANDING_GROUP, unpublished, true);
-    expect(section.reading).toBeNull();
+    const section = landingIndexSection(unpublished, true);
     expect(section.note).toBe('No reading has been published for this occupation yet.');
     expect(section.note).not.toContain('not answering');
   });
 
   it('blames the feed only when the feed is what failed', () => {
-    expect(landingIndexSection(LANDING_GROUP, null, false).note).toBe(
+    expect(landingIndexSection(null, false).note).toBe(
       'The live feed is not answering, so there is no reading to show.',
     );
-  });
-
-  it('never degrades to a zero, whichever way it degrades', () => {
-    for (const markup of [stale, cold]) {
-      expect(visibleText(markup)).not.toMatch(/\b0\.00\b/);
-    }
-    expect(landingIndexSection(LANDING_GROUP, null, false).reading).toBeNull();
   });
 });
 
@@ -310,11 +316,62 @@ describe('the ticker of occupation readings', () => {
   });
 });
 
+describe('the public index explorer, on the front door', () => {
+  it('is the explorer itself and not a second drawing of it', () => {
+    // The landing renders ExplorerPanel, the component `/index` renders, with
+    // the round `/index` bought. The picker, the trigger band, the four steps
+    // and the guide price therefore behave here exactly as they do there,
+    // because there is one of each and not two.
+    const chips = [...live.matchAll(/aria-pressed="(true|false)"/g)];
+    expect(chips).toHaveLength(15);
+    expect(live).toContain('data-testid="explorer-chart-band"');
+    expect(live).toContain('data-testid="explorer-meter"');
+    const text = visibleText(live);
+    expect(text).toContain('How this number is built');
+    expect(text).toContain('Every occupation, closest to opening first');
+    expect(text).toContain('Monthly premium for 5,000 of cover');
+  });
+
+  it('says where the same figures can be read without trusting the page', () => {
+    expect(live).toContain(LIVE.explorer!.provenance.hashscan!);
+    expect(visibleText(live)).toContain(LIVE.explorer!.provenance.source);
+  });
+
+  it('buys nothing of its own: the page shows the round the explorer bought', () => {
+    // src/lib/landing-data.ts asks readExplorer for it, which holds one round
+    // for ten minutes behind a single in-flight promise, and words the ticker
+    // from the same fifteen readings rather than reading a sixteenth.
+    expect(LIVE.explorer!.occupations).toHaveLength(15);
+    expect(LIVE.ticker).toHaveLength(15);
+  });
+});
+
 describe('the hero card as an object', () => {
   it('asks for depth here and in no other place in the product', () => {
     expect(live.match(/cover-card--depth/g)).toHaveLength(1);
     expect(live).toContain('cover-card-stack');
     expect(live).toContain('cover-card-tilt');
+  });
+
+  it('is the metal finish, once, and asks for it nowhere else', () => {
+    expect(live.match(/cover-card--metal/g)).toHaveLength(1);
+    expect(live.match(/cover-card__shimmer/g)).toHaveLength(1);
+  });
+
+  it('keeps the shimmer beneath the card content, like every other light layer', () => {
+    const card = /<div class="cover-card [\s\S]*?cover-card__content/.exec(live)?.[0] ?? '';
+    expect(card).toContain('cover-card__shimmer');
+    expect(card.indexOf('cover-card__shimmer')).toBeLessThan(card.indexOf('cover-card__content'));
+  });
+
+  it('sits to the right of the hero text at 1440 and under it at 390', () => {
+    // One grid, two columns above the landing breakpoint and one below it, so
+    // the order in the markup is the order at 390: the text, then the card.
+    const band = /<div class="mx-auto grid[^"]*"/.exec(live)?.[0] ?? '';
+    expect(band).toContain('lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)]');
+    expect(live.indexOf('Cover for the day your job is automated.')).toBeLessThan(
+      live.indexOf('cover-card-stack'),
+    );
   });
 
   it('paints its light layers beneath its content, in every treatment', () => {

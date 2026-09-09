@@ -2,16 +2,18 @@
  * What the landing page reads before it renders.
  *
  * Four calls, all on the server, all live: the metered index reading, a quote
- * for the smallest cover on offer, the demo clock, and the round of fifteen
- * readings the ticker runs. The first three are not cached, because a front
- * door that shows yesterday's premium is worse than one that shows no premium
- * (src/lib/api.ts says the same for every other screen).
+ * for the smallest cover on offer, the coupon the note pays, and the round of
+ * fifteen readings the explorer buys. The first three are not cached, because a
+ * front door that shows yesterday's premium is worse than one that shows no
+ * premium (src/lib/api.ts says the same for every other screen).
  *
- * The ticker is the one exception, and it is not this module's exception to
- * make: it reads the round the public explorer already bought, which
+ * The round is the one exception, and it is not this module's exception to
+ * make: it is the round the public explorer already bought, which
  * src/lib/explorer-data.ts holds for ten minutes behind one in-flight promise.
  * The index publishes once a month, so a reading a few minutes old is the same
- * reading, and the landing pays nothing extra whenever that round is warm.
+ * reading, and the landing pays nothing extra whenever that round is warm. It
+ * is both the explorer this page now carries (T34) and the ticker under the
+ * hero, read once and shown twice.
  *
  * Every call is allowed to fail on its own. The page is the front door and it
  * has to render whatever happens, so a failure removes the figure it carried
@@ -22,8 +24,7 @@ import { reportUnreachable } from './api';
 import { fetchReplay } from './claim-api';
 import { replayBadgeLabel } from './claim-model';
 import { AMOUNT_MIN } from './cover-amount';
-import { readExplorerIndex } from './explorer-data';
-import { explorerOccupation } from './explorer-model';
+import { readExplorer, type ExplorerData } from './explorer-data';
 import { fetchSeries } from './investor-api';
 import { couponLine } from './investor-model';
 import {
@@ -40,6 +41,7 @@ import {
   type TickerReading,
 } from './landing-model';
 import { recallReading, rememberReading } from './last-reading';
+import { occupationLabel } from './occupations';
 import { DEMO_ACCOUNT } from './wallet';
 import {
   fetchIndex,
@@ -53,6 +55,8 @@ import { premiumAmount } from './worker-model';
 
 export interface LandingData {
   readonly group: string;
+  /** "Computer and mathematical", which is what the hero card is titled. */
+  readonly occupation: string;
   /** "From 28.00 a month", or null when no price could be quoted. */
   readonly priceLine: string | null;
   /** "What does it cost." */
@@ -64,17 +68,18 @@ export interface LandingData {
   readonly index: LandingIndexSection;
   /** The fifteen occupations the ticker runs, or empty when none could be read. */
   readonly ticker: readonly TickerReading[];
+  /** The public explorer's own round, or null when it could not be read. */
+  readonly explorer: ExplorerData | null;
   /** "Replay: Jul 2026" while the demo clock is walking. */
   readonly replayBadge: string | null;
 }
 
 export async function readLanding(group: string = LANDING_GROUP): Promise<LandingData> {
-  const [reading, premium, coupon, replay, ticker] = await Promise.all([
+  const [reading, premium, coupon, explorer] = await Promise.all([
     readIndex(group),
     readPrice(group),
     readCoupon(),
-    fetchReplay(),
-    readTicker(group),
+    readExplorerData(),
   ]);
 
   // The catalogue is free and carries the frozen trigger lines but no values.
@@ -84,6 +89,7 @@ export async function readLanding(group: string = LANDING_GROUP): Promise<Landin
 
   return {
     group,
+    occupation: occupationLabel(group),
     priceLine: fromPriceLine(premium),
     costLine: costAnswer(premium),
     payLine: payAnswer(
@@ -91,9 +97,14 @@ export async function readLanding(group: string = LANDING_GROUP): Promise<Landin
       seriesFor(group, reading.index, catalogue),
     ),
     investorLine: investorLine(coupon),
-    index: landingIndexSection(group, reading.index, reading.live),
-    ticker,
-    replayBadge: replayBadgeLabel(replay),
+    index: landingIndexSection(reading.index, reading.live),
+    ticker: explorer === null ? [] : tickerReadings(explorer.occupations, group),
+    explorer,
+    // The explorer reads the demo clock on every request of its own, so the
+    // badge comes back with the round. Only a page that has no round at all
+    // has to ask for it separately, and it still asks, because the badge is
+    // about what is on screen rather than about the index.
+    replayBadge: explorer?.replayBadge ?? replayBadgeLabel(await fetchReplay()),
   };
 }
 
@@ -145,23 +156,26 @@ async function readCoupon(): Promise<string | null> {
 }
 
 /**
- * The ticker's fifteen readings, from the public index endpoint.
+ * The public explorer's round, which is the readings on the page and the ticker
+ * under the hero both.
  *
  * The free catalogue carries the trigger lines but no values, so the only
  * public route with readings on it is the metered one, and fifteen of those is
  * exactly the round the explorer buys. This asks for that round rather than
- * buying a sixteenth of its own, and it is read here on the server: the ticker
- * is never fetched from the browser and it is never a fixture.
+ * buying a sixteenth of its own: src/lib/explorer-data.ts holds it for ten
+ * minutes behind one in-flight promise, so the landing pays nothing extra
+ * whenever it is warm. It is read here on the server, never from the browser,
+ * and it is never a fixture.
  *
- * A round that cannot be had costs the page its ticker and nothing else.
+ * A round that cannot be had costs the page its explorer and its ticker and
+ * nothing else.
  */
-async function readTicker(group: string): Promise<readonly TickerReading[]> {
+async function readExplorerData(): Promise<ExplorerData | null> {
   try {
-    const round = await readExplorerIndex();
-    return tickerReadings(round.readings.map(explorerOccupation), group);
+    return await readExplorer();
   } catch (cause) {
-    reportUnreachable('the landing index ticker', cause);
-    return [];
+    reportUnreachable('the landing index explorer', cause);
+    return null;
   }
 }
 

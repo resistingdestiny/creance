@@ -4377,3 +4377,106 @@ it. The count-up only begins after hydration, only if the tab is visible, and it
 finishes on the spot if the tab is hidden part way through or if the frame loop
 has not finished by the time it should have. A browser that never runs an
 animation, for any reason, shows the figure rather than a zero.
+
+## T34, one page: the explorer on the landing page, 9 September 2026
+
+The written source for this ticket is one line in the plan: one page, cut words,
+metal card with rainbow shimmer, card to the right. tickets/BACKLOG.md has no
+T34 section. What follows is what those four asks were taken to mean and what
+was built for each, so the reading can be corrected after the fact.
+
+### The explorer moves onto the landing page as a component, not as a copy
+
+The public index explorer was `/index` and the landing page drew its own,
+smaller picture of one occupation's index beside it: a headline reading, a chart
+and a sentence about the method. Two drawings of one index, one of them
+interactive and one not.
+
+The substance of `/index` is now `ExplorerPanel`, which both pages render. The
+landing page renders the same component with the same round, so the picker, the
+trigger band above the line, the four steps behind the number and the guide
+price where an occupation has no capacity behave identically on both, because
+there is one of each and not two. `/index` keeps its route, its metadata, its
+navigation, its heading and its attribution panel, so llms.txt, the landing's
+own links, the docs/DEMO.md shots and the T32 pull request all still resolve.
+
+The round behind it is the explorer's own: `readExplorer` holds fifteen readings
+for ten minutes behind a single in-flight promise, and the landing asks for that
+round rather than buying a sixteenth. The ticker under the hero is worded from
+the same round, so a warm cache serves the whole page.
+
+### The landing's own reading and chart are gone with it
+
+`landingIndexSection` returned a headline, a trend, chart points, a threshold, a
+band label and a description. Nothing renders them now, so it returns what the
+page still needs and nothing else: whether the feed answered on this request,
+which is the hero's live badge, and the honest note when it did not. The note
+still tells an occupation the index has not published for apart from a feed that
+is not answering, which was the distinction T29 built and which the explorer
+cannot make: the explorer knows only what its round contained.
+
+The metered single-group read stays. It is what the live badge and the trigger
+level in "When does it pay" are read from, and it is the read that
+src/lib/last-reading.ts remembers, so a feed that stops answering still leaves
+the page something true to say.
+
+### The words that were cut
+
+Copy is cut, never rewritten. Every string still on the page is the string that
+was there before; nothing was restated. What went:
+
+- the whole steps section, "Two minutes, start to covered." with "Pick your
+  occupation", "Choose your cover" and "Verify and pay" and their three
+  sentences. T35 puts the quote itself on this page, so the page will show the
+  flow rather than describe it, and the backlog for T35 says in as many words
+  that the landing must not grow these back. `LANDING_STEPS` goes with them,
+  and the "Eleven groups" against the picker's fifteen goes with it;
+- the index section's own paragraph, "Unemployment in your occupation, compared
+  with everyone, smoothed over three months, compared with a year ago. No
+  adjuster, no claim forms.", because the explorer under it now says it with the
+  real series, in the explorer's own words;
+- the negative line sentence, which the explorer carries for whichever
+  occupation the visitor picked rather than for the one the page speaks for.
+
+"One number decides. You can watch it." stays as the section heading, and the
+explorer keeps its own heading on `/index`. Neither page borrowed the other's.
+
+### The metal finish and its rainbow shimmer are a departure, with the argument
+
+docs/DESIGN-TOKENS-ADDENDUM.md says the card gradient, its sheen and its
+brushing are unchanged. The shimmer is a departure from that line and from the
+design of record, which draws no such card, and it is Benedict's ask.
+
+It is built the way T30 built its two treatments: a modifier class,
+`.cover-card--metal`, never an edit to the shared `.cover-card` rule. The
+modifier changes one property, the border colour, and adds one element. The
+gradient, the sheen and the brushing under it are untouched, so the card is
+still the card the sheet specifies with light moving over it.
+
+The contrast argument. Every label on the card is ink, which is 16.17:1 on the
+wallet card's darkest stop, 18.56:1 on the certificate's and 15.29:1 on the
+ingot's. The shimmer is six stops of pale hue at 16 percent alpha, so the
+composite over any of those three is lighter than the metal under it, not
+darker: the worst case computes at over 12:1 for ink, far above the 4.5:1 floor.
+built-css.test.ts reads the stops out of the compiled stylesheet and computes
+that rather than taking it on trust, so a stop darkened later fails the build.
+
+Its layer is at z-index 2, over the pointer glare at 1 and under the card's
+content at 10, which is the addendum's rule that no light layer sits over the
+numbers. It stops dead under prefers-reduced-motion, where the card keeps its
+colour and loses its travel, and it is opt in through a `metal` prop that the
+landing hero is the only caller to pass.
+
+### The hero headline steps down so the card can sit beside it
+
+The card to the right and the 104px landing hero cannot both have the width at
+1440: the headline in the column that is left of a 620px card wraps to four and
+five lines. The band is one grid, two columns above the landing breakpoint and
+one below it, and the headline is the sheet's own display-xl at 64px there
+rather than the landing scale's 104px. The copy is unchanged; only its size is.
+At 390 nothing about the order changes: the text, then the card, in one column,
+with the navigation still on one line.
+
+The glow behind the card is `w-full` inside that column. A percentage wider than
+its parent put 24px of horizontal scroll on the page at 1440 and 50px at 390,
+which is the kind of defect a screen recording shows and a test does not.

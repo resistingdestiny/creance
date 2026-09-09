@@ -4,7 +4,7 @@ import { ExplorerPanel } from '../../app/index/explorer-panel';
 import { beginPurchase } from '../../app/purchase-actions';
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
 import type { ExplorerData } from '../../lib/explorer-data';
-import { COVERED_ANSWER, LANDING_STEPS } from '../../lib/landing-model';
+import { COVERED_ANSWER } from '../../lib/landing-model';
 import type { LandingData } from '../../lib/landing-data';
 import { CoverCard } from '../cover-card';
 import { PillButton, PillLink, type PillButtonVariant } from '../pill-button';
@@ -67,7 +67,6 @@ export function LandingScreen({ data }: { data: LandingData }) {
           <IndexTicker readings={data.ticker} />
         </section>
         <Questions costLine={data.costLine} payLine={data.payLine} />
-        <Steps />
         <IndexSection
           explorer={data.explorer}
           note={data.index.note}
@@ -267,37 +266,6 @@ function Question({ question, answer }: { question: string; answer: string }) {
       </dt>
       <dd className="m-0 max-w-[400px] text-body-lg text-ink-2 lg:text-right">{answer}</dd>
     </div>
-  );
-}
-
-/**
- * The three steps. The numerals are aria-hidden decoration in a grey that is far
- * below the contrast floor by design; the order they show is carried properly by
- * the ordered list they sit in, so nothing is lost when they are not read.
- */
-function Steps() {
-  return (
-    <section className={`bg-surface py-16 lg:py-32 ${PAGE}`}>
-      <div className={CONTENT}>
-        <h2 className="font-display text-title font-semibold tracking-title text-ink lg:text-landing-head lg:tracking-display">
-          Two minutes, start to covered.
-        </h2>
-        <ol className="mt-10 flex list-none flex-col gap-10 p-0 lg:mt-18 lg:flex-row lg:gap-14">
-          {LANDING_STEPS.map((step, position) => (
-            <li className="flex-1" key={step.title}>
-              <span
-                aria-hidden="true"
-                className="block font-display text-display-l font-semibold tracking-landing-tight text-landing-numeral lg:text-landing-step"
-              >
-                {position + 1}
-              </span>
-              <h3 className="mt-5 text-body-lg font-medium text-ink">{step.title}</h3>
-              <p className="mt-2 text-body text-ink-2">{step.line}</p>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </section>
   );
 }
 

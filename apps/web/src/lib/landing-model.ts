@@ -31,29 +31,6 @@ import type { IndexCatalogueView, IndexView } from './worker-api';
 export const LANDING_GROUP = 'computer_math';
 
 /**
- * The three steps, verbatim from the design of record.
- *
- * Step one says "Eleven groups" and the picker offers fifteen, which is the
- * "Occupation picker correction" in docs/DESIGN-TOKENS-ADDENDUM.md. The ticket
- * asks for these sentences verbatim, so the count ships as the design writes it
- * and the mismatch is Root's to settle rather than this file's.
- */
-export const LANDING_STEPS = [
-  {
-    title: 'Pick your occupation',
-    line: 'Eleven groups, one tap. Each shows its index reading.',
-  },
-  {
-    title: 'Choose your cover',
-    line: '1,000 to 10,000. The monthly payment updates as you slide.',
-  },
-  {
-    title: 'Verify and pay',
-    line: "One person, one cover, verified with World ID. Pay and you're done.",
-  },
-] as const;
-
-/**
  * "From 28.00 a month", beside the hero button.
  *
  * The figure is a quote for the smallest cover on offer, taken live. There is

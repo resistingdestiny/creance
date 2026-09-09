@@ -63,11 +63,6 @@ describe('the sections, in the order of the design of record', () => {
       'What does it cost.',
       'When does it pay.',
       'Am I covered.',
-      // the three steps
-      'Two minutes, start to covered.',
-      'Pick your occupation',
-      'Choose your cover',
-      'Verify and pay',
       // the index section, which is the public explorer itself
       'One number decides. You can watch it.',
       'Search occupations',
@@ -92,25 +87,36 @@ describe('the sections, in the order of the design of record', () => {
   });
 });
 
-describe('the three steps are verbatim', () => {
+describe('the words this page cut', () => {
   const text = visibleText(live);
 
-  for (const [title, line] of [
-    ['Pick your occupation', 'Eleven groups, one tap. Each shows its index reading.'],
-    ['Choose your cover', '1,000 to 10,000. The monthly payment updates as you slide.'],
-    ["Verify and pay", "One person, one cover, verified with World ID. Pay and you're done."],
-  ] as const) {
-    it(`carries "${title}" with its own sentence`, () => {
-      expect(text).toContain(title);
-      expect(text).toContain(line);
+  // The steps described the flow in three sentences. T35 puts the flow itself
+  // on this page, so the description of it goes rather than being reworded.
+  for (const cut of [
+    'Two minutes, start to covered.',
+    'Pick your occupation',
+    'Eleven groups, one tap. Each shows its index reading.',
+    'Choose your cover',
+    '1,000 to 10,000. The monthly payment updates as you slide.',
+    'One person, one cover, verified with World ID.',
+  ]) {
+    it(`no longer says "${cut}"`, () => {
+      expect(text).not.toContain(cut);
     });
   }
 
-  it('numbers them without asking a screen reader to read the numerals', () => {
-    // The numerals are #C9CDD4 on surface, which is 1.4:1. They are decoration
-    // over an ordered list, and the list is what carries the order.
-    expect(live).toContain('<ol');
-    expect(live).toMatch(/<span aria-hidden="true"[^>]*>1<\/span>/);
+  it('no longer explains the index in its own words, because it shows it', () => {
+    expect(text).not.toContain(
+      'Unemployment in your occupation, compared with everyone, smoothed over three months',
+    );
+  });
+
+  it('keeps the strings it kept exactly as they were', () => {
+    // Copy is cut, never rewritten. What is left is the deck's own sentences.
+    expect(text).toContain('Cover for the day your job is automated.');
+    expect(text).toContain('A monthly payment now. A payout if your occupation is displaced.');
+    expect(text).toContain('One number decides. You can watch it.');
+    expect(text).toContain('The quiet kind of ready.');
   });
 });
 

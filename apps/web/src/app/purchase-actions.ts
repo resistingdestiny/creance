@@ -42,7 +42,18 @@ import {
  * the chain directly.
  */
 
-/** Start screen: "Get a quote". */
+/**
+ * Start screen: "Get a quote". Nothing calls this since T35.
+ *
+ * It was the landing page's button, which started a session and left for the
+ * picker. The quote happens on the landing page now and starts its session by
+ * writing to it, so there is no caller left in the app.
+ *
+ * It is kept rather than deleted because /occupation is still a live route that
+ * a shared link opens, and this is the one action that starts a purchase
+ * without also writing to it: the entry to the route path, named. `startAgain`
+ * below is the same pair of calls from /home.
+ */
 export async function beginPurchase(): Promise<void> {
   await startPurchase();
   redirect('/occupation');

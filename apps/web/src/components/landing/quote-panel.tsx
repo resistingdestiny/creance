@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useTransition, type ReactNode, type Ref } from 'react';
 
 import { NO_COVER_YET, captionFor } from '../../app/occupation/occupation-picker';
 import { continueToVerify, priceCover, quoteOccupation } from '../../app/purchase-actions';
@@ -168,11 +168,12 @@ function QuoteFace({ children, current }: { children: ReactNode; current: boolea
  * rather than the first control, so a screen reader reads the question before
  * the answers.
  */
-function StepHeading({ children }: { children: ReactNode }) {
+function StepHeading({ children, ref }: { children: ReactNode; ref?: Ref<HTMLHeadingElement> }) {
   return (
     <h2
       className="font-display text-title font-semibold tracking-title text-ink"
       data-quote-focus=""
+      ref={ref}
       tabIndex={-1}
     >
       {children}
@@ -218,9 +219,22 @@ function OccupationFace({
 }) {
   const { choose, go, group } = useQuote();
   const [pending, startTransition] = useTransition();
+  const heading = useRef<HTMLHeadingElement>(null);
   const visible = filterOccupations(query);
   const chosen = findOccupation(group);
   const buyable = chosen !== null && hasCover(chosen);
+
+  // The primary is disabled while the price is being bought, and a disabled
+  // button that has focus loses it to the document. That is a second or two of
+  // a keyboard user standing at the top of the page in the middle of a quote,
+  // so focus goes back to the question, which is where they still are. The card
+  // has not started turning yet: there is nothing to turn to until the price
+  // comes back.
+  useEffect(() => {
+    if (!pending) return;
+    if (document.activeElement !== document.body) return;
+    heading.current?.focus();
+  }, [pending]);
 
   function continueWith(selected: string): void {
     startTransition(async () => {
@@ -232,7 +246,7 @@ function OccupationFace({
 
   return (
     <QuoteFace current={current}>
-      <StepHeading>What do you do?</StepHeading>
+      <StepHeading ref={heading}>What do you do?</StepHeading>
 
       <FormField
         autoComplete="off"

@@ -716,6 +716,19 @@
     background: var(--color-ink);
   }
 
+  /* The slider is the one control the sheet draws smaller than its own 44px
+     minimum: the thumb is 28 and the input is the thumb. On a card face it is
+     given the target, by padding the hit area and not the glyph, which is what
+     section 9 asks for. The track stays centred in the input and the thumb
+     stays centred on the track, so nothing about the drawing moves.
+
+     Scoped to the card because that is the surface this was asked for. The
+     /amount and /pay screens render the same component at the size the sheet
+     draws it, and moving them belongs to a ticket that owns them. */
+  .cover-card__content .amount-slider {
+    height: 44px;
+  }
+
   /* The focus outline lands on the input, not on the thumb, which is what a
      keyboard user is moving. Same two pixels of black as everything else. */
   .amount-slider:focus-visible {

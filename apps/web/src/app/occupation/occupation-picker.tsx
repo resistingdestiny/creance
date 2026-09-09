@@ -96,12 +96,20 @@ export function OccupationPicker({
 }
 
 /**
+ * What a row says when nothing has been committed to its occupation. It is
+ * exported because the landing page's inline quote says the same thing in the
+ * same words when such an occupation is the one in hand (T35), and one string
+ * is the only way two surfaces cannot come to word it differently.
+ */
+export const NO_COVER_YET = 'No cover behind this occupation yet.';
+
+/**
  * What a row says under its name. Both lines are facts, not marketing: the
  * first is capacity, the second is the backtest in docs/INDEX.md.
  */
 export function captionFor(row: Occupation): string | undefined {
   const lines: string[] = [];
-  if (!hasCover(row)) lines.push('No cover behind this occupation yet.');
+  if (!hasCover(row)) lines.push(NO_COVER_YET);
   if (row.lastOpenPeriod === null) {
     lines.push('Claims have never opened for this occupation since 2010.');
   }

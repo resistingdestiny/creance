@@ -2,11 +2,16 @@
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 
-import { captionFor } from '../../app/occupation/occupation-picker';
+import { NO_COVER_YET, captionFor } from '../../app/occupation/occupation-picker';
 import { continueToVerify, priceCover, quoteOccupation } from '../../app/purchase-actions';
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
 import { formatAmount } from '../../lib/format';
-import { filterOccupations, hasCover, occupationLabel } from '../../lib/occupations';
+import {
+  filterOccupations,
+  findOccupation,
+  hasCover,
+  occupationLabel,
+} from '../../lib/occupations';
 import type { PriceResult } from '../../lib/worker-model';
 import { AmountSlider } from '../amount-slider';
 import { FormField } from '../form-field';
@@ -112,18 +117,25 @@ function StepHeading({ children }: { children: ReactNode }) {
 /**
  * "What do you do?", docs/DESIGN-TOKENS.md section 8, with the picker's own
  * behaviour: a case-insensitive filter over the fifteen labels, a tap that
- * selects rather than navigates, and a row that says plainly when there is no
- * cover behind an occupation instead of quoting a price nobody can buy.
+ * selects rather than navigates, and the picker's own sentence where nothing has
+ * been committed to an occupation.
  *
  * Choosing a row moves the index explorer below at once, before "Continue" is
  * pressed and before anything is paid for, so a visitor can read the index for
- * an occupation and then decide.
+ * an occupation and then decide. That is why all fifteen can be chosen here,
+ * where the route's picker offers only the one with capacity behind it: an
+ * occupation nobody can pick is an occupation the explorer can never be pointed
+ * at. Nothing is quoted for the other fourteen. The row says so, the line under
+ * the rows says so in the same words, and "Continue" is disabled.
+ * docs/DECISIONS.md.
  */
 function OccupationStep({ onPriced }: { onPriced: (price: PriceResult) => void }) {
   const { choose, go, group } = useQuote();
   const [query, setQuery] = useState('');
   const [pending, startTransition] = useTransition();
   const visible = filterOccupations(query);
+  const chosen = findOccupation(group);
+  const buyable = chosen !== null && hasCover(chosen);
 
   function continueWith(selected: string): void {
     startTransition(async () => {
@@ -163,7 +175,7 @@ function OccupationStep({ onPriced }: { onPriced: (price: PriceResult) => void }
                     {row.label}
                   </span>
                 }
-                onSelect={available ? () => choose(row.key) : undefined}
+                onSelect={() => choose(row.key)}
                 trailing={group === row.key ? 'check' : 'none'}
               />
             );
@@ -172,13 +184,15 @@ function OccupationStep({ onPriced }: { onPriced: (price: PriceResult) => void }
       )}
 
       <p className="text-secondary text-ink-2">
-        You tell us your occupation. We do not check it against an employer.
+        {chosen !== null && !buyable
+          ? NO_COVER_YET
+          : 'You tell us your occupation. We do not check it against an employer.'}
       </p>
       <PillButton
-        disabled={group === null}
+        disabled={!buyable}
         loading={pending}
         onClick={() => {
-          if (group !== null) continueWith(group);
+          if (chosen !== null && buyable) continueWith(chosen.key);
         }}
       >
         Continue
@@ -241,9 +255,7 @@ function AmountStep({
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <StepHeading>Cover amount</StepHeading>
-        <p className="text-secondary text-ink-2">
-          {group === null ? '' : occupationLabel(group)}
-        </p>
+        <p className="text-secondary text-ink-2">{group === null ? '' : occupationLabel(group)}</p>
       </div>
 
       <p

@@ -4616,3 +4616,177 @@ not become a client bundle because three buttons share a step.
 
 Every call to the API is still made in `src/app/purchase-actions.ts`, on the
 server, so the eligibility credential never reaches a browser.
+
+## T36, the card turns over to become the quote, 9 September 2026
+
+T35 put the quote on the landing page and swapped the hero card out for a
+bordered panel whenever a step was open. This ticket makes the card the quote.
+Pressing "Get a quote" turns the card over on its vertical axis and the question
+is on the face that comes round; every step turns it again, forward one way and
+back the other; the last turn settles on the quote laid out the way the card
+lays out a policy. There is no navigation at any point, and the panel is gone.
+
+### The turn is 480ms and eases in as well as out
+
+docs/DESIGN-TOKENS.md section 6 gives 200ms ease-out for anything that moves on
+a user action. A hundred and eighty degrees in 200ms is a flicker rather than an
+object turning over, and pure ease-out on a turn reads as a snap followed by a
+drift: the card is most of the way round in the first fifth of the time.
+
+The turn is 480ms on `cubic-bezier(0.65, 0, 0.35, 1)`, the symmetric curve. It
+accelerates into the turn and decelerates out of it, which is what a thing with
+mass does. Both the duration and the curve are departures from section 6 and
+this paragraph is the record of them. Everything else on the page keeps the
+sheet's timing, and under `prefers-reduced-motion` the transition is removed
+entirely, which is the instant state change the sheet asks for.
+
+### The turn is a third element, and it is where it is for a reason
+
+`.cover-card-stack` carries the perspective and `.cover-card-tilt` carries the
+drift and the pointer tilt as an inline transform written per frame. One element
+cannot carry two transforms, and a keyframe animation on the tilt would outrank
+the inline style and pin the card square on for good, which is the trap T33
+already wrote into that file's header. `.cover-card-turn` is a third element
+inside the tilt, so the two never meet.
+
+### Everything swaps at the one moment the card is edge on
+
+Which face is on screen, which face is in the tab order and the accessibility
+tree, how tall the object is, and where focus is, all change together at ninety
+degrees. That is the one moment the card has no width, so none of it is seen:
+not the swap, and not the change of height between a face holding a question and
+a face holding a settled quote.
+
+Each of the three was tried on its own first and each broke another. A face that
+is hidden cannot take focus, so focus cannot be moved ahead of the turn. A face
+taken out of the tab order while it is still the one on screen takes the focus
+that was on it with it, and that is focus lost in the middle of a turn. Held to
+the one moment, the visitor keeps the control they pressed until the card has
+turned away from it and lands on the new step as it arrives.
+
+The moment is solved from the easing curve rather than written as half the
+duration. The curve is what decides where ninety degrees falls, and a curve
+changed later without the constant changing with it would swap the faces in
+plain sight.
+
+### The away face is hidden outright, and not by backface-visibility
+
+`backface-visibility: hidden` is the usual way to build a two sided card and it
+is not enough here. It applies to the element that carries it and not to the
+`preserve-3d` subtree under it, and this card's contents sit on planes of their
+own: the face turns away, its thickness and its lifted content do not, and they
+are what shows through. Seen at 1440 as a grey slab and a line of the next
+step's caption hanging below the card at the half turn.
+
+The away face is given `visibility: hidden`, which takes the whole subtree with
+it and which no engine can get wrong. It also leaves the flow, so the object is
+exactly as tall as the face being read.
+
+### The card holds still while the quote is on it
+
+T33's drift is a card nobody is using being alive. A card with a search field, a
+list and a slider on it is a card being used, and a surface that sways under the
+cursor while it is being typed into is the drift working against the thing the
+card is for. `HeroCardStack` takes a `still` prop and the quote sets it for as
+long as a step is open: no drift, no pointer tilt, no glare. The shimmer does
+not stop, so the surface is still alive under the step.
+
+### The shimmer is carried by the turn without being taken off the card
+
+The acceptance asks for the shimmer to track the rotation. It is a CSS animation
+on `.cover-card__shimmer::before` and it stays one: the keyframes add
+`--card-shimmer-shift` to the band's own travel, and the turning element writes
+that property from the sine of the angle while the card is turning. A custom
+property inside a keyframe is re-resolved when the property changes, so the
+running animation picks the offset up without being restarted and without the
+band's own 9s loop being interrupted. It is never written under reduced motion,
+where the shimmer is standing still anyway.
+
+### Every label on a card face is ink, and the failing colours were taken off it
+
+src/components/cover-card.tsx has always carried the arithmetic: the darkest
+gradient stop of any treatment is #d9dce2, where ink-2 is 3.47:1 and fails the
+4.5:1 floor while black is 15.29:1. The card's own anatomy is written in ink for
+that reason.
+
+The quote's steps are built from the form field, the list rows and the slider the
+routes use, and those stand on canvas everywhere else, where ink-2 is 5.2:1 and
+right. Rather than change five components other screens share, one rule in the
+utilities layer reads ink-2 as ink inside `.cover-card__content`. It is in the
+utilities layer because it has to outrank the `text-ink-2` utility on the
+element, which a component layer rule cannot do whatever its specificity.
+
+Two colours were changed at the call site instead. The route's picker dims the
+fourteen occupations with no capacity behind them, and on the metal that dimming
+is the same failing grey; the caption under each row says the same thing in
+words, so the colour came out and every row reads in ink. And the price error is
+ink rather than the triggered red, which is 3.47:1 on the same stop; the sentence
+carries what happened, the same way the index badge's sentence carries the state
+and its dot is decoration.
+
+The one place ink-3 remains is the premium while the slider is ahead of the
+price. It is the same treatment the /amount route uses, it lasts only while a
+quote is in flight, and the alternative is worse: a figure in ink is a figure
+stated as the price of the cover on screen, and while the thumb has moved it is
+not.
+
+### The quote settles on a fourth face, and it wears no pill
+
+The acceptance asks for the card to settle into the state it will have as a real
+policy, showing the occupation, the cover and the monthly payment. That is a
+state the two steps do not reach: the cover amount step is a slider being moved,
+not a card. So there is a third half turn and a fourth face.
+
+It wears no status pill. The card says "Covered" on Home because there is cover
+behind it. At this point nothing has been verified and nothing has been paid, and
+a pill that said "Covered" would claim cover this visitor does not have. What the
+card can honestly do here is hold the figures, so that is what it holds:
+"Cover" from the Home card and "Monthly payment" from the pay sheet's rows, both
+the deck's own labels, with the occupation as the heading the card already puts
+in that place.
+
+The primary is "Continue", the deck's word on the Amount screen, and it is the
+same `continueToVerify` the Amount route submits. The deck has no string for a
+completed quote and the backlog notes the gap; "Continue" is the reading that
+invents nothing. The cover amount step's own "Continue" is now the turn to this
+face rather than the submit, which is the one behaviour T35 shipped that changed.
+
+### Device orientation is not asked for
+
+The acceptance asks for the card not to be inert on a phone, and allows either a
+gentle continuous movement or device orientation where it is available and
+permitted. The shimmer is already the continuous one: it runs on a CSS keyframe,
+it depends on no pointer, and T34 made it part of the finish rather than an
+effect. Confirmed on a touch device with a coarse pointer: no drift, no glare,
+and the shimmer running on its 9s loop.
+
+Device orientation is not added on top. On iOS `DeviceOrientationEvent` has to be
+asked for from a user gesture, and a marketing page that prompts a visitor for
+motion sensors before they have asked for anything is worse than a card that
+shimmers. T33 already decided a coarse pointer gets no drift and no glare, and
+this leaves that decision alone.
+
+### The perspective is flatter at narrow widths, and the card comes into view
+
+The same rotation over a smaller card reads as a wider swing, so the perspective
+is 1600px below 640 and the 1100px T33 set from there up. Measured at 390, 768
+and 1440 at rest, at the half turn and settled: the page never scrolls
+horizontally and the turning card never leaves the column it stands in.
+
+At 390 the card stands under the hero text rather than beside it, and a tap on
+"Get a quote" would otherwise turn a card below the fold. When the card is edge
+on, and therefore already the height of the face that is arriving, it is brought
+into view with `scrollIntoView({ block: 'nearest' })`. At 1440 it is already on
+screen and that scrolls nothing at all. It is instant and not smooth: this is the
+page following an action, not an animation.
+
+### No step needed the bottom sheet
+
+The acceptance allows a step that cannot fit the card face at 390 to expand to a
+bottom sheet with the card behind it. None of the four needed to. The face grows
+to the height of the step it is holding, and at 390 that is 550px for the
+occupation question and 470 for the cover amount, inside a card 350 wide. Nothing
+on any face is smaller than the sheet's 14px secondary or 13px caption, and the
+premium keeps T35's step down to the headline size at 390. The fifteen rows
+scroll inside the face at four rows on the landing breakpoint and two and a half
+at 390, which is what keeps the card a card rather than a column.

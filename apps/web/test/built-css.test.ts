@@ -245,11 +245,12 @@ describe('hairlines and the card', () => {
     const face = blocksMatching(/^\.cover-card-face$/)[0]?.[1] ?? '';
     expect(face).toMatch(/backface-visibility:\s*hidden/);
     expect(face).toMatch(/transform-style:\s*preserve-3d/);
+    // Hidden outright, not left to backface-visibility: that applies to the
+    // element carrying it and not to the preserve-3d subtree under it, and this
+    // card's thickness and lifted content are in that subtree.
     const sizing = blocksMatching(/\.cover-card-face\[data-sizing="false"\]/)[0]?.[1] ?? '';
     expect(sizing).toMatch(/position:\s*absolute/);
-    expect(css).toMatch(
-      /\.cover-card-turn:not\(\[data-turning\]\)[^{]*data-facing="away"[^{]*\{[^}]*visibility:\s*hidden/,
-    );
+    expect(sizing).toMatch(/visibility:\s*hidden/);
   });
 
   it('flattens the perspective at narrow widths so the card stays in its column', () => {

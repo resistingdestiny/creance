@@ -314,12 +314,15 @@
      outrank the inline style and pin the card square on for good.
 
      The turn is longer than the sheet's 200ms because 180 degrees in 200ms is
-     a flicker rather than an object turning over. docs/DECISIONS.md carries the
-     departure. */
+     a flicker rather than an object turning over, and it eases in as well as
+     out because a thing with mass does not start at full speed. Both are
+     departures and docs/DECISIONS.md carries them. The curve is the symmetric
+     one, so the card is edge on at exactly half the duration, which is where
+     the face on screen is swapped. */
   .cover-card-turn {
     position: relative;
     transform-style: preserve-3d;
-    transition: transform 480ms cubic-bezier(0.22, 0.7, 0.3, 1);
+    transition: transform 480ms cubic-bezier(0.65, 0, 0.35, 1);
   }
 
   .cover-card-face {
@@ -338,21 +341,23 @@
     transform: rotateY(180deg) translateZ(1px);
   }
 
-  /* Exactly one face is in the flow at a time, so the object is as tall as the
-     face being read and not as tall as both. The swap happens at the half
-     turn, where the card is edge on and neither face has any width on screen,
-     so the height changing with it is not seen. */
+  /* One face at a time, and the same one sizes the object, so the card is as
+     tall as the face being read and not as tall as both.
+
+     It is hidden outright and not left to backface-visibility above.
+     backface-visibility applies to the element that carries it and not to the
+     preserve-3d subtree under it, and this card's contents sit on planes of
+     their own: the face turns away, its thickness and its lifted content do
+     not, and they are what shows through. Hiding the face takes the whole
+     subtree with it, which no engine can get wrong.
+
+     The swap happens where the rotation is at ninety degrees, which is the one
+     moment the card has no width on screen, so neither the swap nor the change
+     of height that comes with it is seen. */
   .cover-card-face[data-sizing="false"] {
     position: absolute;
     inset-inline: 0;
     top: 0;
-  }
-
-  /* At rest the face pointing away is hidden outright, which no engine can get
-     wrong. While the card is turning it is backface-visibility above that
-     decides, because either face may be the one pointing at the viewer part
-     way through and only the browser knows which. */
-  .cover-card-turn:not([data-turning]) .cover-card-face[data-facing="away"] {
     visibility: hidden;
   }
 

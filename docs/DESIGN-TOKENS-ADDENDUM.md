@@ -52,6 +52,34 @@ Under the existing three sentences on how the index is computed, add two in the 
 
 Dates, amounts, the attachment level and the waiting period are interpolated from series and policy config, never hard-coded in copy.
 
+## Payment step: how do you want to pay?
+
+Above the "Confirm your cover" rows, on the route and on the landing card alike. A heading at body-lg in `ink`, then two options as a radio group with a hairline between them, then the notes in `caption` and `ink-2`.
+
+Each option is a row: the title at body in `ink`, a caption line under it, and a black check on the selected one. The recommended option carries a pill beside its title, hairline bordered, `caption` in `ink-2`, reading "Recommended". Once a wallet is connected its account id appears as a third line on that option, `caption`, `ink-2`, tabular.
+
+Copy: "How do you want to pay?" / "Your own wallet" / "Recommended" / "The cover is held in your wallet. The monthly payment is still settled by us." / "Demo wallet" / "A Hedera testnet account we hold the key for. Nothing to install." / "Waiting for your wallet"
+
+Under the group, two lines in `caption` and `ink-2`: "Changing this asks you to confirm you're a real person again, because the check is tied to the wallet that holds the cover." then "World App holds your ID, Hedera holds the money."
+
+On a deployment with no WalletConnect project id the wallet option is present and not selectable, and the first of those two lines is replaced by: "This deployment has no WalletConnect project id, so only the demo wallet can be offered."
+
+A connection that does not happen puts one line in `triggered` at `secondary` under the group, and the demo wallet stays selected. The two: "The wallet did not approve the connection." and "That wallet is not on Hedera testnet. Switch it to testnet and connect again."
+
+The wallet option's second line is the whole point of the screen and may not be softened. The cover is held in the person's wallet; the monthly payment is not. When the payment authorisation moves to the wallet, that sentence changes and not before.
+
+## Confirm your cover: the sixth row
+
+Five rows on the demo path, exactly as docs/DESIGN-TOKENS.md section 8 has them. With a wallet connected a sixth appears between "First payment today" and "Pays from": label "Cover held in", value the account id, caption "Your own wallet. Hedera testnet.". The "Pays from" row keeps its place and its account and its caption becomes "Settled by the service. Testnet only." rather than "Demo wallet. Testnet only.".
+
+Two rows because two accounts. One row captioned as the person's own wallet would say something untrue about where the money came from.
+
+When the connected wallet will not accept the policy NFT, one line at `secondary` in `ink-2` under the line above the button: "Your wallet doesn't accept new tokens, so the cover receipt can't be sent to it. The cover itself is unaffected." It is a warning and not a block: the cover binds either way and only the receipt is missing.
+
+## Copy deck additions, T43 (verbatim)
+
+"How do you want to pay?" / "Your own wallet" / "Recommended" / "The cover is held in your wallet. The monthly payment is still settled by us." / "Demo wallet" / "A Hedera testnet account we hold the key for. Nothing to install." / "Waiting for your wallet" / "Changing this asks you to confirm you're a real person again, because the check is tied to the wallet that holds the cover." / "World App holds your ID, Hedera holds the money." / "This deployment has no WalletConnect project id, so only the demo wallet can be offered." / "The wallet did not approve the connection." / "That wallet is not on Hedera testnet. Switch it to testnet and connect again." / "Cover held in" / "Your own wallet. Hedera testnet." / "Settled by the service. Testnet only." / "Your wallet doesn't accept new tokens, so the cover receipt can't be sent to it. The cover itself is unaffected."
+
 ## If Claude Design should render these
 
 Paste this into the same Claude Design session, direction 1a: "Add nine mobile screens for the claim flow and one desktop addition, in the shipped direction, same tokens and components. The trigger now has two keys: the index opens claims for an occupation, and the person proves they lost their job. Replace the Triggered Home state with a Claims open state (amber pill). Screens: Before you start, Your job, Add proof, Confirm it's you, Review and submit, Claim received, Approved, Under review, Declined. Investor screen gains reserved and paid rows and a three-segment principal bar. Copy is verbatim from the addendum below; do not rewrite it." Then paste the screens and copy sections above.

@@ -69,11 +69,14 @@ const { INDEX } = await import('./worker-fixtures.js');
 afterEach(cleanup);
 
 describe('the occupation picker', () => {
-  it('lists the fifteen rows in the addendum order', () => {
+  it('puts the one that can be bought first and the fourteen under their own heading', () => {
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('What do you do?');
     const rows = screen.getAllByRole('button').filter((node) => node.textContent !== 'Continue');
     expect(rows).toHaveLength(1);
+    expect(rows[0]?.textContent).toContain('Computer and mathematical');
+    expect(screen.getByText('Open to buy (1)')).toBeTruthy();
+    expect(screen.getByText('No cover behind these yet (14)')).toBeTruthy();
     expect(screen.getByText('Office and administrative support')).toBeTruthy();
     expect(screen.getByText('Farming, fishing and forestry')).toBeTruthy();
   });

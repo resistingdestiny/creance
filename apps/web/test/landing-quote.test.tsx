@@ -175,7 +175,7 @@ describe('the occupation step keeps the deck', () => {
     expect(panel().getByLabelText('Search occupations')).toBeDefined();
   });
 
-  it('lists the fifteen rows in the addendum order', async () => {
+  it('puts the buyable occupation first and sinks the rest under their own heading', async () => {
     page();
     await getAQuote();
     const rows = [
@@ -184,8 +184,23 @@ describe('the occupation step keeps the deck', () => {
       ),
     ].filter((button) => button.textContent !== 'Continue');
     expect(rows).toHaveLength(15);
-    expect(rows[0]?.textContent).toContain('Office and administrative support');
+    // T38: the one occupation with a series behind it leads, the fourteen
+    // follow in the addendum order, and each part says what it is.
+    expect(rows[0]?.textContent).toContain('Computer and mathematical');
+    expect(rows[1]?.textContent).toContain('Office and administrative support');
     expect(rows.at(-1)?.textContent).toContain('Farming, fishing and forestry');
+    expect(panel().getByText('Open to buy (1)')).toBeDefined();
+    expect(panel().getByText('No cover behind these yet (14)')).toBeDefined();
+  });
+
+  it('keeps a search that matches only unbuyable occupations under their heading', async () => {
+    page();
+    await getAQuote();
+    const search = panel().getByLabelText('Search occupations');
+    fireEvent.change(search, { target: { value: 'legal' } });
+    expect(panel().queryByText(/^Open to buy/)).toBeNull();
+    expect(panel().getByText('No cover behind these yet (1)')).toBeDefined();
+    expect(panel().getByText('Legal')).toBeDefined();
   });
 
   it('filters on the label and says when nothing matches', async () => {

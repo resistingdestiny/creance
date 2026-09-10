@@ -69,8 +69,8 @@ cold pnpm store and the demo clock at its real cadence, which is ten seconds a
 month by design and is what the video shows.
 
 **The worker flow.** Open http://localhost:3000, press "Get a quote", choose
-Computer and mathematical, which is the one occupation with a cover series
-behind it, set the slider and press Continue. The price on screen is a real
+any of the fifteen occupations, all of which have a cover series and capacity
+behind them, set the slider and press Continue. The price on screen is a real
 quote from the API and every move of the slider is a paid call. The verify
 screen runs the World Selfie Check when the three `WORLD_` variables are filled
 in and otherwise runs the API's labelled interim issuer, which says on screen
@@ -80,8 +80,9 @@ demo worker's testnet account, the policy binds, the receipt NFT is minted and
 the receipt goes to the payments topic. Every settlement is printed in the
 terminal `pnpm dev` runs in, with its HashScan link.
 
-Binding writes to testnet and commits permanent exposure against the demo
-series, so bind at the smallest amount the slider offers when repeating the run.
+Binding writes to testnet and commits permanent exposure against the series
+behind the occupation chosen, so bind at the smallest amount the slider offers
+when repeating the run.
 
 **The Steward flow.** `pnpm steward:run` needs `pnpm dev` running and pays every
 metered call from the agent's own account. On live data the rule usually decides
@@ -224,7 +225,7 @@ The investor screens are desktop, 1280 wide, and they fetch on the server rather
 
 The worker flow is a 390 wide mobile design, centred on canvas at a desktop width. It fetches on the server too, so the same API has to be running. All three endpoints it reads are x402 gated, so the web app pays for them: the index read, the quote and the bind are settled from the demo worker's own testnet account, whose key it derives from `HEDERA_OPERATOR_KEY` exactly as the API derives its own. Every settlement is printed in the web app's terminal with its HashScan link. Without an operator key the screens still render against an API whose gate is off (`X402_ENABLED=false`) and say so otherwise.
 
-Buying cover writes to Hedera testnet: `/pay` settles the first month's premium, binds a real policy, mints its receipt NFT and publishes a receipt to the payments topic, and every bind commits permanent exposure against the demo series. Bind at the smallest amount the slider offers when repeating the run.
+Buying cover writes to Hedera testnet: `/pay` settles the first month's premium, binds a real policy, mints its receipt NFT and publishes a receipt to the payments topic, and every bind commits permanent exposure against the series behind the occupation chosen. Bind at the smallest amount the slider offers when repeating the run.
 
 The check on `/verify` is a World Selfie Check. Fill in `WORLD_APP_ID`, `WORLD_RP_ID` and `WORLD_RP_SIGNING_KEY` from the World Developer Portal and the screen runs IDKit with the `selfieCheckLegacy` preset, the signal bound to the wallet id and an `rp_context` signed by the API; the completed result goes to the API, which forwards it to World and issues the eligibility credential on the strength of it. Scan the code with the World ID Sandbox App. Leave those variables blank and the API's labelled interim issuer runs instead, which mints the same credential without a check, and the screen says so.
 

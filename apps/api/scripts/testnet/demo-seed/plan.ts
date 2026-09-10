@@ -81,17 +81,41 @@ export const COVER = {
 /** The two noteholders the investor screens and the coupon are shown against. */
 export const INVESTOR_ROLES = ['investor-1', 'investor-2'];
 
-export interface SeededPolicy {
+/// The cover a person opens from a published link.
+///
+/// Both packet covers are spent by the demonstration: packet a is claimed and
+/// paid, packet b is claimed and declined, so by the time anybody watches the
+/// video neither of them is a cover that is simply running. This third one is
+/// bound exactly the same way and is never claimed on, so the link published
+/// for it keeps showing the state most cover is in.
+///
+/// policyholder-2 because it is the only holder in docs/hedera.testnet.json
+/// that carries no packet. The Steward buys for the same account on camera and
+/// that is a separate cover with its own nullifier.
+export const SHOWCASE = { role: 'policyholder-2' };
+
+/** A cover the seed bound, and the one key that opens it. */
+export interface SeededCover {
   role: string;
-  packet: 'a' | 'b';
   policyId: string;
   accountId: string;
   address: string;
   startAt: string;
   claimsPayableFrom: string;
   limit: string;
+  /**
+   * Captured from the bind command's own output, because nothing can print it
+   * a second time: apps/api/src/cover-key.ts stores a digest and never the key.
+   * Absent on a cover bound before the seed learned to keep it, and there is no
+   * way to fill it in afterwards.
+   */
+  coverKey?: string;
   bindTx?: string;
   nftSerial?: number;
+}
+
+export interface SeededPolicy extends SeededCover {
+  packet: 'a' | 'b';
 }
 
 export interface SeedRecord {
@@ -99,6 +123,8 @@ export interface SeedRecord {
   seededAt?: string;
   series?: { label: string; seriesId: string; groupKey: string };
   policies: SeededPolicy[];
+  /** The cover behind the published link. Absent until the seed binds it. */
+  showcase?: SeededCover;
   investors: { role: string; accountId: string; address: string; note?: string }[];
   packets: { packet: 'a' | 'b'; policyId: string; sha256: string; bytes: number }[];
   /** When each stage last finished, so a second run can say what it skipped. */
@@ -136,6 +162,50 @@ export function packetsNeedingCover(record: SeedRecord, usable: (policyId: strin
     const held = record.policies.find((policy) => policy.packet === plan.packet);
     return held === undefined || !usable(held.policyId);
   });
+}
+
+/**
+ * Whether the cover behind the published link still has to be bound.
+ *
+ * The same idempotence rule the packets get: a recorded cover that the database
+ * and the chain still call usable is left alone, so a second run binds nothing.
+ * A recorded cover with no captured key is left alone too, because rebinding
+ * would leave the old one running for nothing; `demoCoversSetting` is where
+ * that shows up, as a slot nobody can publish.
+ */
+export function showcaseNeedsCover(record: SeedRecord, usable: (policyId: string) => boolean): boolean {
+  const held = record.showcase;
+  return held === undefined || !usable(held.policyId);
+}
+
+/**
+ * The slots a deployment can publish a cover in, and the only two this build
+ * knows how to describe honestly on a screen.
+ *
+ * The web app parses the same two names out of `WEB_DEMO_COVERS`; see
+ * apps/web/src/lib/demo-states.ts. The two halves are joined by an environment
+ * variable and not by an import, because the seed writes it on one machine and
+ * the web process reads it on another.
+ */
+export const DEMO_COVER_SLOTS = ['covered', 'paid'] as const;
+export type DemoCoverSlot = (typeof DEMO_COVER_SLOTS)[number];
+
+/**
+ * The line an operator pastes into the web process's environment.
+ *
+ * A slot is filled only from a cover the seed really bound and really captured
+ * a key for, and the caller decides which slot from what the database says the
+ * cover's state is, so a run that has paid no claim publishes no paid cover.
+ * Empty when there is nothing honest to publish.
+ */
+export function demoCoversSetting(
+  covers: readonly { slot: DemoCoverSlot; key: string | undefined }[],
+): string {
+  const filled = DEMO_COVER_SLOTS.flatMap((slot) => {
+    const held = covers.find((cover) => cover.slot === slot && (cover.key ?? '') !== '');
+    return held === undefined ? [] : [`${slot}:${held.key ?? ''}`];
+  });
+  return filled.length === 0 ? '' : `WEB_DEMO_COVERS=${filled.join(',')}`;
 }
 
 /**

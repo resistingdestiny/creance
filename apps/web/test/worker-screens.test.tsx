@@ -27,9 +27,13 @@ vi.mock('../src/app/purchase-actions.js', () => ({
   continueToPay: vi.fn(),
   continueToVerify: vi.fn(),
   goToCover: vi.fn(),
+  openWithCoverKey: vi.fn(),
   payAndBind: vi.fn(),
   priceCover: vi.fn(),
+  signInWithWorld: vi.fn(),
+  signOutOfCover: vi.fn(),
   startAgain: vi.fn(),
+  startSignInCheck: vi.fn(),
   startWorldCheck: vi.fn(),
   verifyPerson: vi.fn(),
 }));
@@ -325,10 +329,36 @@ describe('the pay sheet', () => {
 });
 
 describe('home', () => {
-  function renderHome(bound: boolean) {
+  /** One recorded audit entry, the shape src/lib/audit-api.ts describes. */
+  const ENTRY = {
+    kind: 'premium',
+    source: 'topic' as const,
+    at: '2026-09-05T10:00:00Z',
+    amount: { amount: '860000', asset: '0.0.10366465', decimals: 6, display: '0.86' },
+    hcs: {
+      topic_id: '0.0.10366471',
+      sequence_number: 42,
+      consensus_at: '2026-09-05T10:00:01Z',
+      hashscan: 'https://hashscan.io/testnet/topic/0.0.10366471',
+    },
+    tx: null,
+    detail: {},
+  };
+
+  function renderHome(
+    bound: boolean,
+    extras: Partial<Parameters<typeof HomeScreen>[0]> = {},
+  ) {
     return render(
       <HomeScreen
         bound={bound}
+        chart={{
+          points: chartPoints(INDEX),
+          threshold: chartThreshold(INDEX),
+          bandLabel: bandLabelFor(INDEX),
+          description: chartDescription(INDEX),
+          open: false,
+        }}
         view={{
           policyId: 'pol_01M1S3EBDQR3W79A9E8MR6MPYB',
           occupation: 'Computer and mathematical',
@@ -341,6 +371,7 @@ describe('home', () => {
           lapsed: null,
           replayBadge: null,
         }}
+        {...extras}
       />,
     );
   }
@@ -378,6 +409,102 @@ describe('home', () => {
     renderHome(true);
     expect(window.location.pathname).toBe('/home');
     expect(window.location.search).toBe('');
+  });
+
+  /**
+   * The card carries the state as a colour and a label. A colour is not a
+   * sentence, so the dashboard says it in words as well.
+   */
+  it('says whether you are covered in words, in every state', () => {
+    const sentences: Record<string, string> = {
+      covered: "You're covered.",
+      claims_open: 'Claims are open for your occupation.',
+      claim_in_progress: 'Your claim is being decided.',
+      paid: 'Your claim has been paid.',
+      lapsed: 'Your cover needs a payment.',
+    };
+    for (const [state, sentence] of Object.entries(sentences)) {
+      const { unmount } = renderHome(false, {
+        view: {
+          policyId: 'pol_01M1S3EBDQR3W79A9E8MR6MPYB',
+          occupation: 'Computer and mathematical',
+          cover: 1000,
+          status: homeStatus(state as Parameters<typeof homeStatus>[0]),
+          nextPayment: '0.86 on 5 October',
+          index: { value: '0.69, falling', caption: 'Points from opening claims.' },
+          claimsOpen: null,
+          paid: null,
+          lapsed: null,
+          replayBadge: null,
+        },
+      });
+      expect(screen.getByText(sentence)).toBeTruthy();
+      unmount();
+    }
+  });
+
+  /**
+   * docs/DESIGN-TOKENS.md section 5: the Home row's chart is 64 by 20 and
+   * carries no band unless the state is triggered, and never a gridline, a dot
+   * or a legend.
+   */
+  it('draws the index line at the size the chart rules give the Home row', () => {
+    renderHome(false);
+    const svg = document.querySelector('svg');
+    expect(svg?.getAttribute('width')).toBe('64');
+    expect(svg?.getAttribute('height')).toBe('20');
+    expect(screen.queryByTestId('index-chart-band')).toBeNull();
+    expect(document.querySelectorAll('circle')).toHaveLength(0);
+    expect(document.querySelectorAll('svg line')).toHaveLength(0);
+  });
+
+  it('shows the band on the small chart only once the index is over the line', () => {
+    renderHome(false, {
+      chart: {
+        points: chartPoints(INDEX),
+        threshold: chartThreshold(INDEX),
+        bandLabel: bandLabelFor(INDEX),
+        description: chartDescription(INDEX),
+        open: true,
+      },
+    });
+    expect(screen.getByTestId('index-chart-band')).toBeTruthy();
+  });
+
+  it('shows what has happened, from the audit trail', () => {
+    renderHome(false, { history: [ENTRY] });
+    expect(screen.getByRole('heading', { level: 2, name: 'What has happened' })).toBeTruthy();
+    expect(screen.getByText('Monthly payment')).toBeTruthy();
+    expect(screen.getByText(/Recorded on Hedera/)).toBeTruthy();
+  });
+
+  it('says so plainly when nothing has happened yet', () => {
+    renderHome(false, { history: [] });
+    expect(screen.getByText('Nothing has happened on this cover yet.')).toBeTruthy();
+  });
+
+  /**
+   * The key is a bearer key to this cover, so it is behind a disclosure rather
+   * than printed on a screen somebody could be standing behind, and it is only
+   * ever rendered from inside a session that already holds this cover.
+   */
+  it('holds the cover key behind a disclosure inside the session', () => {
+    renderHome(false, { coverKey: '00001111222233334444' });
+    const disclosure = screen.getByTestId('cover-key');
+    expect(disclosure.tagName).toBe('DETAILS');
+    expect((disclosure as HTMLDetailsElement).open).toBe(false);
+    expect(screen.getByText('Show cover key')).toBeTruthy();
+    expect(screen.getByText('0000 1111 2222 3333 4444')).toBeTruthy();
+  });
+
+  it('shows no cover key at all when the session has none to show', () => {
+    renderHome(false, { coverKey: '' });
+    expect(screen.queryByTestId('cover-key')).toBeNull();
+  });
+
+  it('offers a way out of this cover on this browser', () => {
+    renderHome(false);
+    expect(screen.getByRole('button', { name: 'Sign out of this cover' })).toBeTruthy();
   });
 });
 

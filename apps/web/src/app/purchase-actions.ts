@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 
 import { ApiError, reportUnreachable } from '../lib/api';
-import { wrongKind } from './claim-actions';
+
 import { forgetCover, openCoverSession } from '../lib/current-cover';
 import { issueEligibilityFor, type EligibilityRequest } from '../lib/eligibility';
 import { AMOUNT_DEFAULT } from '../lib/cover-amount';
@@ -25,6 +25,7 @@ import {
   type PayResult,
   type PriceResult,
   type VerifyResult,
+  wrongKind,
 } from '../lib/worker-model';
 import {
   bindPolicy,

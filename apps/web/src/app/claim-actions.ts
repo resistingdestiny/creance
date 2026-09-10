@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 
 import { ApiError } from '../lib/api';
+import { wrongKind } from '../lib/worker-model';
 import { decisionForClaimant } from '../lib/admin-api';
 import {
   demoClaimPresence,
@@ -331,14 +332,6 @@ function checkFailure(cause: unknown): string {
   return "We couldn't verify you. Try again, or use a different device.";
 }
 
-/**
- * A check of a kind this deployment does not accept, which C4 answers with its
- * own screen rather than with the deck's failure. The words come from
- * `claimCheckCopy`; this is only which of them to say. T42.
- */
-export function wrongKind(cause: unknown): boolean {
-  return cause instanceof ApiError && cause.code === 'world_credential_unaccepted';
-}
 
 /**
  * What a refused packet says, switched on the problem document's own code.

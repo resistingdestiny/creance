@@ -5020,6 +5020,162 @@ which costs a check and is never wrong, and the credential clearing is left as a
 ticket of its own. Recorded here rather than fixed quietly, because the second
 half of it is a real defect on the routes today.
 
+## T40, the front door holds its reads instead of buying them per visitor, 10 September 2026
+
+The landing page took three to four seconds to first byte, on every view, and
+none of it was the network. `readLanding` made four calls before the page was
+drawn, two of them x402 gated, and a gated call cannot be fast: the gate settles
+on Hedera after the handler and settlement is seconds. So a visitor waited
+behind a settlement to be shown a monthly index reading and a price.
+
+This ticket puts a hold in front of those reads and draws the page before any of
+them answers. Nothing about the payments changed: the calls are the same calls,
+they still settle on chain, and the settlement ids are still logged and still on
+the payments topic. What changed is how many of them a hundred visitors cause,
+and how long any one of them is made to wait.
+
+### "Caching the from price is deliberately not done" is reversed, and the half of it that stands
+
+T35 recorded, under "What a visit costs, measured": "Caching the from price
+would remove that render's cost and is deliberately not done." It rested on two
+things and only one of them survives.
+
+The half that stands is "The from price is a quote, not a figure in the copy"
+(T29). A quote is a binding price with fifteen minutes of life. It may never
+fall back to a number in a copy deck, it may never be composed by this app, and
+a held one may never outlive the price it is holding. All three are kept below,
+and the from price on the front door is still `POST /v1/quote` for the smallest
+cover on offer, taken against the live index.
+
+The half that does not is the sentence the code carried twice, in the header of
+src/lib/landing-data.ts and again in src/app/page.tsx: "a front door that shows
+yesterday's premium is worse than one that shows no premium". It is true of
+yesterday and false of five minutes ago, and it was the argument for spending a
+settlement per visitor. The measurement is what killed it. Both copies of the
+sentence are corrected with the code.
+
+### The two windows, and where each of them comes from
+
+src/lib/held-read.ts is one hold with two windows, and src/lib/explorer-data.ts
+now uses it too rather than keeping a second implementation of the same idea.
+
+`ttlMs` is how long a value is served without question. `staleMs` is how long
+past that the value already bought is served while the next one is bought behind
+the visitor, which is what keeps the person who arrives first after an expiry
+from being the one who waits three seconds. Past both, the next read waits for a
+real answer, because a figure this app can no longer stand behind is not a
+figure it should print.
+
+Each window is set by what its figure is, and not by taste.
+
+- The metered reading: ten minutes, then five. The index publishes once a month
+  (DESIGN.md 3.3), so a reading a few minutes old is the same reading. It is the
+  explorer's own window for the explorer's own reason.
+- The from price: five minutes, then five. The API gives a quote fifteen
+  minutes, so ten is the most a held one can be and still be a price the API
+  would honour. The sum is asserted against that life in a test rather than left
+  as a comment.
+- The coupon: ten minutes, then ten. It is a rate written into the series at
+  issuance and the read is free; the window is about the second a visitor spends
+  waiting for it.
+- The replay badge: no window at all. The demo clock moves in ten second steps
+  and a stale badge is a lie about what is on screen, which is the rule
+  explorer-data.ts already wrote and this page carries the same badge.
+
+A value is aged from the moment its call went out rather than from the moment it
+came back, because a quote's fifteen minutes start when the API prices it.
+
+### The live badge means a reading bought inside the window
+
+"Index live, updated monthly from public data" used to mean the feed answered on
+this request. It now means a reading was had: from the feed, or from a hold at
+most fifteen minutes old. The alternative would be a badge that says the feed is
+down whenever a visitor arrives between two reads of a monthly number, which is
+a worse sentence and a false one.
+
+What it still never means is a reading from memory. When no reading can be had
+at all the badge changes to "Showing the last reading we published" and the note
+under the index section says which month it is showing, exactly as before.
+
+### The last published reading is still not a cache, and it is still not the hold
+
+src/lib/last-reading.ts kept the newest successful reading per group in module
+memory, with a header insisting it is not a cache. The hold in front of it now
+is a cache: it has a TTL, it expires, and the page is served from it while the
+feed answers. The two are kept apart rather than merged, because they answer
+different questions. The hold answers "what is the reading", expires, and is
+what a visitor sees. The last reading answers "what is the last thing this
+process ever saw", has no expiry, and is only ever reached when no reading can
+be had at all. Merging them would give the second one a TTL, and a page with no
+feed would then have nothing to show rather than a true reading with an honest
+note on it. The header comment is rewritten to say exactly that, because a
+comment that has stopped being true is worse than no comment.
+
+### The page is drawn before its figures, and each one rests at the height it will take
+
+The hold makes a warm visit cost nothing. It does not help the visit that finds
+a window expired, and it cannot: buying a reading takes as long as consensus
+takes. So the page no longer waits for any of it. `readLanding` returns a
+promise per figure with all of them already in flight, and each figure is behind
+a Suspense boundary of its own, so the navigation, the hero, the card, the three
+questions, the section headings, the closing band and the footer are on the
+first byte and each figure is written into the space kept for it as it arrives.
+
+Each boundary rests at the size its figure will take, which is the sheet's own
+Skeleton rule: the exact final dimensions, at the field radius, with no
+animation. The sizes are the type scale's line heights rather than guesses, so
+one line of secondary type rests at 20px and two lines of body-lg rest at 48px,
+and the explorer panel rests at the height it was measured standing at in a
+browser at both widths. On the night ground the bar is the marketing surface's
+own white rather than the canvas surface colour, and it is a span rather than a
+div, because two of the three rest inside a paragraph.
+
+Two states are deliberately not reserved. A price that could not be quoted takes
+its line away with it, because a line that is never coming is not a space this
+page keeps open, and the note under the index section is the sentence a page
+prints when a read failed, so no note is what it rests at.
+
+No copy was added for any of this. A resting state that said "loading the index"
+would be a string outside the deck, and a badge that said "live" before the
+reading was had would be a claim the page cannot make yet.
+
+### The second render a cookie causes is now free
+
+T35 measured that a server action which writes the purchase session cookie makes
+the framework re-render this force-dynamic route, so a cold visit that took a
+quote bought the reading and the from price a second time: 0.06 TUSD per visit,
+recorded there as unavoidable "while the session needs a cookie and the page
+refuses to cache its price". The page no longer refuses. That second render is
+served from the hold and costs nothing, which is a saving on every visit that
+takes a quote and not only on the hundredth visitor.
+
+### The explorer keeps its sixty months, because all sixty are drawn
+
+The ticket asks whether the thirty-six months past the twenty-four of
+docs/DESIGN-TOKENS.md section 5 are drawn anywhere, and they are. The explorer
+chart draws every point it is given, the scrubber's range is the length of the
+same array, and `meterFraction` takes its span from the widest distance over all
+the months on screen, so a shorter window would move the meter as well as the
+chart. Cutting `EXPLORER_MONTHS` to 24 would therefore change three things a
+visitor can see, on `/index` as well as on the landing page. That is a product
+change and it is not this ticket's to make.
+
+The payload was measured rather than guessed. The landing page is 227 KB, of
+which 158 KB is the flight data serialised into the HTML, of which about 117 KB
+is nine hundred month objects: fifteen occupations at sixty months, eight fields
+each. Two of those fields are derived and could be recomputed on the client,
+`distance` from the line and the value, and `smoothed`, which for a level form
+group is the value again. Dropping both would save about 22 KB, which is ten
+percent of the page, and it would touch every consumer of `ExplorerMonth`
+including the panel `/index` renders, which is outside this ticket's scope. The
+larger cut is to serialise the opened occupation's months and fetch the rest
+when the picker asks, which would save about 109 KB and would make picking an
+occupation a wait rather than an instant. Both are left as their own ticket,
+with the measurement here so that nobody has to take it again.
+
+The payload is also no longer what a visitor waits for. It arrives after the
+shell rather than in front of it, so the page is readable and interactive while
+the explorer is still streaming.
 ## T39, capacity for every occupation, 10 September 2026
 
 ### The vault is opened before the note exists, which the T06 decision said it would not be

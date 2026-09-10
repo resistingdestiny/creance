@@ -2,8 +2,8 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { cookies } from 'next/headers';
 
-import { readClaim } from './claim-session';
-import { readPurchase } from './purchase-session';
+import { endClaim, readClaim } from './claim-session';
+import { endPurchase, readPurchase } from './purchase-session';
 import { serverVar } from './server-env';
 
 /**
@@ -144,9 +144,25 @@ export function canonicalCoverKey(key: string): string {
     .replace(/[IL]/g, '1');
 }
 
-/** Signs out of the cover. */
+/** Drops the cover session cookie and nothing else. */
 export async function closeCoverSession(): Promise<void> {
   (await cookies()).delete(COOKIE);
+}
+
+/**
+ * Signing out: every session on this browser that resolves to a cover, gone.
+ *
+ * Three of them, because `currentPolicyId` reads three. Dropping only the cover
+ * cookie leaves the purchase session naming the same cover for the rest of its
+ * thirty minutes and the claim session naming it for two hours, so /claim would
+ * still open a cover the person had just signed out of. A claim in progress
+ * goes with it, evidence and all, which is what signing out has to mean: those
+ * files are the most private thing this app ever holds.
+ */
+export async function forgetCover(): Promise<void> {
+  await closeCoverSession();
+  await endClaim();
+  await endPurchase();
 }
 
 /**

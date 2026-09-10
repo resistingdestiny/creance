@@ -32,10 +32,18 @@ vi.mock('../src/lib/server-env.js', () => ({
   loadRootEnv: () => undefined,
 }));
 
-const { clearAllClaims } = await import('../src/lib/claim-session.js');
-const { clearAllPurchases } = await import('../src/lib/purchase-session.js');
-const { canonicalCoverKey, closeCoverSession, currentPolicyId, openCoverSession, readCoverSession } =
-  await import('../src/lib/current-cover.js');
+const { clearAllClaims, readClaim, startClaim } = await import('../src/lib/claim-session.js');
+const { clearAllPurchases, readPurchase, updatePurchase } = await import(
+  '../src/lib/purchase-session.js'
+);
+const {
+  canonicalCoverKey,
+  closeCoverSession,
+  currentPolicyId,
+  forgetCover,
+  openCoverSession,
+  readCoverSession,
+} = await import('../src/lib/current-cover.js');
 
 const POLICY = 'pol_01M1S3EBDQR3W79A9E8MR6MPYB';
 const KEY = '00001111222233334444';
@@ -127,6 +135,34 @@ describe('the cover session', () => {
   });
 });
 
+describe('signing out of a cover', () => {
+  /**
+   * `currentPolicyId` reads three sessions, so signing out has to clear three.
+   * Dropping only the cover cookie left the purchase session naming the same
+   * cover for the rest of its thirty minutes, and /claim reads the same seam.
+   */
+  it('leaves nothing on this browser that still resolves the cover', async () => {
+    await updatePurchase({ policyId: POLICY });
+    await startClaim(POLICY);
+    await openCoverSession(POLICY, KEY);
+    expect(await currentPolicyId()).toBe(POLICY);
+
+    await forgetCover();
+
+    expect(await readCoverSession()).toBeNull();
+    expect(await readPurchase()).toBeNull();
+    expect(await readClaim()).toBeNull();
+    expect(await currentPolicyId()).toBeNull();
+  });
+
+  /** A claim in progress goes with it, evidence and all. */
+  it('forgets a claim that was being put together', async () => {
+    await startClaim(POLICY);
+    await forgetCover();
+    expect(await readClaim()).toBeNull();
+  });
+});
+
 describe('which cover a screen is about', () => {
   it('is the cover session when there is one', async () => {
     await openCoverSession(POLICY, KEY);
@@ -135,5 +171,15 @@ describe('which cover a screen is about', () => {
 
   it('is nothing at all when there is no session of any kind', async () => {
     expect(await currentPolicyId()).toBeNull();
+  });
+
+  /**
+   * The claim session wins, because a claim belongs to one cover and the
+   * screens behind it must not switch cover halfway through.
+   */
+  it('is the claim session cover while a claim is being made', async () => {
+    await openCoverSession('pol_01THECOVERSESSIONSCOVER00', KEY);
+    await startClaim(POLICY);
+    expect(await currentPolicyId()).toBe(POLICY);
   });
 });

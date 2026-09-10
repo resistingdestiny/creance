@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 
 import { ApiError, reportUnreachable } from '../lib/api';
-import { closeCoverSession, openCoverSession } from '../lib/current-cover';
+import { forgetCover, openCoverSession } from '../lib/current-cover';
 import { issueEligibilityFor, type EligibilityRequest } from '../lib/eligibility';
 import { AMOUNT_DEFAULT } from '../lib/cover-amount';
 import { findOccupation, hasCover, occupationLabel } from '../lib/occupations';
@@ -351,9 +351,16 @@ async function repriceAndBind(session: PurchaseSession): Promise<PayResult> {
   }
 }
 
-/** Home: start again after the cover has been bought. */
+/**
+ * Home: start again after the cover has been bought.
+ *
+ * Every session naming the old cover goes first, for the reason forgetCover
+ * gives: `currentPolicyId` prefers a claim session over a cover session, so a
+ * stale one would leave the dashboard showing the cover that was left behind
+ * rather than the one just bought.
+ */
 export async function startAgain(): Promise<void> {
-  await closeCoverSession();
+  await forgetCover();
   await startPurchase();
   redirect('/occupation');
 }
@@ -417,9 +424,15 @@ export async function signInWithWorld(result: unknown): Promise<SignInResult> {
   }
 }
 
-/** Home: leave this cover on this browser. */
+/**
+ * Home: leave this cover on this browser.
+ *
+ * Every session that names it, not only the cover cookie: a browser that still
+ * resolved the cover through the purchase session would not have signed out of
+ * anything. See forgetCover.
+ */
 export async function signOutOfCover(): Promise<void> {
-  await closeCoverSession();
+  await forgetCover();
   redirect('/');
 }
 

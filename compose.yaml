@@ -107,7 +107,6 @@ services:
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
         NEXT_PUBLIC_DEMO_INVESTOR: ${NEXT_PUBLIC_DEMO_INVESTOR:-investor-1}
         NEXT_PUBLIC_FONT_OPTION: ${NEXT_PUBLIC_FONT_OPTION:-A}
-        NEXT_PUBLIC_WALLET_MODE: ${NEXT_PUBLIC_WALLET_MODE:-demo}
     restart: always
     depends_on:
       api:

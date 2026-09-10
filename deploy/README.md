@@ -44,7 +44,7 @@ The values that matter to a deployment, beyond the Hedera and World credentials:
 | --- | --- |
 | `PUBLIC_SITE_URL` | `https://creance.co` |
 | `NEXT_PUBLIC_SITE_URL` | `https://creance.co`, the same origin |
-| `NEXT_PUBLIC_DEMO_INVESTOR`, `NEXT_PUBLIC_FONT_OPTION`, `NEXT_PUBLIC_WALLET_MODE` | as `.env.example` documents |
+| `NEXT_PUBLIC_DEMO_INVESTOR`, `NEXT_PUBLIC_FONT_OPTION` | as `.env.example` documents |
 | `POSTGRES_PASSWORD` | anything; the database is not published off the host |
 
 `DATABASE_URL`, `HOST`, `PORT`, `CREANCE_API_URL` and the three `ORACLE_*` paths

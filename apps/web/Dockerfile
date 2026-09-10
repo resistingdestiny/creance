@@ -44,19 +44,25 @@ COPY --chown=node:node apps/web apps/web
 # rather than beside the running app.
 COPY --chown=node:node data/attribution data/attribution
 
-# The four public variables are build arguments, not runtime ones. A framework
+# The three public variables are build arguments, not runtime ones. A framework
 # public variable is inlined into the browser bundle when the build runs, so
 # setting it in the compose file afterwards would change nothing on the page.
 # See docs/DECISIONS.md, "The public origin is carried by a second, public
 # variable".
+#
+# NEXT_PUBLIC_WALLET_MODE was a fourth and is gone: the wallet is chosen on the
+# payment step now, not at build time. The Reown project id that lets the
+# payment step offer a real wallet is not a build argument either. It is read
+# from the web application's own environment file, which the copy above brings
+# into the image, because that is the only file the framework reads a public
+# variable from when it builds here. Without one the payment step offers the
+# demo wallet alone and says why.
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ARG NEXT_PUBLIC_DEMO_INVESTOR=investor-1
 ARG NEXT_PUBLIC_FONT_OPTION=A
-ARG NEXT_PUBLIC_WALLET_MODE=demo
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 ENV NEXT_PUBLIC_DEMO_INVESTOR=$NEXT_PUBLIC_DEMO_INVESTOR
 ENV NEXT_PUBLIC_FONT_OPTION=$NEXT_PUBLIC_FONT_OPTION
-ENV NEXT_PUBLIC_WALLET_MODE=$NEXT_PUBLIC_WALLET_MODE
 
 # Every screen that reads the API is force-dynamic, so the build reaches no
 # database, no API and no Hedera node.

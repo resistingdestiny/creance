@@ -115,7 +115,7 @@ export async function readCoverSession(): Promise<CoverSession | null> {
  */
 export async function openCoverSession(policyId: string, coverKey = ''): Promise<void> {
   const expiresAt = Date.now() + TTL_MS;
-  const body = `v1.${policyId}.${coverKey}.${String(expiresAt)}`;
+  const body = `v1.${policyId}.${canonicalCoverKey(coverKey)}.${String(expiresAt)}`;
   (await cookies()).set(COOKIE, `${body}.${sign(body)}`, {
     httpOnly: true,
     sameSite: 'lax',
@@ -123,6 +123,25 @@ export async function openCoverSession(policyId: string, coverKey = ''): Promise
     maxAge: TTL_MS / 1000,
     secure: process.env.NODE_ENV === 'production',
   });
+}
+
+/**
+ * A cover key in the form the dashboard prints it back in.
+ *
+ * A key arrives at the bind response already canonical, and arrives from a
+ * person's keyboard with whatever separators and lookalike characters they
+ * typed. The API is the authority on what opens a cover
+ * (apps/api/src/cover-key.ts): these are the same rules, applied here only so
+ * that what is stored in the session is what was issued rather than what was
+ * typed, because a key redisplayed in the form somebody typed it would be a
+ * different string from the one on their piece of paper.
+ */
+export function canonicalCoverKey(key: string): string {
+  return key
+    .replace(/[\s\-_]/g, '')
+    .toUpperCase()
+    .replace(/O/g, '0')
+    .replace(/[IL]/g, '1');
 }
 
 /** Signs out of the cover. */

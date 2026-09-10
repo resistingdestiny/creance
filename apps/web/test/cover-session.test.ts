@@ -34,9 +34,8 @@ vi.mock('../src/lib/server-env.js', () => ({
 
 const { clearAllClaims } = await import('../src/lib/claim-session.js');
 const { clearAllPurchases } = await import('../src/lib/purchase-session.js');
-const { closeCoverSession, currentPolicyId, openCoverSession, readCoverSession } = await import(
-  '../src/lib/current-cover.js'
-);
+const { canonicalCoverKey, closeCoverSession, currentPolicyId, openCoverSession, readCoverSession } =
+  await import('../src/lib/current-cover.js');
 
 const POLICY = 'pol_01M1S3EBDQR3W79A9E8MR6MPYB';
 const KEY = '00001111222233334444';
@@ -57,6 +56,19 @@ describe('the cover session', () => {
     const session = await readCoverSession();
     expect(session?.policyId).toBe(POLICY);
     expect(session?.coverKey).toBe(KEY);
+  });
+
+  /**
+   * A key typed off a screen carries the separators it was printed with and
+   * whatever the reader made of I, L and O. What the session holds has to be
+   * the key that was issued, or the dashboard prints a different string from
+   * the one on the person's piece of paper.
+   */
+  it('holds the key that was issued, not the one that was typed', async () => {
+    expect(canonicalCoverKey('0000 1111-2222_3333 4444')).toBe('00001111222233334444');
+    expect(canonicalCoverKey('oilOIL00001111222233')).toBe('01101100001111222233');
+    await openCoverSession(POLICY, '0000 1111 2222 3333 4444');
+    expect((await readCoverSession())?.coverKey).toBe('00001111222233334444');
   });
 
   it('holds no cover key when it was opened by a World ID check', async () => {

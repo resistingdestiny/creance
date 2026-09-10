@@ -93,6 +93,7 @@ export function SignInScreen({
 
   const submitKey = (formData: FormData) => {
     setOutcome('none');
+    setKeyError(null);
     startTransition(async () => {
       const answer = await openWithCoverKey(formData);
       setKeyError(answer.error);

@@ -17,7 +17,7 @@ import type { Surface } from './surface';
 import type { ClaimStatusView, ReplayView } from './claim-api';
 import type { PolicyView } from './worker-api';
 import type { StatusState } from '../components/status-pill';
-import { coverAmount, premiumAmount } from './worker-model';
+import { coverAmount, premiumAmount, verifyCopy } from './worker-model';
 
 /**
  * The five choices on C2, and the separation type each one means.
@@ -241,7 +241,7 @@ export function purchaseFailedCopy(premium: string, detail: string): FailureCopy
 }
 
 /** The states C4 can be in, which are the Verify screen's own. */
-export type ClaimCheckState = 'idle' | 'waiting' | 'verified' | 'failed';
+export type ClaimCheckState = 'idle' | 'waiting' | 'verified' | 'failed' | 'wrong-check';
 
 export interface ClaimCheckCopy {
   readonly heading: string;
@@ -258,6 +258,11 @@ export interface ClaimCheckCopy {
  *
  * It drops the offer of a second device inside World App for the reason
  * src/lib/worker-model.ts gives: there is no second device to move to.
+ *
+ * `wrong-check` is the purchase screen's words, taken rather than repeated. The
+ * same check runs here, a check of a kind this deployment does not accept fails
+ * here for the same reason, and the answer, run the face check, is the same
+ * answer. Two copies of one string is how the two screens come to disagree. T42.
  */
 export function claimCheckCopy(
   state: ClaimCheckState,
@@ -270,6 +275,7 @@ export function claimCheckCopy(
       button: 'Try again',
     };
   }
+  if (state === 'wrong-check') return verifyCopy('wrong-check', surface);
   return {
     heading: "Confirm it's you.",
     line: 'The same person who bought the cover has to claim it.',

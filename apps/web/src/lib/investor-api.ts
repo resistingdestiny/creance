@@ -138,8 +138,21 @@ export interface CouponsView {
   readonly coupons: readonly CouponView[];
 }
 
-/** The demo series. Every investor screen shows this one unless asked otherwise. */
-export const DEFAULT_SERIES_ID = 'ODI-COMP-2026-01';
+/** One row of GET /v1/series, which is what a screen offers a choice from. */
+export interface SeriesListEntry {
+  readonly series_id: string;
+  readonly series_key: string;
+  readonly group: string;
+  readonly matures_at: string;
+  readonly has_note: boolean;
+  readonly links: { readonly self: string; readonly coupons: string };
+}
+
+export interface SeriesListView {
+  readonly network: string;
+  readonly count: number;
+  readonly series: readonly SeriesListEntry[];
+}
 
 /** The API is unreachable or answered with a problem document. */
 export class InvestorApiError extends Error {
@@ -170,10 +183,21 @@ async function read<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function fetchSeries(id: string = DEFAULT_SERIES_ID): Promise<SeriesView> {
+export function fetchSeries(id: string): Promise<SeriesView> {
   return read<SeriesView>(`/v1/series/${encodeURIComponent(id)}`);
 }
 
-export function fetchCoupons(id: string = DEFAULT_SERIES_ID): Promise<CouponsView> {
+export function fetchCoupons(id: string): Promise<CouponsView> {
   return read<CouponsView>(`/v1/series/${encodeURIComponent(id)}/coupons`);
+}
+
+/**
+ * Every series the deployment serves, in the order they were issued.
+ *
+ * This is what replaced the constant the screens used to carry. The list is
+ * the API's, so a series that is registered on chain and not in this bundle is
+ * still offered, and a screen never names a series the API does not have.
+ */
+export function fetchSeriesList(): Promise<SeriesListView> {
+  return read<SeriesListView>('/v1/series');
 }

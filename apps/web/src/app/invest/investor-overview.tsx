@@ -7,7 +7,7 @@ import { StatusPill } from '../../components/status-pill';
 import { SurfaceGroup } from '../../components/surface-group';
 import { TextLink } from '../../components/text-link';
 import { formatDayWithYear, formatWholeMoney, shortenAddress } from '../../lib/format';
-import type { CouponsView, SeriesView } from '../../lib/investor-api';
+import type { CouponsView, SeriesListEntry, SeriesView } from '../../lib/investor-api';
 import {
   capacityLine,
   couponHistory,
@@ -20,6 +20,7 @@ import {
   termLine,
 } from '../../lib/investor-model';
 import { DEMO_WALLET_LABEL, type WalletAccount } from '../../lib/wallet';
+import { SeriesChooser } from './series-chooser';
 
 /**
  * The investor overview, desktop, from the "Investor" block of the copy deck in
@@ -45,9 +46,16 @@ export interface InvestorOverviewProps {
   coupons: CouponsView;
   /** The noteholder this screen speaks to. See src/lib/wallet.ts. */
   investor: WalletAccount;
+  /** Every series the API serves, so the screen can offer a choice. */
+  choices?: readonly SeriesListEntry[];
 }
 
-export function InvestorOverview({ series, coupons, investor }: InvestorOverviewProps) {
+export function InvestorOverview({
+  series,
+  coupons,
+  investor,
+  choices = [],
+}: InvestorOverviewProps) {
   const holder = holderFor(series, investor.evmAddress);
   const segments = principalSegments(series);
   const atRisk = principalAtRisk(series);
@@ -56,8 +64,10 @@ export function InvestorOverview({ series, coupons, investor }: InvestorOverview
   const term = termLine(series);
   const capacity = capacityLine(series);
   const rows = couponHistory(coupons);
+  // The first series in the list is the route's own default, so it needs no
+  // query string. Anything else does.
   const subscribeHref =
-    series.series_id === 'ODI-COMP-2026-01'
+    series.series_id === choices[0]?.series_id
       ? '/invest/subscribe'
       : `/invest/subscribe?series=${encodeURIComponent(series.series_id)}`;
 
@@ -73,6 +83,8 @@ export function InvestorOverview({ series, coupons, investor }: InvestorOverview
           {holder?.kyc.granted ? 'KYC approved' : 'Verification needed'}
         </StatusPill>
       </header>
+
+      <SeriesChooser base="/invest" choices={choices} current={series.series_id} />
 
       <div className="mt-10 grid gap-10 lg:grid-cols-2">
         <section>

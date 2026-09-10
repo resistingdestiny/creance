@@ -11,7 +11,8 @@ import { PillButton, PillLink } from '../../../components/pill-button';
 import { SurfaceGroup } from '../../../components/surface-group';
 import { TextLink } from '../../../components/text-link';
 import { formatAmount, formatDayWithYear, formatWholeMoney, shortenAddress } from '../../../lib/format';
-import type { CouponsView, SeriesView } from '../../../lib/investor-api';
+import type { CouponsView, SeriesListEntry, SeriesView } from '../../../lib/investor-api';
+import { SeriesChooser } from '../series-chooser';
 import { couponLine, firstSettledCoupon, holderFor, isoDay } from '../../../lib/investor-model';
 import { WalletLine } from '../investor-overview';
 import { DEMO_WALLET_LABEL, type WalletAccount } from '../../../lib/wallet';
@@ -50,16 +51,25 @@ export interface SubscribeScreenProps {
   series: SeriesView;
   coupons: CouponsView;
   investor: WalletAccount;
+  /** Every series the API serves, so the screen can offer a choice. */
+  choices?: readonly SeriesListEntry[];
 }
 
-export function SubscribeScreen({ series, coupons, investor }: SubscribeScreenProps) {
+export function SubscribeScreen({
+  series,
+  coupons,
+  investor,
+  choices = [],
+}: SubscribeScreenProps) {
   const [amount, setAmount] = useState(DEFAULT_AMOUNT);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
 
   const holder = holderFor(series, investor.evmAddress);
+  // The first series in the list is the route's own default, so it needs no
+  // query string. Anything else does.
   const seriesHref =
-    series.series_id === 'ODI-COMP-2026-01'
+    series.series_id === choices[0]?.series_id
       ? '/invest'
       : `/invest?series=${encodeURIComponent(series.series_id)}`;
 
@@ -84,6 +94,7 @@ export function SubscribeScreen({ series, coupons, investor }: SubscribeScreenPr
       <header className="border-b border-hairline pb-6">
         <h1 className="text-title font-display font-semibold tracking-title text-ink">Subscribe</h1>
         <p className="mt-1 text-body text-ink-2 tabular-nums">{series.series_id}</p>
+        <SeriesChooser base="/invest/subscribe" choices={choices} current={series.series_id} />
       </header>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-2">

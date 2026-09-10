@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 
-import { DEFAULT_SERIES_ID, fetchCoupons, fetchSeries } from '../../../lib/investor-api';
+import { fetchCoupons, fetchSeries, fetchSeriesList } from '../../../lib/investor-api';
 import { demoInvestorAccount } from '../../../lib/wallet';
 import { InvestorUnavailable } from '../unavailable';
 import { SubscribeScreen } from './subscribe-screen';
 
-/** The subscribe screen. `?series=` names a series other than the demo one. */
+/** The subscribe screen. `?series=` names one of the series GET /v1/series lists. */
 
 export const metadata: Metadata = { title: 'Subscribe' };
 
@@ -17,15 +17,23 @@ export default async function SubscribePage({
   searchParams: Promise<{ series?: string }>;
 }) {
   const { series: requested } = await searchParams;
-  const id = requested ?? DEFAULT_SERIES_ID;
   const retryHref =
     requested === undefined
       ? '/invest/subscribe'
-      : `/invest/subscribe?series=${encodeURIComponent(id)}`;
+      : `/invest/subscribe?series=${encodeURIComponent(requested)}`;
 
   try {
+    const listing = await fetchSeriesList();
+    const id = requested ?? listing.series[0]?.series_id ?? '';
     const [series, coupons] = await Promise.all([fetchSeries(id), fetchCoupons(id)]);
-    return <SubscribeScreen coupons={coupons} investor={demoInvestorAccount()} series={series} />;
+    return (
+      <SubscribeScreen
+        choices={listing.series}
+        coupons={coupons}
+        investor={demoInvestorAccount()}
+        series={series}
+      />
+    );
   } catch {
     return <InvestorUnavailable retryHref={retryHref} />;
   }

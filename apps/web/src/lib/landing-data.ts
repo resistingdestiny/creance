@@ -25,7 +25,7 @@ import { fetchReplay } from './claim-api';
 import { replayBadgeLabel } from './claim-model';
 import { AMOUNT_MIN } from './cover-amount';
 import { readExplorer, type ExplorerData } from './explorer-data';
-import { fetchSeries } from './investor-api';
+import { fetchSeries, fetchSeriesList } from './investor-api';
 import { couponLine } from './investor-model';
 import {
   LANDING_GROUP,
@@ -145,10 +145,19 @@ async function readPrice(group: string): Promise<string | null> {
   }
 }
 
-/** The coupon the note pays, from the series the investor screens already read. */
+/**
+ * The coupon the note pays, from the series the investor screens already read.
+ *
+ * Which series is the API's to say, not this page's: it is the head of
+ * GET /v1/series, the same default /invest opens on, so the landing page and
+ * the investor screen never quote different notes.
+ */
 async function readCoupon(): Promise<string | null> {
   try {
-    return couponLine(await fetchSeries());
+    const listing = await fetchSeriesList();
+    const first = listing.series[0]?.series_id;
+    if (first === undefined) return null;
+    return couponLine(await fetchSeries(first));
   } catch (cause) {
     reportUnreachable('the landing investor line', cause);
     return null;

@@ -2627,3 +2627,20 @@ which is where the runner reads them and checks them against
 `docs/hedera.testnet.json` before scaling any amount.
 
 https://docs.hedera.com/hedera/sdks-and-apis/rest-api
+
+## One test in `pnpm test` reaches the JSON-RPC relay, and did before this ticket
+
+`pnpm test` is meant to run from a clean clone with no network. It nearly does.
+`apps/api/test/openapi.test.ts`, "promises nothing on the free reads the server
+does not send", builds a server through `buildTestServer` and asks it for
+`/v1/series/ODI-COMP-2026-01`. `buildServer` registers `investorRoutes` with no
+options, and the plugin then builds its own `EthersChainReader(config.rpcUrl)`,
+so that one case reads the vault and the note over the relay.
+
+Point `HEDERA_RPC_URL` at a dead port and it is the only failure in 1,494. The
+same command fails the same way on `main`, so it is not a regression; it is
+recorded here because the acceptance line for T39 asks whether the suite still
+runs without network and the honest answer is "as well as it did before, which
+is all but this one case". The fix is to thread a stub reader through
+`buildTestServer` the way `investor-routes.test.ts` already does, and it is a
+change to a shared fixture rather than to anything T39 touches.

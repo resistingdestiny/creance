@@ -56,7 +56,7 @@ key and `DATABASE_URL` filled in and nothing else.
 | Step | Command | Time |
 | --- | --- | --- |
 | Install | `pnpm install` | 8 seconds against a warm pnpm store, a few minutes on a cold one |
-| Database | `createdb creance` then `pnpm api:migrate` | 3 seconds, prints `applied 001_init, 002_adjuster, 003_claims` |
+| Database | `createdb creance` then `pnpm api:migrate` | 3 seconds, prints `applied 001_init, 002_adjuster, 003_claims, 004_cover_keys` |
 | Unit tests, optional | `pnpm test` | 83 seconds |
 | Boot | `pnpm dev` | the API answers `GET /health` after 10 seconds, the web app is ready in 2 |
 | Worker flow | a browser at http://localhost:3000 | under two minutes to a bound policy, most of it waiting on testnet |

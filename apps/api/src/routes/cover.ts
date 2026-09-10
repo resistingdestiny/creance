@@ -54,7 +54,7 @@ export const coverRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
   });
 };
 
-export function unknownKey(): AppError {
+function unknownKey(): AppError {
   return new AppError(
     404,
     'cover_key_unknown',

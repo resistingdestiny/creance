@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 /// The cover key: a bearer key to one cover, and nothing else.
 ///
@@ -51,13 +51,6 @@ export function newCoverKey(): NewCoverKey {
  */
 export function coverKeyHash(key: string): string {
   return createHash('sha256').update(key, 'utf8').digest('hex');
-}
-
-/** Constant time equality over two digests, for a comparison that is not a lookup. */
-export function sameCoverKey(a: string, b: string): boolean {
-  const left = Buffer.from(coverKeyHash(a), 'hex');
-  const right = Buffer.from(coverKeyHash(b), 'hex');
-  return timingSafeEqual(left, right);
 }
 
 /**

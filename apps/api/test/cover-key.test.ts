@@ -9,7 +9,6 @@ import {
   groupCoverKey,
   newCoverKey,
   normaliseCoverKey,
-  sameCoverKey,
 } from '../src/cover-key.js';
 import {
   buildTestServer,
@@ -110,11 +109,6 @@ describe('the cover key', () => {
     expect(normaliseCoverKey(`${'0'.repeat(19)}!`)).toBeNull();
   });
 
-  it('compares two keys without leaking which character differed', () => {
-    const { key } = newCoverKey();
-    expect(sameCoverKey(key, key)).toBe(true);
-    expect(sameCoverKey(key, newCoverKey().key)).toBe(false);
-  });
 });
 
 describe('getting back into a cover', () => {

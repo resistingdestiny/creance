@@ -6,6 +6,7 @@ import {
   type ClaimPaidInput,
   type ClaimRow,
   type ClaimStatus,
+  type CoverKeyRow,
   type NewClaimInput,
   type RecordDecisionInput,
   type CredentialRow,
@@ -38,6 +39,7 @@ export class MemoryRepository implements Repository {
   private readonly paymentRows = new Map<string, PaymentRow>();
   private readonly observationRows = new Map<string, ObservationRow>();
   private readonly claimRows = new Map<string, ClaimAuditRow>();
+  private readonly coverKeyRows = new Map<string, CoverKeyRow>();
 
   constructor(groups: GroupRow[] = []) {
     for (const group of groups) this.groupRows.set(group.groupKey, group);
@@ -95,6 +97,24 @@ export class MemoryRepository implements Repository {
           ACTIVE_POLICY_STATUSES.includes(row.status),
       ) ?? null
     );
+  }
+
+  async policiesForPerson(nullifier: string): Promise<PolicyRow[]> {
+    return [...this.policyRows.values()]
+      .filter(
+        (row) =>
+          row.nullifier === nullifier && ACTIVE_POLICY_STATUSES.includes(row.status),
+      )
+      .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
+  }
+
+  async insertCoverKey(row: CoverKeyRow): Promise<void> {
+    this.coverKeyRows.set(row.keyHash, row);
+  }
+
+  async policyForCoverKey(keyHash: string): Promise<PolicyRow | null> {
+    const row = this.coverKeyRows.get(keyHash);
+    return row === undefined ? null : (this.policyRows.get(row.policyId) ?? null);
   }
 
   async reservePolicy(input: ReservePolicyInput): Promise<void> {

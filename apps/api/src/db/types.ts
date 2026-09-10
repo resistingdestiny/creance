@@ -86,6 +86,19 @@ export interface CredentialRow {
   consumedAt: string | null;
 }
 
+/**
+ * One issued cover key, as the table holds it.
+ *
+ * The key is not here. `keyHash` is a SHA-256 digest of it, so this row opens
+ * nothing on its own, and the route that takes a key computes the same digest
+ * and reads by primary key. See apps/api/src/cover-key.ts.
+ */
+export interface CoverKeyRow {
+  keyHash: string;
+  policyId: string;
+  createdAt: string;
+}
+
 export interface QuoteRow {
   quoteId: string;
   seriesId: string;
@@ -404,6 +417,19 @@ export interface Repository {
    * `reservePolicy`, and this is how a screen can say it before a payment.
    */
   activePolicy(nullifier: string, seriesId: string): Promise<PolicyRow | null>;
+  /**
+   * Every cover this person still holds, newest first.
+   *
+   * `activePolicy` answers the one-active-policy rule, which is per series.
+   * Signing in has no series to ask about: the person proves who they are and
+   * the cover has to be found from that alone. Fifteen series are live, so the
+   * alternative is fifteen reads to answer one question.
+   */
+  policiesForPerson(nullifier: string): Promise<PolicyRow[]>;
+  /** Records a cover key by its digest. Many keys may open one cover. */
+  insertCoverKey(row: CoverKeyRow): Promise<void>;
+  /** The cover a key digest opens, or null. */
+  policyForCoverKey(keyHash: string): Promise<PolicyRow | null>;
   /**
    * Check the one-active-policy rule and the capacity, consume the credential
    * and the quote, and write the policy and its first premium, all atomically.

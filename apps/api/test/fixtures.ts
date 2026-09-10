@@ -176,3 +176,15 @@ export function seriesWithoutNote(): SeriesConfig {
   delete series.note;
   return series;
 }
+
+/// A second series with capacity in the vault and no note yet, which is what
+/// the capacity runner leaves behind when an ATS deploy fails. It is the copy
+/// deck's worked example, so it is the one the list tests use.
+export const OFFICE_SERIES: SeriesConfig = {
+  ...seriesWithoutNote(),
+  label: 'ODI-OFFC-2026-01',
+  seriesId: '0x4f44492d4f4646432d323032362d303100000000000000000000000000000000',
+  group: 'office_admin_support',
+  maturityAt: 1820564654,
+  coupons: [],
+};

@@ -255,6 +255,53 @@ export function buildSeriesView(input: SeriesViewInput): SeriesView {
   };
 }
 
+/** One row in the series list: what a screen needs to offer a choice. */
+export interface SeriesListEntry {
+  series_id: string;
+  series_key: string;
+  group: string;
+  matures_at: string;
+  /// Whether a Displacement Bond Note has been issued for the series. Cover is
+  /// buyable without one: the note is the investor facing instrument and the
+  /// collateral is in the vault either way.
+  has_note: boolean;
+  links: { self: string; coupons: string };
+}
+
+export interface SeriesListView {
+  network: string;
+  count: number;
+  series: SeriesListEntry[];
+}
+
+/**
+ * Every series this deployment serves, in the order they were issued.
+ *
+ * Nothing here reads the chain. The list is what the deployment record says
+ * exists, so a screen can offer a choice in one cheap call and then ask for
+ * the one series it is going to show.
+ */
+export function buildSeriesListView(
+  network: string,
+  series: readonly SeriesConfig[],
+): SeriesListView {
+  return {
+    network,
+    count: series.length,
+    series: series.map((entry) => ({
+      series_id: entry.label,
+      series_key: entry.seriesId,
+      group: entry.group,
+      matures_at: new Date(entry.maturityAt * SECONDS).toISOString(),
+      has_note: entry.note !== undefined,
+      links: {
+        self: `/v1/series/${entry.label}`,
+        coupons: `/v1/series/${entry.label}/coupons`,
+      },
+    })),
+  };
+}
+
 export interface CouponHolderView {
   role: string;
   account_id: string;

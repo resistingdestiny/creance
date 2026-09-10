@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { investorRoutes } from '../src/investor/index.js';
-import { CONFIG, FakeChainReader, SERIES, seriesWithoutNote } from './fixtures.js';
+import { CONFIG, FakeChainReader, OFFICE_SERIES, SERIES, seriesWithoutNote } from './fixtures.js';
 
 /// The routes, driven through Fastify's own injector with a reader that answers
 /// from fixtures. No relay, no mirror node, no key.
@@ -18,6 +18,46 @@ describe('the investor endpoints', () => {
 
   afterEach(async () => {
     await app.close();
+  });
+
+  it('lists every series it serves, the demo one first', async () => {
+    const listing = Fastify();
+    await listing.register(investorRoutes, {
+      config: { ...CONFIG, series: [SERIES, OFFICE_SERIES] },
+      reader: new FakeChainReader(),
+    });
+    await listing.ready();
+    const response = await listing.inject({ method: 'GET', url: '/v1/series' });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.count).toBe(2);
+    expect(body.series.map((entry: { series_id: string }) => entry.series_id)).toEqual([
+      'ODI-COMP-2026-01',
+      'ODI-OFFC-2026-01',
+    ]);
+    expect(body.series[0].has_note).toBe(true);
+    expect(body.series[0].links.self).toBe('/v1/series/ODI-COMP-2026-01');
+    // Capacity without a note. The cover is buyable and the list says so
+    // rather than hiding the series.
+    expect(body.series[1].has_note).toBe(false);
+    expect(body.series[1].group).toBe('office_admin_support');
+    await listing.close();
+  });
+
+  it('serves a second series through the same route', async () => {
+    const second = Fastify();
+    await second.register(investorRoutes, {
+      config: { ...CONFIG, series: [SERIES, OFFICE_SERIES] },
+      reader: new FakeChainReader(),
+    });
+    await second.ready();
+    const response = await second.inject({ method: 'GET', url: '/v1/series/ODI-OFFC-2026-01' });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.series_id).toBe('ODI-OFFC-2026-01');
+    expect(body.group).toBe('office_admin_support');
+    expect(body.note).toBeNull();
+    await second.close();
   });
 
   it('serves the series by its label', async () => {

@@ -28,6 +28,14 @@ import { actionFor, type WorldPurpose } from './rp-context.js';
 /// live 400 bodies for a malformed request carry no `success` field at all, so
 /// `if (body.success === false)` would let one through as a verification.
 ///
+/// Every refusal is reported to the caller before it is thrown, because a reason
+/// that reaches only the 403 body is how a refused check leaves a request in the
+/// log, a 403 out and nothing at all to say why. There are two seams and each
+/// path takes exactly one: `onWorldError` for the two paths where World itself
+/// refused, carrying World's own code, detail and attribute, and `onRefused` for
+/// every check this API makes on its own. The module keeps no logger of its own
+/// so that it stays testable without a request.
+///
 /// https://docs.world.org/world-id/idkit/integrate
 /// https://docs.world.org/world-id/id/verify-proofs
 
@@ -81,6 +89,35 @@ export interface WorldVerification {
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
+/** Which of the checks above refused, and the transport underneath them. */
+export type WorldCheckName =
+  | 'transport'
+  | 'responses'
+  | 'action'
+  | 'environment'
+  | 'signal'
+  | 'credential'
+  | 'presence'
+  | 'nullifier';
+
+/**
+ * A refusal, in words that are safe to write to a log.
+ *
+ * Everything on it is configuration or the shape of the answer: the action asked
+ * for, the environment this deployment expects, the identifiers it accepts. The
+ * proof, the nullifier, the signal and the wallet are none of them here, and
+ * none of them belong in a log line.
+ */
+export interface WorldRefusal {
+  /** The code the caller answers with, so the log line and the body agree. */
+  code: string;
+  check: WorldCheckName;
+  /** One sentence saying what was wrong, with no personal data in it. */
+  reason: string;
+}
+
+type Report = (refusal: WorldRefusal) => void;
+
 export interface VerifyInput {
   world: WorldConfig;
   purpose: WorldPurpose;
@@ -90,17 +127,31 @@ export interface VerifyInput {
   fetchImpl?: FetchLike;
   /** Somewhere to log World's own error fields, which name the bad attribute. */
   onWorldError?: (body: WorldVerifyBody, status: number) => void;
+  /** Somewhere to log a refusal this API decided. Called once per refusal. */
+  onRefused?: (refusal: WorldRefusal) => void;
 }
 
-/** The one message a person sees for every rejection on this path. */
+/** The message a person sees for every rejection that has no better words. */
 const FAILED = "We couldn't verify you.";
+
+/**
+ * The exception, and the reason this code exists.
+ *
+ * A check of a kind this deployment does not accept is the one refusal where
+ * the generic line sends a person to do the one thing that cannot work: the
+ * same device answers with the same kind of check every time. It gets its own
+ * code so that the screen can say what happened and what to do instead, in the
+ * deck's words. docs/DESIGN-TOKENS.md section 8, the Verify line.
+ */
+const WRONG_KIND = "That check isn't the one we asked for. Open the World app and run the face check.";
 
 export async function verifySelfieCheck(input: VerifyInput): Promise<WorldVerification> {
   const { world, purpose, signal, result } = input;
-  const responses = onlyResponse(result);
+  const report = input.onRefused;
+  const responses = onlyResponse(result, report);
   const expectedAction = actionFor(world, purpose);
 
-  const { body, status } = await postToWorld(world, result, input.fetchImpl);
+  const { body, status } = await postToWorld(world, result, input.fetchImpl, report);
   if (status !== 200) {
     input.onWorldError?.(body, status);
     throw rejected(worldReason(body, status));
@@ -111,29 +162,53 @@ export async function verifySelfieCheck(input: VerifyInput): Promise<WorldVerifi
   }
 
   if (text(result.action) !== expectedAction) {
-    throw rejected(`The check was made for a different action than ${expectedAction}.`);
+    throw refuse(
+      report,
+      'action',
+      `The check was made for a different action than ${expectedAction}.`,
+    );
   }
   const environment = text(result.environment);
   if (environment !== world.environment) {
-    throw rejected(
+    throw refuse(
+      report,
+      'environment',
       `The check ran in the ${environment ?? 'unnamed'} environment and this deployment expects ${world.environment}.`,
     );
   }
 
+  // The signal stays out of the reason. It is the wallet at purchase and the
+  // policy id at claim, and neither belongs in a log line; that the two hashes
+  // differ is the whole of what somebody reading the log needs.
   const signalHash = text(responses.signal_hash);
   if (signalHash === null || !sameHex(signalHash, hashSignal(signal))) {
-    throw new AppError(
-      403,
-      'world_signal_mismatch',
-      'Check not for this purchase',
-      'That check was bound to something other than this wallet, so it cannot buy this cover.',
+    throw refuse(
+      report,
+      'signal',
+      signalHash === null
+        ? 'The check carried no signal hash to compare.'
+        : 'The check was bound to a different signal from the one this request asked for.',
+      new AppError(
+        403,
+        'world_signal_mismatch',
+        'Check not for this purchase',
+        'That check was bound to something other than this wallet, so it cannot buy this cover.',
+      ),
     );
   }
 
   const identifier = (text(responses.identifier) ?? '').toLowerCase();
   if (!world.identifiers.includes(identifier)) {
-    throw rejected(
-      `The check returned a ${identifier === '' ? 'nameless' : identifier} credential and this deployment accepts ${world.identifiers.join(' or ')}.`,
+    const named = identifier === '' ? 'nameless' : identifier;
+    const article = 'aeiou'.includes(named[0] ?? '') ? 'an' : 'a';
+    const reason = `The check returned ${article} ${named} credential and this deployment accepts ${world.identifiers.join(' or ')}.`;
+    throw refuse(
+      report,
+      'credential',
+      reason,
+      new AppError(403, 'world_credential_unaccepted', 'Check of a different kind', WRONG_KIND, [
+        { path: 'world', message: reason },
+      ]),
     );
   }
 
@@ -143,16 +218,21 @@ export async function verifySelfieCheck(input: VerifyInput): Promise<WorldVerifi
   // verify schema instructs.
   const presence = result.user_presence_completed === true;
   if (purpose === 'claim' && !presence) {
-    throw new AppError(
-      403,
-      'world_presence_missing',
-      'The camera check did not finish',
-      'That check did not complete a fresh liveness check, which a claim needs.',
+    throw refuse(
+      report,
+      'presence',
+      'The check came back without a completed liveness check, which a claim needs.',
+      new AppError(
+        403,
+        'world_presence_missing',
+        'The camera check did not finish',
+        'That check did not complete a fresh liveness check, which a claim needs.',
+      ),
     );
   }
 
   return {
-    nullifier: decimalNullifier(body.nullifier ?? responses.nullifier),
+    nullifier: decimalNullifier(body.nullifier ?? responses.nullifier, report),
     environment: text(body.environment) ?? environment ?? world.environment,
     credential: identifier,
     presence,
@@ -171,6 +251,7 @@ export async function postToWorld(
   world: WorldConfig,
   result: IdKitResult,
   fetchImpl: FetchLike = globalThis.fetch,
+  report?: Report,
 ): Promise<{ body: WorldVerifyBody; status: number }> {
   const url = `${world.verifyUrl}/${world.verifyId}`;
   let response: Response;
@@ -181,12 +262,18 @@ export async function postToWorld(
       body: JSON.stringify(result),
     });
   } catch (error) {
-    throw new AppError(
-      502,
-      'world_unreachable',
-      'World did not answer',
-      "The check could not be confirmed with World. Try again in a moment.",
-      [{ path: 'world', message: String((error as Error)?.message ?? error) }],
+    const message = String((error as Error)?.message ?? error);
+    throw refuse(
+      report,
+      'transport',
+      `The call to World did not complete: ${message}`,
+      new AppError(
+        502,
+        'world_unreachable',
+        'World did not answer',
+        "The check could not be confirmed with World. Try again in a moment.",
+        [{ path: 'world', message }],
+      ),
     );
   }
   let body: WorldVerifyBody;
@@ -204,14 +291,20 @@ export async function postToWorld(
  * taking `[0]` of something unexpected is how the wrong credential gets
  * accepted.
  */
-function onlyResponse(result: IdKitResult): IdKitResponseItem {
+function onlyResponse(result: IdKitResult, report?: Report): IdKitResponseItem {
   const responses = result.responses;
   if (!Array.isArray(responses) || responses.length !== 1) {
-    throw new AppError(
-      400,
-      'world_result_malformed',
-      'Check result malformed',
-      'A World ID result carries exactly one credential response.',
+    const found = Array.isArray(responses) ? String(responses.length) : 'no';
+    throw refuse(
+      report,
+      'responses',
+      `The result carried ${found} credential responses and exactly one is expected.`,
+      new AppError(
+        400,
+        'world_result_malformed',
+        'Check result malformed',
+        'A World ID result carries exactly one credential response.',
+      ),
     );
   }
   return responses[0] as IdKitResponseItem;
@@ -226,13 +319,17 @@ function onlyResponse(result: IdKitResult): IdKitResponseItem {
  * rows differing only by hex casing are two people to a text index, which is
  * one person with two policies.
  */
-export function decimalNullifier(value: unknown): string {
+export function decimalNullifier(value: unknown, report?: Report): string {
   const raw = text(value);
-  if (raw === null) throw rejected('The check returned no identifier for the person.');
+  if (raw === null) {
+    throw refuse(report, 'nullifier', 'The check returned no identifier for the person.');
+  }
   try {
     return BigInt(raw).toString();
   } catch {
-    throw rejected('The check returned an identifier that is not a number.');
+    // The value itself stays out of the reason: it is the one field on the
+    // answer that names a person.
+    throw refuse(report, 'nullifier', 'The check returned an identifier that is not a number.');
   }
 }
 
@@ -249,6 +346,24 @@ function rejected(reason: string): AppError {
   return new AppError(403, 'world_verification_failed', 'Check refused', FAILED, [
     { path: 'world', message: reason },
   ]);
+}
+
+/**
+ * The one door every refusal this API decides goes out through.
+ *
+ * Reporting here rather than at each `throw` is what makes logged once a
+ * property of the module instead of a rule somebody has to remember: a check
+ * added later cannot refuse without saying why. The error defaults to the
+ * generic 403, so a path names an error only when it means to be told apart.
+ */
+function refuse(
+  report: Report | undefined,
+  check: WorldCheckName,
+  reason: string,
+  error: AppError = rejected(reason),
+): AppError {
+  report?.({ code: error.code, check, reason });
+  return error;
 }
 
 function text(value: unknown): string | null {

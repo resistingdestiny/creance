@@ -205,8 +205,14 @@ beforeEach(() => {
     ok: true,
     error: null,
     alreadyCovered: false,
+    wrongCheck: false,
   });
-  vi.mocked(verifyPerson).mockResolvedValue({ ok: true, error: null, alreadyCovered: false });
+  vi.mocked(verifyPerson).mockResolvedValue({
+    ok: true,
+    error: null,
+    alreadyCovered: false,
+    wrongCheck: false,
+  });
   vi.mocked(openPayment).mockResolvedValue(CONFIRMATION);
   vi.mocked(payAndBind).mockResolvedValue({ ok: true, error: null });
 });
@@ -326,11 +332,43 @@ describe('the check step is the verify screen, on the card', () => {
     expect(retry).toHaveProperty('disabled', false);
   });
 
+  /**
+   * The same second failure as the route's, on the card. The card does not turn
+   * and the button offers the check again, because the answer is a different
+   * check rather than a different device. T42.
+   */
+  it('names the check to run when the one that came back is of another kind', async () => {
+    vi.mocked(completeWorldCheck).mockResolvedValue({
+      ok: false,
+      error: "That check isn't the one we asked for.",
+      alreadyCovered: false,
+      wrongCheck: true,
+    });
+    page();
+    await toCheck();
+    fireEvent.click(panel().getByRole('button', { name: 'Verify with World ID' }));
+    await waitFor(() => expect(widgetProps.length).toBeGreaterThan(0));
+    const props = widgetProps.at(-1) as Record<string, (result: unknown) => Promise<void>>;
+    await act(async () => {
+      await props['handleVerify']?.({ proof: '0x01' }).catch(() => undefined);
+    });
+
+    await waitFor(() =>
+      expect(
+        panel().getByRole('heading', { level: 2, name: "That check isn't the one we asked for." }),
+      ).toBeDefined(),
+    );
+    expect(panel().getByText('Open the World app and run the face check.')).toBeDefined();
+    expect(panel().getByRole('button', { name: 'Verify with World ID' })).toBeDefined();
+    expect(panel().queryByText("We couldn't verify you.")).toBeNull();
+  });
+
   it('reads one person one cover as a rule and offers the cover they have', async () => {
     vi.mocked(completeWorldCheck).mockResolvedValue({
       ok: false,
       error: 'One person, one cover. This stops bots and duplicate accounts.',
       alreadyCovered: true,
+      wrongCheck: false,
     });
     page();
     await toCheck();

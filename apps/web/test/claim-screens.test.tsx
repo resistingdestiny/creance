@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -42,8 +42,14 @@ vi.mock('../src/app/admin/claims/actions.js', () => ({
   signOut: vi.fn(async () => ({ ok: true, message: 'Signed out.' })),
 }));
 
-/** The widget is the SDK's and opens a QR code. Its contract is four callbacks. */
-vi.mock('../src/app/verify/world-check.js', () => ({ WorldCheck: () => null }));
+/** The widget is the SDK's. Here it records what it was handed and stands still. */
+const widgetProps: Record<string, unknown>[] = [];
+vi.mock('../src/app/verify/world-check.js', () => ({
+  WorldCheck: (props: Record<string, unknown>) => {
+    widgetProps.push(props);
+    return null;
+  },
+}));
 
 const { BeforeYouStart } = await import('../src/app/claim/before-you-start.js');
 const { ClaimsClosed } = await import('../src/app/claim/claims-closed.js');
@@ -57,6 +63,7 @@ const { ReviewerSignIn } = await import('../src/app/admin/claims/sign-in.js');
 const { HomeScreen } = await import('../src/app/home/home-screen.js');
 const { OfflineNotice } = await import('../src/app/home/offline-notice.js');
 const { decide, signIn } = await import('../src/app/admin/claims/actions.js');
+const { completeClaimCheck, startClaimCheck } = await import('../src/app/claim-actions.js');
 const { claimDay, claimsOpenLine, homeStatus, lapsedCopy } = await import(
   '../src/lib/claim-model.js'
 );
@@ -194,6 +201,21 @@ describe('C3, add proof', () => {
 });
 
 describe('C4, confirm it is you', () => {
+  /** A signed context, as the API answers one. The signature is not checked here. */
+  const CONTEXT = {
+    app_id: 'app_8569aa8d1bbfb24b1243e86d4fc34adc',
+    action: 'occupation-cover-claim',
+    environment: 'staging',
+    preset: 'selfieCheckLegacy',
+    signal: 'policy_01K4ABCDEF',
+    require_user_presence: true,
+    rp_id: 'rp_d6ae9b4ff2018a15',
+    nonce: '0x008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd',
+    created_at: 1_700_000_000,
+    expires_at: 1_700_000_300,
+    signature: `0x${'a'.repeat(130)}`,
+  };
+
   it('asks for the check in the addendum words', () => {
     render(<ConfirmScreen alreadyVerified={false} demo={false} />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe("Confirm it's you.");
@@ -212,6 +234,41 @@ describe('C4, confirm it is you', () => {
   it('labels the demo path wherever it is offered', () => {
     render(<ConfirmScreen alreadyVerified={false} demo />);
     expect(screen.getByText(/without running a World Selfie Check/)).toBeTruthy();
+  });
+
+  /**
+   * The second failure, the purchase screen's words, and the demo check still
+   * offered underneath: a check of a kind this deployment does not accept is
+   * the case that needs the fallback most, because the same device returns the
+   * same kind every time. T42.
+   */
+  it('names the check to run when the one that came back is of another kind', async () => {
+    widgetProps.length = 0;
+    vi.mocked(startClaimCheck).mockResolvedValue(CONTEXT);
+    vi.mocked(completeClaimCheck).mockResolvedValue({
+      ok: false,
+      error: "That check isn't the one we asked for.",
+      wrongCheck: true,
+    });
+    render(<ConfirmScreen alreadyVerified={false} demo={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Verify with World ID' }));
+    await waitFor(() => expect(widgetProps.length).toBeGreaterThan(0));
+
+    const handleVerify = widgetProps.at(-1)?.['handleVerify'] as (
+      result: unknown,
+    ) => Promise<void>;
+    await act(async () => {
+      await handleVerify({ proof: '0x01' }).catch(() => undefined);
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+        "That check isn't the one we asked for.",
+      ),
+    );
+    expect(screen.getByText('Open the World app and run the face check.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Use the demo check' })).toBeTruthy();
+    expect(screen.queryByText('Try again, or use a different device.')).toBeNull();
   });
 });
 

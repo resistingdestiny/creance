@@ -9,6 +9,8 @@ import {
   verifySelfieCheck,
   type FetchLike,
   type IdKitResult,
+  type VerifyInput,
+  type WorldCheckName,
 } from '../src/world/verify.js';
 
 /**
@@ -269,7 +271,10 @@ describe('verifySelfieCheck', () => {
       }),
       fetchImpl: verified(),
     });
-    expect(error.code).toBe('world_verification_failed');
+    expect(error.code).toBe('world_credential_unaccepted');
+    expect(error.message).toBe(
+      "That check isn't the one we asked for. Open the World app and run the face check.",
+    );
   });
 
   it('takes presence off the proof at claim rather than trusting the request', async () => {
@@ -308,6 +313,223 @@ describe('verifySelfieCheck', () => {
       fetchImpl: verified(),
     });
     expect(verification.presence).toBe(false);
+  });
+});
+
+/**
+ * Every path that refuses, and the single line each of them says why on.
+ *
+ * The fault this covers is the one Root met: World said verified, the site said
+ * try a different device, and the log held a request going in, a 403 coming out
+ * and nothing in between. So what is asserted is not that a reason exists but
+ * that it is reported exactly once and that it says nothing about the person.
+ * The proof, the nullifier, the signal and the wallet are absent from every
+ * line below, and the test fails if any of them appears.
+ */
+describe('what a refusal reports', () => {
+  const PROOF = '0x1a2b3c';
+
+  function item(overrides: Record<string, unknown> = {}) {
+    return {
+      identifier: 'selfie',
+      signal_hash: hashSignal(WALLET),
+      proof: PROOF,
+      merkle_root: '0x0abc123',
+      nullifier: NULLIFIER_HEX,
+      ...overrides,
+    };
+  }
+
+  const paths: {
+    name: string;
+    check: WorldCheckName;
+    code: string;
+    says: string;
+    input: Omit<VerifyInput, 'onRefused'>;
+  }[] = [
+    {
+      name: 'World cannot be reached',
+      check: 'transport',
+      code: 'world_unreachable',
+      says: 'did not complete',
+      input: {
+        world: world(),
+        purpose: 'purchase',
+        signal: WALLET,
+        result: idKitResult(),
+        fetchImpl: vi.fn(async () => {
+          throw new Error('getaddrinfo ENOTFOUND');
+        }),
+      },
+    },
+    {
+      name: 'the result carries more than one response',
+      check: 'responses',
+      code: 'world_result_malformed',
+      says: 'exactly one',
+      input: {
+        world: world(),
+        purpose: 'purchase',
+        signal: WALLET,
+        result: idKitResult({ responses: [item(), item()] }),
+        fetchImpl: verified(),
+      },
+    },
+    {
+      name: 'the proof was made for another action',
+      check: 'action',
+      code: 'world_verification_failed',
+      says: 'occupation-cover-eligibility',
+      input: {
+        world: world(),
+        purpose: 'purchase',
+        signal: WALLET,
+        result: idKitResult({ action: 'occupation-cover-claim' }),
+        fetchImpl: verified(),
+      },
+    },
+    {
+      name: 'the proof was made in another environment',
+      check: 'environment',
+      code: 'world_verification_failed',
+      says: 'staging',
+      input: {
+        world: world(),
+        purpose: 'purchase',
+        signal: WALLET,
+        result: idKitResult({ environment: 'production' }),
+        fetchImpl: verified(),
+      },
+    },
+    {
+      name: 'the proof was bound to another wallet',
+      check: 'signal',
+      code: 'world_signal_mismatch',
+      says: 'different signal',
+      input: {
+        world: world(),
+        purpose: 'purchase',
+        signal: WALLET,
+        result: idKitResult({ responses: [item({ signal_hash: hashSignal('0.0.99999') })] }),
+        fetchImpl: verified(),
+      },
+    },
+    {
+      name: 'the check was of a kind this deployment does not accept',
+      check: 'credential',
+      code: 'world_credential_unaccepted',
+      says: 'selfie or face',
+      input: {
+        world: world(),
+        purpose: 'purchase',
+        signal: WALLET,
+        result: idKitResult({ responses: [item({ identifier: 'orb' })] }),
+        fetchImpl: verified(),
+      },
+    },
+    {
+      name: 'a claim arrives without a completed liveness check',
+      check: 'presence',
+      code: 'world_presence_missing',
+      says: 'liveness',
+      input: {
+        world: world(),
+        purpose: 'claim',
+        signal: WALLET,
+        result: idKitResult({
+          action: 'occupation-cover-claim',
+          responses: [item()],
+        }),
+        fetchImpl: verified(),
+      },
+    },
+    {
+      name: 'the answer names the person with something that is not a number',
+      check: 'nullifier',
+      code: 'world_verification_failed',
+      says: 'not a number',
+      input: {
+        world: world(),
+        purpose: 'purchase',
+        signal: WALLET,
+        result: idKitResult(),
+        fetchImpl: answers(200, {
+          success: true,
+          action: 'occupation-cover-eligibility',
+          nullifier: 'not-a-nullifier',
+          environment: 'staging',
+        }),
+      },
+    },
+  ];
+
+  for (const path of paths) {
+    it(`says once why it refused when ${path.name}`, async () => {
+      const onRefused = vi.fn();
+      const error = await refusal({ ...path.input, onRefused });
+
+      expect(error.code).toBe(path.code);
+      expect(onRefused).toHaveBeenCalledTimes(1);
+      const refused = onRefused.mock.calls[0]?.[0] as {
+        check: string;
+        code: string;
+        reason: string;
+      };
+      expect(refused.check).toBe(path.check);
+      expect(refused.code).toBe(path.code);
+      expect(refused.reason).toContain(path.says);
+
+      const line = JSON.stringify(refused);
+      for (const secret of [PROOF, NULLIFIER_HEX, NULLIFIER_DECIMAL, WALLET, hashSignal(WALLET)]) {
+        expect(line).not.toContain(String(secret));
+      }
+    });
+  }
+
+  /**
+   * World refusing outright already had a seam of its own, carrying its code,
+   * detail and attribute. It keeps it, and does not report twice: one refusal
+   * is one line whichever of the two decided it.
+   */
+  it('leaves World\'s own refusal on the seam that already carried it', async () => {
+    const onWorldError = vi.fn();
+    const onRefused = vi.fn();
+    await refusal({
+      world: world(),
+      purpose: 'purchase',
+      signal: WALLET,
+      result: idKitResult(),
+      fetchImpl: answers(400, {
+        code: 'all_verifications_failed',
+        detail: 'All proof verifications failed.',
+      }),
+      onWorldError,
+      onRefused,
+    });
+    expect(onWorldError).toHaveBeenCalledTimes(1);
+    expect(onRefused).not.toHaveBeenCalled();
+  });
+
+  it('lets a nullifier that is missing altogether say so', async () => {
+    const onRefused = vi.fn();
+    const error = await refusal({
+      world: world(),
+      purpose: 'purchase',
+      signal: WALLET,
+      result: idKitResult({ responses: [item({ nullifier: undefined })] }),
+      fetchImpl: answers(200, {
+        success: true,
+        action: 'occupation-cover-eligibility',
+        environment: 'staging',
+      }),
+      onRefused,
+    });
+    expect(error.code).toBe('world_verification_failed');
+    expect(onRefused).toHaveBeenCalledTimes(1);
+    expect(onRefused.mock.calls[0]?.[0]).toMatchObject({
+      check: 'nullifier',
+      reason: 'The check returned no identifier for the person.',
+    });
   });
 });
 

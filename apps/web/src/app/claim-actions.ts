@@ -43,6 +43,16 @@ export interface ClaimStepResult {
   readonly error: string | null;
 }
 
+/**
+ * What a live person check answered. The extra fact is the one refusal C4
+ * cannot say in the deck's failure words: a check of a kind this deployment
+ * does not accept, where trying again on the same device returns the same kind.
+ * T42.
+ */
+export interface ClaimCheckResult extends ClaimStepResult {
+  readonly wrongCheck: boolean;
+}
+
 /** Home, "Start a claim". The claim belongs to one cover from here on. */
 export async function beginClaim(policyId: string): Promise<void> {
   await startClaim(policyId);
@@ -145,7 +155,7 @@ export async function startClaimCheck(): Promise<WorldRequestContextView | null>
 }
 
 /** C4, the completed check, forwarded to the API, which forwards it to World. */
-export async function completeClaimCheck(result: unknown): Promise<ClaimStepResult> {
+export async function completeClaimCheck(result: unknown): Promise<ClaimCheckResult> {
   const session = await readClaim();
   if (session?.policyId == null) redirect('/home');
   try {
@@ -155,9 +165,9 @@ export async function completeClaimCheck(result: unknown): Promise<ClaimStepResu
       credentialExpiresAt: issued.expires_at,
       credentialIssuer: issued.issuer,
     });
-    return { ok: true, error: null };
+    return { ok: true, error: null, wrongCheck: false };
   } catch (cause) {
-    return { ok: false, error: checkFailure(cause) };
+    return { ok: false, error: checkFailure(cause), wrongCheck: wrongKind(cause) };
   }
 }
 
@@ -168,7 +178,7 @@ export async function completeClaimCheck(result: unknown): Promise<ClaimStepResu
  * (docs/FEEDBACK-WORLD.md section 3), so this is how the claim leg runs on a
  * host with neither. The API's own warning is carried back and printed.
  */
-export async function useDemoPresence(): Promise<ClaimStepResult> {
+export async function useDemoPresence(): Promise<ClaimCheckResult> {
   const session = await readClaim();
   if (session?.policyId == null) redirect('/home');
   try {
@@ -178,9 +188,9 @@ export async function useDemoPresence(): Promise<ClaimStepResult> {
       credentialExpiresAt: issued.expires_at,
       credentialIssuer: issued.issuer,
     });
-    return { ok: true, error: null };
+    return { ok: true, error: null, wrongCheck: false };
   } catch (cause) {
-    return { ok: false, error: checkFailure(cause) };
+    return { ok: false, error: checkFailure(cause), wrongCheck: wrongKind(cause) };
   }
 }
 
@@ -312,11 +322,22 @@ function checkFailure(cause: unknown): string {
       case 'claims_not_open':
       case 'policy_not_claimable':
         return "Claims aren't open for this cover.";
+      case 'world_credential_unaccepted':
+        return "That check isn't the one we asked for. Open the World app and run the face check.";
       default:
         break;
     }
   }
   return "We couldn't verify you. Try again, or use a different device.";
+}
+
+/**
+ * A check of a kind this deployment does not accept, which C4 answers with its
+ * own screen rather than with the deck's failure. The words come from
+ * `claimCheckCopy`; this is only which of them to say. T42.
+ */
+function wrongKind(cause: unknown): boolean {
+  return cause instanceof ApiError && cause.code === 'world_credential_unaccepted';
 }
 
 /**

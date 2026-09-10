@@ -70,7 +70,11 @@ export function ConfirmScreen({
   const demoCheck = () => {
     startTransition(async () => {
       const result = await useDemoPresence();
-      setState(result.ok ? 'verified' : 'failed');
+      if (result.ok) {
+        setState('verified');
+        return;
+      }
+      setState(result.wrongCheck ? 'wrong-check' : 'failed');
     });
   };
 
@@ -100,7 +104,7 @@ export function ConfirmScreen({
     const answer = await completeClaimCheck(result);
     if (answer.ok) return;
     refused.current = true;
-    setState('failed');
+    setState(answer.wrongCheck ? 'wrong-check' : 'failed');
     throw new Error(answer.error ?? 'the check was refused');
   };
 
@@ -120,6 +124,10 @@ export function ConfirmScreen({
   };
 
   const copy = claimCheckCopy(state, surface);
+  // Both refusals offer the demo check the same way. A check of a kind this
+  // deployment does not accept is the case that needs the fallback most, since
+  // the same device answers with the same kind every time. T42.
+  const refusedCheck = state === 'failed' || state === 'wrong-check';
 
   return (
     <AppFrame>
@@ -139,7 +147,7 @@ export function ConfirmScreen({
               {waitingLine(surface)}
             </p>
           ) : null}
-          {demo || state === 'failed' ? (
+          {demo || refusedCheck ? (
             <p className="text-secondary text-ink-2">
               Demo check. Testnet only. This records a live person check without running a World
               Selfie Check, because a camera cannot be automated.
@@ -163,7 +171,7 @@ export function ConfirmScreen({
               {copy.button}
             </PillButton>
           )}
-          {!demo && state === 'failed' ? (
+          {!demo && refusedCheck ? (
             <PillButton className="w-full" onClick={demoCheck} variant="secondary">
               Use the demo check
             </PillButton>

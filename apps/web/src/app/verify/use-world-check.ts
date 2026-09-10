@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 
 import type { WorldRequestContextView } from '../../lib/worker-api';
-import type { VerifyState } from '../../lib/worker-model';
+import type { VerifyResult, VerifyState } from '../../lib/worker-model';
 import { completeWorldCheck, startWorldCheck, verifyPerson } from '../purchase-actions';
 
 /**
@@ -44,6 +44,12 @@ export interface WorldCheckRun {
   readonly handleVerify: (result: unknown) => Promise<void>;
   readonly onSuccess: () => void;
   readonly onError: (code: string) => void;
+}
+
+/** Which failure the API described. Three answers, one state each. */
+function refusedState(answer: VerifyResult): VerifyState {
+  if (answer.alreadyCovered) return 'covered';
+  return answer.wrongCheck ? 'wrong-check' : 'failed';
 }
 
 export function useWorldCheck({
@@ -97,7 +103,7 @@ export function useWorldCheck({
     const answer = await completeWorldCheck(result);
     if (answer.ok) return;
     refused.current = true;
-    setState(answer.alreadyCovered ? 'covered' : 'failed');
+    setState(refusedState(answer));
     throw new Error(answer.error ?? 'the check was refused');
   };
 

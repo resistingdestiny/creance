@@ -2697,3 +2697,27 @@ socket and the distinction is the literal host string.
 
 Verify a page over `localhost`, or add the address to `allowedDevOrigins`. This
 affects the dev server only; `next start` does not do it.
+
+## The simulator answers with an orb credential, so a Selfie Check deployment refuses it
+
+The credentials page says the `selfieCheckLegacy` preset returns `selfie`, with
+the historical `face` still accepted as an alias, and that is what
+`apps/api/src/world/config.ts` accepts by default.
+https://docs.world.org/world-id/idkit/credentials
+
+Read on 5 September 2026. On 10 September 2026 a check run through the World
+simulator against the deployment came back with `orb` on the one response item.
+World's verify endpoint answered 200 and confirmed the proof, so the refusal was
+entirely ours: the identifier was not in the accepted list. The deployment now
+sets `WORLD_IDENTIFIERS=selfie,face,orb` so the simulator can complete the flow,
+and .env.example says so.
+
+Two things follow for anyone integrating. The identifier a preset returns is not
+a constant of the preset; it depends on what the person verified with, and a
+simulator verifies with whatever it has. And a proof World confirms can still be
+refused by the relying party for a reason World never sees, which is why that
+reason has to be said locally: until T42 this refusal wrote nothing to the log at
+all, so the deployment showed a request going in, a 403 coming out, and no way to
+tell this apart from a failed proof. Every local refusal in
+`apps/api/src/world/verify.ts` now reports its reason on a warn line carrying the
+request id, with no proof, nullifier, signal or wallet on it.

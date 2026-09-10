@@ -461,6 +461,79 @@
             "attributeTx": "0x9e74dde8951c4b6a96f09c68d2094eeac8ea006c4bf608c5f20cb17bed66f87f",
             "attributeGasUsed": 66627
           }
+        },
+        "3": {
+          "couponId": "3",
+          "seriesLabel": "ODI-COMP-2026-01",
+          "couponRef": "ODI-COMP-2026-01#3",
+          "recordDate": 1789080041,
+          "executionDate": 1789080341,
+          "startDate": 1793823383,
+          "endDate": 1796415383,
+          "ratePercent": 8,
+          "holders": [
+            {
+              "role": "investor-1",
+              "accountId": "0.0.10366460",
+              "address": "0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931",
+              "numerator": "1036800000000000000",
+              "denominator": "3153600000000000",
+              "amount": "328767123",
+              "remainder": "907200000000000",
+              "scheduleId": "0.0.10467222",
+              "scheduleCreateTx": "0.0.10366450@1789080523.877923930",
+              "scheduleMemo": "creance coupon ODI-COMP-2026-01 3 investor-1",
+              "executeAt": "2026-09-10T22:50:47.000Z",
+              "createFeeHbar": "1.32063177",
+              "links": {
+                "schedule": "https://hashscan.io/testnet/schedule/0.0.10467222",
+                "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1789080523-877923930",
+                "settlement": "https://hashscan.io/testnet/transaction/0.0.10366450-1789080523-877923930",
+                "topic": "https://hashscan.io/testnet/topic/0.0.10366471"
+              },
+              "executedAt": "1789080647.137779208",
+              "executedTransactionId": "0.0.10366450-1789080523-877923930",
+              "result": "SUCCESS",
+              "settled": true,
+              "gasUsed": 62592,
+              "topicSequenceNumber": "5769",
+              "topicTx": "0.0.10366450@1789080643.472241183"
+            },
+            {
+              "role": "investor-2",
+              "accountId": "0.0.10366462",
+              "address": "0xcaa1184cd59b9296f757efc7303a10ecec6ce51e",
+              "numerator": "1036800000000000000",
+              "denominator": "3153600000000000",
+              "amount": "328767123",
+              "remainder": "907200000000000",
+              "scheduleId": "0.0.10467224",
+              "scheduleCreateTx": "0.0.10366450@1789080523.894229047",
+              "scheduleMemo": "creance coupon ODI-COMP-2026-01 3 investor-2",
+              "executeAt": "2026-09-10T22:50:47.000Z",
+              "createFeeHbar": "1.32063177",
+              "links": {
+                "schedule": "https://hashscan.io/testnet/schedule/0.0.10467224",
+                "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1789080523-894229047",
+                "settlement": "https://hashscan.io/testnet/transaction/0.0.10366450-1789080523-894229047",
+                "topic": "https://hashscan.io/testnet/topic/0.0.10366471"
+              },
+              "executedAt": "1789080647.137779313",
+              "executedTransactionId": "0.0.10366450-1789080523-894229047",
+              "result": "SUCCESS",
+              "settled": true,
+              "gasUsed": 57792,
+              "topicSequenceNumber": "5770",
+              "topicTx": "0.0.10366450@1789080648.839713839"
+            }
+          ],
+          "premiumSeed": {
+            "from": "0.0.10366453",
+            "amount": "657534246",
+            "transferTx": "0x8cf850815dc3d16dc3168c0a652024330a5122fb1ac1a02eed0550141c78ff68",
+            "attributeTx": "0x27e04becc9edacae98d394d9f4254a72c82468bf7e86b0df5e379b4fb1667b7f",
+            "attributeGasUsed": 66627
+          }
         }
       },
       "subscriptions": [

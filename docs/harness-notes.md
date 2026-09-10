@@ -2673,3 +2673,27 @@ runs without network and the honest answer is "as well as it did before, which
 is all but this one case". The fix is to thread a stub reader through
 `buildTestServer` the way `investor-routes.test.ts` already does, and it is a
 change to a shared fixture rather than to anything T39 touches.
+
+## `next dev` blocks its own dev resources over 127.0.0.1, so the page never hydrates
+
+Not Hedera, and recorded because it cost time verifying the landing page in a
+browser and will cost the next person the same.
+
+`next dev` prints its address as `http://localhost:3000` and Next's own docs
+describe `allowedDevOrigins` as being about other hosts on the network.
+https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+
+Read on 10 September 2026 with Next 16.3.4. Loading the same server over
+`http://127.0.0.1:<port>` rather than `http://localhost:<port>` is treated as a
+cross origin request for `/_next/` resources and is refused:
+
+    ⚠ Blocked cross-origin request to Next.js dev resource /_next/hmr from "127.0.0.1".
+
+The server still answers the document with HTTP 200 and the full server rendered
+HTML, so anything that reads the markup looks healthy. What does not happen is
+hydration, so every client component is inert: on the landing page "Get a quote"
+does nothing at all and the card never turns. The two addresses are the same
+socket and the distinction is the literal host string.
+
+Verify a page over `localhost`, or add the address to `allowedDevOrigins`. This
+affects the dev server only; `next start` does not do it.

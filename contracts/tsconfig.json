@@ -6,6 +6,7 @@
   },
   "include": [
     "ats/**/*.ts",
+    "coupons/**/*.ts",
     "src/**/*.ts",
     "scripts/**/*.ts",
     "test/**/*.ts",

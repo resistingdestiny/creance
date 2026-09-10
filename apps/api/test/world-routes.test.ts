@@ -61,7 +61,7 @@ function worldConfirms(nullifier = NULLIFIER_HEX) {
  */
 function captureLog(app: FastifyInstance): string[] {
   const lines: string[] = [];
-  const logger = app.log as unknown as Record<symbol, { write: (chunk: string) => void }>;
+  const logger = app.log as unknown as Record<symbol, unknown>;
   // The destination the logger and every child of it write through. Pino keeps
   // it on a symbol of its own rather than a name, and a request's logger is a
   // child, so this is the one point both are visible from.
@@ -69,7 +69,8 @@ function captureLog(app: FastifyInstance): string[] {
     (symbol) => symbol.description === 'pino.stream',
   );
   if (stream === undefined) throw new Error('the logger has no stream to read');
-  vi.spyOn(logger[stream], 'write').mockImplementation((chunk: string) => {
+  const destination = logger[stream] as { write: (chunk: string) => void };
+  vi.spyOn(destination, 'write').mockImplementation((chunk) => {
     lines.push(chunk);
   });
   return lines;

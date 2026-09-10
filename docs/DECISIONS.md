@@ -972,6 +972,29 @@ demo account, because a demo that silently looks like a real connection is
 worse than one that says what it is. No private key reaches the browser in
 either mode; signing belongs to the API in T07.
 
+T43 wired it and reversed the build time half of this. The mode is no longer
+`NEXT_PUBLIC_WALLET_MODE`, which is gone from the code, from `.env.example`,
+from the Dockerfile and from the compose file: it is a choice somebody makes on
+the payment step, so a build time value could not express it. The mode names are
+`demo` and `walletconnect` rather than `demo` and `hashpack`, because
+WalletConnect reaches Kabila and Dropp as well and naming one wallet would have
+been a label that was not true of what shipped.
+
+The half that stands, and stands unchanged, is the throw. `createWalletConnectProvider`
+refuses to build without a project id rather than handing back the demo
+provider, and the chooser reads the same value and does not offer an option it
+cannot honour. The reason is the one written above: a demo that silently looks
+like a real connection is worse than one that says what it is. The test that
+asserted the old throw asserts this one.
+
+`hedera:testnet` is still the CAIP form and it is now enforced rather than
+recorded. `testnetAccountId` reads the account id out of a session's CAIP-10
+account and answers null for any other network, so a wallet that approves
+somewhere this build will not settle fails the connection instead of binding a
+cover there. Chain id 296 belongs to the EVM namespace and nothing in the web
+app uses it: the session is on the `hedera` namespace, which speaks in account
+ids, and the account id is what DESIGN.md 3.6 binds a check to.
+
 ### The worker flow at 1280 is the 390 frame centred on canvas
 
 The sheet's tab bar is 80px high with a hairline top and two tabs, which is a
@@ -1742,6 +1765,23 @@ rather than at server startup: it is the only thing in the web app that needs a
 secret, it is only ever loaded on the server, and node's loader does not
 overwrite a variable that is already set, so a deployment that puts them in the
 process environment is unaffected.
+
+T43 did not reverse this and says so on the sheet. Phase one of that ticket lets
+somebody bind a cover to their own wallet, and this module does not follow them:
+the cover is held in their account, and the premium still leaves the service
+account with the key derived above. That is the whole gap between the two
+phases, and it is the reason the pay sheet grows a row rather than relabelling
+one. On the demo path there are five rows and they are the deck's five. With a
+wallet connected there are six: "Cover held in" names the person's account and
+is captioned as their own wallet, "Pays from" names the service account and is
+captioned "Settled by the service. Testnet only.", and the recommended option in
+the chooser says the same thing in a sentence before either row is read.
+
+The row that names the payer stopped echoing `quote.pays_from`. The quote echoes
+the wallet it was asked for, which is the wallet the cover binds to, and that is
+no longer the account the money comes out of. It is `payerAccountId()` in
+payer.ts instead, which is the module that actually pays. On the demo path the
+two are the same string, so nothing about that path changed.
 
 ### The orchestrated moment is a CSS animation, so reduced motion is an instant state change
 
@@ -3038,6 +3078,16 @@ A cover held by an account this app has no role for is submitted as
 no signature: the API stores it as what it is, R10 refers it, and the confidence
 cap keeps it out of auto-approval.
 
+T43 makes that the normal case rather than an edge one. A cover bound to a
+connected wallet is held by an account this app has no key for by definition, so
+`demoRoleOf` answers null, the attestation is not signed and the claim goes to a
+person. That is a real consequence of choosing your own wallet, it is already
+handled and it is honest, so nothing here changed. What it rules out is a
+different fix: asking the connected wallet to sign the attestation would be
+`hedera_signMessage` on the session, and the signature docs/CLAIMS.md wants is
+`eip191` recovered against the cover's EVM address, which is not the same
+signature. Making those agree is its own ticket and it is not this one.
+
 ### C4 offers the labelled demo check a second time after a failed World check
 
 The claim leg needs a fresh Selfie Check with `require_user_presence`, and the
@@ -3488,6 +3538,13 @@ line, and a reviewer should run it:
 
 The Portal's "Permissions, Permit2 tokens and contract entrypoints" list stays
 empty for the same reason: nothing here calls a World Chain contract.
+
+T43 put that reasoning on the page. The payment step offers two wallets and not
+three, and a judge reading it would fairly ask where the World App wallet is. It
+is one sentence at the foot of the chooser, "World App holds your ID, Hedera
+holds the money.", which is this decision in the deck's voice. Said rather than
+left out, because an absence that is explained reads as a considered decision
+and an absence that is not reads as an oversight.
 
 ### MiniKitProvider is mounted without an app id, and T11's rule is not bent
 
@@ -5578,3 +5635,88 @@ button that cannot work.
 A request to /home with no cover session used to redirect to the front door.
 Somebody who bought cover last week and came back has business at /home, and the
 front door has no idea who they are. It renders the two ways in instead.
+
+## T43, the payment step offers a choice of wallet, 10 September 2026
+
+Phase one landed and phase two did not. The pull request says so plainly and so
+does every label on the page: a cover bought with a connected wallet is held in
+that wallet, and the premium is still settled by the service. The gap is the
+x402 payment authorisation, and moving it into the browser is what would make
+the word non custodial fully true.
+
+The word non custodial is not on the page for exactly that reason. The ticket
+asks for the non custodial option to be marked recommended and it is marked
+recommended, with the word "Recommended". Calling it non custodial while the
+service still signs the payment would be the overclaim the same ticket forbids,
+and a judge who discovered it would be right to.
+
+### Choosing a wallet drops the eligibility credential, and the step turns back
+
+DESIGN.md 3.6 makes the wallet's account id the signal a Selfie Check binds to,
+and `POST /v1/bind` refuses a quote and a credential that name different
+accounts with `wallet_mismatch`. So a credential earned against the demo wallet
+is worthless to a cover bound to somebody's own wallet, and the other way round.
+
+The choice is offered on the payment step because that is where Root asked for
+it, and the check happens before the payment step, so choosing there costs a
+check. That is a real cost and the alternatives were worse. Re-issuing the
+credential silently is only possible on the interim issuer, so it would have
+made the two paths behave differently at the moment they most need to behave the
+same. Carrying the old credential forward is the one thing that cannot be done:
+the API refuses it, and it refuses it for the right reason.
+
+So the rule is one line and it holds both ways: changing the wallet clears the
+credential, the quote goes with it, and the step turns back to the check. On the
+route that is a refresh, because /pay already sends anybody with no credential
+to /verify. On the landing card it is `go('verify')` plus a reset of the check's
+own state, because a face still saying "You're verified" would be offering a
+credential the server has let go. Connecting the same account twice changes
+nothing and clears nothing.
+
+### The EVM address is read on the server, not taken from the browser
+
+A session on the `hedera` namespace hands back an account id and nothing else,
+and DESIGN.md 3.6 needs the EVM address too: the credential carries both and the
+CoverPool pays the address. `src/lib/wallet-account.ts` reads it from the mirror
+node on the server. An address a browser supplies is an address a browser could
+have made up, and this one decides where a payout lands.
+
+The same read is where three refusals live, because each of them would otherwise
+become a half bound cover: an account id that is not one, an account testnet has
+never heard of or has deleted, and an account with no EVM address yet. Each is
+one sentence the chooser prints, and none of them falls back to the demo wallet.
+
+### A wallet that will not take the policy NFT is warned about, not refused
+
+`mintPolicyNft` mints to the treasury, transfers the serial to the holder and
+freezes the holder, and the transfer needs the holder to have the collection
+associated. An arbitrary testnet account may not. The mirror node's
+`max_automatic_token_associations` says whether it will accept one without being
+asked, and zero means it will not.
+
+That is a warning and not a block, because of what apps/api already does: the
+NFT is minted after the cover is bound and a mint that fails is recorded as
+`nft_mint_failed` rather than failing the bind. The cover is real either way and
+only the receipt is missing. So the pay sheet says so before the press, in one
+sentence, and the person can turn automatic association on and connect again if
+they would rather have the receipt. Refusing the connection would have refused
+cover to somebody who can have it.
+
+The check has one false negative by construction: an account with no automatic
+association that has associated the collection by hand would be warned about
+wrongly. Naming the collection would remove it, and the web app does not know
+the collection's id, and giving it one to print a warning is a worse trade than
+a warning that is occasionally too careful.
+
+### The library is imported when somebody connects, and not before
+
+`@reown/appkit` and `@hashgraph/hedera-wallet-connect` are a large tree and the
+landing page is server rendered with its reads held (T40). So `src/lib/wallet.ts`
+holds no import of either: the provider's `connect` does `await import('./wallet-connect')`
+at the moment somebody chooses their own wallet. A visitor who reads a price and
+leaves downloads none of it.
+
+Only the native `hedera` adapter is built. The library's README pairs it with a
+`WagmiAdapter` so the same session can send Ethereum JSON-RPC, and nothing in
+this app does. Only the testnet chain definition is referenced, so there is no
+other network for a wallet to switch to.

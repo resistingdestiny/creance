@@ -2,7 +2,6 @@ import { explorerOccupation } from '../src/lib/explorer-model.js';
 import { occupationLabel } from '../src/lib/occupations.js';
 import {
   LANDING_GROUP,
-  costAnswer,
   fromPriceLine,
   investorLine,
   landingIndexSection,
@@ -74,7 +73,7 @@ function landing(
         index === null ? null : index.series_id,
       ),
     },
-    price: { priceLine: fromPriceLine(premium), costLine: costAnswer(premium) },
+    price: { priceLine: fromPriceLine(premium) },
     explorer: {
       ticker: explorer === null ? [] : TICKER,
       round: explorer,

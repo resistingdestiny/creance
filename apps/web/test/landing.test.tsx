@@ -10,7 +10,6 @@ import {
 } from '../src/lib/explorer-model.js';
 import {
   LANDING_GROUP,
-  costAnswer,
   fromPriceLine,
   investorLine,
   landingIndexSection,
@@ -46,7 +45,7 @@ function positions(text: string, strings: readonly string[]): number[] {
 const live = renderToStaticMarkup(<LandingScreen data={LIVE} />);
 
 describe('the sections, in the order of the design of record', () => {
-  it('runs nav, hero, questions, steps, index, closing, investor line, footer', () => {
+  it('runs nav, hero, the question, index, closing, investor line, footer', () => {
     const found = positions(visibleText(live), [
       // nav
       'Creance',
@@ -59,10 +58,8 @@ describe('the sections, in the order of the design of record', () => {
       // hero card. One needle, because "Cover" on its own also matches the
       // first word of the hero headline.
       'Covered Cover 5,000',
-      // the three questions
-      'What does it cost.',
+      // the one question left in the ledger (T44)
       'When does it pay.',
-      'Am I covered.',
       // the index section, which is the public explorer itself
       'One number decides. You can watch it.',
       'Search occupations',
@@ -99,6 +96,13 @@ describe('the words this page cut', () => {
     'Choose your cover',
     '1,000 to 10,000. The monthly payment updates as you slide.',
     'One person, one cover, verified with World ID.',
+    // T44. The hero prints the from price above this ledger and the hero card
+    // wears the green "Covered" pill beside it, so both answers were the page
+    // explaining what it was already showing.
+    "The price comes from your occupation's index, nothing else.",
+    'What does it cost.',
+    'Your card says so at all times. Green means yes.',
+    'Am I covered.',
   ]) {
     it(`no longer says "${cut}"`, () => {
       expect(text).not.toContain(cut);
@@ -142,10 +146,12 @@ describe('the figures come from the feed and never from the page', () => {
   it('names the price only when a quote produced one', () => {
     expect(fromPriceLine('4.25')).toBe('From 4.25 a month');
     expect(fromPriceLine(null)).toBeNull();
-    expect(costAnswer('4.25')).toBe(
-      "From 4.25 a month. The price comes from your occupation's index, nothing else.",
-    );
-    expect(costAnswer(null)).toBe("The price comes from your occupation's index, nothing else.");
+  });
+
+  it('prints the from price once, in the hero', () => {
+    const text = visibleText(live);
+    expect(text.indexOf('From 4.25 a month')).toBeGreaterThan(-1);
+    expect(text.indexOf('From 4.25 a month')).toBe(text.lastIndexOf('From 4.25 a month'));
   });
 
   it('falls back to the first landing wording rather than naming a rate it did not read', () => {

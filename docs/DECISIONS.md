@@ -5916,3 +5916,124 @@ it is 404 on both origins. It stays that way. RFC 9457 section 3.1.1 makes the
 type URI an identifier and tells a consumer not to dereference it, so it is not
 a promise this origin has to keep, and the test that holds every promised URL to
 an answer skips it by name rather than by accident.
+
+## T47, the coupons accrue, 10 September 2026
+
+### Three periods were paid for real, and the record dates say so
+
+The history had one date on it and one date cannot show an accrual. The choice
+was between more rows and real rows. Two more periods were declared on the note
+and settled on testnet, so the table has three months in it and every row
+resolves on HashScan, which is worth more than a longer table that does not.
+
+What is compressed is the cadence and not the money. The note is six days old
+and the first period already covered a month, so periods two and three were
+declared with their record dates minutes out rather than at the ends of their
+accrual months. That is the T06 precedent, allowed and to be said out loud, so
+it is on the record as `recordDateBroughtForward` and on the screen as a line
+under "Coupon history". The accrual windows are untouched calendar months, 4
+September to 4 October, then to 4 November, then to 4 December, because the
+window is what ATS prices the coupon over: shortening it would pay less than a
+month of interest while calling itself a month. Coupon 2 covers a thirty one day
+month and pays 339.726027 to each holder against 328.767123 for a thirty day
+one, which is the arithmetic showing through rather than a rounding difference.
+
+The screen derives the line from the dates the endpoint already carries, a
+record date before the end of its own accrual window, rather than from a flag.
+A screen that could be told the cadence was live would eventually be told
+wrongly.
+
+### The next payment is a coupon the note has declared, never a date we worked out
+
+"Next payment" could have been the maturity less the months already paid, or the
+last settlement plus a month. Both are guesses, and a guessed date on this
+screen is indistinguishable from a declared one.
+
+So a fourth coupon was declared, on its own dates: its record date is the end of
+its accrual window, 4 January 2027, and it becomes payable the day after. The
+API reads the note's own schedule through `getCouponCount` and `getCoupon`,
+drops what was cancelled and what the settlement record shows as paid, and
+serves the earliest of what is left as `coupons.next`. The screen prints that
+date and nothing else.
+
+It carries no amount. `getCouponFor` returns a zero entitlement and a zero
+balance before the record date is reached, so the note cannot say what the
+coupon will pay, and this build will not compute an ATS entitlement itself to
+fill the gap. The row says when, and the rate above it says at what rate.
+
+`null` on that field means two different things, a note that owes nothing more
+and a schedule that could not be read, and both render as no row. An unknown
+next payment must not read as "no further payments", which is what a zero or an
+empty string would have said.
+
+### Earned to date is web side, because it is a sum of rows
+
+T17 put a figure that needs the chain in `apps/api/src/investor` so two surfaces
+cannot compute different answers, and left arithmetic over rows the endpoint
+already serves in `apps/web/src/lib/investor-model.ts`. Earned to date is the
+second kind: it adds up the settled coupons the coupons endpoint already
+returned for one holder. The next payment date is the first kind and is served.
+
+It counts settled rows only. A schedule executes whether or not the transfer
+inside it succeeded, so counting an execution would be counting money that never
+moved. It is null rather than nought where nothing has settled: fifteen of the
+sixteen series have no noteholders and no coupons, and a row reading 0.00 would
+suggest a position that does not exist.
+
+### The maturity demonstration is not named after an occupation
+
+`apps/api/src/investor/config.ts` gave the short dated maturity series
+`recorded[0].group`, which is the demo series' own `computer_math`. Nothing read
+it until the chooser started naming what each series covers, at which point the
+sixteenth entry would have claimed to cover computer and mathematical work,
+which is false. Fixed at the source: it has no group, and a new `kind` field
+says what an entry is. The chooser names it "Maturity demonstration", and a
+series whose group this bundle cannot name falls back to its identifier rather
+than to a guess, because a wrong occupation is worse than an identifier.
+
+### The history leads the screen, and the position leads the history
+
+The coupon history was the most valuable block on the page and it was at the
+bottom under everything else. It is second now, under the chooser, and it opens
+with two rows, earned to date and the next payment, before the transactions.
+The series terms and the principal at risk follow. Nothing was thrown away and
+no new component was added: the two figures are list rows in a surface group,
+the same register as "Principal" and "Matures".
+
+### The history table scrolls sideways at 390 rather than becoming a second table
+
+Five columns do not fit 310 points of content. The choice was a second mobile
+layout, a narrower table, or one table in a scrolling region. A second layout
+would put the same six settlements in the DOM twice and the two would drift; a
+narrower table would have to drop either the noteholder or the receipt, and the
+receipt is the point. So the table keeps its shape inside a labelled region with
+`overflow-x-auto` and `tabIndex` 0, which is focusable, so a keyboard reaches
+the scroll as well as the links inside it.
+
+### `ats.coupon` became `ats.coupons`, and the runner takes a coupon id
+
+`pnpm ats:issue` declared exactly one coupon into `ats.coupon` and skipped if it
+was there; `pnpm coupons:pay` read that one field and threw without it. Neither
+could reach a second period.
+
+The record carries the list now, seeded from the single field the first time
+either is read, so a record written before the list still works. `pnpm ats:issue
+period` declares the next accrual month with its record date brought forward and
+refuses while an earlier period is payable and unpaid, which is the difference
+between a series accruing and a note in arrears. `pnpm ats:issue nextcoupon`
+declares the period after that on its own dates. `pnpm coupons:pay` takes a
+coupon id as its second argument or in `COUPON_ID`, and with neither it picks the
+period that is owed, so a note that has declared three and paid one is caught up
+by running it again. It resolves once per run: the answer depends on what is
+settled and the `pay` step changes that, so a `publish` step that asked again
+would have published the next period's empty settlement.
+
+### Two new strings, and one that already existed
+
+"Earned to date" is new. "Next payment" is the copy deck's own string from the
+Home block, reused on this screen with its value in the deck's shape, a date
+rather than "28.00 on 4 October", because the amount cannot be known before the
+record date. The line about the record dates and the name of the maturity
+demonstration are new. All four are in
+docs/DESIGN-TOKENS-ADDENDUM.md under "Copy deck additions, T47", the way T43
+recorded its own.

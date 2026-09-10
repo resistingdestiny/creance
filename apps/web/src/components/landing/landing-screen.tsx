@@ -65,9 +65,9 @@ import { QuoteProvider } from './quote-state';
  *
  * Since T40 the page is drawn before its figures arrive. Every section above is
  * structure, copy and the card, and none of it needs a paid call, so all of it
- * is on the first byte; the six figures are handed to it as promises and each
- * one is behind a Suspense boundary of its own, so a slow reading cannot hold
- * up a price and neither can hold up the page. Each boundary rests at the
+ * is on the first byte; the figures are handed to it as promises and each one
+ * is behind a Suspense boundary of its own, so a slow reading cannot hold up a
+ * price and neither of them can hold up the page. Each boundary rests at the
  * height its figure will take, which is the sheet's own Skeleton at the line
  * heights of docs/DESIGN-TOKENS.md section 2, so a figure landing changes what
  * is in a space and never how much space there is.
@@ -100,7 +100,12 @@ export function LandingScreen({
         <Nav indexHref={indexHref} />
         <main>
           <section className="bg-night">
-            <HeroBand index={data.index} interim={interim} occupation={data.occupation} price={data.price} />
+            <HeroBand
+              index={data.index}
+              interim={interim}
+              occupation={data.occupation}
+              price={data.price}
+            />
             <Suspense fallback={<TickerResting />}>
               <Ticker explorer={data.explorer} />
             </Suspense>
@@ -468,7 +473,13 @@ function Ticker({ explorer }: { explorer: Streamed<LandingExplorerView> }) {
  * that failed rather than a page with nothing to say.
  */
 function TickerResting() {
-  return <div aria-hidden="true" className="h-11 border-t border-white/10" data-testid="landing-resting" />;
+  return (
+    <div
+      aria-hidden="true"
+      className="h-11 border-t border-white/10"
+      data-testid="landing-resting"
+    />
+  );
 }
 
 /**

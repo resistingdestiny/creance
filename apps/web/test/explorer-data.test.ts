@@ -44,7 +44,10 @@ beforeEach(() => {
       : Promise.resolve(reading);
   });
   fetchIndexCatalogue.mockReset();
-  fetchIndexCatalogue.mockResolvedValue({ index: { topic_id: null, source: 'the source' }, groups: [] });
+  fetchIndexCatalogue.mockResolvedValue({
+    index: { topic_id: null, source: 'the source' },
+    groups: [],
+  });
   fetchReplay.mockReset();
   fetchReplay.mockResolvedValue(null);
 });

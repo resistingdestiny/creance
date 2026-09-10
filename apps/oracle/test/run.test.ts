@@ -372,21 +372,21 @@ describe('the replay of real history for the demo series', () => {
 });
 
 describe('the live path over every bindable group', () => {
-  it('publishes one message per group and settles only the registered series', async () => {
+  it('publishes one message per group and settles every registered series', async () => {
     const submitter = new DryRunSubmitter();
     const summary = await runPipeline(
       base({ mode: 'live', periods: ['2026-07'], groups: null, submitter }),
     );
     expect(summary.publishedCount).toBe(15);
-    expect(summary.submittedCount).toBe(1);
-    expect(submitter.calls).toHaveLength(1);
+    // Every group has a series behind it since T39, so every published
+    // observation settles rather than skipping for want of one.
+    expect(summary.submittedCount).toBe(15);
+    expect(submitter.calls).toHaveLength(15);
     const unsettled = summary.periods[0]?.published.filter((row) => row.submit === null) ?? [];
-    expect(unsettled).toHaveLength(14);
-    expect(unsettled.every((row) => row.submitSkipped?.includes('no cover series registered'))).toBe(
-      true,
+    expect(unsettled).toHaveLength(0);
+    expect(summary.periods[0]?.published.filter((row) => row.seriesLabel !== null)).toHaveLength(
+      15,
     );
-    // Only the group with a series names one; the rest publish with series null.
-    expect(summary.periods[0]?.published.filter((row) => row.seriesLabel !== null)).toHaveLength(1);
   });
 
   it('refuses to settle a month that has not happened yet', async () => {

@@ -8,13 +8,15 @@ import type { Services } from '../services.js';
 import { rfc3339 } from '../views.js';
 import { continuityHolds } from './config.js';
 import { miniAppEntry, miniAppLaunchUrl, occupationIndexPath } from './mini-app.js';
+import { coverView } from '../routes/cover.js';
 import { requestContext, WorldNotConfigured, type WorldPurpose } from './rp-context.js';
 import { verifySelfieCheck, type IdKitResult, type VerifyInput } from './verify.js';
 
-/// The three World endpoints.
+/// The four World endpoints.
 ///
 ///   POST /v1/world/rp-context   a fresh signed context for one IDKit request
 ///   POST /v1/world/verify       the completed result, checked, then a credential
+///   POST /v1/world/sign-in      the completed result, checked, then their cover
 ///   GET  /v1/world/mini-app     the Mini App id and the links that enter it
 ///
 /// None of them is metered. A person confirming they are a person is not a paid
@@ -226,6 +228,72 @@ export const worldRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
         protocol_version: verification.protocolVersion,
         presence: verification.presence,
       },
+    });
+  });
+
+  /**
+   * Signing in: the same check, and the cover it finds.
+   *
+   * Nothing about how a proof is made or checked changes here. It is
+   * `verifySelfieCheck` with `purpose: 'purchase'`, the same signed context the
+   * purchase step asks for, the same signal, the same preset. What is different
+   * is what happens afterwards: no credential is issued, nothing is written,
+   * and the answer is the cover already bound to the nullifier the proof
+   * carried.
+   *
+   * The purchase action rather than an action of its own, and the backlog says
+   * the opposite. The nullifier is scoped by the action, so a third registered
+   * action would return a number that matched no purchase and would find no
+   * cover, which makes signing in impossible rather than merely different. The
+   * acceptance is that this route finds exactly the cover bound to that person,
+   * so it runs the action that bound it. Recorded in docs/DECISIONS.md.
+   *
+   * A person with no cover is a 200 with `cover: null`, not a 404. They proved
+   * who they are and the honest answer is that there is nothing here yet, which
+   * is an empty screen rather than an error.
+   *
+   * https://docs.world.org/world-id/idkit/reference
+   */
+  app.post<{ Body: Record<string, unknown> }>('/v1/world/sign-in', async (request, reply) => {
+    const body = request.body ?? {};
+    const wallet = requiredString(body['wallet'], 'wallet');
+    const result = body['result'];
+    if (result === null || typeof result !== 'object' || Array.isArray(result)) {
+      throw new AppError(
+        400,
+        'validation_failed',
+        'Validation failed',
+        'The complete IDKit result goes in `result`, unchanged.',
+        [{ path: 'body.result', message: 'expected the IDKit result object' }],
+      );
+    }
+    if (!world.enabled) throw notConfigured();
+
+    const verification = await verifySelfieCheck({
+      world,
+      purpose: 'purchase',
+      signal: wallet,
+      result: result as IdKitResult,
+      onWorldError: (worldBody, status) =>
+        request.log?.warn(
+          {
+            status,
+            code: worldBody.code,
+            detail: worldBody.detail,
+            attribute: worldBody.attribute,
+          },
+          'World refused a proof',
+        ),
+    });
+
+    // Exactly the covers bound to this nullifier, newest first, and never
+    // another: the lookup takes the number out of the proof and nothing the
+    // caller supplied. The newest is the one a dashboard opens on.
+    const held = await services.repository.policiesForPerson(verification.nullifier);
+    const policy = held[0];
+    return reply.send({
+      cover: policy === undefined ? null : await coverView(services, policy),
+      covers_held: held.length,
     });
   });
 };

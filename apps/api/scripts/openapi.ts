@@ -12,6 +12,7 @@ import { buildIndexOpenApiDocument } from '../src/openapi-index.js';
 ///
 ///     recipes/bazantic/openapi.yaml           the cover gateway
 ///     recipes/bazantic/openapi.json           the same document as JSON
+///     apps/web/public/openapi.json            the copy the web origin serves
 ///     recipes/bazantic/agentify/openapi.yaml  the index feed gateway
 ///     recipes/bazantic/agentify/openapi.json  the same document as JSON
 ///     recipes/bazantic/agentify/llms.txt      the index file an agent reads
@@ -19,7 +20,13 @@ import { buildIndexOpenApiDocument } from '../src/openapi-index.js';
 ///
 /// Every one of them comes from code in src, and a test regenerates them and
 /// compares, so the committed files cannot drift from the API they describe.
-/// The last two are also served live, at GET /llms.txt and GET /skill.md.
+/// The two agentify description files are also served live, at GET /llms.txt
+/// and GET /skill.md, and the web origin passes both through.
+///
+/// apps/web/public/openapi.json is the copy the framework serves at
+/// https://creance.co/openapi.json, which the recipe README gives an importer.
+/// It was a hand copy until T46, and by then it had lost /v1/series and carried
+/// a different servers entry from the document it claimed to be.
 ///
 /// Both formats, because Bazantic's import requirements are not published and
 /// an importer that wants JSON should not need a second run to get it.
@@ -44,15 +51,18 @@ export function renderIndexJson(): string {
 
 const target = new URL('../../../recipes/bazantic/', import.meta.url);
 const agentify = new URL('agentify/', target);
+const webPublic = new URL('../../../apps/web/public/', import.meta.url);
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   writeFileSync(fileURLToPath(new URL('openapi.yaml', target)), renderYaml());
   writeFileSync(fileURLToPath(new URL('openapi.json', target)), renderJson());
+  writeFileSync(fileURLToPath(new URL('openapi.json', webPublic)), renderJson());
   writeFileSync(fileURLToPath(new URL('openapi.yaml', agentify)), renderIndexYaml());
   writeFileSync(fileURLToPath(new URL('openapi.json', agentify)), renderIndexJson());
   writeFileSync(fileURLToPath(new URL('llms.txt', agentify)), renderLlmsTxt());
   writeFileSync(fileURLToPath(new URL('SKILL.md', agentify)), renderSkillMd());
   console.log('wrote recipes/bazantic/openapi.yaml and openapi.json');
+  console.log('wrote apps/web/public/openapi.json');
   console.log('wrote recipes/bazantic/agentify/openapi.yaml and openapi.json');
   console.log('wrote recipes/bazantic/agentify/llms.txt and SKILL.md');
 }

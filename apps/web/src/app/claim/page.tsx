@@ -20,19 +20,17 @@ import { WorkerUnavailable } from '../unavailable';
  * A cover whose API has not read the chain for it carries no block at all. That
  * is not an open cover, so it gets the refusal with the one sentence the API
  * would have said about a closed one.
+ *
+ * Which cover is `currentPolicyId`'s answer and no longer the address bar's:
+ * T41 replaced `?policy=` with the cover session behind the httpOnly cookie.
  */
 
 export const metadata: Metadata = { title: 'Claim' };
 
 export const dynamic = 'force-dynamic';
 
-export default async function ClaimPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ policy?: string }>;
-}) {
-  const { policy: requested } = await searchParams;
-  const policyId = await currentPolicyId(requested);
+export default async function ClaimPage() {
+  const policyId = await currentPolicyId();
   if (policyId === null) redirect('/');
 
   try {

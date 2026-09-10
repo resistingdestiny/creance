@@ -9,6 +9,7 @@ import { agentDocsRoutes } from './routes/agent-docs.js';
 import { attributionRoutes } from './routes/attribution.js';
 import { auditRoutes } from './routes/audit.js';
 import { bindRoutes } from './routes/bind.js';
+import { coverRoutes } from './routes/cover.js';
 import { indexRoutes } from './routes/index-feed.js';
 import { indexHealthRoutes } from './routes/index-health.js';
 import { opsRoutes } from './routes/ops.js';
@@ -46,6 +47,11 @@ export async function buildServer(
         'req.body.eligibility',
         'req.body.claim_credential',
         'req.body.evidence',
+        // A cover key is a bearer key to one dashboard, so it is redacted
+        // wherever it can appear: the body of POST /v1/cover/open, and any log
+        // object that carries one by name.
+        'req.body.cover_key',
+        'cover_key',
         'nullifier',
       ],
     },
@@ -71,6 +77,7 @@ export async function buildServer(
   await app.register(quoteRoutes, { services });
   await app.register(bindRoutes, { services });
   await app.register(policyRoutes, { services });
+  await app.register(coverRoutes, { services });
   await app.register(auditRoutes, { services });
   await app.register(worldRoutes, { services });
   await app.register(claimRoutes, { services });

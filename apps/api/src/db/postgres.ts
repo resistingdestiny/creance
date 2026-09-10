@@ -11,12 +11,13 @@ import {
   insufficientCapacity,
   quoteConsumed,
 } from './memory.js';
-import { ACTIVE_POLICY_STATUSES } from './types.js';
+import { ACTIVE_POLICY_STATUSES, SIGN_IN_POLICY_STATUSES } from './types.js';
 import type {
   ClaimEvidenceRow,
   ClaimPaidInput,
   ClaimRow,
   ClaimStatus,
+  CoverKeyRow,
   NewClaimInput,
   CredentialRow,
   GroupRow,
@@ -210,6 +211,44 @@ export class PostgresRepository implements Repository {
         ORDER BY starts_at DESC
         LIMIT 1`,
       [nullifier, seriesId, [...ACTIVE_POLICY_STATUSES]],
+    );
+    return rows[0] === undefined ? null : toPolicy(rows[0]);
+  }
+
+  /**
+   * Every cover this person holds, newest first, for signing in.
+   *
+   * The series is left out, because signing in has no series to ask about, and
+   * so is the one-active-policy status set: a lapsed cover is still this
+   * person's cover and the dashboard has a Payment due state for it. One read
+   * rather than one per live series.
+   */
+  async policiesForPerson(nullifier: string): Promise<PolicyRow[]> {
+    const { rows } = await this.pool.query(
+      `SELECT * FROM policies
+        WHERE nullifier = $1 AND status = ANY($2::text[])
+        ORDER BY starts_at DESC`,
+      [nullifier, [...SIGN_IN_POLICY_STATUSES]],
+    );
+    return rows.map(toPolicy);
+  }
+
+  async insertCoverKey(row: CoverKeyRow): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO cover_keys (key_hash, policy_id, created_at)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (key_hash) DO NOTHING`,
+      [row.keyHash, row.policyId, row.createdAt],
+    );
+  }
+
+  /** A primary key read on the digest, joined straight to the cover it opens. */
+  async policyForCoverKey(keyHash: string): Promise<PolicyRow | null> {
+    const { rows } = await this.pool.query(
+      `SELECT policies.* FROM cover_keys
+        JOIN policies USING (policy_id)
+        WHERE cover_keys.key_hash = $1`,
+      [keyHash],
     );
     return rows[0] === undefined ? null : toPolicy(rows[0]);
   }

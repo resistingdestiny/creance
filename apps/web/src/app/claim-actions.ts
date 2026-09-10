@@ -336,7 +336,7 @@ function checkFailure(cause: unknown): string {
  * own screen rather than with the deck's failure. The words come from
  * `claimCheckCopy`; this is only which of them to say. T42.
  */
-function wrongKind(cause: unknown): boolean {
+export function wrongKind(cause: unknown): boolean {
   return cause instanceof ApiError && cause.code === 'world_credential_unaccepted';
 }
 

@@ -5463,3 +5463,118 @@ was wrong and not the value. The request id the logger already stamps is the
 whole of the context needed, and apps/api/test/world-routes.test.ts asserts the
 line by reading the server's own log stream, so what is asserted is the JSON that
 would reach journalctl rather than the arguments of a call.
+
+## T41, the cover you can get back into, 10 September 2026
+
+### The cover key is a stored random key, not a value derived from the policy id
+
+The alternative weighed first was a key derived from the policy id by HMAC over
+a secret in the environment. It is attractive because it survives a restart with
+no schema change and leaves nothing in a table to leak.
+
+It does not work, for a plain reason. The route has to go from the key to the
+cover, and a one way function does not go that way. Making it work means
+carrying the policy id inside the key, which makes the key long, makes it not
+opaque, and makes it say which cover it opens before it has been used. The
+ticket asks for a short opaque key, so the key is twelve random bytes, ninety
+six bits, printed as twenty characters of Crockford base 32.
+
+What is stored is a SHA-256 digest of it and never the key, so the `cover_keys`
+table opens nothing on its own and the lookup is still a primary key read. The
+alphabet is Crockford's because a person types this off a screen: no U, and I,
+L and O read back as 1, 1 and 0. A character outside the alphabet makes the
+whole thing not a key rather than being dropped, because silently ignoring a
+character is how a typo becomes a lookup for somebody else's key.
+
+Migration 004 adds the table. `apps/api/src/cover-key.ts` owns the alphabet, the
+digest and the parsing.
+
+### The key is revealed once, at bind, and cannot be reissued
+
+`POST /v1/bind` is the only endpoint that has ever seen the key in readable
+form. `GET /v1/policy/:id` is free and does not carry it, and the API stores
+only a digest, so nothing can print it again.
+
+That is a smaller promise than the ticket's "retrievable afterwards only from
+inside a signed in session", and the departure is deliberate. The web app keeps
+the key inside the cover session cookie, which is httpOnly, signed and seven
+days long, so the dashboard shows it back for as long as that session lives,
+behind a disclosure rather than in the open. Once the session is gone the key
+cannot be recovered, and World ID is the way back for somebody who lost it.
+
+The alternative was an endpoint that reissues a key for a named cover. Every
+version of it we could write was a takeover: a policy id is public, so anything
+that mints a key from one hands a stranger the cover.
+
+### The cover session is a signed cookie and holds no server memory at all
+
+`?policy=` is gone. It was the way to reopen a cover after the session behind it
+had gone, and it put the id in the address bar, in the history, in a screenshot
+and in whatever the next request sends as a referrer.
+
+What replaces it is `creance_cover`: an httpOnly cookie carrying the policy id,
+its own expiry and an HMAC over both. Nothing about it is in the process's
+memory, which is the whole point, because the defect being fixed is that a
+module level Map does not survive a restart or a browser being closed.
+
+It is signed rather than bare because an unsigned cookie is the same hole
+`?policy=` was: anybody could type another cover's id into their own browser and
+read it. Signed, the only two ways to fill that cookie are the two ways in the
+ticket names. The expiry sits inside the signed body rather than only in the
+cookie's max-age, because max-age is the browser's to ignore. Reading a session
+never extends it: signing in writes a fresh one.
+
+The secret is `COVER_SESSION_SECRET`. A clone with none gets a random one per
+process, so a clean clone works and a restart signs everyone out, which is the
+safe direction to fail in.
+
+### The eligibility credential does not become durable with it
+
+T15's "The purchase is a server side session, and the credential never reaches
+the browser" still holds, unchanged. The credential is a bearer token that binds
+a policy in the holder's name and it still lives and dies inside one process, in
+`apps/web/src/lib/purchase-session.ts`, with its thirty minute life.
+
+The cover key departs from that decision in one direction only. The key and the
+policy id it opens are durable; the credential is not. A cover key opens a
+dashboard. It does not buy anything, it cannot bind, and nothing on the way back
+in issues a credential.
+
+### Signing in runs the purchase action, and the backlog said it would not
+
+The backlog's route 1 says "what differs is only the action, because signing in
+is not buying". The acceptance says the sign in route must find exactly the
+cover bound to that person. Those pull against each other and the acceptance
+wins.
+
+The nullifier is scoped by the action. A third registered action would return a
+different number for the same person by definition, and that number would match
+no purchase and find no cover, which makes signing in impossible rather than
+merely different. So `POST /v1/world/sign-in` runs `WORLD_ACTION_ELIGIBILITY`,
+the action the purchase bound.
+
+Nothing about how a proof is made or checked changed to get there. It is
+`verifySelfieCheck` with `purpose: 'purchase'`, the same signed context, the
+same preset, the same signal and the same verify endpoint. What is different is
+what happens afterwards: no credential is issued, nothing is written, and the
+answer is the cover already bound to the nullifier the proof carried. A third
+action would also have needed Root in the World Developer Portal, which is a
+second reason not to need one.
+
+### A person with no cover gets an empty state, not an error
+
+`POST /v1/world/sign-in` answers 200 with `cover: null` for a nullifier that
+holds nothing. They proved who they are; the honest answer is that there is
+nothing here yet. The screen says "No cover yet." and offers a quote, which is a
+different sentence from a check that failed.
+
+The interim issuer has no sign in path at all. `freshNullifier()` mints 31
+random bytes per purchase, so an interim check produces a number that has never
+bought anything and would always find no cover. Offering it would be offering a
+button that cannot work.
+
+### Home is the way back in when there is no session, rather than a redirect
+
+A request to /home with no cover session used to redirect to the front door.
+Somebody who bought cover last week and came back has business at /home, and the
+front door has no idea who they are. It renders the two ways in instead.

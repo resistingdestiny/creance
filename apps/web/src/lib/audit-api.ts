@@ -99,6 +99,28 @@ export async function fetchAuditTrail(policyId: string): Promise<AuditTrail> {
 }
 
 /**
+ * What has happened on a cover, oldest first, or nothing.
+ *
+ * The dashboard's history section. It is the audit trail as it stands rather
+ * than an endpoint of its own: the payments, the index observations and the
+ * claim are already on the topics and already served by this endpoint, and a
+ * second read of the same messages under another name would be a second thing
+ * to keep true.
+ *
+ * Never throws. Home renders with the API unreachable, and a cover with no
+ * history yet and a cover whose history could not be read both come out as an
+ * empty list; the screen says which by way of the unavailable notice it already
+ * carries for the rest of the page.
+ */
+export async function fetchHistory(policyId: string): Promise<readonly AuditEntry[]> {
+  try {
+    return (await fetchAuditTrail(policyId)).entries;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * The payout on a cover, or null when there has not been one.
  *
  * Home's Paid state needs an amount and a date, and the claim behind them

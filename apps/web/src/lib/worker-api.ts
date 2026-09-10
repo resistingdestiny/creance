@@ -7,8 +7,9 @@
  *   POST /v1/world/rp-context  a signed context for one IDKit request
  *   POST /v1/world/verify      the completed Selfie Check, and the credential
  *   POST /v1/demo/eligibility  the interim issuer, for a clone with no World app
+ *   POST /v1/world/sign-in     the completed check, and the cover it finds
  *   POST /v1/quote             the binding price, no capacity hold, 15 minutes
- *   POST /v1/bind              the policy, the NFT receipt and the HCS receipt
+ *   POST /v1/bind              the policy, the NFT receipt and the cover key
  *   GET  /v1/policy/:id        free, and what the app polls for the NFT serial
  *   GET  /v1/index/:group      the latest reading, 24 months and the trigger
  *
@@ -229,6 +230,36 @@ export function verifyWorldCheck(body: {
   return postJson<EligibilityView>('/v1/world/verify', body);
 }
 
+/**
+ * Signing in with World ID: the completed result, and the cover it opens.
+ *
+ * The same signed context the purchase check asks for and the same result
+ * forwarded whole. No credential comes back and nothing is written: the API
+ * takes the nullifier out of the proof and answers with the cover already bound
+ * to it, or with nothing when there is none.
+ */
+export interface WorldSignInView {
+  readonly cover: PolicyView | null;
+  readonly covers_held: number;
+}
+
+export function signInWithWorldCheck(body: {
+  wallet: string;
+  result: unknown;
+}): Promise<WorldSignInView> {
+  return postJson<WorldSignInView>('/v1/world/sign-in', body);
+}
+
+/**
+ * The cover a key opens.
+ *
+ * A POST, so the key is in a body and never in a URL: a key in a URL is in the
+ * history, in a screenshot and in the next request's referrer.
+ */
+export function openCoverWithKey(coverKey: string): Promise<{ cover: PolicyView }> {
+  return postJson<{ cover: PolicyView }>('/v1/cover/open', { cover_key: coverKey });
+}
+
 export function requestQuote(body: {
   group: string;
   /** Minor units, as an integer string. Use toMinorUnits. */
@@ -238,8 +269,19 @@ export function requestQuote(body: {
   return postJson<QuoteView>('/v1/quote', body);
 }
 
-export function bindPolicy(quoteId: string, eligibility: string): Promise<PolicyView> {
-  return postJson<PolicyView>('/v1/bind', { quote_id: quoteId }, { bearer: eligibility });
+/**
+ * The bind's answer: the policy view, and the cover key that opens it later.
+ *
+ * The key appears here and nowhere else. `GET /v1/policy/:id` is free and does
+ * not carry it, and the API stores only a digest of it, so this response is the
+ * one moment it exists in readable form.
+ */
+export interface BoundPolicyView extends PolicyView {
+  readonly cover_key: string;
+}
+
+export function bindPolicy(quoteId: string, eligibility: string): Promise<BoundPolicyView> {
+  return postJson<BoundPolicyView>('/v1/bind', { quote_id: quoteId }, { bearer: eligibility });
 }
 
 export function fetchPolicy(id: string): Promise<PolicyView> {

@@ -86,6 +86,19 @@ export interface CredentialRow {
   consumedAt: string | null;
 }
 
+/**
+ * One issued cover key, as the table holds it.
+ *
+ * The key is not here. `keyHash` is a SHA-256 digest of it, so this row opens
+ * nothing on its own, and the route that takes a key computes the same digest
+ * and reads by primary key. See apps/api/src/cover-key.ts.
+ */
+export interface CoverKeyRow {
+  keyHash: string;
+  policyId: string;
+  createdAt: string;
+}
+
 export interface QuoteRow {
   quoteId: string;
   seriesId: string;
@@ -120,6 +133,34 @@ export type PolicyStatus =
   | 'declined'
   | 'expired'
   | 'void';
+
+/**
+ * The statuses a person signing in should be shown a cover for.
+ *
+ * Not `ACTIVE_POLICY_STATUSES`. That set answers "would a second purchase be
+ * refused", so it leaves out `lapsed`, `payment_failed` and `expired`, and a
+ * person whose cover has lapsed is exactly the person who most needs to reach
+ * it: the dashboard has a Payment due state built for them and a button that
+ * takes the payment. Telling them they never bought cover would be false.
+ *
+ * Everything but `void`, which is a bind that reverted and never became cover.
+ * That is also what a cover key opens, and the two ways in have to find the
+ * same covers or one of them is lying.
+ */
+export const SIGN_IN_POLICY_STATUSES: readonly PolicyStatus[] = [
+  'binding',
+  'bound',
+  'active',
+  'payment_failed',
+  'lapsed',
+  'claims_open',
+  'claimed',
+  'under_review',
+  'approved',
+  'paid',
+  'declined',
+  'expired',
+];
 
 /** The statuses the one-active-policy rule counts. Mirrors the partial index. */
 export const ACTIVE_POLICY_STATUSES: readonly PolicyStatus[] = [
@@ -404,6 +445,22 @@ export interface Repository {
    * `reservePolicy`, and this is how a screen can say it before a payment.
    */
   activePolicy(nullifier: string, seriesId: string): Promise<PolicyRow | null>;
+  /**
+   * Every cover this person holds, newest first, for signing in.
+   *
+   * `activePolicy` answers the one-active-policy rule, which is per series.
+   * Signing in has no series to ask about: the person proves who they are and
+   * the cover has to be found from that alone. Fifteen series are live, so the
+   * alternative is fifteen reads to answer one question.
+   *
+   * `SIGN_IN_POLICY_STATUSES` and not the one-active-policy set, so a lapsed
+   * cover is found rather than reported as no cover at all.
+   */
+  policiesForPerson(nullifier: string): Promise<PolicyRow[]>;
+  /** Records a cover key by its digest. Many keys may open one cover. */
+  insertCoverKey(row: CoverKeyRow): Promise<void>;
+  /** The cover a key digest opens, or null. */
+  policyForCoverKey(keyHash: string): Promise<PolicyRow | null>;
   /**
    * Check the one-active-policy rule and the capacity, consume the credential
    * and the quote, and write the policy and its first premium, all atomically.

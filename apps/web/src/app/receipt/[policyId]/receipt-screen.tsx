@@ -1,11 +1,20 @@
 import { CopyButton } from '../../../components/copy-button';
+import { CoverHistory, entryCaption, entryTitle } from '../../../components/cover-history';
 import { ListRow } from '../../../components/list-row';
 import { StatusPill } from '../../../components/status-pill';
 import { SurfaceGroup } from '../../../components/surface-group';
 import { TextLink } from '../../../components/text-link';
 import { AppFrame } from '../../../components/app-frame';
-import { formatDayWithYear, formatMoney, shortenAddress } from '../../../lib/format';
-import type { AuditEntry, AuditTrail } from '../../../lib/audit-api';
+import { shortenAddress } from '../../../lib/format';
+import type { AuditTrail } from '../../../lib/audit-api';
+
+/**
+ * The list of entries is src/components/cover-history.tsx, shared with the
+ * dashboard since T41 so the two screens cannot name a topic message
+ * differently. `title` and `caption` are re-exported here because they are this
+ * screen's contract with its own tests.
+ */
+export { entryCaption as caption, entryTitle as title };
 
 /**
  * The receipt.
@@ -68,11 +77,7 @@ export function ReceiptScreen({ trail }: { trail: AuditTrail }) {
 
         <section className="flex flex-col gap-3">
           <h2 className="text-secondary text-ink-2">Payments</h2>
-          <SurfaceGroup>
-            {trail.entries.map((entry, index) => (
-              <EntryRow entry={entry} key={`${entry.kind}-${entry.hcs?.sequence_number ?? index}`} />
-            ))}
-          </SurfaceGroup>
+          <CoverHistory entries={trail.entries} />
         </section>
 
         {trail.summary.payments_topic === null ? null : (
@@ -87,72 +92,6 @@ export function ReceiptScreen({ trail }: { trail: AuditTrail }) {
       </main>
     </AppFrame>
   );
-}
-
-function EntryRow({ entry }: { entry: AuditEntry }) {
-  const link = entry.tx?.hashscan ?? entry.hcs?.hashscan ?? null;
-  return (
-    <ListRow
-      caption={caption(entry)}
-      label={title(entry)}
-      value={
-        <span className="flex items-center gap-3">
-          {entry.amount === null
-            ? null
-            : formatMoney(BigInt(entry.amount.amount), entry.amount.decimals)}
-          {link === null ? null : (
-            <TextLink href={link} rel="noreferrer" target="_blank">
-              View on HashScan
-            </TextLink>
-          )}
-        </span>
-      }
-    />
-  );
-}
-
-/** What each entry is called in the product's words, not the API's. */
-export function title(entry: AuditEntry): string {
-  switch (entry.kind) {
-    case 'policy':
-      return entry.detail['status'] === 'binding' ? 'Cover requested' : 'Cover started';
-    case 'settlement':
-      return endpointTitle(String(entry.detail['endpoint'] ?? ''));
-    case 'premium':
-      return 'Monthly payment';
-    case 'payout':
-      return 'Payout';
-    case 'coupon':
-      return 'Coupon';
-    case 'claim_packet':
-      return 'Claim sent';
-    case 'claim_decision':
-      return 'Claim decision';
-    default:
-      return 'Entry';
-  }
-}
-
-function endpointTitle(endpoint: string): string {
-  if (endpoint.includes('/v1/bind')) return 'First payment';
-  if (endpoint.includes('/v1/quote')) return 'Price quote';
-  if (endpoint.includes('/v1/index')) return 'Index reading';
-  return 'Payment';
-}
-
-/** The date, and whether Hedera has it. Dates are en-GB in UTC, per T10. */
-export function caption(entry: AuditEntry): string {
-  const at = entry.hcs?.consensus_at ?? entry.at;
-  const day = at === null ? null : formatDayWithYear(at.slice(0, 10));
-  const state =
-    entry.source === 'topic'
-      ? 'Recorded on Hedera'
-      : entry.source === 'awaiting_mirror'
-        ? 'Recording on Hedera'
-        : entry.source === 'mirror_unavailable'
-          ? 'Cannot reach Hedera'
-          : 'Not recorded yet';
-  return day === null ? state : `${day} · ${state}`;
 }
 
 function coverLabel(status: string): string {

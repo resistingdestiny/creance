@@ -23,7 +23,29 @@ import { completeWorldCheck, startWorldCheck, verifyPerson } from '../purchase-a
  * that rotates, and a widget mounted inside that face is unmounted by a turn
  * while a check is still out. The state sits above both, the button reads it and
  * the widget hangs off the page beside the card.
+ *
+ * T41 is the third surface: signing in to a dashboard runs the same check for a
+ * different reason, and what it earns is a way back into a cover rather than a
+ * credential. So the three server actions are a parameter with the purchase
+ * flow's as the default. Nothing about the request, the preset, the signal or
+ * the verify path moved.
  */
+
+/**
+ * The three server actions one surface's check is made of: the signed context,
+ * the completed result, and the interim check for a clone with no World app.
+ */
+export interface WorldCheckActions {
+  readonly context: () => Promise<WorldRequestContextView | null>;
+  readonly complete: (result: unknown) => Promise<VerifyResult>;
+  readonly interim: () => Promise<VerifyResult>;
+}
+
+const PURCHASE: WorldCheckActions = {
+  context: startWorldCheck,
+  complete: completeWorldCheck,
+  interim: verifyPerson,
+};
 
 /** Codes that mean the person chose to stop. No error, just the button back. */
 export const CANCELLED = new Set(['user_rejected', 'verification_rejected']);
@@ -55,11 +77,14 @@ function refusedState(answer: VerifyResult): VerifyState {
 export function useWorldCheck({
   interim,
   alreadyVerified = false,
+  actions = PURCHASE,
 }: {
   /** No World app id in this deployment, so the interim issuer answers instead. */
   interim: boolean;
   /** The session already holds a credential, so the check is behind them. */
   alreadyVerified?: boolean;
+  /** Whose check this is. The purchase flow's unless a surface says otherwise. */
+  actions?: WorldCheckActions;
 }): WorldCheckRun {
   const [state, setState] = useState<VerifyState>(alreadyVerified ? 'verified' : 'idle');
   const [context, setContext] = useState<WorldRequestContextView | null>(null);
@@ -72,7 +97,7 @@ export function useWorldCheck({
 
   const interimCheck = () => {
     startTransition(async () => {
-      const result = await verifyPerson();
+      const result = await actions.interim();
       setState(result.ok ? 'verified' : 'failed');
     });
   };
@@ -80,7 +105,7 @@ export function useWorldCheck({
   const openWidget = () => {
     refused.current = false;
     startTransition(async () => {
-      const fresh = await startWorldCheck();
+      const fresh = await actions.context();
       if (fresh === null) {
         setState('failed');
         return;
@@ -100,7 +125,7 @@ export function useWorldCheck({
   // Throwing here is deliberate. The widget turns it into `failed_by_host_app`
   // and never calls onSuccess, so the success state is gated on the API.
   const handleVerify = async (result: unknown) => {
-    const answer = await completeWorldCheck(result);
+    const answer = await actions.complete(result);
     if (answer.ok) return;
     refused.current = true;
     setState(refusedState(answer));

@@ -5396,3 +5396,70 @@ its minimum of 1,000 at 1.21 a month. The premium is `rate * limit / 12` with
 the rate rounded to basis points first (apps/api/src/pricing.ts), so it is
 linear in the limit and those two figures are the same price. The figure is
 small because the cover is.
+
+## T42, a refused World check says why, 10 September 2026
+
+### A second failure state on the Verify screen, and a string that is not in the deck's original
+
+DESIGN.md 3.6 has one outcome for a check that does not pass, and
+docs/DESIGN-TOKENS.md section 8 gave it one string, "We couldn't verify you."
+with "Try again, or use a different device." That line is wrong for one of the
+refusals behind it. When the check comes back as a kind this deployment does not
+accept, the same device answers with the same kind every time, so the line sends
+a person to do the one thing that cannot work. The deck now carries a second
+failure, "That check isn't the one we asked for." with "Open the World app and
+run the face check.", and its button is "Verify with World ID" rather than "Try
+again" because what it asks for is a different check and not the same one twice.
+
+The strings are in docs/DESIGN-TOKENS.md section 8 beside the ones they join, in
+the deck's voice: sentence case, what happened and what to do next, no apology,
+and none of the words the worker flow forbids. Inside World App the line reads
+"Run the face check to continue.", for the reason recorded under T27: there is no
+other app to open from in there.
+
+The wording names the face check, which is exact for the product this ships as,
+`selfieCheckLegacy`. A deployment that has fallen back to the proofOfHuman or
+device preset (DESIGN.md section 8) would be telling a person to run a check it
+did not ask for. That is accepted rather than solved: the fallback is an
+emergency for an ungranted feature flag, the deck holds fixed strings and not
+interpolations, and the web app holds no World configuration of its own to
+interpolate from. If the fallback is ever used, this string is the thing to
+change with it.
+
+### A new error code, because the reason has to survive the crossing to the browser
+
+`world_credential_unaccepted`, 403, beside the existing
+`world_verification_failed`. The web app cannot switch on a sentence: the string
+the server action throws is turned into `failed_by_host_app` by IDKit and never
+reaches a screen, so the words a person reads come from `verifyCopy` and only a
+code can carry which words to say. The code travels through `earnCredential` as
+one boolean on `VerifyResult`, which the check hook turns into the new
+`wrong-check` state. The claim surface takes the same route through
+`ClaimCheckResult` and reads the same strings out of `verifyCopy`, because it is
+the same check refused for the same reason and two copies of one string is how
+two screens come to disagree.
+
+Every other failure keeps the copy it had. `already_covered` still reads as the
+rule, the generic failure still offers the retry, and C4 still offers the demo
+check underneath both refusals, which matters most here: a device that answers
+with the wrong kind of check has no second attempt to give.
+
+### The reason is logged at warn, and never the person
+
+`apps/api/src/world/verify.ts` is a pure module with no logger, which is what
+makes it testable without a request, so it reports refusals through a callback
+the route supplies rather than importing one. `onWorldError` already carried the
+two paths where World itself refused; `onRefused` carries every check the API
+makes on its own, and each path takes exactly one of the two, so a refusal is one
+line. Every refusal goes out through a single `refuse` helper, so a check added
+later cannot refuse silently.
+
+What is on the line is the check that refused, the code the caller answers with
+and one sentence of configuration: the action expected, the environment
+configured, the identifiers accepted. What is never on it is the proof, the
+nullifier, the signal or the wallet. The signal mismatch says that the hashes
+differ and not what either of them was, and the nullifier refusals say the shape
+was wrong and not the value. The request id the logger already stamps is the
+whole of the context needed, and apps/api/test/world-routes.test.ts asserts the
+line by reading the server's own log stream, so what is asserted is the JSON that
+would reach journalctl rather than the arguments of a call.

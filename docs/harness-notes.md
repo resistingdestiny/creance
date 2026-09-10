@@ -2840,3 +2840,23 @@ The rule this breaks is the one docs/DECISIONS.md sets under "The description
 files are served, not only committed": the description files carry the public
 origin in every URL, so an agent that reads them is taught addresses which do
 not answer. T46 closes it inside the web app rather than at the edge.
+
+## The vitest DOM tests time out at twenty seconds when this host is oversubscribed
+
+Measured 10 September 2026. `pnpm test` failed four times in a row on this box
+with between four and nine failures, every one of them
+`Error: Test timed out in 20000ms` in `apps/web`, and once with
+`Error: [vitest-worker]: Timeout calling "onTaskUpdate"`, which is the worker
+losing its RPC rather than a test failing at all.
+
+Which tests fail changes between runs, and none of them fails on its own. The
+same two files that failed the first run passed 46 of 46 when they were the only
+thing running, and the whole web project passed 680 of 680 in 130 seconds a few
+minutes later. The difference is the load average, which was between 20 and 213
+on four cores while other work was building on the same machine, and under 10
+when the suite went green.
+
+So a timeout in `apps/web` is worth re-running before it is worth reading. The
+suite passes on this branch: `pnpm test` exits 0 with the machine quiet, and
+`pnpm --filter @creance/web test` is the quickest way to check the web project
+without waiting for the rest.

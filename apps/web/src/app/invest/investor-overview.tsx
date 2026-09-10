@@ -12,11 +12,15 @@ import {
   capacityLine,
   couponHistory,
   couponLine,
+  earnedToDate,
   holderFor,
   isoDay,
+  nextPayment,
   principalAtRisk,
   principalCaption,
   principalSegments,
+  recordDatesBroughtForward,
+  seriesName,
   termLine,
 } from '../../lib/investor-model';
 import { DEMO_WALLET_LABEL, type WalletAccount } from '../../lib/wallet';
@@ -30,8 +34,14 @@ import { SeriesChooser } from './series-chooser';
  * Every figure on it comes from the two investor endpoints, which read the
  * vault, the note and the CoverPool on Hedera testnet. Nothing here is a
  * constant: the principal, the reserve, the claims paid, the coupon rate, the
- * term, the maturity and the capacity are all reads, and a field the chain
- * cannot answer is a row that does not render rather than a placeholder.
+ * term, the maturity, the capacity, the coupons and the next payment are all
+ * reads, and a field the chain cannot answer is a row that does not render
+ * rather than a placeholder.
+ *
+ * The coupon history comes first, because what has been paid is what an
+ * investor came to see, and it opens with the position rather than with the
+ * transactions: what this account has earned to date, and when the next
+ * payment falls due. The series terms and the principal at risk follow.
  *
  * The component is pure and synchronous. The fetch is the route's, which keeps
  * this testable with renderToStaticMarkup like the rest of the app.
@@ -40,6 +50,14 @@ import { SeriesChooser } from './series-chooser';
 /** docs/DESIGN-TOKENS.md section 8, verbatim. */
 const EXPLAINER =
   'You earn coupons from premiums. If the index for this occupation is triggered, part of your principal pays out to policyholders. Anything left is returned at maturity.';
+
+/**
+ * Said out loud wherever the compressed cadence is on screen, because the
+ * record dates on these coupons are not where a live series would put them.
+ * The payments themselves are real and every one of them resolves on HashScan.
+ */
+const BROUGHT_FORWARD =
+  'The record dates on these coupons were brought forward so several months could be paid inside the demonstration. Every payment below settled on Hedera testnet.';
 
 export interface InvestorOverviewProps {
   series: SeriesView;
@@ -63,7 +81,10 @@ export function InvestorOverview({
   const coupon = couponLine(series);
   const term = termLine(series);
   const capacity = capacityLine(series);
+  const name = seriesName(series);
   const rows = couponHistory(coupons);
+  const earned = earnedToDate(coupons, investor.evmAddress);
+  const next = nextPayment(series);
   // The first series in the list is the route's own default, so it needs no
   // query string. Anything else does.
   const subscribeHref =
@@ -73,10 +94,15 @@ export function InvestorOverview({
 
   return (
     <DesktopFrame>
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-hairline pb-6">
-        <h1 className="text-title font-display font-semibold tracking-title tabular-nums text-ink">
-          {series.series_id}
-        </h1>
+      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-hairline pb-6">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-title font-display font-semibold tracking-title tabular-nums text-ink">
+            {series.series_id}
+          </h1>
+          {/* An identifier is not a name. What the series covers comes from the
+              group the API serves, through src/lib/occupations.ts. */}
+          {name === null ? null : <p className="text-body text-ink-2">{name}</p>}
+        </div>
         {/* The note's own internal KYC register decides whether a transfer
             settles, so this pill is that read and not a status of ours. */}
         <StatusPill state={holder?.kyc.granted ? 'covered' : 'watch'}>
@@ -86,7 +112,97 @@ export function InvestorOverview({
 
       <SeriesChooser base="/invest" choices={choices} current={series.series_id} />
 
-      <div className="mt-10 grid gap-10 lg:grid-cols-2">
+      <section className="mt-10">
+        <h2 className="mb-4 text-body-lg font-medium text-ink">Coupon history</h2>
+
+        {earned === null && next === null ? null : (
+          <SurfaceGroup className="mb-6 max-w-[520px]">
+            {earned === null ? null : (
+              <ListRow
+                caption={`${earned.coupons} coupon${earned.coupons === 1 ? '' : 's'} paid to ${investor.accountId}`}
+                label="Earned to date"
+                value={<span className="tabular-nums">{earned.amount}</span>}
+              />
+            )}
+            {next === null ? null : (
+              <ListRow
+                caption={`Coupon ${next.couponId}, accruing ${next.period}`}
+                label="Next payment"
+                value={<span className="tabular-nums">{next.day}</span>}
+              />
+            )}
+          </SurfaceGroup>
+        )}
+
+        {rows.length === 0 ? (
+          <div className="flex flex-col gap-1">
+            <p className="text-body text-ink">No coupons yet.</p>
+            <p className="text-secondary text-ink-2">
+              Coupons are paid monthly from the premium account.
+            </p>
+          </div>
+        ) : (
+          <>
+            {recordDatesBroughtForward(coupons) ? (
+              <p className="mb-4 max-w-[720px] text-secondary text-ink-2">{BROUGHT_FORWARD}</p>
+            ) : null}
+            {/* Five columns do not fit 390 wide. The table keeps its shape and
+                the region scrolls, and it is focusable so a keyboard reaches
+                the scroll as well as the links inside it. */}
+            <div
+              aria-label="Coupon history"
+              className="overflow-x-auto"
+              role="region"
+              tabIndex={0}
+            >
+              <div className="min-w-[44rem]">
+                <DataTable
+                  caption={`Coupons paid on ${series.series_id}`}
+                  columns={[
+                    { key: 'period', label: 'Period' },
+                    { key: 'holder', label: 'Noteholder' },
+                    { key: 'state', label: 'State' },
+                    { key: 'amount', label: 'Amount', numeric: true },
+                    { key: 'receipt', label: 'Receipt' },
+                  ]}
+                  rows={rows.map(
+                    (row): TableRowData => ({
+                      key: row.key,
+                      cells: [
+                        row.period,
+                        <span className="tabular-nums" key="holder">
+                          {row.accountId}
+                        </span>,
+                        <span className="flex flex-col items-start gap-1" key="state">
+                          <StatusPill state={row.settled ? 'covered' : 'none'}>
+                            {row.settled ? 'Settled' : 'Not settled'}
+                          </StatusPill>
+                          {row.settled ? (
+                            <span className="text-caption tabular-nums text-ink-2">{row.day}</span>
+                          ) : null}
+                        </span>,
+                        row.amount,
+                        row.transaction === null ? null : (
+                          <TextLink
+                            href={row.transaction}
+                            key="receipt"
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            HashScan
+                          </TextLink>
+                        ),
+                      ],
+                    }),
+                  )}
+                />
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+
+      <div className="mt-12 grid gap-10 lg:grid-cols-2">
         <section>
           <h2 className="sr-only">Series terms</h2>
           <SurfaceGroup>
@@ -129,49 +245,6 @@ export function InvestorOverview({
           </div>
         </section>
       </div>
-
-      <section className="mt-12">
-        <h2 className="mb-4 text-body-lg font-medium text-ink">Coupon history</h2>
-        {rows.length === 0 ? (
-          <div className="flex flex-col gap-1">
-            <p className="text-body text-ink">No coupons yet.</p>
-            <p className="text-secondary text-ink-2">
-              Coupons are paid monthly from the premium account.
-            </p>
-          </div>
-        ) : (
-          <DataTable
-            caption={`Coupons paid on ${series.series_id}`}
-            columns={[
-              { key: 'day', label: 'Date' },
-              { key: 'holder', label: 'Noteholder' },
-              { key: 'state', label: 'State' },
-              { key: 'amount', label: 'Amount', numeric: true },
-              { key: 'receipt', label: 'Receipt' },
-            ]}
-            rows={rows.map(
-              (row): TableRowData => ({
-                key: row.key,
-                cells: [
-                  row.day,
-                  <span className="tabular-nums" key="holder">
-                    {row.accountId}
-                  </span>,
-                  <StatusPill key="state" state={row.settled ? 'covered' : 'none'}>
-                    {row.settled ? 'Settled' : 'Not settled'}
-                  </StatusPill>,
-                  row.amount,
-                  row.transaction === null ? null : (
-                    <TextLink href={row.transaction} key="receipt" rel="noreferrer" target="_blank">
-                      HashScan
-                    </TextLink>
-                  ),
-                ],
-              }),
-            )}
-          />
-        )}
-      </section>
 
       <section className="mt-10 border-t border-hairline pt-6">
         <h2 className="text-secondary text-ink-2">On HashScan</h2>

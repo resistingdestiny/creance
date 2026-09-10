@@ -8,11 +8,16 @@ import {
   capacityLine,
   couponHistory,
   couponLine,
+  couponPeriod,
+  earnedToDate,
   firstSettledCoupon,
   holderFor,
+  nextPayment,
   principalAtRisk,
   principalCaption,
   principalSegments,
+  recordDatesBroughtForward,
+  seriesName,
   termLine,
 } from '../src/lib/investor-model.js';
 import { DEMO_ACCOUNTS, demoInvestorAccount, readDemoInvestor } from '../src/lib/wallet.js';
@@ -174,19 +179,50 @@ describe('the series rows', () => {
 describe('the coupon history', () => {
   it('is one row per coupon and holder, newest first', () => {
     const rows = couponHistory(COUPONS);
-    expect(rows).toHaveLength(2);
-    expect(rows[0]!.accountId).toBe('0.0.10366462');
-    expect(rows[1]!.accountId).toBe('0.0.10366460');
+    // Three settled periods and two noteholders.
+    expect(rows).toHaveLength(6);
+    expect(rows[0]!.couponId).toBe('3');
+    expect(rows.at(-1)!.couponId).toBe('1');
+  });
+
+  it('reads as an accruing series: three periods, month after month', () => {
+    const periods = [...new Set(couponHistory(COUPONS).map((row) => row.period))];
+    expect(periods).toEqual([
+      '4 November to 4 December 2026',
+      '4 October to 4 November 2026',
+      '4 September to 4 October 2026',
+    ]);
   });
 
   it('dates a row by when it settled and links the executed transaction', () => {
-    const row = couponHistory(COUPONS)[1]!;
+    const row = couponHistory(COUPONS).at(-1)!;
     expect(row.day).toBe('4 September 2026');
+    expect(row.period).toBe('4 September to 4 October 2026');
     expect(row.amount).toBe('328.77');
     expect(row.settled).toBe(true);
     expect(row.transaction).toBe(
       'https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738',
     );
+  });
+
+  it('writes the year once where a period does not cross one', () => {
+    expect(couponPeriod('2026-12-04T20:16:23Z', '2027-01-04T20:16:23Z')).toBe(
+      '4 December 2026 to 4 January 2027',
+    );
+    expect(couponPeriod('2026-10-04T20:16:23Z', '2026-11-04T20:16:23Z')).toBe(
+      '4 October to 4 November 2026',
+    );
+  });
+
+  it('says the record dates were brought forward, because they were', () => {
+    expect(recordDatesBroughtForward(COUPONS)).toBe(true);
+    // A coupon snapshotted at the end of the month it paid for is the live
+    // cadence and says nothing.
+    const live: CouponsView = {
+      ...COUPONS,
+      coupons: [{ ...COUPONS.coupons[0]!, record_date: '2026-10-04T20:16:23Z' }],
+    };
+    expect(recordDatesBroughtForward(live)).toBe(false);
   });
 
   it('does not call an executed schedule a payment when the transfer did not settle', () => {
@@ -212,8 +248,76 @@ describe('the coupon history', () => {
   });
 
   it('finds the first coupon a holder was actually paid', () => {
-    expect(firstSettledCoupon(COUPONS, INVESTOR_1)?.amount).toBe('328.77');
+    const first = firstSettledCoupon(COUPONS, INVESTOR_1);
+    expect(first?.amount).toBe('328.77');
+    expect(first?.couponId).toBe('1');
     expect(firstSettledCoupon(COUPONS, '0x0000000000000000000000000000000000000000')).toBeNull();
+  });
+});
+
+describe('earned to date', () => {
+  it('adds up what this noteholder was actually paid, and nobody else', () => {
+    const earned = earnedToDate(COUPONS, INVESTOR_1);
+    // 328.767123 plus 339.726027 plus 328.767123.
+    expect(earned?.total).toBe(997_260_273n);
+    expect(earned?.amount).toBe('997.26');
+    expect(earned?.coupons).toBe(3);
+  });
+
+  it('counts only what settled, because an executed schedule is not a payment', () => {
+    const halfPaid: CouponsView = {
+      ...COUPONS,
+      coupons: COUPONS.coupons.slice(0, 1).map((coupon) => ({
+        ...coupon,
+        holders: coupon.holders.map((holder) => ({
+          ...holder,
+          settlement: { ...holder.settlement, settled: false, result: 'CONTRACT_REVERT_EXECUTED' },
+        })),
+      })),
+    };
+    expect(earnedToDate(halfPaid, INVESTOR_1)).toBeNull();
+  });
+
+  it('is nothing rather than nought on a series with no noteholders', () => {
+    // Fifteen of the sixteen series are like this. A row reading 0.00 would
+    // suggest a position that does not exist.
+    expect(earnedToDate({ ...COUPONS, coupons: [] }, INVESTOR_1)).toBeNull();
+  });
+});
+
+describe('the next payment', () => {
+  it('is the declared coupon on the note, by its execution date', () => {
+    const next = nextPayment(SERIES);
+    expect(next?.day).toBe('5 January 2027');
+    expect(next?.period).toBe('4 December 2026 to 4 January 2027');
+    expect(next?.couponId).toBe('4');
+  });
+
+  it('says nothing where the note has declared no further coupon', () => {
+    expect(
+      nextPayment({ ...SERIES, coupons: { ...SERIES.coupons, next: null } }),
+    ).toBeNull();
+  });
+});
+
+describe('what a series covers', () => {
+  it('names the occupation from the group, through the one mapping', () => {
+    expect(seriesName({ kind: 'occupation', group: 'computer_math' })).toBe(
+      'Computer and mathematical',
+    );
+    expect(seriesName({ kind: 'occupation', group: 'office_admin_support' })).toBe(
+      'Office and administrative support',
+    );
+  });
+
+  it('names the maturity demonstration for what it is, not for an occupation', () => {
+    expect(seriesName({ kind: 'maturity_demonstration', group: '' })).toBe(
+      'Maturity demonstration',
+    );
+  });
+
+  it('names nothing at all for a group this bundle does not know', () => {
+    expect(seriesName({ kind: 'occupation', group: 'astronaut' })).toBeNull();
   });
 });
 
@@ -243,6 +347,7 @@ const CHOICES = [
     series_id: 'ODI-COMP-2026-01',
     series_key: '0x4f44492d434f4d502d323032362d303100000000000000000000000000000000',
     group: 'computer_math',
+    kind: 'occupation',
     matures_at: '2027-09-04T00:00:00.000Z',
     has_note: true,
     links: { self: '/v1/series/ODI-COMP-2026-01', coupons: '/v1/series/ODI-COMP-2026-01/coupons' },
@@ -251,6 +356,7 @@ const CHOICES = [
     series_id: 'ODI-OFFC-2026-01',
     series_key: '0x4f44492d4f4646432d323032362d303100000000000000000000000000000000',
     group: 'office_admin_support',
+    kind: 'occupation',
     matures_at: '2027-09-10T00:00:00.000Z',
     has_note: true,
     links: { self: '/v1/series/ODI-OFFC-2026-01', coupons: '/v1/series/ODI-OFFC-2026-01/coupons' },
@@ -269,7 +375,20 @@ describe('the series a screen offers a choice from', () => {
     );
     expect(markup).toContain('href="/invest?series=ODI-OFFC-2026-01"');
     expect(markup).toContain('aria-current="page"');
-    expect(visibleText(markup)).toContain('ODI-OFFC-2026-01');
+  });
+
+  it('says what each series covers, not only its identifier', () => {
+    const markup = renderToStaticMarkup(
+      <InvestorOverview
+        choices={CHOICES}
+        coupons={COUPONS}
+        investor={DEMO_ACCOUNTS['investor-1']}
+        series={SERIES}
+      />,
+    );
+    expect(visibleText(markup)).toContain('Office and administrative support');
+    // The identifier is still reachable on the link itself.
+    expect(markup).toContain('title="ODI-OFFC-2026-01"');
   });
 
   it('sends the head of the list to the route with no query string', () => {
@@ -382,6 +501,51 @@ describe('the investor overview screen', () => {
     );
   });
 
+  it('answers what this account has earned, tabular, above the transactions', () => {
+    expect(text).toContain('Earned to date 3 coupons paid to 0.0.10366460 997.26');
+    // The heading comes before the total, and the total before the table.
+    expect(text.indexOf('Coupon history')).toBeLessThan(text.indexOf('Earned to date'));
+    expect(text.indexOf('Earned to date')).toBeLessThan(text.indexOf('Period'));
+  });
+
+  it('says when the next payment falls due, from the declared coupon', () => {
+    expect(text).toContain(
+      'Next payment Coupon 4, accruing 4 December 2026 to 4 January 2027 5 January 2027',
+    );
+  });
+
+  it('shows every period that was paid, with a receipt on each row', () => {
+    for (const period of [
+      '4 September to 4 October 2026',
+      '4 October to 4 November 2026',
+      '4 November to 4 December 2026',
+    ]) {
+      expect(text).toContain(period);
+    }
+    // One receipt per settled row, and every one of them a transaction.
+    expect(markup.match(/hashscan\.io\/testnet\/transaction/g)).toHaveLength(6);
+    expect(markup).toContain(
+      'https://hashscan.io/testnet/transaction/0.0.10366450-1789080523-877923930',
+    );
+  });
+
+  it('says on screen that the record dates were brought forward', () => {
+    expect(text).toContain('The record dates on these coupons were brought forward');
+    expect(text).toContain('Every payment below settled on Hedera testnet.');
+  });
+
+  it('puts the history in a labelled region a keyboard can scroll at 390', () => {
+    expect(markup).toContain('role="region"');
+    expect(markup).toContain('aria-label="Coupon history"');
+    expect(markup).toContain('tabindex="0"');
+    expect(markup).toContain('overflow-x-auto');
+  });
+
+  it('names the occupation beside the series identifier', () => {
+    expect(text).toContain('ODI-COMP-2026-01');
+    expect(text).toContain('Computer and mathematical');
+  });
+
   it('says so plainly when a series has no coupons yet', () => {
     const empty = visibleText(
       renderToStaticMarkup(
@@ -393,6 +557,8 @@ describe('the investor overview screen', () => {
       ),
     );
     expect(empty).toContain('No coupons yet.');
+    // Nothing earned is nothing, not 0.00.
+    expect(empty).not.toContain('Earned to date');
   });
 
   it('is a 1280 frame with the sheet 40px side margins, not the 390 worker frame', () => {

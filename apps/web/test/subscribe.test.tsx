@@ -50,6 +50,12 @@ describe('the subscribe screen', () => {
     expect(visible()).toContain('under the subscription role');
   });
 
+  it('names what the series covers, not only its identifier', () => {
+    render(<SubscribeScreen coupons={COUPONS} investor={investor} series={SERIES} />);
+    expect(visible()).toContain('ODI-COMP-2026-01');
+    expect(visible()).toContain('Computer and mathematical');
+  });
+
   it('shows the demo wallet label wherever the wallet shows', () => {
     render(<SubscribeScreen coupons={COUPONS} investor={investor} series={SERIES} />);
     expect(visible()).toContain('Demo wallet. Testnet only.');

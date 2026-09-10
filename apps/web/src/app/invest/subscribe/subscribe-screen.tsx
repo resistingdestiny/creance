@@ -13,7 +13,13 @@ import { TextLink } from '../../../components/text-link';
 import { formatAmount, formatDayWithYear, formatWholeMoney, shortenAddress } from '../../../lib/format';
 import type { CouponsView, SeriesListEntry, SeriesView } from '../../../lib/investor-api';
 import { SeriesChooser } from '../series-chooser';
-import { couponLine, firstSettledCoupon, holderFor, isoDay } from '../../../lib/investor-model';
+import {
+  couponLine,
+  firstSettledCoupon,
+  holderFor,
+  isoDay,
+  seriesName,
+} from '../../../lib/investor-model';
 import { WalletLine } from '../investor-overview';
 import { DEMO_WALLET_LABEL, type WalletAccount } from '../../../lib/wallet';
 
@@ -88,12 +94,16 @@ export function SubscribeScreen({
   const coupon = couponLine(series);
   const matures = formatDayWithYear(isoDay(series.vault.matures_at));
   const label = `Subscribe ${formatAmount(amount)}`;
+  const name = seriesName(series);
 
   return (
     <DesktopFrame>
       <header className="border-b border-hairline pb-6">
         <h1 className="text-title font-display font-semibold tracking-title text-ink">Subscribe</h1>
         <p className="mt-1 text-body text-ink-2 tabular-nums">{series.series_id}</p>
+        {/* What the series covers. An identifier on its own does not say
+            whose occupation this note funds. src/lib/investor-model.ts. */}
+        {name === null ? null : <p className="text-secondary text-ink-2">{name}</p>}
         <SeriesChooser base="/invest/subscribe" choices={choices} current={series.series_id} />
       </header>
 

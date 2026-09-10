@@ -11,12 +11,14 @@
  */
 
 import {
+  formatDay,
   formatDayWithYear,
   formatMoney,
   formatPercent,
   formatWholeMoney,
 } from './format';
-import type { CouponsView, HolderView, SeriesView } from './investor-api';
+import type { CouponsView, HolderView, SeriesListEntry, SeriesView } from './investor-api';
+import { findOccupation } from './occupations';
 
 /** RFC 3339 in UTC to the date-only string the formatters take. */
 export function isoDay(timestamp: string): string {
@@ -152,12 +154,48 @@ export function capacityLine(series: SeriesView): string | null {
   return formatPercent(pool.capacity_used_percent);
 }
 
+/**
+ * What a series covers, for a screen that offers a choice between sixteen of
+ * them.
+ *
+ * An identifier is not a name. The occupation labels are the fifteen rows of
+ * docs/DESIGN-TOKENS-ADDENDUM.md and they live in src/lib/occupations.ts, which
+ * is the one home for the mapping from the API's snake case group keys to the
+ * words on screen.
+ *
+ * The maturity demonstration covers no occupation, so it is named for what it
+ * is. A series whose group this bundle does not know is not named at all,
+ * because a wrong occupation is worse than an identifier.
+ */
+export function seriesName(series: {
+  readonly kind: SeriesListEntry['kind'];
+  readonly group: string;
+}): string | null {
+  if (series.kind === 'maturity_demonstration') return 'Maturity demonstration';
+  return findOccupation(series.group)?.label ?? null;
+}
+
+/**
+ * An accrual window, as one phrase: "4 October to 4 November 2026".
+ *
+ * The year is written once where both ends share it, which is every period of
+ * a twelve month note but the last.
+ */
+export function couponPeriod(startTimestamp: string, endTimestamp: string): string {
+  const start = isoDay(startTimestamp);
+  const end = isoDay(endTimestamp);
+  const sameYear = start.slice(0, 4) === end.slice(0, 4);
+  return `${sameYear ? formatDay(start) : formatDayWithYear(start)} to ${formatDayWithYear(end)}`;
+}
+
 export interface CouponHistoryRow {
   readonly key: string;
   readonly couponId: string;
   readonly address: string;
   /** "4 September 2026". The settlement date, or the declared execution date. */
   readonly day: string;
+  /** "4 October to 4 November 2026". The window the coupon accrued over. */
+  readonly period: string;
   readonly accountId: string;
   readonly role: string;
   readonly settled: boolean;
@@ -180,6 +218,7 @@ export function couponHistory(coupons: CouponsView): CouponHistoryRow[] {
       couponId: coupon.coupon_id,
       address: holder.address,
       day: formatDayWithYear(isoDay(holder.settlement.paid_at ?? coupon.execution_date)),
+      period: couponPeriod(coupon.accrual_start, coupon.accrual_end),
       accountId: holder.account_id,
       role: holder.role,
       settled: holder.settlement.settled,
@@ -188,6 +227,84 @@ export function couponHistory(coupons: CouponsView): CouponHistoryRow[] {
     })),
   );
   return rows.reverse();
+}
+
+export interface EarnedToDate {
+  /** The settled total, in the settlement asset's minor units. */
+  readonly total: bigint;
+  /** "986.30", the same two decimals as every other coupon figure. */
+  readonly amount: string;
+  /** How many coupons that total is made of. */
+  readonly coupons: number;
+}
+
+/**
+ * What one noteholder has actually been paid on this series, and out of how
+ * many coupons.
+ *
+ * Settled rows only. A coupon whose schedule executed with a reverted transfer
+ * left the premium account untouched and the holder unpaid, so counting it here
+ * would be counting money that never moved.
+ *
+ * Null where nothing has settled for this holder, which is not the same as
+ * nought: fifteen of the sixteen series have no noteholders and no coupons, and
+ * a row reading 0.00 on them would suggest a position that does not exist.
+ */
+export function earnedToDate(coupons: CouponsView, address: string): EarnedToDate | null {
+  const wanted = address.toLowerCase();
+  const settled = coupons.coupons.flatMap((coupon) =>
+    coupon.holders.filter(
+      (holder) => holder.settlement.settled && holder.address.toLowerCase() === wanted,
+    ),
+  );
+  if (settled.length === 0) return null;
+  const total = settled.reduce((sum, holder) => sum + BigInt(holder.amount.amount), 0n);
+  return {
+    total,
+    amount: formatMoney(total, settled[0]!.amount.decimals),
+    coupons: settled.length,
+  };
+}
+
+export interface NextPayment {
+  /** "5 January 2027", the day the coupon becomes payable. */
+  readonly day: string;
+  /** "4 December to 4 January 2027", the window it accrues over. */
+  readonly period: string;
+  readonly couponId: string;
+}
+
+/**
+ * The next coupon the note owes, from the schedule the API read off the note.
+ *
+ * The date is the execution date, which is the day the coupon becomes payable,
+ * and not the record date, which only decides who is paid. Null where the note
+ * owes nothing more or where its schedule could not be read; nothing here is
+ * worked out from the maturity and the rate, because a guessed date on this
+ * screen would be indistinguishable from a declared one.
+ */
+export function nextPayment(series: SeriesView): NextPayment | null {
+  const next = series.coupons.next;
+  if (next === null) return null;
+  return {
+    day: formatDayWithYear(isoDay(next.execution_date)),
+    period: couponPeriod(next.accrual_start, next.accrual_end),
+    couponId: next.coupon_id,
+  };
+}
+
+/**
+ * Whether any coupon on the series was snapshotted before its accrual window
+ * closed.
+ *
+ * A live series takes the record date at the end of the month it is paying for.
+ * These were brought forward so several periods could settle inside the event,
+ * which is allowed and has to be said out loud (docs/DECISIONS.md, T06). It is
+ * derived from the dates the endpoint carries rather than from a flag, so the
+ * screen cannot claim a real cadence it does not have.
+ */
+export function recordDatesBroughtForward(coupons: CouponsView): boolean {
+  return coupons.coupons.some((coupon) => coupon.record_date < coupon.accrual_end);
 }
 
 /** The holder a screen is speaking to, by EVM address, case insensitive. */

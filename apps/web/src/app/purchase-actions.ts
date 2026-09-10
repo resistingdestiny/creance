@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 
 import { ApiError, reportUnreachable } from '../lib/api';
+import { closeCoverSession, openCoverSession } from '../lib/current-cover';
 import { issueEligibilityFor, type EligibilityRequest } from '../lib/eligibility';
 import { AMOUNT_DEFAULT } from '../lib/cover-amount';
 import { findOccupation, hasCover, occupationLabel } from '../lib/occupations';
@@ -26,8 +27,10 @@ import {
 } from '../lib/worker-model';
 import {
   bindPolicy,
+  openCoverWithKey,
   requestQuote,
   requestWorldContext,
+  signInWithWorldCheck,
   toMinorUnits,
   waitForSerial,
   type WorldRequestContextView,
@@ -308,6 +311,7 @@ export async function payAndBind(): Promise<PayResult> {
     const policy = await bindPolicy(session.quoteId, session.credential);
     const settled = await waitForSerial(policy);
     await updatePurchase({ policyId: settled.policy_id, credential: null, quoteId: null });
+    await openCoverSession(settled.policy_id, policy.cover_key);
     return { ok: true, error: null };
   } catch (cause) {
     if (cause instanceof ApiError && cause.code === 'quote_expired') {
@@ -340,6 +344,7 @@ async function repriceAndBind(session: PurchaseSession): Promise<PayResult> {
     const policy = await bindPolicy(fresh.quote_id, session.credential);
     const settled = await waitForSerial(policy);
     await updatePurchase({ policyId: settled.policy_id, credential: null, quoteId: null });
+    await openCoverSession(settled.policy_id, policy.cover_key);
     return { ok: true, error: null };
   } catch (cause) {
     return { ok: false, error: bindMessage(cause) };
@@ -348,6 +353,74 @@ async function repriceAndBind(session: PurchaseSession): Promise<PayResult> {
 
 /** Home: start again after the cover has been bought. */
 export async function startAgain(): Promise<void> {
+  await closeCoverSession();
   await startPurchase();
   redirect('/occupation');
 }
+
+/**
+ * Getting back in with a cover key.
+ *
+ * The key crosses from the form to here and no further: it goes to the API in
+ * a body, the API answers with the cover it opens, and what the browser is left
+ * holding is the session cookie. A wrong key gets one sentence and the field
+ * back, because there is nothing else true to say about it.
+ */
+export async function openWithCoverKey(formData: FormData): Promise<SignInResult> {
+  const key = String(formData.get('cover_key') ?? '').trim();
+  if (key === '') return { found: false, error: COVER_KEY_REFUSED };
+  try {
+    const { cover } = await openCoverWithKey(key);
+    await openCoverSession(cover.policy_id, key);
+  } catch (cause) {
+    if (cause instanceof ApiError && cause.code === 'cover_key_unknown') {
+      return { found: false, error: COVER_KEY_REFUSED };
+    }
+    reportUnreachable('the cover key', cause);
+    return { found: false, error: "We couldn't check that key. Try again in a moment." };
+  }
+  redirect('/home');
+}
+
+/**
+ * Getting back in with World ID.
+ *
+ * The same signed context the purchase check asks for, requested without a
+ * purchase in progress, and the same completed result forwarded whole. No
+ * credential comes back: this earns a way into a dashboard, not a way to buy.
+ */
+export async function startSignInCheck(): Promise<WorldRequestContextView | null> {
+  try {
+    return await requestWorldContext(DEMO_ACCOUNT.accountId);
+  } catch {
+    return null;
+  }
+}
+
+/** What a sign in attempt found. `found` false with no error is "no cover yet". */
+export interface SignInResult {
+  readonly found: boolean;
+  readonly error: string | null;
+}
+
+export async function signInWithWorld(result: unknown): Promise<SignInResult> {
+  try {
+    const answer = await signInWithWorldCheck({
+      wallet: DEMO_ACCOUNT.accountId,
+      result,
+    });
+    if (answer.cover === null) return { found: false, error: null };
+    await openCoverSession(answer.cover.policy_id);
+    return { found: true, error: null };
+  } catch {
+    return { found: false, error: "We couldn't verify you." };
+  }
+}
+
+/** Home: leave this cover on this browser. */
+export async function signOutOfCover(): Promise<void> {
+  await closeCoverSession();
+  redirect('/');
+}
+
+const COVER_KEY_REFUSED = "That key doesn't open a cover. Check it and try again.";

@@ -33,10 +33,21 @@ export function roleKeyHex(role: string): string {
   return `0x${deriveRoleKeyHex(operatorKey(), labelForRole(role))}`;
 }
 
+export interface Party {
+  role: string;
+  accountId: string;
+  address: string;
+  wallet: Wallet;
+}
+
 export interface Session {
   provider: JsonRpcProvider;
   operator: Wallet;
-  investors: { role: string; accountId: string; address: string; wallet: Wallet }[];
+  /// The api account. It is the only account holding SUBSCRIPTION_ROLE and
+  /// TREASURY_ROLE on the vault, so a subscribe call is signed by this key and
+  /// not by the operator's.
+  api: Party;
+  investors: Party[];
   /// A funded account that holds no KYC on the note, used for the transfer that
   /// has to fail.
   outsider: { role: string; accountId: string; address: string };
@@ -61,6 +72,12 @@ export function openSession(): Session {
     }
     return { role, accountId: account.accountId, address: account.evmAddress, wallet };
   });
+  const apiAccount = resources.accounts['api'];
+  if (apiAccount === undefined) throw new Error('api is missing from docs/hedera.testnet.json');
+  const apiWallet = new Wallet(roleKeyHex('api'), provider);
+  if (apiWallet.address.toLowerCase() !== apiAccount.evmAddress.toLowerCase()) {
+    throw new Error('the derived key for api does not match its recorded EVM address');
+  }
   const outsiderAccount = resources.accounts['policyholder-3'];
   if (outsiderAccount === undefined) {
     throw new Error('policyholder-3 is missing from docs/hedera.testnet.json');
@@ -68,6 +85,12 @@ export function openSession(): Session {
   return {
     provider,
     operator,
+    api: {
+      role: 'api',
+      accountId: apiAccount.accountId,
+      address: apiAccount.evmAddress,
+      wallet: apiWallet,
+    },
     investors,
     outsider: {
       role: 'policyholder-3',

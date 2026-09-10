@@ -251,6 +251,13 @@ export interface VerifyResult {
   readonly ok: boolean;
   readonly error: string | null;
   /**
+   * The check was of a kind this deployment does not accept, so the screen says
+   * which check to run instead. Told apart from a check that simply failed
+   * because the same device answers with the same kind every time, and the
+   * generic line offers a retry that cannot work. T42.
+   */
+  readonly wrongCheck: boolean;
+  /**
    * One person, one cover: this person already holds cover in this series. Not
    * a failure of the check, so the screen says the rule rather than offering a
    * retry that would be refused the same way. DESIGN.md 3.6.
@@ -259,7 +266,7 @@ export interface VerifyResult {
 }
 
 /** The states the Verify screen can be in. docs/DESIGN-TOKENS.md section 8. */
-export type VerifyState = 'idle' | 'waiting' | 'verified' | 'failed' | 'covered';
+export type VerifyState = 'idle' | 'waiting' | 'verified' | 'failed' | 'wrong-check' | 'covered';
 
 export interface VerifyCopy {
   readonly heading: string;
@@ -279,6 +286,11 @@ export interface VerifyCopy {
  * The deck was written for a browser and a second device to scan from. Inside
  * World App there is no second device, so the failure line drops the half of
  * itself that offers one. Recorded in docs/DECISIONS.md under T27.
+ *
+ * `wrong-check` is the second failure the deck gained in T42, for a check of a
+ * kind this deployment does not accept. Its button opens the widget rather than
+ * saying "Try again", because what it asks for is a different check and not the
+ * same one twice, and inside World App its line drops the app it is already in.
  */
 export function verifyCopy(state: VerifyState, surface: Surface = 'browser'): VerifyCopy {
   const rule = 'One person, one cover. This stops bots and duplicate accounts.';
@@ -287,6 +299,16 @@ export function verifyCopy(state: VerifyState, surface: Surface = 'browser'): Ve
       heading: "We couldn't verify you.",
       line: surface === 'world-app' ? 'Try again.' : 'Try again, or use a different device.',
       button: 'Try again',
+    };
+  }
+  if (state === 'wrong-check') {
+    return {
+      heading: "That check isn't the one we asked for.",
+      line:
+        surface === 'world-app'
+          ? 'Run the face check to continue.'
+          : 'Open the World app and run the face check.',
+      button: 'Verify with World ID',
     };
   }
   if (state === 'covered') {

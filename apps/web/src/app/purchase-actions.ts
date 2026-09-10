@@ -192,13 +192,26 @@ async function earnCredential(request: EligibilityRequest): Promise<VerifyResult
       credential: issued.credential,
       credentialExpiresAt: issued.expiresAt,
     });
-    return { ok: true, error: null, alreadyCovered: false };
+    return { ok: true, error: null, alreadyCovered: false, wrongCheck: false };
   } catch (cause) {
     if (cause instanceof ApiError && cause.code === 'already_covered') {
       return {
         ok: false,
         error: 'One person, one cover. This stops bots and duplicate accounts.',
         alreadyCovered: true,
+        wrongCheck: false,
+      };
+    }
+    // The one refusal the generic failure answers wrongly: it offers a retry on
+    // a device that will answer with the same kind of check again. The words a
+    // person reads come from `verifyCopy`; this string is what the widget is
+    // told, which is why the code and not the sentence is what travels. T42.
+    if (cause instanceof ApiError && cause.code === 'world_credential_unaccepted') {
+      return {
+        ok: false,
+        error: "That check isn't the one we asked for.",
+        alreadyCovered: false,
+        wrongCheck: true,
       };
     }
     if (cause instanceof ApiError && cause.code === 'no_capacity_for_group') {
@@ -206,9 +219,15 @@ async function earnCredential(request: EligibilityRequest): Promise<VerifyResult
         ok: false,
         error: 'There is no cover behind this occupation yet.',
         alreadyCovered: false,
+        wrongCheck: false,
       };
     }
-    return { ok: false, error: "We couldn't verify you.", alreadyCovered: false };
+    return {
+      ok: false,
+      error: "We couldn't verify you.",
+      alreadyCovered: false,
+      wrongCheck: false,
+    };
   }
 }
 

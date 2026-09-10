@@ -205,8 +205,14 @@ beforeEach(() => {
     ok: true,
     error: null,
     alreadyCovered: false,
+    wrongCheck: false,
   });
-  vi.mocked(verifyPerson).mockResolvedValue({ ok: true, error: null, alreadyCovered: false });
+  vi.mocked(verifyPerson).mockResolvedValue({
+    ok: true,
+    error: null,
+    alreadyCovered: false,
+    wrongCheck: false,
+  });
   vi.mocked(openPayment).mockResolvedValue(CONFIRMATION);
   vi.mocked(payAndBind).mockResolvedValue({ ok: true, error: null });
 });
@@ -331,6 +337,7 @@ describe('the check step is the verify screen, on the card', () => {
       ok: false,
       error: 'One person, one cover. This stops bots and duplicate accounts.',
       alreadyCovered: true,
+      wrongCheck: false,
     });
     page();
     await toCheck();

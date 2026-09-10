@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -39,8 +39,12 @@ vi.mock('../src/app/purchase-actions.js', () => ({
  * The screen's contract with it is four callbacks, so it is stubbed here and
  * the SDK is exercised on the Sandbox App instead.
  */
+const widgetProps: Record<string, unknown>[] = [];
 vi.mock('../src/app/verify/world-check.js', () => ({
-  WorldCheck: () => null,
+  WorldCheck: (props: Record<string, unknown>) => {
+    widgetProps.push(props);
+    return null;
+  },
 }));
 
 const { AmountScreen } = await import('../src/app/amount/amount-screen.js');
@@ -49,7 +53,7 @@ const { HomeScreen } = await import('../src/app/home/home-screen.js');
 const { OccupationPicker } = await import('../src/app/occupation/occupation-picker.js');
 const { PayScreen } = await import('../src/app/pay/pay-screen.js');
 const { VerifyScreen } = await import('../src/app/verify/verify-screen.js');
-const { startWorldCheck } = await import('../src/app/purchase-actions.js');
+const { completeWorldCheck, startWorldCheck } = await import('../src/app/purchase-actions.js');
 const { OCCUPATIONS } = await import('../src/lib/occupations.js');
 const { homeStatus } = await import('../src/lib/claim-model.js');
 const {
@@ -66,7 +70,10 @@ const { attributionPanel, attributionSnapshot } = await import(
 );
 const { INDEX } = await import('./worker-fixtures.js');
 
-afterEach(cleanup);
+afterEach(() => {
+  widgetProps.length = 0;
+  cleanup();
+});
 
 describe('the occupation picker', () => {
   it('puts all fifteen under the open heading, with no empty second heading', () => {
@@ -232,6 +239,43 @@ describe('the verify screen', () => {
     );
     expect(screen.getByText('Try again, or use a different device.')).toBeTruthy();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy());
+  });
+
+  /**
+   * The second failure, and the one the deck gained in T42. "Try again, or use
+   * a different device" is the wrong answer here: the device that answered will
+   * answer with the same kind of check next time, so the screen names the check
+   * to run instead and its button opens the widget rather than repeating.
+   */
+  it('names the check to run when the one that came back is of another kind', async () => {
+    vi.mocked(startWorldCheck).mockResolvedValue(CONTEXT);
+    vi.mocked(completeWorldCheck).mockResolvedValue({
+      ok: false,
+      error: "That check isn't the one we asked for.",
+      alreadyCovered: false,
+      wrongCheck: true,
+    });
+    render(<VerifyScreen alreadyVerified={false} interim={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Verify with World ID' }));
+    await waitFor(() => expect(widgetProps.length).toBeGreaterThan(0));
+
+    const handleVerify = widgetProps.at(-1)?.['handleVerify'] as (
+      result: unknown,
+    ) => Promise<void>;
+    // It throws so that the widget never calls onSuccess, which is the contract
+    // the hook keeps with the SDK. The state it left behind is what matters.
+    await act(async () => {
+      await handleVerify({ proof: '0x01' }).catch(() => undefined);
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+        "That check isn't the one we asked for.",
+      ),
+    );
+    expect(screen.getByText('Open the World app and run the face check.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Verify with World ID' })).toBeTruthy();
+    expect(screen.queryByText('Try again, or use a different device.')).toBeNull();
   });
 });
 

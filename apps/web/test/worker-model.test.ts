@@ -231,6 +231,33 @@ describe("the Verify screen's copy", () => {
     expect(verifyCopy('failed', 'browser').line).toBe('Try again, or use a different device.');
   });
 
+  /**
+   * The refusal that needed different words: a check of a kind this deployment
+   * does not accept. The default line sends a person to try again on a device
+   * that returns the same kind every time, so this one names the check to run
+   * and its button opens the widget instead of repeating. T42.
+   */
+  it('names the check to run when the one that came back is of another kind', () => {
+    expect(verifyCopy('wrong-check')).toEqual({
+      heading: "That check isn't the one we asked for.",
+      line: 'Open the World app and run the face check.',
+      button: 'Verify with World ID',
+    });
+  });
+
+  it('has no World app to open inside World App', () => {
+    expect(verifyCopy('wrong-check', 'world-app').line).toBe('Run the face check to continue.');
+    expect(verifyCopy('wrong-check', 'world-app').heading).toBe(
+      "That check isn't the one we asked for.",
+    );
+  });
+
+  it('leaves the other failure exactly as the deck has it', () => {
+    expect(verifyCopy('failed').heading).toBe("We couldn't verify you.");
+    expect(verifyCopy('failed').line).toBe('Try again, or use a different device.');
+    expect(verifyCopy('failed').button).toBe('Try again');
+  });
+
   it('waits for the World app in a browser and confirms with World ID inside it', () => {
     expect(waitingLine('browser')).toBe('Waiting for the World app');
     expect(waitingLine('world-app')).toBe('Confirming with World ID');

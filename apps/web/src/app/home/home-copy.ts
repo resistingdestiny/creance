@@ -60,3 +60,51 @@ export const BACK_IN_KEY_ACTION = 'Open my cover';
 export const NO_COVER_HEADING = 'No cover yet.';
 export const NO_COVER_LINE = "That World ID hasn't bought cover. Getting one takes about two minutes.";
 export const NO_COVER_ACTION = 'Get a quote';
+
+/**
+ * The demonstration, for somebody who has bought nothing.
+ *
+ * Written for a reader with minutes and no reason to trust the screen, so every
+ * line says where the thing in front of them came from. The two halves are kept
+ * apart in words as well as in layout: the covers are real and their figures
+ * resolve on HashScan, and the states are fixtures and say so twice, here and
+ * again on the screen they open.
+ */
+export const DEMO_HEADING = 'See a cover without buying one';
+export const DEMO_LINE =
+  'These covers are real. They run on Hedera testnet, and their keys are published so that anyone can open one and look.';
+export const DEMO_KEY_LABEL = 'Cover key';
+export const DEMO_REFUSED =
+  "That key didn't open a cover. The key published here and this deployment have come apart, which is ours to fix.";
+export const DEMO_OPEN = 'Open this cover';
+
+/** One title and one line per published slot, so no slot is a bare name. */
+export const DEMO_COVER_COPY = {
+  covered: {
+    title: 'A cover that is running',
+    line: 'The ordinary state. The next payment, the reading behind it, and everything that has happened on it.',
+  },
+  paid: {
+    title: 'A cover that paid out',
+    line: 'The index opened claims, a claim was decided, and the money moved. The payment is on the public record.',
+  },
+} as const;
+
+export const DEMO_STATES_HEADING = 'States we cannot show live';
+export const DEMO_STATES_LINE =
+  'A cover only lapses when a payment is missed, and only pays out when a claim is decided. These are drawn from fixtures, and each one says so on its face.';
+export const DEMO_STATES_HELD =
+  'You have a cover open, so these show yours instead. Sign out of it first.';
+
+/** The states by the names the pills use, not by the names in the address. */
+export const DEMO_STATE_LABELS: Record<string, string> = {
+  covered: 'Covered',
+  'claims-open': 'Claims open',
+  'claim-in-progress': 'Claim in progress',
+  paid: 'Paid out',
+  lapsed: 'Payment due',
+  replay: 'Replay',
+};
+
+/** The one line the front door and the way back in offer this page under. */
+export const DEMO_ENTRY = 'See a live cover';

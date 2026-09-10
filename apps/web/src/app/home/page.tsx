@@ -18,7 +18,7 @@ import { currentPolicyId, readCoverSession } from '../../lib/current-cover';
 import { isInterimIssuer } from '../../lib/eligibility';
 import { formatDay, formatWholeMoney } from '../../lib/format';
 import { occupationLabel } from '../../lib/occupations';
-import { demoHomeView, demoStatesEnabled } from '../../lib/demo-states';
+import { demoHomeView, demoStatesEnabled, demonstrationOn } from '../../lib/demo-states';
 import { fetchIndex, fetchPolicy, type IndexView, type PolicyView } from '../../lib/worker-api';
 import {
   bandLabelFor,
@@ -49,7 +49,9 @@ import { WorkerUnavailable } from '../unavailable';
  *
  * A request with no session at all gets the way back in rather than a redirect
  * to the front door: somebody who bought cover last week and came back has
- * business here, and the front door has no idea who they are.
+ * business here, and the front door has no idea who they are. That screen is
+ * also where a reader with no cover at all is offered the demonstration, which
+ * is the only place this route mentions it.
  *
  * Nothing here polls. The bind is settled by the time it responds, and the
  * claim screen does its own polling.
@@ -65,16 +67,25 @@ export default async function HomePage({
   searchParams: Promise<{ bound?: string; demo?: string }>;
 }) {
   const { bound, demo } = await searchParams;
+  const policyId = await currentPolicyId();
 
   // The labelled demo control, off unless this deployment turns it on. It
   // renders a state from fixtures and never touches the API.
-  if (demo !== undefined && demoStatesEnabled()) {
+  //
+  // Only for a browser that holds no cover of its own. A person who bought
+  // cover has one true answer to whether they are covered, and a query in the
+  // address they were sent, or typed, or kept in a bookmark must not be able to
+  // replace it with a fixture. So the cover is read first and the control is
+  // refused when there is one, which also means the demonstration cannot show a
+  // state over the top of a cover somebody just opened with a published key.
+  if (demo !== undefined && policyId === null && demoStatesEnabled()) {
     const view = demoHomeView(demo);
     if (view !== null) return <HomeScreen bound={false} demo view={view} />;
   }
 
-  const policyId = await currentPolicyId();
-  if (policyId === null) return <SignInScreen world={!isInterimIssuer()} />;
+  if (policyId === null) {
+    return <SignInScreen demo={demonstrationOn()} world={!isInterimIssuer()} />;
+  }
   // The key is shown back only from inside a session that already holds this
   // cover, so it is read from the cover session and only when that session is
   // about this cover rather than another one.

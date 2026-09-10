@@ -7,6 +7,7 @@ import { useRef, useState, useTransition } from 'react';
 import { AppFrame } from '../../components/app-frame';
 import { FormField } from '../../components/form-field';
 import { PillButton, PillLink } from '../../components/pill-button';
+import { TextLink } from '../../components/text-link';
 import { useWorldCheck } from '../verify/use-world-check';
 import { openWithCoverKey, signInWithWorld, startSignInCheck } from '../purchase-actions';
 import {
@@ -16,6 +17,7 @@ import {
   BACK_IN_KEY_LABEL,
   BACK_IN_LINE,
   BACK_IN_WORLD,
+  DEMO_ENTRY,
   NO_COVER_ACTION,
   NO_COVER_HEADING,
   NO_COVER_LINE,
@@ -57,9 +59,20 @@ const HINT_ID = 'cover-key-hint';
 
 export function SignInScreen({
   world,
+  demo = false,
 }: {
   /** This deployment has a World ID app, so the check can be offered at all. */
   world: boolean;
+  /**
+   * This deployment publishes a demonstration, so the way in can point at it.
+   *
+   * One link and no sentence about it. Somebody on this screen is here to get
+   * back into their own cover, and the demonstration is for the other reader:
+   * the one who has bought nothing and followed a link to see what any of this
+   * looks like. T44 cut the front door from 886 words to about 250 by deleting,
+   * and this is not the place to put them back.
+   */
+  demo?: boolean;
 }) {
   const router = useRouter();
   const [outcome, setOutcome] = useState<Outcome>('none');
@@ -172,6 +185,8 @@ export function SignInScreen({
             {BACK_IN_KEY_ACTION}
           </PillButton>
         </form>
+
+        {demo ? <TextLink href="/home/demo">{DEMO_ENTRY}</TextLink> : null}
 
         {check.context === null ? null : (
           <WorldCheck

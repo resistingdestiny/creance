@@ -58,10 +58,18 @@ describe('the occupation picker rows', () => {
     );
   });
 
-  it('has one occupation with capacity behind it today', () => {
+  it('has capacity behind every occupation, one series each', () => {
     const covered = OCCUPATIONS.filter(hasCover);
-    expect(covered.map((row) => row.key)).toEqual(['computer_math']);
-    expect(covered[0]?.series).toBe('ODI-COMP-2026-01');
+    expect(covered).toHaveLength(OCCUPATIONS.length);
+    expect(findOccupation('computer_math')?.series).toBe('ODI-COMP-2026-01');
+    // The copy deck's worked example, which could not be bought until T39.
+    expect(findOccupation('office_admin_support')?.series).toBe('ODI-OFFC-2026-01');
+  });
+
+  it('gives every occupation a series of its own', () => {
+    const series = OCCUPATIONS.map((row) => row.series);
+    expect(new Set(series).size).toBe(OCCUPATIONS.length);
+    for (const label of series) expect(label).toMatch(/^ODI-[A-Z]{4}-2026-01$/);
   });
 
   it('marks the two occupations whose claims have never opened since 2010', () => {

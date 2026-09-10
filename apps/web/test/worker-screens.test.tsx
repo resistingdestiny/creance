@@ -73,22 +73,23 @@ describe('the occupation picker', () => {
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('What do you do?');
     const rows = screen.getAllByRole('button').filter((node) => node.textContent !== 'Continue');
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(15);
     expect(screen.getByText('Office and administrative support')).toBeTruthy();
     expect(screen.getByText('Farming, fishing and forestry')).toBeTruthy();
   });
 
-  it('offers only the occupation with a series behind it', () => {
+  it('offers every occupation, because every one has a series behind it', () => {
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
     const selectable = screen
       .getAllByRole('button')
       .filter((node) => node.textContent !== 'Continue');
-    expect(selectable[0]?.textContent).toContain('Computer and mathematical');
+    expect(selectable[0]?.textContent).toContain('Office and administrative support');
+    expect(selectable).toHaveLength(OCCUPATIONS.length);
   });
 
-  it('says why the other fourteen cannot be chosen', () => {
+  it('has nothing left to say cannot be chosen', () => {
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
-    expect(screen.getAllByText(/No cover behind this occupation yet\./)).toHaveLength(14);
+    expect(screen.queryAllByText(/No cover behind this occupation yet\./)).toHaveLength(0);
   });
 
   it('carries the honest line for the two that have never opened since 2010', () => {

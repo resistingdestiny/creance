@@ -221,27 +221,21 @@ describe('the occupation step keeps the deck', () => {
   });
 });
 
-describe('an occupation with no capacity behind it', () => {
-  it('says so on its row, in the words the route screen uses', async () => {
+describe('every occupation has capacity behind it', () => {
+  it('says nothing about cover being absent, because none is', async () => {
     page();
     await getAQuote();
-    // Two of the fourteen carry the backtest line in the same caption, so the
-    // sentence is asserted where it starts rather than as the whole string.
-    const said = panel()
-      .getAllByText(/^No cover behind this occupation yet\./)
-      .filter((node) => node.tagName === 'SPAN');
-    expect(said).toHaveLength(14);
+    expect(panel().queryAllByText(/^No cover behind this occupation yet\./)).toHaveLength(0);
   });
 
-  it('says so in place when it is the one in hand, and quotes nothing', async () => {
+  it('quotes the occupation that could not be bought before, in place', async () => {
     page();
     await getAQuote();
-    fireEvent.click(row('Legal'));
+    fireEvent.click(row('Office and administrative support'));
 
-    expect(screen.getAllByText('No cover behind this occupation yet.').length).toBeGreaterThan(1);
-    expect(continueButton()).toHaveProperty('disabled', true);
-    expect(quoteOccupation).not.toHaveBeenCalled();
-    expect(screen.queryByTestId('landing-quote-premium')).toBeNull();
+    expect(continueButton()).toHaveProperty('disabled', false);
+    fireEvent.click(continueButton());
+    await waitFor(() => expect(quoteOccupation).toHaveBeenCalled());
   });
 });
 

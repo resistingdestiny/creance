@@ -209,7 +209,18 @@ describe('the price block', () => {
   });
 
   it('says an occupation with no capacity cannot be bought rather than pricing it', () => {
-    render(<ExplorerScreen data={data()} />);
+    // Every occupation has capacity behind it since T39, so the branch is
+    // driven from a doctored reading rather than from a real one. The copy is
+    // still on the screen for a series that has not been issued yet.
+    render(
+      <ExplorerScreen
+        data={data({
+          occupations: occupations.map((occupation) =>
+            occupation.key === 'legal' ? { ...occupation, buyable: false } : occupation,
+          ),
+        })}
+      />,
+    );
     const legal = screen
       .getAllByRole('button')
       .find((button) => button.textContent?.startsWith('Legal') === true);

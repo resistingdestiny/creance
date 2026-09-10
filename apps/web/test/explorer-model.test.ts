@@ -86,7 +86,12 @@ describe('a reading turned into what the explorer draws', () => {
 
   it('knows which occupations have capacity behind them', () => {
     expect(occupationFor('computer_math').buyable).toBe(true);
-    expect(occupationFor('legal').buyable).toBe(false);
+    expect(occupationFor('legal').buyable).toBe(true);
+    // A reading for a group the picker does not carry has no series behind
+    // it, which is the shape the not-buyable branch still exists for.
+    expect(
+      explorerOccupation({ ...reading('legal'), group: 'armed_forces' }).buyable,
+    ).toBe(false);
   });
 });
 

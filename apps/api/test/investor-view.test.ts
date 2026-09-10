@@ -6,6 +6,8 @@ import {
   buildSeriesView,
   capacityUsedPercent,
   consensusToTimestamp,
+  declaredRatePercent,
+  nextCouponView,
   termMonths,
   entitlementKey,
   wholeUnits,
@@ -15,6 +17,7 @@ import {
   COVER_POOL_STATE,
   ENTITLEMENT,
   NOTE_STATE,
+  SCHEDULE,
   SERIES,
   VAULT_STATE,
   seriesWithoutNote,
@@ -113,7 +116,49 @@ describe('the series view', () => {
       settled: 1,
       latest_coupon_id: '1',
       rate_percent: '8',
+      next: null,
     });
+  });
+});
+
+describe('the next payment', () => {
+  it('is the earliest declared coupon nobody has been paid for', () => {
+    const next = nextCouponView(SCHEDULE, SERIES.coupons);
+    // Coupon 1 settled, so the next payment is coupon 4, the one declared with
+    // its record date at the end of its own accrual window.
+    expect(next?.coupon_id).toBe('4');
+    expect(next?.execution_date).toBe('2027-01-05T20:16:23Z');
+    expect(next?.accrual_start).toBe('2026-12-04T20:16:23Z');
+    expect(next?.accrual_end).toBe('2027-01-04T20:16:23Z');
+    expect(next?.rate_percent).toBe('8');
+  });
+
+  it('is the first coupon on a note that has never paid one', () => {
+    expect(nextCouponView(SCHEDULE, [])?.coupon_id).toBe('1');
+  });
+
+  it('passes over a coupon that was cancelled, because it pays nothing', () => {
+    const cancelled = SCHEDULE.map((coupon) =>
+      coupon.couponId === '1' ? { ...coupon, cancelled: true } : coupon,
+    );
+    expect(nextCouponView(cancelled, [])?.coupon_id).toBe('4');
+  });
+
+  it('is nothing where every declared coupon has been paid', () => {
+    const settlements = SCHEDULE.map((coupon) => ({
+      ...SERIES.coupons[0]!,
+      couponId: coupon.couponId,
+    }));
+    expect(nextCouponView(SCHEDULE, settlements)).toBeNull();
+  });
+
+  it('is nothing where the schedule could not be read, which is not no payment', () => {
+    expect(nextCouponView(null, [])).toBeNull();
+  });
+
+  it('reads the rate at the scale the note stores it', () => {
+    expect(declaredRatePercent(8n, 2)).toBe('8');
+    expect(declaredRatePercent(1250n, 4)).toBe('12.5');
   });
 });
 

@@ -102,6 +102,19 @@ describe('the API configuration under a copied example environment', () => {
     // the holder the investor screen has to show.
     expect(office?.holders.map((holder) => holder.role)).toEqual(['operator']);
     expect(office?.group).toBe('office_admin_support');
+    expect(demo?.kind).toBe('occupation');
+  });
+
+  it('gives the maturity demonstration no occupation group, because it covers none', () => {
+    stub(copiedExample());
+    const demonstration = loadInvestorConfig().series.find(
+      (series) => series.kind === 'maturity_demonstration',
+    );
+    // It used to be handed the demo series' own group, which made a screen
+    // that names what a series covers say this one covered computer and
+    // mathematical work.
+    expect(demonstration?.label).toMatch(/^ODI-MAT-/);
+    expect(demonstration?.group).toBe('');
   });
 
   it('lets a filled in value win over the record', () => {

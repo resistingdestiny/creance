@@ -60,12 +60,34 @@ export interface CouponEntitlement {
   tokenBalance: bigint;
 }
 
+/// One coupon as the note declares it: the accrual window, the two dates that
+/// decide when it is payable, and the rate with its scale.
+///
+/// This is the schedule and not a payment. Whether a declared coupon was ever
+/// settled is in the deployment record, because the money moved as a Scheduled
+/// Transaction and the note knows nothing about it.
+export interface DeclaredCoupon {
+  couponId: string;
+  recordDate: number;
+  executionDate: number;
+  startDate: number;
+  endDate: number;
+  rate: bigint;
+  rateDecimals: number;
+  /// True when the coupon was cancelled. A cancelled coupon pays nothing and
+  /// is not the next payment.
+  cancelled: boolean;
+}
+
 export interface ChainReader {
   vaultSeries(series: SeriesConfig): Promise<VaultSeriesState>;
   note(series: SeriesConfig): Promise<NoteState | null>;
   holder(series: SeriesConfig, address: string): Promise<HolderState>;
   coverPoolSeries(series: SeriesConfig): Promise<CoverPoolSeriesState | null>;
   couponFor(series: SeriesConfig, couponId: string, address: string): Promise<CouponEntitlement | null>;
+  /// Every coupon declared on the note, oldest first, or null where there is no
+  /// note or it cannot answer.
+  couponSchedule(series: SeriesConfig): Promise<DeclaredCoupon[] | null>;
 }
 
 /// The JSON-RPC relay, through ethers. Reads only: this class has no signer and
@@ -197,6 +219,49 @@ export class EthersChainReader implements ChainReader {
       // a balance.
       recordDateReached: detail.couponAmount.recordDateReached,
       tokenBalance: detail.tokenBalance,
+    };
+  }
+
+  async couponSchedule(series: SeriesConfig): Promise<DeclaredCoupon[] | null> {
+    const note = this.noteAt(series);
+    if (note === null) return null;
+    try {
+      const count = Number((await note.getFunction('getCouponCount')()) as bigint);
+      // Coupon ids are one based and getCoupon reverts on an id the note never
+      // declared, so the count is the only safe way to enumerate them.
+      const ids = Array.from({ length: count }, (_, index) => index + 1);
+      return await Promise.all(ids.map((id) => this.declaredCoupon(note, id)));
+    } catch {
+      // A note whose coupon facet is not registered, or a relay that would not
+      // answer. An unknown schedule is not an empty one: the caller renders
+      // nothing rather than "no further payments".
+      return null;
+    }
+  }
+
+  private async declaredCoupon(note: Contract, id: number): Promise<DeclaredCoupon> {
+    const [registered, cancelled] = (await note.getFunction('getCoupon')(BigInt(id))) as [
+      {
+        coupon: {
+          recordDate: bigint;
+          executionDate: bigint;
+          startDate: bigint;
+          endDate: bigint;
+          rate: bigint;
+          rateDecimals: bigint;
+        };
+      },
+      boolean,
+    ];
+    return {
+      couponId: id.toString(),
+      recordDate: Number(registered.coupon.recordDate),
+      executionDate: Number(registered.coupon.executionDate),
+      startDate: Number(registered.coupon.startDate),
+      endDate: Number(registered.coupon.endDate),
+      rate: registered.coupon.rate,
+      rateDecimals: Number(registered.coupon.rateDecimals),
+      cancelled,
     };
   }
 }

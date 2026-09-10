@@ -70,7 +70,7 @@ describe('subscribe', () => {
     ]);
     // The record itself carries no subscriptions field: an entry written there
     // is invisible to the API, which reads them off the series.
-    expect((context.record as Record<string, unknown>).subscriptions).toBeUndefined();
+    expect((context.record as unknown as Record<string, unknown>).subscriptions).toBeUndefined();
     expect(saves).toEqual([1, 2]);
   });
 

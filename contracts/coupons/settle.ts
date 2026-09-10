@@ -22,7 +22,8 @@ import {
   toBytes32,
 } from './plan.js';
 import type { CouponHolderSettlement, CouponSettlementRecord } from './record.js';
-import { fundAccounts, subscribeInvestor, tokenBalanceOf } from './vault.js';
+import { subscribe } from './subscribe.js';
+import { fundAccounts, tokenBalanceOf } from './vault.js';
 
 /// `pnpm coupons:pay` settles a declared ATS coupon on Hedera testnet.
 ///
@@ -53,10 +54,6 @@ const STEPS = [
 type Step = (typeof STEPS)[number];
 
 const RUN: Step[] = ['fund', 'probe', 'seed', 'subscribe', 'pay', 'publish', 'verify'];
-
-/// What each noteholder subscribes for the demonstration: half the principal
-/// each, which is what they hold on the note.
-const SUBSCRIPTION_PER_INVESTOR = 50_000n * 1_000_000n;
 
 function now(): number {
   return Math.floor(Date.now() / 1000);
@@ -355,39 +352,6 @@ async function seed(context: CouponContext): Promise<void> {
     attributeTx: attribute.hash,
     attributeGasUsed: attribute.gasUsed,
   };
-}
-
-// ------------------------------------------------------------- subscribe
-
-/**
- * Subscribe both noteholders in the vault, so the principal the note reports
- * and the principal the vault holds are the same number.
- *
- * Nobody had subscribed to the demo series before this: the note had 100 units
- * minted against a vault holding nothing, so every principal figure on the
- * investor screen would have read zero. See docs/DECISIONS.md.
- */
-async function subscribe(context: CouponContext): Promise<void> {
-  const series = demoSeries(context.record);
-
-  for (const investor of context.investors) {
-    const subscription = await subscribeInvestor(
-      context,
-      series.id,
-      investor,
-      SUBSCRIPTION_PER_INVESTOR,
-    );
-    if (subscription === null) continue;
-    series.subscriptions = [
-      ...(series.subscriptions ?? []).filter((entry) => entry.role !== investor.role),
-      subscription,
-    ];
-    context.save();
-  }
-  const state = (await context.vault.getFunction('seriesOf')(series.id)) as {
-    principalFunded: bigint;
-  };
-  console.log(`  principalFunded ${state.principalFunded}`);
 }
 
 // ------------------------------------------------------------------- pay

@@ -2,6 +2,8 @@ import { randomBytes } from 'node:crypto';
 
 import { cookies } from 'next/headers';
 
+import type { WalletAccount } from './wallet';
+
 /**
  * The purchase in progress, held on the server.
  *
@@ -42,6 +44,26 @@ export interface PurchaseSession {
   nullifier: string;
   /** Set once the bind returns. Home reads the policy from it. */
   policyId: string | null;
+  /**
+   * The wallet the cover binds to, or null for the demo wallet.
+   *
+   * Set when somebody connects their own wallet at the payment step, and read
+   * by every call that names a wallet: the quote, the eligibility credential
+   * and, through the credential, the account the policy NFT is minted to. Null
+   * is the whole of the unchanged path, so a person who never opens the chooser
+   * gets exactly what they got before.
+   *
+   * It is here and not in a cookie for the same reason the credential is: the
+   * account a cover is bound to decides where a payout lands, and a value the
+   * browser holds is a value the browser can change.
+   */
+  wallet: WalletAccount | null;
+  /**
+   * Whether that wallet will accept the policy NFT without associating the
+   * collection by hand. Read at connect time, said on the pay sheet. Always
+   * true for the demo wallet, which has unlimited automatic association.
+   */
+  walletHoldsReceipt: boolean;
 }
 
 interface Entry {
@@ -81,6 +103,8 @@ function emptySession(): PurchaseSession {
     credentialExpiresAt: null,
     nullifier: freshNullifier(),
     policyId: null,
+    wallet: null,
+    walletHoldsReceipt: true,
   };
 }
 

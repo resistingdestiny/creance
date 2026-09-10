@@ -3,15 +3,20 @@
  *
  * DESIGN.md section 3.6 makes the wallet's account id the signal a Selfie Check
  * is bound to, so the abstraction has to expose an account id and not only a
- * connection. Screens read this interface and nothing else, so HashPack over
- * WalletConnect can replace the demo provider later without touching a screen.
+ * connection. Screens read this interface and nothing else, so the demo
+ * provider and a real WalletConnect session are interchangeable to them.
  *
- * No private key ever reaches the browser in either mode. Signing belongs to
- * the API. The demo provider holds an account id and an address and nothing
- * that can move value.
+ * There are two modes and the person picks one at the payment step. Demo is the
+ * default and is what anybody who never opens the chooser gets. WalletConnect
+ * reaches a Hedera wallet over the WalletConnect network and binds the cover to
+ * the account it returns.
+ *
+ * No private key ever reaches the browser in either mode. The demo provider
+ * holds an account id and an address and nothing that can move value, and a
+ * connected wallet keeps its key in the wallet.
  */
 
-export type WalletMode = 'demo' | 'hashpack';
+export type WalletMode = 'demo' | 'walletconnect';
 
 export type WalletStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -78,6 +83,10 @@ export const DEMO_ACCOUNT: WalletAccount = DEMO_ACCOUNTS['policyholder-1'];
  * Which demo role holds an account, or null for an account this app has no key
  * for. The claim's attestation is signed as the cover's own holder, so the
  * signer has to name the role whose key derives it. docs/HEDERA.md.
+ *
+ * A cover bound to a connected wallet answers null here, which is correct and
+ * has a consequence the chooser says out loud: that claim is submitted as
+ * `unsigned_accepted` and a person looks at it.
  */
 export function demoRoleOf(accountId: string): DemoRole | null {
   const found = Object.entries(DEMO_ACCOUNTS).find(
@@ -88,6 +97,26 @@ export function demoRoleOf(accountId: string): DemoRole | null {
 
 /** Never hidden. A judge who cannot tell whether a payment was real assumes it was not. */
 export const DEMO_WALLET_LABEL = 'Demo wallet. Testnet only.';
+
+/** The caption on a connected wallet wherever the account id shows. */
+export const OWN_WALLET_LABEL = 'Your own wallet. Hedera testnet.';
+
+/**
+ * Said on the pay sheet before the press, because it is true after it.
+ *
+ * The cover binds either way: apps/api mints the policy NFT after the cover is
+ * already bound and records a mint that failed rather than failing the bind. So
+ * this warns and does not block.
+ */
+export const NO_RECEIPT_WARNING =
+  "Your wallet doesn't accept new tokens, so the cover receipt can't be sent to it. The cover itself is unaffected.";
+
+/**
+ * The caption on the paying account once a cover is bound to somebody else's
+ * wallet. The premium is still settled by src/lib/payer.ts out of the service
+ * account, so the row that names it may not be captioned as the person's own.
+ */
+export const SERVICE_PAYS_LABEL = 'Settled by the service. Testnet only.';
 
 export function createDemoWalletProvider(
   account: WalletAccount = DEMO_ACCOUNT,
@@ -122,29 +151,106 @@ export function demoInvestorAccount(role = readDemoInvestor()): WalletAccount {
 }
 
 /**
- * Reads the mode from the environment. The value is a public variable, so the
- * framework inlines it at build time and the production build has to have it
- * set before the build runs, not after. Anything other than "hashpack" is demo.
+ * What a wallet shows on its approval screen.
+ *
+ * These four values are registered on the Reown project and a wallet compares
+ * them against the origin it was opened from. They are mirrored here and not
+ * invented: a name or a url that disagrees with the registration makes some
+ * wallets warn about a domain mismatch, which is the worst thing to show
+ * somebody at the moment they are asked to approve a session.
+ *
+ * https://docs.reown.com/appkit/next/core/installation
  */
-export function readWalletMode(
-  value: string | undefined = process.env.NEXT_PUBLIC_WALLET_MODE,
-): WalletMode {
-  return value === 'hashpack' ? 'hashpack' : 'demo';
+export const WALLET_METADATA: {
+  name: string;
+  description: string;
+  url: string;
+  icons: string[];
+} = {
+  name: 'Creance',
+  description: 'Cover for the day your job is automated.',
+  url: 'https://creance.co',
+  icons: ['https://creance.co/icon-512.png'],
+};
+
+/**
+ * The CAIP-2 chain this app will hold a session on, and the only one.
+ *
+ * HIP-820 gives Hedera the `hedera` namespace and the network as the reference,
+ * so a testnet session's accounts read `hedera:testnet:0.0.x`. MISSION rule 1
+ * is testnet only, so a session offered on any other network is refused rather
+ * than used.
+ *
+ * https://hips.hedera.com/hip/hip-820
+ */
+export const HEDERA_TESTNET_CAIP = 'hedera:testnet';
+
+/**
+ * The Hedera account id inside a CAIP-10 account string, or null.
+ *
+ * Null for anything that is not a Hedera testnet account, which is what makes
+ * this the one place MISSION rule 1 is enforced on a session: a wallet that
+ * approves on another network hands back an account this refuses to read, and
+ * the connection fails loudly instead of binding a cover somewhere it should
+ * not be.
+ */
+export function testnetAccountId(caipAccount: string): string | null {
+  const parts = caipAccount.split(':');
+  if (parts.length !== 3) return null;
+  const [namespace, reference, accountId = ''] = parts;
+  if (`${namespace}:${reference}` !== HEDERA_TESTNET_CAIP) return null;
+  return /^\d+\.\d+\.\d+$/.test(accountId) ? accountId : null;
 }
 
 /**
- * There is one provider today. HashPack over WalletConnect needs a Reown
- * project id in the environment before it can be built, so asking for it now
- * fails loudly rather than silently falling back to the demo account and
- * letting a demo look like a real connection.
+ * The Reown project id, from the web app's own environment file.
+ *
+ * It is public by design and ships in client side JavaScript, which is why it
+ * is a `NEXT_PUBLIC_` name. It has to be in `apps/web/.env` and not the
+ * repository root one: `next build` runs with `apps/web` as its directory and
+ * the framework reads an environment file from there only, so a public variable
+ * in the root file never reaches a build.
  */
-export function createWalletProvider(mode: WalletMode = readWalletMode()): WalletProvider {
-  if (mode === 'hashpack') {
+export function readWalletConnectProjectId(
+  value: string | null | undefined = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID,
+): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed === '' ? null : trimmed;
+}
+
+/**
+ * Turns the account id a session returns into the account the cover binds to.
+ *
+ * A session gives an account id and nothing else, and DESIGN.md 3.6 needs the
+ * EVM address too. Resolving it is a server side read of the mirror node, so
+ * it arrives as a function rather than being done in the browser: the server is
+ * going to have to look the account up anyway, because an address a browser
+ * supplies is an address a browser could have made up.
+ */
+export type ResolveWalletAccount = (accountId: string) => Promise<WalletAccount>;
+
+/**
+ * The project id, or a throw.
+ *
+ * The one invariant that survives the mode becoming a runtime choice: a real
+ * wallet is never quietly replaced by the demo account. Asking for one without
+ * a project id used to throw from the mode and now throws from here, for the
+ * same reason. A demo that silently looks like a real connection is worse than
+ * one that says what it is.
+ *
+ * It is separate from `createWalletConnectProvider` so that it can be reached
+ * without the library: the factory lives beside the session it opens, in a
+ * module node cannot import (docs/harness-notes.md), and this rule is the part
+ * of it that has to be provable in a test.
+ */
+export function requireWalletConnectProjectId(value?: string | null): string {
+  const projectId = readWalletConnectProjectId(value);
+  if (projectId === null) {
     throw new Error(
-      'HashPack over WalletConnect is not wired yet: it needs a Reown project id. Set NEXT_PUBLIC_WALLET_MODE=demo.',
+      'Connecting your own wallet needs a Reown project id. Set NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID in the web application environment file.',
     );
   }
-  return createDemoWalletProvider();
+  return projectId;
 }
 
 export const disconnectedState = (mode: WalletMode, label: string | null): WalletState => ({

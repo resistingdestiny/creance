@@ -66,6 +66,13 @@ export interface WorldCheckRun {
   readonly handleVerify: (result: unknown) => Promise<void>;
   readonly onSuccess: () => void;
   readonly onError: (code: string) => void;
+  /**
+   * Back to before the check ran. T43 drops the eligibility credential when the
+   * wallet changes, because a check binds to the wallet it was run for, so a
+   * card still showing "You're verified" would be offering a credential the
+   * server no longer holds.
+   */
+  readonly reset: () => void;
 }
 
 /** Which failure the API described. Three answers, one state each. */
@@ -157,5 +164,11 @@ export function useWorldCheck({
     handleVerify,
     onSuccess: () => setState('verified'),
     onError,
+    reset: () => {
+      refused.current = false;
+      retried.current = false;
+      setOpen(false);
+      setState('idle');
+    },
   };
 }

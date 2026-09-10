@@ -13,6 +13,8 @@ allowBuilds:
   esbuild: true
   protobufjs: false
   "@mattrglobal/node-bbs-signatures": false
+  # A version check that phones home on install. Nothing needs it to build.
+  "@reown/appkit": false
 
 minimumReleaseAgeExclude:
   - '@anthropic-ai/sdk@0.124.0'

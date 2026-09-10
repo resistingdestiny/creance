@@ -16,6 +16,7 @@ import {
   quoteOccupation,
   type PayConfirmation,
 } from '../../app/purchase-actions';
+import { WalletChoice } from '../../app/pay/wallet-choice';
 import { useWorldCheck, type WorldCheckRun } from '../../app/verify/use-world-check';
 import { purchaseFailedCopy } from '../../lib/claim-model';
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
@@ -141,7 +142,7 @@ export function QuoteSlot({
   const [query, setQuery] = useState('');
 
   const check = useWorldCheck({ interim });
-  // The five rows of the pay step. Null is the API not answering, which the
+  // The rows of the pay step. Null is the API not answering, which the
   // step says on the card rather than filling in with a premium nobody quoted.
   const [confirmation, setConfirmation] = useState<PayConfirmation | null>(null);
   const [taking, startTaking] = useTransition();
@@ -154,6 +155,16 @@ export function QuoteSlot({
       setConfirmation(await openPayment());
       if (turn) go('pay');
     });
+  };
+
+  // Choosing another wallet at the pay step drops the eligibility credential,
+  // because a check binds to the wallet it was run for. So the card turns back
+  // to the check and the check's own state goes with it: a face still saying
+  // "You're verified" would be offering a credential the server has let go.
+  const changeWallet = () => {
+    setConfirmation(null);
+    check.reset();
+    go('verify');
   };
 
   const face = (on: QuoteStep | null) => {
@@ -203,6 +214,7 @@ export function QuoteSlot({
           current={step === on}
           onBound={() => go('covered')}
           onRetake={() => takePayment(false)}
+          onWalletChanged={changeWallet}
           taking={taking}
         />
       );
@@ -696,7 +708,7 @@ function VerifyFace({
 }
 
 /**
- * "Confirm your cover" and its five rows, docs/DESIGN-TOKENS.md section 8,
+ * "Confirm your cover" and its rows, docs/DESIGN-TOKENS.md section 8,
  * verbatim, with the button naming the outcome.
  *
  * The bind is `payAndBind`, the /pay route's own action, unchanged: the quote is
@@ -705,6 +717,11 @@ function VerifyFace({
  * 3.7 settles the premium over x402 on the server, so there is no wallet to
  * bounce out to and nothing about being on this page makes the payment different
  * from the payment the route makes.
+ *
+ * The chooser is the same component the route mounts and it sits above the rows
+ * on both. Choosing another wallet turns the card back to the check rather than
+ * navigating, which is the card's own way of doing what the route does with a
+ * refresh.
  *
  * The rows sit on the metal rather than in a surface group, for the reason the
  * occupation step's rows do: the card is already what separates them from the
@@ -718,12 +735,14 @@ function PayFace({
   current,
   onBound,
   onRetake,
+  onWalletChanged,
   taking,
 }: {
   confirmation: PayConfirmation | null;
   current: boolean;
   onBound: () => void;
   onRetake: () => void;
+  onWalletChanged: () => void;
   taking: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -762,11 +781,20 @@ function PayFace({
     <QuoteFace current={current}>
       <StepHeading>Confirm your cover</StepHeading>
 
+      <WalletChoice connectedAccount={confirmation.heldIn} onChanged={onWalletChanged} />
+
       <div className="divide-y divide-hairline">
         <ListRow label="Cover" value={confirmation.cover} />
         <ListRow label="Occupation" value={confirmation.occupation} />
         <ListRow label="Monthly payment" value={confirmation.premium} />
         <ListRow label="First payment today" value={confirmation.premium} />
+        {confirmation.heldIn === null ? null : (
+          <ListRow
+            caption={confirmation.heldInLabel}
+            label="Cover held in"
+            value={<span className="tabular-nums">{confirmation.heldIn}</span>}
+          />
+        )}
         <ListRow
           caption={confirmation.walletLabel}
           label="Pays from"
@@ -777,6 +805,12 @@ function PayFace({
       <p className="text-secondary text-ink-2">
         Testnet only. The first payment leaves the wallet above as soon as you press.
       </p>
+
+      {confirmation.receiptWarning === null ? null : (
+        <p className="text-secondary text-ink-2" data-testid="landing-receipt-warning">
+          {confirmation.receiptWarning}
+        </p>
+      )}
 
       {error === null ? (
         <div className="flex flex-col gap-3">

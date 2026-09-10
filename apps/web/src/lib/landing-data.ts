@@ -198,6 +198,12 @@ const readings = heldReadPerKey<IndexView>((group) =>
  * what makes it affordable to keep it that way: the price on the front door is
  * still a real quote taken against the live index, and it is bought a few times
  * an hour rather than once per visitor.
+ *
+ * It names the demo wallet and keeps naming it whoever is reading. The hold is
+ * one value for every visitor and lives for minutes, so it cannot be a quote
+ * taken for a person; and the price does not depend on who is asking. A quote
+ * for the person is taken on the Amount screen and again on the pay step, and
+ * those are the ones that name a connected wallet.
  */
 interface HeldQuote {
   readonly premium: string;

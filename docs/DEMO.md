@@ -397,8 +397,8 @@ printed on the page rather than only posted by the button.
 
 `pnpm demo:seed` prints an id block at the end and writes it to `var/demo/seed.json`.
 That block is what the operator keeps open in a scratch tab: the series, the
-contracts, the four topics, the two tokens, the two claimable policies with their
-holders and bind transactions, and the two noteholders. What it created on the
+contracts, the four topics, the two tokens, the two claimable policies and the
+published one with their holders and bind transactions, and the two noteholders. What it created on the
 run this document was written against is in docs/HEDERA.md under the T24 heading.
 
 It also binds the cover the published link opens, on the one holder that carries

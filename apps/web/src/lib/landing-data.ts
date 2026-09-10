@@ -28,8 +28,8 @@
  * moves in ten second steps and a stale badge is a lie about what is on screen.
  *
  * And nothing is awaited before the page is drawn. Every figure below is handed
- * to the page as a promise, so the hero, the card, the copy and the steps are
- * on the first byte and each figure lands in its own place as it arrives. A
+ * to the page as a promise, so the hero, the card and the copy are on the first
+ * byte and each figure lands in its own place as it arrives. A
  * cold hold costs the visitor a resting state rather than a blank screen and
  * three seconds of nothing.
  *

@@ -23,10 +23,13 @@ import { QuoteProvider } from './quote-state';
  * The landing page, section for section from the design of record.
  *
  * Order, which is the acceptance: the navigation, the hero with the cover card
- * and the from price, the three questions, the three steps, the index section,
- * the closing line, the investor line, the footer bar. The sections are local
- * to this file so that the order is one list a reader can check rather than
- * eight imports.
+ * and the from price, the ledger, the index section, the closing line, the
+ * investor line, the footer bar. The sections are local to this file so that
+ * the order is one list a reader can check rather than eight imports.
+ *
+ * The three steps went with T34 and two of the three ledger questions with T44,
+ * both for the same reason: the page shows the thing, so it stops describing it
+ * as well.
  *
  * Two things this page does not do. It runs no scroll triggered reveal: there
  * is no observer and no scroll listener anywhere in it, because on a data dense

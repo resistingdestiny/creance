@@ -30,15 +30,30 @@ document in the repository and there is not meant to be.
 
 ## Live app
 
-- https://creance.co: Root pending. The images, the compose file, the Caddy
-  site and the deploy script are built and proved locally under T21; what is
-  missing is the host. Root provides a VPS with DNS pointed at it and the
-  production .env on it, then `deploy/deploy.sh --with-caddy` puts the app up.
-  The requirements are listed in deploy/README.md.
-- https://creance.co/health: the same, and it is what a judge should be pointed
-  at first. It returns the commit the running build came from.
-- The uptime check in .github/workflows/uptime.yml starts checking that URL
-  every fifteen minutes once the repository variable PUBLIC_SITE_URL is set.
+- https://creance.co: up, serving the web app, with the API at
+  https://api.creance.co. The host, the DNS, the Caddy site and the production
+  .env are all in place and `deploy/deploy.sh --with-caddy` is what puts a new
+  build up. The requirements are listed in deploy/README.md.
+- https://api.creance.co/health: the health endpoint, and what a judge should be
+  pointed at first. It reports the database, Hedera, the index and World, the
+  network it is on and the replay's state. The web app has no /health route of
+  its own, so https://creance.co/health is a 404 and the API host is the one to
+  give.
+- That endpoint reports `"sha":"unknown"`. GIT_SHA is not baked into the running
+  image, so the health response cannot say which commit it came from. The field
+  is there and the value is not.
+- https://creance.co/home/demo: the one link that reaches a cover with no World
+  ID, no wallet and no purchase. It answers 404 today. The page exists in the
+  build and appears once the host has run `pnpm demo:seed` against the database
+  the deployment reads and has the WEB_DEMO_COVERS line that run prints, plus
+  WEB_DEMO_STATES, in its .env. docs/DEMO.md, "The link a judge follows", says
+  what is behind it and what is a fixture.
+- The uptime check in .github/workflows/uptime.yml is not checking anything. The
+  repository variable PUBLIC_SITE_URL is unset, and the workflow is written to
+  exit green and say so rather than fail. Setting it needs both of the lines
+  above to be true first: it appends /health to the value, so the value has to be
+  the API host and not creance.co, and it fails a 200 that reports no commit, so
+  it stays red until GIT_SHA is baked into the image.
 
 ## Videos
 

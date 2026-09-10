@@ -207,3 +207,81 @@ export function encodeCouponSettlement(message: CouponSettlementMessage): string
   }
   return json;
 }
+
+/// The dates of one coupon period, in the shape ATS `setCoupon` takes them.
+export interface CouponPeriodPlan {
+  recordDate: number;
+  executionDate: number;
+  startDate: number;
+  endDate: number;
+  fixingDate: number;
+  /// True when the record date was brought forward so the period could be
+  /// settled before its accrual window closed. It is on the record because a
+  /// compressed cadence has to be said out loud wherever it is relied on. See
+  /// docs/DECISIONS.md, T06.
+  broughtForward: boolean;
+}
+
+/// The same calendar month the first coupon accrued over. ATS prices a coupon
+/// as balance times nominal times rate times the window in seconds over 365
+/// days, so a thirty day approximation would under pay a long month.
+export function monthAfter(seconds: number): number {
+  const end = new Date(seconds * 1000);
+  end.setUTCMonth(end.getUTCMonth() + 1);
+  return Math.floor(end.getTime() / 1000);
+}
+
+/// How far ahead a brought forward record date sits, and its execution date
+/// after it. The first coupon used these two leads and settled, so a second
+/// and a third period keep them rather than picking new ones.
+export const RECORD_LEAD_SECONDS = 5 * 60;
+export const EXECUTION_LEAD_SECONDS = 10 * 60;
+
+/// A period declared on its own dates is paid the day after its record date,
+/// which is the ordinary shape for a bond coupon.
+export const EXECUTION_AFTER_RECORD_SECONDS = 24 * 60 * 60;
+
+export interface CouponPeriodInput {
+  /// Where the last declared period ended. The next one starts there, so the
+  /// series accrues month after month with no gap and no overlap.
+  previousEnd: number;
+  now: number;
+  /// The note's maturity. ATS refuses an accrual window that ends after it.
+  maturityDate: number;
+  /// `brought forward` puts the record date minutes out so the period can be
+  /// settled today; `at the window end` puts it where a live series would,
+  /// which makes the period the next payment the note owes rather than one
+  /// more to settle now.
+  recordDate: 'brought forward' | 'at the window end';
+}
+
+/**
+ * The next monthly coupon period on a series that already has one.
+ *
+ * Only the record and execution dates move. The accrual window is always the
+ * calendar month after the last one, because the window is what ATS prices the
+ * coupon over and shortening it would pay less than a month of interest while
+ * calling itself a month.
+ */
+export function nextCouponPeriod(input: CouponPeriodInput): CouponPeriodPlan {
+  const { previousEnd, now, maturityDate } = input;
+  if (!Number.isInteger(previousEnd) || previousEnd <= 0) {
+    throw new Error(`the previous period must end at a unix timestamp, got ${previousEnd}`);
+  }
+  if (!Number.isInteger(now) || now <= 0) {
+    throw new Error(`now must be a unix timestamp, got ${now}`);
+  }
+  const startDate = previousEnd;
+  const endDate = monthAfter(startDate);
+  if (maturityDate > 0 && endDate > maturityDate) {
+    throw new Error(
+      `a period ending ${endDate} runs past the note's maturity ${maturityDate}: the series has paid its last coupon`,
+    );
+  }
+  const broughtForward = input.recordDate === 'brought forward';
+  const recordDate = broughtForward ? now + RECORD_LEAD_SECONDS : endDate;
+  const executionDate = broughtForward
+    ? now + EXECUTION_LEAD_SECONDS
+    : endDate + EXECUTION_AFTER_RECORD_SECONDS;
+  return { recordDate, executionDate, startDate, endDate, fixingDate: recordDate, broughtForward };
+}

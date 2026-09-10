@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 
 import {
   COUPON_MEMO_PREFIX,
+  EXECUTION_AFTER_RECORD_SECONDS,
+  EXECUTION_LEAD_SECONDS,
+  RECORD_LEAD_SECONDS,
   couponMemo,
   couponRef,
   couponSettlementMessage,
   encodeCouponSettlement,
   fromBytes32,
+  monthAfter,
+  nextCouponPeriod,
   parseCouponMemo,
   settlementAmount,
   settlementRemainder,
@@ -124,5 +129,101 @@ describe('couponSettlementMessage', () => {
 
   it('fits well inside the topic message cap', () => {
     expect(Buffer.byteLength(encodeCouponSettlement(message))).toBeLessThan(1024);
+  });
+});
+
+/// The first coupon's own window, verbatim from the deployment record: 4
+/// September to 4 October 2026, thirty days.
+const FIRST_START = 1_788_552_983;
+const FIRST_END = 1_791_144_983;
+/// The note's own maturity, 4 September 2027, verbatim from the record.
+const MATURITY = 1_820_089_362;
+
+describe('monthAfter', () => {
+  it('is a calendar month and not thirty days', () => {
+    // 4 September to 4 October is 30 days; 4 October to 4 November is 31.
+    expect(monthAfter(FIRST_START)).toBe(FIRST_END);
+    expect(monthAfter(FIRST_END) - FIRST_END).toBe(31 * 24 * 60 * 60);
+  });
+});
+
+describe('nextCouponPeriod', () => {
+  const now = 1_789_078_956;
+
+  it('starts where the last period ended, so the series accrues with no gap', () => {
+    const plan = nextCouponPeriod({
+      previousEnd: FIRST_END,
+      now,
+      maturityDate: MATURITY,
+      recordDate: 'brought forward',
+    });
+    expect(plan.startDate).toBe(FIRST_END);
+    expect(plan.endDate).toBe(monthAfter(FIRST_END));
+  });
+
+  it('brings the record date forward by the leads the first coupon settled on', () => {
+    const plan = nextCouponPeriod({
+      previousEnd: FIRST_END,
+      now,
+      maturityDate: MATURITY,
+      recordDate: 'brought forward',
+    });
+    expect(plan.recordDate).toBe(now + RECORD_LEAD_SECONDS);
+    expect(plan.executionDate).toBe(now + EXECUTION_LEAD_SECONDS);
+    expect(plan.fixingDate).toBe(plan.recordDate);
+    expect(plan.broughtForward).toBe(true);
+  });
+
+  it('puts the record date at the end of the window when the period is not being rushed', () => {
+    const plan = nextCouponPeriod({
+      previousEnd: FIRST_END,
+      now,
+      maturityDate: MATURITY,
+      recordDate: 'at the window end',
+    });
+    expect(plan.recordDate).toBe(plan.endDate);
+    expect(plan.executionDate).toBe(plan.endDate + EXECUTION_AFTER_RECORD_SECONDS);
+    expect(plan.broughtForward).toBe(false);
+  });
+
+  it('keeps the three date pairs ATS validates in order', () => {
+    for (const recordDate of ['brought forward', 'at the window end'] as const) {
+      const plan = nextCouponPeriod({
+        previousEnd: FIRST_END,
+        now,
+        maturityDate: MATURITY,
+        recordDate,
+      });
+      expect(plan.endDate).toBeGreaterThanOrEqual(plan.startDate);
+      expect(plan.executionDate).toBeGreaterThanOrEqual(plan.recordDate);
+      expect(plan.executionDate).toBeGreaterThanOrEqual(plan.fixingDate);
+    }
+  });
+
+  it('refuses a window that ends after the note has matured', () => {
+    // Twelve monthly periods run from 4 September 2026 to the maturity date
+    // itself. The twelfth is allowed; a thirteenth is what ATS refuses with
+    // onlyValidCouponEndDate, and this says so before a transaction is sent.
+    let end = FIRST_START;
+    for (let period = 0; period < 12; period += 1) end = monthAfter(end);
+    expect(end).toBeLessThanOrEqual(MATURITY);
+    expect(monthAfter(end)).toBeGreaterThan(MATURITY);
+    expect(() =>
+      nextCouponPeriod({ previousEnd: end, now, maturityDate: MATURITY, recordDate: 'brought forward' }),
+    ).toThrow(/past the note's maturity/);
+  });
+
+  it('refuses a previous end or a now that is not a timestamp', () => {
+    expect(() =>
+      nextCouponPeriod({ previousEnd: 0, now, maturityDate: MATURITY, recordDate: 'brought forward' }),
+    ).toThrow(/unix timestamp/);
+    expect(() =>
+      nextCouponPeriod({
+        previousEnd: FIRST_END,
+        now: -1,
+        maturityDate: MATURITY,
+        recordDate: 'brought forward',
+      }),
+    ).toThrow(/unix timestamp/);
   });
 });

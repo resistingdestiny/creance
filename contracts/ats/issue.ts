@@ -700,8 +700,9 @@ async function couponcheck(session: Session, record: DeploymentRecord): Promise<
   console.log(`  getCouponCount ${count}, ${declared.length} in the record`);
   for (const entry of declared) {
     const id = BigInt(entry.id);
-    // The second return is isDisabled_, not an existence flag: a coupon that was
-    // never declared reads back as an all zero struct rather than reverting.
+    // The second return is isDisabled_, not an existence flag. An id the note
+    // never declared does not read back as a zeroed struct: getCoupon reverts
+    // through onlyMatchingActionType. Measured, see docs/harness-notes.md.
     const [registered, isDisabled] = (await bond.getCoupon!(id)) as [
       { coupon: { recordDate: bigint; startDate: bigint; endDate: bigint }; snapshotId: bigint },
       boolean,

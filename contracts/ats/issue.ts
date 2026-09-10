@@ -1,7 +1,16 @@
 import type { Contract, Wallet } from 'ethers';
 
-import { readRecord, recordPath, writeRecord, type DeploymentRecord } from '../scripts/deploy/record.js';
-import { bondData, maxSupplyFor, principalFor, regulationData, type BondPlan } from './bond.js';
+import { entryFor } from '../scripts/deploy/catalogue.js';
+import {
+  defaultSeries,
+  findSeries,
+  readRecord,
+  recordPath,
+  writeRecord,
+  type DeploymentRecord,
+  type SeriesRecord,
+} from '../scripts/deploy/record.js';
+import type { BondPlan } from './bond.js';
 import {
   ATS,
   ATS_TAG,
@@ -18,7 +27,6 @@ import {
   bondConfigVersion,
   checkAtsAddresses,
   expectRevert,
-  factoryAt,
   hashscan,
   noteAt,
   openSession,
@@ -27,16 +35,26 @@ import {
   type Session,
 } from './chain.js';
 import { createKycCredential, grantKycArguments, verifyCredential } from './credential.js';
+import { deployNote, emptyAtsRecord, planFor } from './note.js';
 import { testIsinFor } from './isin.js';
-import type { AtsNoteRecord, AtsRecord } from './record.js';
+import type { AtsRecord } from './record.js';
 
-/// `pnpm ats:issue` issues the demo note series through the Asset Tokenization
-/// Studio on Hedera testnet and runs the compliance sequence T06 asks for. It
-/// is record driven: every step reads contracts/deployments/testnet.json, skips
+/// `pnpm ats:issue` issues a note series through the Asset Tokenization Studio
+/// on Hedera testnet and runs the compliance sequence T06 asks for. It is
+/// record driven: every step reads contracts/deployments/testnet.json, skips
 /// what is already there and writes back what it did, so a relay timeout half
 /// way through is recovered by running the same command again.
+///
+/// The series is the second argument, or the `ATS_SERIES` environment
+/// variable, named by group key or by label. With neither it is the head of
+/// the record, which is the demo series, so `pnpm ats:issue` with no arguments
+/// does exactly what it did when the record held one series.
+///
+///     pnpm ats:issue                          the demo series, every step
+///     pnpm ats:issue issue office_admin_support   one step, one other series
 
-const SERIES_LABEL = 'ODI-COMP-2026-01';
+/// The series every handler acts on, resolved once in main().
+let target = (process.env.ATS_SERIES ?? '').trim();
 
 /// Minted, moved, then minted again, so both noteholders end at half the
 /// principal each and total supply is exactly the cap.
@@ -93,20 +111,25 @@ function whole(amount: bigint): string {
   return (amount / 10n ** BigInt(NOTE.decimals)).toString();
 }
 
-function atsOf(record: DeploymentRecord): AtsRecord {
-  if (record.series === undefined) {
-    throw new Error('no series in the deployment record: run `pnpm contracts:deploy` first');
+/// The series this run acts on. It has to be in the record already: the vault
+/// series and the note are two sides of one instrument and the note takes the
+/// vault's maturity, so the chain registration comes first.
+function seriesOf(record: DeploymentRecord): SeriesRecord {
+  const series = target === '' ? defaultSeries(record) : findSeries(record, target);
+  if (series === undefined) {
+    throw new Error(
+      target === ''
+        ? 'no series in the deployment record: run `pnpm contracts:deploy` first'
+        : `no series "${target}" in the deployment record: run \`pnpm series:capacity\` first`,
+    );
   }
-  record.series.ats ??= {
-    version: ATS_VERSION,
-    tag: ATS_TAG,
-    factoryId: ATS.factoryId,
-    factory: ATS.factory,
-    resolverId: ATS.resolverId,
-    resolver: ATS.resolver,
-    configId: ATS.bondConfigId,
-  };
-  return record.series.ats;
+  return series;
+}
+
+function atsOf(record: DeploymentRecord): AtsRecord {
+  const series = seriesOf(record);
+  series.ats ??= emptyAtsRecord();
+  return series.ats;
 }
 
 interface StepEntry {
@@ -134,53 +157,6 @@ function monthAfter(seconds: number): number {
   const end = new Date(seconds * 1000);
   end.setUTCMonth(end.getUTCMonth() + 1);
   return Math.floor(end.getTime() / 1000);
-}
-
-async function deployBond(session: Session, plan: BondPlan, info: string): Promise<AtsNoteRecord> {
-  await checkAtsAddresses();
-  const factory = factoryAt(session.operator);
-  // The only role set at creation is the diamond owner, which is what the SDK
-  // sends; every other role is granted afterwards so each grant is its own
-  // transaction on the record.
-  const rbacs = [{ role: `0x${'00'.repeat(32)}`, members: [plan.owner] }];
-  console.log(`  deploying ${plan.name}`);
-  console.log(`  isin ${plan.isin}, decimals ${plan.decimals}, max supply ${maxSupplyFor(plan)}`);
-  const sent = await send(
-    'deployBond',
-    factory.deployBond!(bondData(plan, rbacs), regulationData(info), { gasLimit: GAS.deployBond }),
-  );
-  const deployed = sent.receipt.logs
-    .map((log) => {
-      try {
-        return factory.interface.parseLog({ topics: [...log.topics], data: log.data });
-      } catch {
-        return null;
-      }
-    })
-    .find((parsed) => parsed?.name === 'BondDeployed');
-  const address = deployed?.args?.[1] as string | undefined;
-  if (address === undefined) throw new Error('no BondDeployed event in the deployment receipt');
-  const contractId = await contractIdOf(address);
-  console.log(`  bond ${address} ${contractId ?? '(mirror node not caught up)'}`);
-  return {
-    contractId,
-    address,
-    name: plan.name,
-    symbol: plan.symbol,
-    isin: plan.isin,
-    decimals: plan.decimals,
-    units: plan.units.toString(),
-    nominalValue: plan.nominalValue.toString(),
-    principal: principalFor(plan).toString(),
-    currency: NOTE.currency,
-    maxSupply: maxSupplyFor(plan).toString(),
-    startingDate: plan.startingDate,
-    maturityDate: plan.maturityDate,
-    internalKycActivated: plan.internalKycActivated,
-    regulation: 'Regulation S',
-    deployTx: sent.hash,
-    gasUsed: sent.gasUsed,
-  };
 }
 
 async function status(session: Session, record: DeploymentRecord): Promise<void> {
@@ -255,7 +231,7 @@ async function throwaway(session: Session, record: DeploymentRecord): Promise<vo
     internalKycActivated: false,
     scaleMaxSupply: false,
   };
-  const probe = await deployBond(session, plan, 'Creance throwaway probe, not a series');
+  const probe = await deployNote(session, plan, 'Creance throwaway probe, not a series');
   const bond = noteAt(probe.address, session.operator);
   await send(
     'grantRole ROLE_ISSUER',
@@ -292,31 +268,15 @@ async function issue(session: Session, record: DeploymentRecord): Promise<void> 
     console.log(`  already issued at ${ats.note.address}`);
     return;
   }
-  const series = record.series;
-  if (series === undefined) throw new Error('no series in the deployment record');
+  const series = seriesOf(record);
   const version = await bondConfigVersion(session.provider);
   ats.configVersion = version;
-  const plan: BondPlan = {
-    name: NOTE.name,
-    symbol: NOTE.symbol,
-    isin: testIsinFor(SERIES_LABEL),
-    decimals: NOTE.decimals,
-    units: NOTE.units,
-    nominalValue: NOTE.nominalValue,
-    startingDate: Math.floor(Date.now() / 1000),
-    // The vault already froze this maturity for the series. The two
-    // instruments have to agree on the day the principal comes back.
-    maturityDate: series.maturityAt,
-    owner: session.operator.address,
-    configVersion: version,
-    internalKycActivated: true,
-    scaleMaxSupply: true,
-  };
-  ats.note = await deployBond(session, plan, `Creance Displacement Bond Note, series ${SERIES_LABEL}`);
+  const plan = planFor(series, session.operator.address, version);
+  ats.note = await deployNote(session, plan, `Creance Displacement Bond Note, series ${series.label}`);
   step(ats, 'issue', {
     tx: ats.note.deployTx,
     result:
-      `series ${SERIES_LABEL} issued as an ATS bond, principal ${ats.note.principal}, ` +
+      `series ${series.label} issued as an ATS bond, principal ${ats.note.principal}, ` +
       `internal KYC on, clearing off, not controllable, Regulation S`,
     gasUsed: ats.note.gasUsed,
   });
@@ -702,8 +662,15 @@ async function main(): Promise<void> {
   if (!STEPS.includes(requested)) {
     throw new Error(`unknown step "${requested}". One of: ${STEPS.join(', ')}`);
   }
+  const named = (process.argv[3] ?? '').trim();
+  if (named !== '') {
+    // Fail on a name the catalogue does not know before any transaction is
+    // sent, rather than issuing a note against the wrong series.
+    target = entryFor(named).label;
+  }
   const session = openSession();
   const record = readRecord();
+  console.log(`series        ${seriesOf(record).label}`);
   const steps = requested === 'all' ? RUN : [requested];
   for (const name of steps) {
     console.log(name);

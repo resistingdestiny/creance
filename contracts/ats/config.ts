@@ -42,9 +42,18 @@ export function pinnedBondConfigVersion(): number | undefined {
 /// multi-partition, and this one is not.
 export const PARTITION_1 = `0x${'00'.repeat(31)}01`;
 
-/// The note terms. Units times nominal value is the series principal of
-/// 100,000, and 1,000 per unit is the ordinary corporate bond convention.
-/// Decimals match the settlement token so the API never carries two scales.
+/// The note's name, from the series label. Every series names its note the
+/// same way, so the demo note's own name is what this returns for the demo
+/// label and the constant below is checked against it.
+export function noteNameFor(seriesLabel: string): string {
+  return `Creance Displacement Bond Note ${seriesLabel}`;
+}
+
+/// The demo note's terms. Units times nominal value is that series' principal
+/// of 100,000, and 1,000 per unit is the ordinary corporate bond convention;
+/// decimals match the settlement token so the API never carries two scales.
+/// Name, symbol and units are per series and the catalogue carries them. The
+/// rest is the same for every note this build issues.
 export const NOTE = {
   name: 'Creance Displacement Bond Note ODI-COMP-2026-01',
   symbol: 'CDBN01',

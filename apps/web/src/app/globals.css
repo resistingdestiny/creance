@@ -152,6 +152,68 @@
     outline: 2px solid #000;
     outline-offset: 2px;
   }
+
+  /* T38: the pointer, the pressed state and the tap, as base rules rather
+     than a patch across 38 onClick handlers.
+
+     Tailwind v4's Preflight dropped the cursor: pointer rule for buttons
+     that v3 shipped, which is why every button in the product went inert on
+     hover at once. Anchors with an href still get the pointer from the
+     browser's own stylesheet, so they need no rule. A disabled control gets
+     not-allowed, so it reads as not clickable rather than merely greyed.
+
+     The pressed state is opacity, the one feedback docs/DESIGN-TOKENS.md
+     section 6 permits on buttons, and it is the half of the ticket that
+     matters on a phone, where there is no hover at all. It runs on the
+     section's own 200ms ease-out, and the transition goes under
+     prefers-reduced-motion like every other in this file.
+
+     touch-action: manipulation keeps a tap from waiting on the double tap
+     zoom delay, the single biggest reason a well built page feels slow on a
+     phone. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role='button'][aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+
+  a,
+  button,
+  [role='button'],
+  summary {
+    transition: opacity 200ms ease-out;
+  }
+
+  a:active,
+  button:not(:disabled):active,
+  [role='button']:not([aria-disabled='true']):active,
+  summary:active {
+    opacity: 0.7;
+  }
+
+  a,
+  button,
+  [role='button'],
+  input,
+  label,
+  select,
+  summary,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    a,
+    button,
+    [role='button'],
+    summary {
+      transition: none;
+    }
+  }
 }
 
 @layer components {
@@ -673,6 +735,9 @@
     width: 100%;
     height: 28px;
     background: transparent;
+    /* The slider is a control, so it gets the pointer too; the base layer's
+       touch-action already reaches it as an input. */
+    cursor: pointer;
   }
 
   .amount-slider::-webkit-slider-runnable-track {

@@ -53,7 +53,7 @@ export function UploadArea({
     <div className="flex flex-col gap-3">
       <label
         className={[
-          'flex min-h-[120px] w-full cursor-pointer items-center justify-center rounded-field border text-body text-ink',
+          'flex min-h-[120px] w-full cursor-pointer items-center justify-center rounded-field border text-body text-ink transition-opacity duration-200 ease-out active:opacity-70 motion-reduce:transition-none',
           over ? 'border-2 border-ink' : 'border-hairline',
         ].join(' ')}
         onDragLeave={() => setOver(false)}

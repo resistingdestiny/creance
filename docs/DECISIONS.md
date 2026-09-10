@@ -5317,3 +5317,78 @@ untouched: on the landing page all fifteen can still be selected, so the
 explorer can still be pointed at any occupation, and a search filters first
 and groups after, so a query matching only unbuyable occupations still shows
 them under their heading.
+
+## T44, the landing page prints each fact once, 10 September 2026
+
+The backlog asks for the landing page's visible copy to come down to about 250
+words from 886, and says the explorer, the quote, the card and the index
+reading all stay. Those two do not both fit, and the numbers say why.
+
+### What was measured, and what it says
+
+Visible copy is counted by rendering the landing route, stripping the tags,
+removing the screen reader only text and the resting states, and counting the
+whitespace separated tokens of what is left. The same count run against the
+live page in a browser at 390 and at 1440 gives the same number, so the count
+is of what a person reads and not of what the source holds.
+
+    whole route            632 before, 606 after
+    the explorer panel     406 of that, unchanged
+    the ticker             127 of that, unchanged
+    the page's own copy    106 before, 80 after
+
+The explorer panel is `/index` rendered whole (T34) and the ticker is its
+round of fifteen said again under the hero. Together they are 533 of the 632,
+and the ticket protects both: they are the interactive parts and the index
+reading. So 250 for the whole route cannot be reached by deleting prose, and
+the page's own copy was already at 106 before this ticket touched it. The gap
+between 886 and 632 is a difference of counting method and not of page: the
+ratio of the two counts across T34 is the same either way, 1.90 against 1.95.
+
+What was actually available to cut, then, is the page saying something twice.
+
+### The two ledger answers the page already showed
+
+Three questions stood between the hero and the explorer. Two of them answered
+with something already on the screen:
+
+- "What does it cost." answered "From 28.00 a month. The price comes from your
+  occupation's index, nothing else." The hero prints that same from price, from
+  the same quote, above it. The explorer below prints the premium for 5,000
+  with its construction, guide price and capital load both.
+- "Am I covered." answered "Your card says so at all times. Green means yes."
+  The hero card stands beside it wearing a green "Covered" pill.
+
+Both are gone. This is T34's argument applied again: the page shows the thing,
+so it stops describing it as well.
+
+"When does it pay." stays, and the rule that kept it is the rule that decided
+the other two: a row goes when the page shows its answer elsewhere and the row
+carries no figure the page prints nowhere else. That answer carries the
+attachment and the full payout level, and until a visitor takes a quote neither
+appears anywhere else on the page.
+
+Nothing was reworded. `costAnswer` had two branches and the surviving strings
+are the branch that was already there for the no-price case; the covered answer
+was deleted whole. `LandingPriceView.costLine` went with it, so the ledger no
+longer waits on the quote at all and its Suspense boundary and three line
+resting state went too. The from price is still one live quote, still read once
+per hold, still printed in the hero.
+
+### The band came down with the rows
+
+The ledger section carried 128px of padding at the landing breakpoint, which is
+the height three rows stood in. One row in that band read as a section that had
+failed to load, so the padding is 80px. Nothing else about the section changed.
+
+### The from price is right, so it was left alone
+
+The ticket asks for this to be confirmed rather than assumed. It is a live
+quote for `AMOUNT_MIN`, which is 1,000, the smallest cover the slider offers.
+Confirmed against testnet rather than read off the code: the hero read "From
+1.21 a month" while the same page's inline quote, taken through the API on the
+same round, priced the default 5,000 at 6.04 a month and the slider dragged to
+its minimum of 1,000 at 1.21 a month. The premium is `rate * limit / 12` with
+the rate rounded to basis points first (apps/api/src/pricing.ts), so it is
+linear in the limit and those two figures are the same price. The figure is
+small because the cover is.

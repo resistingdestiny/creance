@@ -81,9 +81,15 @@ export const READING_TTL_MS = 10 * 60 * 1000;
 export const READING_STALE_MS = 5 * 60 * 1000;
 
 /**
- * The life the API gives a quote. It is not configuration here, it is the fact
- * the two windows below have to fit inside: a held price older than this is a
- * price nobody would honour, and the page would be quoting from memory.
+ * The life the API gives a quote, which is `QUOTE_TTL_SECONDS` and defaults to
+ * nine hundred (apps/api/src/config.ts). It is not configuration here: it is
+ * the fact the two windows below have to fit inside, because a held price older
+ * than the quote it came from is a price nobody would honour and the page would
+ * be quoting from memory.
+ *
+ * The windows are checked against it in a test, and the quote's own `expires_at`
+ * is checked again on the way to the page, so a deployment that shortens the
+ * life below these windows loses the line rather than printing a dead price.
  */
 export const QUOTE_LIFE_MS = 15 * 60 * 1000;
 
@@ -196,7 +202,13 @@ const readings = heldReadPerKey<IndexView>((group) =>
  * still a real quote taken against the live index, and it is bought a few times
  * an hour rather than once per visitor.
  */
-const prices = heldReadPerKey<string>((group) =>
+interface HeldQuote {
+  readonly premium: string;
+  /** The quote's own expiry, as an epoch. Nothing is printed after it. */
+  readonly expiresAt: number;
+}
+
+const prices = heldReadPerKey<HeldQuote>((group) =>
   heldRead({
     what: `the landing from price for ${group}`,
     ttlMs: QUOTE_TTL_MS,
@@ -207,7 +219,7 @@ const prices = heldReadPerKey<string>((group) =>
         limit: toMinorUnits(AMOUNT_MIN),
         wallet: DEMO_ACCOUNT.accountId,
       });
-      return premiumAmount(quote.premium);
+      return { premium: premiumAmount(quote.premium), expiresAt: Date.parse(quote.expires_at) };
     },
   }),
 );
@@ -260,7 +272,12 @@ async function readIndexSection(group: string): Promise<LandingIndexView> {
 async function readPrice(group: string): Promise<LandingPriceView> {
   let premium: string | null;
   try {
-    premium = await prices.read(group);
+    const quote = await prices.read(group);
+    // The windows above are set so that this cannot happen, and it is checked
+    // anyway: the quote itself is the only thing that knows when it dies, and a
+    // line the API would no longer honour is worse than no line.
+    const dead = Number.isFinite(quote.expiresAt) && quote.expiresAt <= Date.now();
+    premium = dead ? null : quote.premium;
   } catch (cause) {
     reportUnreachable('the landing from price', cause);
     premium = null;

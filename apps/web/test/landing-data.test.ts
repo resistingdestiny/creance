@@ -76,7 +76,10 @@ beforeEach(() => {
   forgetReadings();
   fetchIndex.mockReset().mockResolvedValue(READING);
   fetchIndexCatalogue.mockReset().mockResolvedValue({ index: {}, groups: [] });
-  requestQuote.mockReset().mockResolvedValue(QUOTE);
+  requestQuote.mockReset().mockResolvedValue({
+    ...QUOTE,
+    expires_at: new Date(QUOTE_LIFE_MS).toISOString(),
+  });
   fetchSeries.mockReset().mockResolvedValue(SERIES);
   readExplorer.mockReset().mockResolvedValue({
     occupations: [],
@@ -150,6 +153,14 @@ describe('a figure that has gone stale', () => {
 describe('the from price is a quote and never a figure from memory', () => {
   it('is never held past the life the API gives it', () => {
     expect(QUOTE_TTL_MS + QUOTE_STALE_MS).toBeLessThan(QUOTE_LIFE_MS);
+  });
+
+  it('is dropped rather than printed once the quote the API gave has expired', async () => {
+    requestQuote.mockResolvedValue({ ...QUOTE, expires_at: new Date(-1).toISOString() });
+
+    const { price } = await pageView();
+
+    expect(price.priceLine).toBeNull();
   });
 
   it('is the quote endpoint every time, never a number this app kept', async () => {

@@ -195,3 +195,21 @@ harness's own style, with the mirror form passing through and an unrecognised
 value throwing. It is four lines of regular expression either way and neither
 copy was pasted from the other, but it is the same idea and it is recorded here
 because the pull request carries it into somebody else's repository.
+
+## Hedera WalletConnect and Reown AppKit
+
+https://github.com/hashgraph/hedera-wallet-connect, `@hashgraph/hedera-wallet-connect` 2.1.3, Apache-2.0
+https://docs.reown.com/appkit/overview, `@reown/appkit` 1.8.23, Apache-2.0
+
+Dependencies, not vendored code. `apps/web/src/lib/wallet-connect.ts` follows the
+"Using Reown's AppKit" section of the hedera-wallet-connect README: `HederaProvider.init`
+for the universal provider, `HederaAdapter` on the `hedera` namespace, and
+`createAppKit` with `HederaChainDefinition.Native.Testnet` as its only network.
+Those four calls and their argument names are what was taken.
+
+The README's EVM half was not taken. It pairs a `WagmiAdapter` with the native
+adapter so the same session can send Ethereum JSON-RPC, and nothing here does:
+the account id is the only thing this app asks a wallet for, and the EVM address
+that goes with it is read from the mirror node on the server rather than trusted
+from the browser. The library also exports chain definitions for the live
+network; none of them is referenced anywhere, per MISSION rule 1.

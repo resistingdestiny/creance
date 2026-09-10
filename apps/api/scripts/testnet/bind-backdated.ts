@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util';
 import { EthersChainGateway } from '../../src/chain/cover-pool.js';
 import { SdkHederaGateway } from '../../src/chain/hedera.js';
 import { loadApiConfig } from '../../src/config.js';
+import { groupCoverKey, newCoverKey } from '../../src/cover-key.js';
 import { seriesNamed } from './series-argument.js';
 import { createPool } from '../../src/db/postgres.js';
 import { migrate } from '../../src/db/migrate.js';
@@ -217,9 +218,21 @@ try {
     ),
   );
 
+  // The way into the dashboard this cover belongs to. `POST /v1/bind` issues
+  // one for every policy it writes and this script writes its own, so without
+  // this the backdated cover has no way in and the reproduction in
+  // docs/HEDERA.md stops at /home.
+  const coverKey = newCoverKey();
+  await pool.query(
+    `INSERT INTO cover_keys (key_hash, policy_id) VALUES ($1,$2)
+     ON CONFLICT (key_hash) DO NOTHING`,
+    [coverKey.hash, policyId],
+  );
+
   const after = await chain.seriesState(series.seriesId);
   console.log('');
   console.log(`policy      ${policyId}`);
+  console.log(`cover key   ${groupCoverKey(coverKey.key)}`);
   console.log(`holder      ${holder.accountId} ${holder.evmAddress}`);
   console.log(`nullifier   stored, ${nullifier.length} digits`);
   console.log(`bind        https://hashscan.io/testnet/transaction/${write.transactionHash}`);

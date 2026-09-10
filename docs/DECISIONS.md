@@ -5098,3 +5098,23 @@ changes once a fortnight. A series registered on chain and missing from the
 constant reads as no cover, which is the safe direction to be wrong in, and
 the list endpoint is what the investor half uses where the answer has to be
 live.
+
+### The demo note gained one KYC grant before the runner learned to skip it
+
+The first pass of `pnpm series:capacity notes` ran over the whole catalogue,
+including the demo series, and granted the operator KYC on the demo note. It
+was harmless and it is a real transaction, so it stays on the record rather
+than being deleted; the record would otherwise omit something that happened on
+chain. Nothing was removed or replaced: the contract, the deploy transaction,
+the eight roles, the two noteholders, the coupon and every link docs/ATS.md and
+docs/HEDERA.md publish are exactly as T06 and T14 left them.
+
+The same pass also rewrote the note's `roles` step line to name the three roles
+the seeding path checks, which understated the eight the operator actually
+holds on that note. That line is restored, and the runner now names what it
+granted rather than asserting what is held.
+
+The runner also now stops before it grants anything when a note's supply is
+already at its cap. A note that is issued and fully subscribed has nothing to
+seed, so the demo series is skipped outright and a repeat pass over all fifteen
+leaves the deployment record byte for byte identical.

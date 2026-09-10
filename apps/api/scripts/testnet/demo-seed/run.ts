@@ -426,6 +426,19 @@ async function verify(context: Context): Promise<void> {
       console.log(`    receipt     ${config.policyNftTokenId} serial ${held.nftSerial}`);
     }
   }
+  // The cover behind the published link, in the same block, because it is a
+  // cover an operator has to open a HashScan tab on like any other. The key is
+  // not printed here: it is printed once, below, beside the line to paste.
+  const shown = context.record.showcase;
+  if (shown !== undefined) {
+    console.log(`  published     ${shown.policyId}`);
+    console.log(`    holder      ${shown.role} ${shown.accountId}  ${hashscanUrl('account', shown.accountId)}`);
+    console.log(`    cover       ${inUnits(shown.limit, decimals)} TUSD from ${shown.startAt}, claimable ${shown.claimsPayableFrom}`);
+    if (shown.bindTx !== undefined) console.log(`    bind        ${hashscanUrl('transaction', shown.bindTx)}`);
+    if (shown.nftSerial !== undefined) {
+      console.log(`    receipt     ${config.policyNftTokenId} serial ${shown.nftSerial}`);
+    }
+  }
   console.log('');
   for (const investor of context.record.investors) {
     console.log(`  ${investor.role}    ${investor.accountId}  ${hashscanUrl('account', investor.accountId)}`);

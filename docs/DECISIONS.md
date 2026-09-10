@@ -5748,3 +5748,81 @@ Only the native `hedera` adapter is built. The library's README pairs it with a
 `WagmiAdapter` so the same session can send Ethereum JSON-RPC, and nothing in
 this app does. Only the testnet chain definition is referenced, so there is no
 other network for a wallet to switch to.
+
+## T46, the API's paths answered on the web origin, 10 September 2026
+
+### The web app answers the API's paths, because the description files name one origin
+
+Measured before anything was written: `https://creance.co/llms.txt`,
+`/skill.md` and `/openapi/index.json` were 404 and the same paths on
+`https://api.creance.co` were 200, and so were `/v1/index`, `/v1/replay`,
+`/v1/attribution`, `/v1/index/computer_math` and `/health`. The evidence is in
+docs/harness-notes.md. The deployment is two origins and `deploy/Caddyfile`,
+which puts both apps on one, is not what is in front of it.
+
+The files cannot be fixed by changing what they say. Every URL in `llms.txt`
+and `SKILL.md`, the single `servers` entry of both OpenAPI documents and the
+`resource` an x402 challenge names are all the public origin, deliberately, and
+that origin is baked into the World Developer Portal's allowed origins and into
+what a payer signs. So the origin stays where it is and the web app answers for
+it: `src/app/api-proxy.ts` and a route for each path hand `/llms.txt`,
+`/skill.md`, `/openapi/index.json`, `/health`, `/healthz`,
+`/.well-known/jwks.json` and everything under `/v1/` to the API and pass the
+answer back unchanged.
+
+That is the split `deploy/Caddyfile` already makes at the edge, made once more
+inside the app so it holds wherever the app runs. Behind that site file these
+routes are never reached, because Caddy takes those paths first. A test compares
+the two lists so they cannot disagree.
+
+It needs no new configuration. The web app already reads the API through
+`CREANCE_API_URL` on every screen, so the address is set wherever it runs, and
+the proxy reads the same variable through the same `apiBaseUrl()`.
+
+### Route handlers, not rewrites in next.config.ts
+
+`rewrites()` is serialised into the build's route manifest, so the destination
+would be fixed when the image is built, and `CREANCE_API_URL` is a runtime value
+that compose sets per container. Checked in the framework rather than assumed:
+`next/dist/build` writes `rewrites` into `routes-manifest.json` and the
+production server reads that file back through `getRoutesManifest`. The
+published documentation for `rewrites` describes the routing order and says
+nothing either way about when the destination is resolved. A route handler reads it per request. The
+handlers were verified against a production build with the variable supplied
+only at start, which a rewrite could not have been.
+
+### The description files are passed through, not copied into public/
+
+The ticket offered the other shape: let `pnpm api:openapi` write the three files
+into `apps/web/public/` beside the cover document. Passing through wins on the
+thing that matters here, which is that there is one set of bytes. A copy is
+37.7 KB of specification and two description files that are correct only until
+somebody edits the generator and does not run it, and it would not have helped
+the six `/v1/` links in `llms.txt`, which need the API answering on this origin
+whatever serves the text. One mechanism serves all of it.
+
+### The cover document in public/ is generated now, and it had drifted
+
+`apps/web/public/openapi.json` is the file the framework serves at
+`https://creance.co/openapi.json`, which `recipes/bazantic/README.md` gives an
+importer. It was copied by hand and had drifted from the document it claims to
+be: no `/v1/series`, and a `servers` entry naming a different origin. It is
+written by `pnpm api:openapi` now and a test compares it with the generated
+bytes.
+
+### This is the proxy T17 said the app would not have
+
+T17 recorded that the web app reads the API on the server, so there is no CORS
+plugin and no proxy. That still holds for every screen: nothing in a browser
+fetches the API and `CREANCE_API_URL` is still private and still absent from the
+bundle. What is added is not a proxy for the app's own screens but the agent
+facing surface, whose callers are not browsers and whose addresses were fixed in
+files that are already published.
+
+### The problem type URIs are not addresses
+
+`https://creance.co/errors/<code>` is the `type` of every problem document and
+it is 404 on both origins. It stays that way. RFC 9457 section 3.1.1 makes the
+type URI an identifier and tells a consumer not to dereference it, so it is not
+a promise this origin has to keep, and the test that holds every promised URL to
+an answer skips it by name rather than by accident.

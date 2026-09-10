@@ -3,10 +3,16 @@
  * order.
  *
  * The order and the on-screen labels are the "Occupation picker correction" in
- * docs/DESIGN-TOKENS-ADDENDUM.md: fifteen rows, no armed forces row, no section
- * headers, detailed groups rendering exactly like the majors. The keys are the
- * API's own group keys, which are the enum in recipes/bazantic/openapi.yaml and
- * the rows `pnpm api:migrate` seeds.
+ * docs/DESIGN-TOKENS-ADDENDUM.md: fifteen rows, no armed forces row, detailed
+ * groups rendering exactly like the majors. The keys are the API's own group
+ * keys, which are the enum in recipes/bazantic/openapi.yaml and the rows
+ * `pnpm api:migrate` seeds.
+ *
+ * T38 adds the two headings the addendum's flat list did not have: what can be
+ * bought comes first, what cannot sinks to the bottom, and each part says what
+ * it is. The addendum order survives as the order inside each part, and
+ * `groupOccupations` is the one place the split is made, so the standalone
+ * picker and the landing quote cannot group the list differently.
  *
  * Two labels here differ from packages/index-model/src/series.ts, which spells
  * them "Management, business and financial operations" and "Arts, design,
@@ -138,4 +144,25 @@ export function filterOccupations(
 /** True when the occupation has a series behind it and can be bought today. */
 export function hasCover(occupation: Occupation): boolean {
   return occupation.series !== null;
+}
+
+export interface OccupationGroups {
+  /** The rows with a series behind them, which are the ones that can be bought. */
+  readonly open: readonly Occupation[];
+  /** The rows with nothing committed behind them yet. */
+  readonly noCover: readonly Occupation[];
+}
+
+/**
+ * T38: the list admits its shape. What can be bought comes first, what cannot
+ * sinks to the bottom, and the boundary is a heading, not something a person
+ * infers from a caption. Both pickers filter first and group after, so a
+ * search that matches only unbuyable occupations still shows them, under
+ * their own heading.
+ */
+export function groupOccupations(rows: readonly Occupation[]): OccupationGroups {
+  return {
+    open: rows.filter(hasCover),
+    noCover: rows.filter((row) => !hasCover(row)),
+  };
 }

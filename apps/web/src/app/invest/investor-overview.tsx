@@ -121,14 +121,14 @@ export function InvestorOverview({
               <ListRow
                 caption={`${earned.coupons} coupon${earned.coupons === 1 ? '' : 's'} paid to ${investor.accountId}`}
                 label="Earned to date"
-                value={<span className="tabular-nums">{earned.amount}</span>}
+                value={<span className="tabular-nums whitespace-nowrap">{earned.amount}</span>}
               />
             )}
             {next === null ? null : (
               <ListRow
                 caption={`Coupon ${next.couponId}, accruing ${next.period}`}
                 label="Next payment"
-                value={<span className="tabular-nums">{next.day}</span>}
+                value={<span className="tabular-nums whitespace-nowrap">{next.day}</span>}
               />
             )}
           </SurfaceGroup>

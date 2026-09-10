@@ -28,6 +28,7 @@ bind 0x1234, gas 207324
 policy receipt 0.0.10366468 serial 21
 
 policy      pol_01M1S3EBDQR3W79A9E8MR6MPYB
+cover key   K7QP K7QP K7QP K7QP K7QP
 holder      0.0.10366453 0xcad39730d48683b13e6077a70c6972add449b6f5
 nullifier   stored, 19 digits
 bind        https://hashscan.io/testnet/transaction/0xabc123
@@ -109,10 +110,20 @@ describe('reading the bind command back', () => {
   it('takes the policy id, the transaction and the receipt serial from the printed block', () => {
     expect(parseBoundPolicy(BIND_OUTPUT)).toEqual({
       policyId: 'pol_01M1S3EBDQR3W79A9E8MR6MPYB',
+      coverKey: 'K7QPK7QPK7QPK7QPK7QP',
       bindTx: '0xabc123',
       nftSerial: 21,
       claimsPayableFrom: '2026-01-30',
     });
+  });
+
+  it('takes the cover key without the groups it was printed in', () => {
+    expect(parseBoundPolicy(BIND_OUTPUT).coverKey).toHaveLength(20);
+  });
+
+  it('leaves the key out when the bind command printed none, rather than inventing one', () => {
+    const older = BIND_OUTPUT.replace(/^cover key.*\n/m, '');
+    expect(parseBoundPolicy(older).coverKey).toBeUndefined();
   });
 
   it('refuses output with no policy in it rather than recording a half bind', () => {

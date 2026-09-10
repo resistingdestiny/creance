@@ -148,6 +148,7 @@ export function packetsNeedingCover(record: SeedRecord, usable: (policyId: strin
  */
 export function parseBoundPolicy(stdout: string): {
   policyId: string;
+  coverKey?: string;
   bindTx?: string;
   nftSerial?: number;
   claimsPayableFrom?: string;
@@ -159,8 +160,14 @@ export function parseBoundPolicy(stdout: string): {
   const bindTx = /^bind\s+https:\/\/hashscan\.io\/testnet\/transaction\/(\S+)$/m.exec(stdout)?.[1];
   const serial = /^policy receipt \S+ serial (\d+)$/m.exec(stdout)?.[1];
   const payable = /^claims payable from (\d{4}-\d{2}-\d{2})$/m.exec(stdout)?.[1];
+  // The key is printed once, in groups of four, and can never be printed
+  // again: the database holds a digest of it and nothing else. So it is read
+  // here or the cover the seed just bound has no way in.
+  const grouped = /^cover key\s+([0-9A-Z][0-9A-Z ]*)$/m.exec(stdout)?.[1];
+  const coverKey = grouped === undefined ? undefined : grouped.replace(/\s/g, '');
   return {
     policyId,
+    ...(coverKey === undefined ? {} : { coverKey }),
     ...(bindTx === undefined ? {} : { bindTx }),
     ...(serial === undefined ? {} : { nftSerial: Number(serial) }),
     ...(payable === undefined ? {} : { claimsPayableFrom: payable }),

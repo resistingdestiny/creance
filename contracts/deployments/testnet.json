@@ -43,314 +43,1614 @@
     "SUBSCRIPTION_ROLE": "0x7c02879d6b95f923681f517b0487aa45af2b8fdf",
     "TREASURY_ROLE": "0x7c02879d6b95f923681f517b0487aa45af2b8fdf"
   },
-  "series": {
-    "id": "0x4f44492d434f4d502d323032362d303100000000000000000000000000000000",
-    "label": "ODI-COMP-2026-01",
-    "group": "computer_math",
-    "attachmentShock": "20000",
-    "levelLine": "-6800",
-    "exhaustionShock": "40000",
-    "payoutMode": "full",
-    "maturityAt": 1820082162,
-    "openSeriesTx": "0x2c042123014090e5b40ad3142518397ecf9d377471cde59fd75c7ee2138432d0",
-    "registerSeriesTx": "0x15e833ad75e2f1ae5ef38956959ac13d6b76eba7906ee9e6ba6b48895675bfda",
-    "ats": {
-      "version": "8.0.0",
-      "tag": "v.8.0.0-ats",
-      "factoryId": "0.0.9213391",
-      "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
-      "resolverId": "0.0.9212226",
-      "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
-      "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
-      "steps": {
-        "fund-investor-1": {
-          "tx": "0x6c0dca725bd91ee40f591d705de62ce773442aa9c1d8427244b69d7937ec6085",
-          "result": "investor-1 topped up to 12 HBAR so it can pay for its own calls",
-          "gasUsed": 21000
+  "series": [
+    {
+      "id": "0x4f44492d434f4d502d323032362d303100000000000000000000000000000000",
+      "label": "ODI-COMP-2026-01",
+      "group": "computer_math",
+      "attachmentShock": "20000",
+      "levelLine": "-6800",
+      "exhaustionShock": "40000",
+      "payoutMode": "full",
+      "maturityAt": 1820082162,
+      "openSeriesTx": "0x2c042123014090e5b40ad3142518397ecf9d377471cde59fd75c7ee2138432d0",
+      "registerSeriesTx": "0x15e833ad75e2f1ae5ef38956959ac13d6b76eba7906ee9e6ba6b48895675bfda",
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "steps": {
+          "fund-investor-1": {
+            "tx": "0x6c0dca725bd91ee40f591d705de62ce773442aa9c1d8427244b69d7937ec6085",
+            "result": "investor-1 topped up to 12 HBAR so it can pay for its own calls",
+            "gasUsed": 21000
+          },
+          "fund-investor-2": {
+            "tx": "0xef4a4786ef91bce7cd42d5b90ec1b1837af81bc0c984ef1e99382d19ca17a31c",
+            "result": "investor-2 topped up to 12 HBAR so it can pay for its own calls",
+            "gasUsed": 21000
+          },
+          "throwaway": {
+            "tx": "0x0648e03012c7ae5060411c15cccf622b402d15261887b4efb9efc774cc084a64",
+            "result": "the example environment factory pair deploys an 8.0.0 bond at config version 1",
+            "gasUsed": 6939363
+          },
+          "throwaway-max-supply": {
+            "tx": "0xcf45fe36f004efcc9c5dd71f734a8a7b77b6343f949c7c3d9497d11b52f90fef",
+            "revert": "MaxSupplyReached(100)",
+            "result": "one whole unit against an unscaled cap of 100 is refused"
+          },
+          "issue": {
+            "tx": "0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398",
+            "result": "series ODI-COMP-2026-01 issued as an ATS bond, principal 100000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005006
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0x7a1a32e3178bea2e894552cd3822e1006933abe6e83c4a9098265bd052f89230",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-investor-1": {
+            "tx": "0x44e5f93d56d72350baf85cea6bd5a6dc1dbe0054f9f87a598e592eb7c4ebf5b5",
+            "result": "getKycStatusFor(0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931) reads GRANTED (1)",
+            "gasUsed": 273905
+          },
+          "mint-investor-1": {
+            "tx": "0xc58192c2df8c6160828eacb1e9951b3291a63eb426e78870421b3b9fef96b98d",
+            "result": "balanceOf(investor-1) 0 to 60000000, 60 units",
+            "gasUsed": 475349
+          },
+          "transfer-blocked": {
+            "tx": "0x0791d049fa5ab514f4af143a5f652973df0f6a22f0a288d7dd39334529970cf1",
+            "revert": "InvalidKycStatus",
+            "result": "10 units from investor-1 to investor-2 refused while getKycStatusFor(0xcaa1184cd59b9296f757efc7303a10ecec6ce51e) reads NOT_GRANTED (0); internal KYC is the gate"
+          },
+          "kyc-investor-2": {
+            "tx": "0xecdc481155d644bfb8a1254b39d040f0751cfc3e06456bbef878c88322024f9a",
+            "result": "getKycStatusFor(0xcaa1184cd59b9296f757efc7303a10ecec6ce51e) reads GRANTED (1)",
+            "gasUsed": 256805
+          },
+          "transfer-allowed": {
+            "tx": "0xce6d12fcf5def0015a0cc15806a3a315e4f0d3dddfb108b50798ebe3b93d911c",
+            "result": "the same 10 units, the same parties, now settle: balanceOf(investor-2) 0 to 10000000",
+            "gasUsed": 473562
+          },
+          "mint-investor-2": {
+            "tx": "0x9bee9bdcaf06955764bb38928e72c2596688591608f680de0da1ca66fcd113bd",
+            "result": "balanceOf(investor-2) 10000000 to 50000000, 50 units",
+            "gasUsed": 214419
+          },
+          "pause": {
+            "tx": "0xbeb15e8acfeac4008d0116d3c85a1032d3f5452773056a90b32f3cf1d72a86db",
+            "result": "paused() reads true, under ROLE_PAUSER held by the operator",
+            "gasUsed": 79287
+          },
+          "pause-blocks-transfer": {
+            "tx": "0xd6e1aa8e3839f9afab72295f34ba2769663c48aef0800f08565fd7877315370a",
+            "revert": "IsPaused",
+            "result": "one unit between two KYC granted noteholders is refused while the note is paused"
+          },
+          "unpause": {
+            "tx": "0x30a3eecd2db8868242106f589536d4783000527712490904ffae7a84fada7f3b",
+            "result": "paused() reads false again and transfers resume",
+            "gasUsed": 55060
+          },
+          "freeze": {
+            "tx": "0xeecbf14f96b9923b452966dc7fa31a34c890d8dea1f928fa9692922653fe7891",
+            "result": "getFrozenTokens(investor-2) reads 45000000 and balanceOf drops from 50000000 to 5000000: a freeze leaves the partition balance, so the position is balanceOf plus getFrozenTokens",
+            "gasUsed": 162283
+          },
+          "freeze-blocks-transfer": {
+            "tx": "0x04fbd62b599b3b0871ca85dacef17fb59df286400feb37496f25aa36b7706539",
+            "revert": "InsufficientBalance(0xCAa1184cd59B9296f757EfC7303a10eCec6ce51e, 5000000, 6000000, 0x0000000000000000000000000000000000000000000000000000000000000001)",
+            "result": "6000000 is one unit more than the 5000000 left unfrozen and is refused"
+          },
+          "unfreeze": {
+            "tx": "0x0edc8a9a1ad5459e7603a17e4efddd6cc3a4f1ea149c0c37eb95c1ac59a6b9f4",
+            "result": "getFrozenTokens(investor-2) reads 0 and balanceOf is back to 50000000",
+            "gasUsed": 123218
+          },
+          "coupon": {
+            "tx": "0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804",
+            "result": "coupon 1 declared at 8 percent a year over 1788552983 to 1791144983, record 1788553283, execution 1788553583",
+            "gasUsed": 628757
+          },
+          "verify": {
+            "result": "name Creance Displacement Bond Note ODI-COMP-2026-01, symbol CDBN01, decimals 6, totalSupply 100000000, getMaturityDate 1820082162, isInternalKycActivated true, isClearingActivated false, paused false; investor-1 50000000, investor-2 50000000; getKycStatusFor(policyholder-3) 0"
+          },
+          "coupon-entitlement": {
+            "result": "snapshotId 0, isDisabled false; investor-1 balance 50000000, 1036800000000000000/3153600000000000 = 328767123 minor units, recordDateReached true; investor-2 balance 50000000, 1036800000000000000/3153600000000000 = 328767123 minor units, recordDateReached true"
+          },
+          "kyc-operator": {
+            "tx": "0x06f99ebaf4c48c239510b28102c91b856429b1f31e04a4a51eb4faac252ef00f",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 256793
+          }
         },
-        "fund-investor-2": {
-          "tx": "0xef4a4786ef91bce7cd42d5b90ec1b1837af81bc0c984ef1e99382d19ca17a31c",
-          "result": "investor-2 topped up to 12 HBAR so it can pay for its own calls",
-          "gasUsed": 21000
-        },
+        "configVersion": 1,
         "throwaway": {
-          "tx": "0x0648e03012c7ae5060411c15cccf622b402d15261887b4efb9efc774cc084a64",
-          "result": "the example environment factory pair deploys an 8.0.0 bond at config version 1",
-          "gasUsed": 6939363
+          "contractId": "0.0.10368234",
+          "address": "0x3D49836c6d26Bdb7922694747455d063E9FDd823",
+          "name": "Creance ATS Probe",
+          "symbol": "CPROBE",
+          "isin": "ZZT06TRK6CM7",
+          "decimals": 6,
+          "units": "100",
+          "nominalValue": "1000",
+          "principal": "100000",
+          "currency": "0x555344",
+          "maxSupply": "100",
+          "startingDate": 1788552658,
+          "maturityDate": 1788639058,
+          "internalKycActivated": false,
+          "regulation": "Regulation S",
+          "deployTx": "0x0648e03012c7ae5060411c15cccf622b402d15261887b4efb9efc774cc084a64",
+          "gasUsed": 6939363,
+          "finding": "the supply cap is a raw balance, not a unit count: with maxSupply 100 on a 6 decimal note, issuing one whole unit reverts MaxSupplyReached(100)"
         },
-        "throwaway-max-supply": {
-          "tx": "0xcf45fe36f004efcc9c5dd71f734a8a7b77b6343f949c7c3d9497d11b52f90fef",
-          "revert": "MaxSupplyReached(100)",
-          "result": "one whole unit against an unscaled cap of 100 is refused"
-        },
-        "issue": {
-          "tx": "0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398",
-          "result": "series ODI-COMP-2026-01 issued as an ATS bond, principal 100000, internal KYC on, clearing off, not controllable, Regulation S",
+        "note": {
+          "contractId": "0.0.10368240",
+          "address": "0xBB14C072d2861B944C18e5f873C5aEa71c2F1f36",
+          "name": "Creance Displacement Bond Note ODI-COMP-2026-01",
+          "symbol": "CDBN01",
+          "isin": "ZZODIC55S1Q6",
+          "decimals": 6,
+          "units": "100",
+          "nominalValue": "1000",
+          "principal": "100000",
+          "currency": "0x555344",
+          "maxSupply": "100000000",
+          "startingDate": 1788552681,
+          "maturityDate": 1820082162,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398",
           "gasUsed": 7005006
         },
         "roles": {
-          "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER, ROLE_CORPORATE_ACTION, ROLE_PAUSER, ROLE_FREEZE_MANAGER, ROLE_MATURITY_REDEEMER, ROLE_MATURITY_MANAGER"
+          "ROLE_SSI_MANAGER": "0xad70c0dadfad9d50c9f2a1a98aee3f920bcce6a8bb237baaceafc69ca8e3cfee",
+          "ROLE_KYC": "0xbc18bea44c54733d43032050742ea766b2f4ee0fbccc3f40c538933b5c3cc06a",
+          "ROLE_ISSUER": "0xa53b622762f994432f0d9dd93a2c92c3d4e5dd77670b8d604c7ab180067cfe9a",
+          "ROLE_CORPORATE_ACTION": "0x89b15399594efca317b379d0a3e2962a6cc22006e076ede4887959d2b1a95a22",
+          "ROLE_PAUSER": "0xbe4e8a52cdd90d452582a2314005d317169d0d37b3d74c61566f10640025bac1",
+          "ROLE_FREEZE_MANAGER": "0x486f13c2a6e4fb6226613ee6f45128c0f7b87ac6fd04b0c57fd772cc9884da49",
+          "ROLE_MATURITY_REDEEMER": "0xe72bc61cdbcb71e76ba91b76d1dbf32e8754d6370d7df76937fd75f1cddf9e52",
+          "ROLE_MATURITY_MANAGER": "0x39ab7a21180b67c4f47ace2156446c05c04438f4aa3015e94a7bfc3330a9a874"
         },
-        "issuer": {
-          "tx": "0x7a1a32e3178bea2e894552cd3822e1006933abe6e83c4a9098265bd052f89230",
-          "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
-          "gasUsed": 126977
-        },
-        "kyc-investor-1": {
-          "tx": "0x44e5f93d56d72350baf85cea6bd5a6dc1dbe0054f9f87a598e592eb7c4ebf5b5",
-          "result": "getKycStatusFor(0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931) reads GRANTED (1)",
-          "gasUsed": 273905
-        },
-        "mint-investor-1": {
-          "tx": "0xc58192c2df8c6160828eacb1e9951b3291a63eb426e78870421b3b9fef96b98d",
-          "result": "balanceOf(investor-1) 0 to 60000000, 60 units",
-          "gasUsed": 475349
-        },
-        "transfer-blocked": {
-          "tx": "0x0791d049fa5ab514f4af143a5f652973df0f6a22f0a288d7dd39334529970cf1",
-          "revert": "InvalidKycStatus",
-          "result": "10 units from investor-1 to investor-2 refused while getKycStatusFor(0xcaa1184cd59b9296f757efc7303a10ecec6ce51e) reads NOT_GRANTED (0); internal KYC is the gate"
-        },
-        "kyc-investor-2": {
-          "tx": "0xecdc481155d644bfb8a1254b39d040f0751cfc3e06456bbef878c88322024f9a",
-          "result": "getKycStatusFor(0xcaa1184cd59b9296f757efc7303a10ecec6ce51e) reads GRANTED (1)",
-          "gasUsed": 256805
-        },
-        "transfer-allowed": {
-          "tx": "0xce6d12fcf5def0015a0cc15806a3a315e4f0d3dddfb108b50798ebe3b93d911c",
-          "result": "the same 10 units, the same parties, now settle: balanceOf(investor-2) 0 to 10000000",
-          "gasUsed": 473562
-        },
-        "mint-investor-2": {
-          "tx": "0x9bee9bdcaf06955764bb38928e72c2596688591608f680de0da1ca66fcd113bd",
-          "result": "balanceOf(investor-2) 10000000 to 50000000, 50 units",
-          "gasUsed": 214419
-        },
-        "pause": {
-          "tx": "0xbeb15e8acfeac4008d0116d3c85a1032d3f5452773056a90b32f3cf1d72a86db",
-          "result": "paused() reads true, under ROLE_PAUSER held by the operator",
-          "gasUsed": 79287
-        },
-        "pause-blocks-transfer": {
-          "tx": "0xd6e1aa8e3839f9afab72295f34ba2769663c48aef0800f08565fd7877315370a",
-          "revert": "IsPaused",
-          "result": "one unit between two KYC granted noteholders is refused while the note is paused"
-        },
-        "unpause": {
-          "tx": "0x30a3eecd2db8868242106f589536d4783000527712490904ffae7a84fada7f3b",
-          "result": "paused() reads false again and transfers resume",
-          "gasUsed": 55060
-        },
-        "freeze": {
-          "tx": "0xeecbf14f96b9923b452966dc7fa31a34c890d8dea1f928fa9692922653fe7891",
-          "result": "getFrozenTokens(investor-2) reads 45000000 and balanceOf drops from 50000000 to 5000000: a freeze leaves the partition balance, so the position is balanceOf plus getFrozenTokens",
-          "gasUsed": 162283
-        },
-        "freeze-blocks-transfer": {
-          "tx": "0x04fbd62b599b3b0871ca85dacef17fb59df286400feb37496f25aa36b7706539",
-          "revert": "InsufficientBalance(0xCAa1184cd59B9296f757EfC7303a10eCec6ce51e, 5000000, 6000000, 0x0000000000000000000000000000000000000000000000000000000000000001)",
-          "result": "6000000 is one unit more than the 5000000 left unfrozen and is refused"
-        },
-        "unfreeze": {
-          "tx": "0x0edc8a9a1ad5459e7603a17e4efddd6cc3a4f1ea149c0c37eb95c1ac59a6b9f4",
-          "result": "getFrozenTokens(investor-2) reads 0 and balanceOf is back to 50000000",
-          "gasUsed": 123218
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "investor-1": {
+            "vcId": "urn:uuid:92801b75-ca3c-4617-a044-9533154baffe",
+            "validFrom": 1788552752,
+            "validTo": 4942152752,
+            "tx": "0x44e5f93d56d72350baf85cea6bd5a6dc1dbe0054f9f87a598e592eb7c4ebf5b5"
+          },
+          "investor-2": {
+            "vcId": "urn:uuid:f2323f3c-423d-44e2-b006-55fb7816f13c",
+            "validFrom": 1788552788,
+            "validTo": 4942152788,
+            "tx": "0xecdc481155d644bfb8a1254b39d040f0751cfc3e06456bbef878c88322024f9a"
+          },
+          "operator": {
+            "vcId": "urn:uuid:c6b4e014-5aa4-44b9-ae9a-cfa8fe38bae1",
+            "validFrom": 1789029196,
+            "validTo": 4942629196,
+            "tx": "0x06f99ebaf4c48c239510b28102c91b856429b1f31e04a4a51eb4faac252ef00f"
+          }
         },
         "coupon": {
-          "tx": "0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804",
-          "result": "coupon 1 declared at 8 percent a year over 1788552983 to 1791144983, record 1788553283, execution 1788553583",
-          "gasUsed": 628757
-        },
-        "verify": {
-          "result": "name Creance Displacement Bond Note ODI-COMP-2026-01, symbol CDBN01, decimals 6, totalSupply 100000000, getMaturityDate 1820082162, isInternalKycActivated true, isClearingActivated false, paused false; investor-1 50000000, investor-2 50000000; getKycStatusFor(policyholder-3) 0"
-        },
-        "coupon-entitlement": {
-          "result": "snapshotId 0, isDisabled false; investor-1 balance 50000000, 1036800000000000000/3153600000000000 = 328767123 minor units, recordDateReached true; investor-2 balance 50000000, 1036800000000000000/3153600000000000 = 328767123 minor units, recordDateReached true"
+          "id": "1",
+          "ratePercent": 8,
+          "rate": "8",
+          "rateDecimals": 2,
+          "recordTimestamp": 1788553283,
+          "executionTimestamp": 1788553583,
+          "startTimestamp": 1788552983,
+          "endTimestamp": 1791144983,
+          "fixingTimestamp": 1788553283,
+          "tx": "0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804"
         }
       },
-      "configVersion": 1,
-      "throwaway": {
-        "contractId": "0.0.10368234",
-        "address": "0x3D49836c6d26Bdb7922694747455d063E9FDd823",
-        "name": "Creance ATS Probe",
-        "symbol": "CPROBE",
-        "isin": "ZZT06TRK6CM7",
-        "decimals": 6,
-        "units": "100",
-        "nominalValue": "1000",
-        "principal": "100000",
-        "currency": "0x555344",
-        "maxSupply": "100",
-        "startingDate": 1788552658,
-        "maturityDate": 1788639058,
-        "internalKycActivated": false,
-        "regulation": "Regulation S",
-        "deployTx": "0x0648e03012c7ae5060411c15cccf622b402d15261887b4efb9efc774cc084a64",
-        "gasUsed": 6939363,
-        "finding": "the supply cap is a raw balance, not a unit count: with maxSupply 100 on a 6 decimal note, issuing one whole unit reverts MaxSupplyReached(100)"
-      },
-      "note": {
-        "contractId": "0.0.10368240",
-        "address": "0xBB14C072d2861B944C18e5f873C5aEa71c2F1f36",
-        "name": "Creance Displacement Bond Note ODI-COMP-2026-01",
-        "symbol": "CDBN01",
-        "isin": "ZZODIC55S1Q6",
-        "decimals": 6,
-        "units": "100",
-        "nominalValue": "1000",
-        "principal": "100000",
-        "currency": "0x555344",
-        "maxSupply": "100000000",
-        "startingDate": 1788552681,
-        "maturityDate": 1820082162,
-        "internalKycActivated": true,
-        "regulation": "Regulation S",
-        "deployTx": "0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398",
-        "gasUsed": 7005006
-      },
-      "roles": {
-        "ROLE_SSI_MANAGER": "0xad70c0dadfad9d50c9f2a1a98aee3f920bcce6a8bb237baaceafc69ca8e3cfee",
-        "ROLE_KYC": "0xbc18bea44c54733d43032050742ea766b2f4ee0fbccc3f40c538933b5c3cc06a",
-        "ROLE_ISSUER": "0xa53b622762f994432f0d9dd93a2c92c3d4e5dd77670b8d604c7ab180067cfe9a",
-        "ROLE_CORPORATE_ACTION": "0x89b15399594efca317b379d0a3e2962a6cc22006e076ede4887959d2b1a95a22",
-        "ROLE_PAUSER": "0xbe4e8a52cdd90d452582a2314005d317169d0d37b3d74c61566f10640025bac1",
-        "ROLE_FREEZE_MANAGER": "0x486f13c2a6e4fb6226613ee6f45128c0f7b87ac6fd04b0c57fd772cc9884da49",
-        "ROLE_MATURITY_REDEEMER": "0xe72bc61cdbcb71e76ba91b76d1dbf32e8754d6370d7df76937fd75f1cddf9e52",
-        "ROLE_MATURITY_MANAGER": "0x39ab7a21180b67c4f47ace2156446c05c04438f4aa3015e94a7bfc3330a9a874"
-      },
-      "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
-      "kyc": {
-        "investor-1": {
-          "vcId": "urn:uuid:92801b75-ca3c-4617-a044-9533154baffe",
-          "validFrom": 1788552752,
-          "validTo": 4942152752,
-          "tx": "0x44e5f93d56d72350baf85cea6bd5a6dc1dbe0054f9f87a598e592eb7c4ebf5b5"
-        },
-        "investor-2": {
-          "vcId": "urn:uuid:f2323f3c-423d-44e2-b006-55fb7816f13c",
-          "validFrom": 1788552788,
-          "validTo": 4942152788,
-          "tx": "0xecdc481155d644bfb8a1254b39d040f0751cfc3e06456bbef878c88322024f9a"
-        }
-      },
-      "coupon": {
-        "id": "1",
-        "ratePercent": 8,
-        "rate": "8",
-        "rateDecimals": 2,
-        "recordTimestamp": 1788553283,
-        "executionTimestamp": 1788553583,
-        "startTimestamp": 1788552983,
-        "endTimestamp": 1791144983,
-        "fixingTimestamp": 1788553283,
-        "tx": "0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804"
-      }
-    },
-    "couponSettlements": {
-      "1": {
-        "couponId": "1",
-        "seriesLabel": "ODI-COMP-2026-01",
-        "couponRef": "ODI-COMP-2026-01#1",
-        "recordDate": 1788553283,
-        "executionDate": 1788553583,
-        "startDate": 1788552983,
-        "endDate": 1791144983,
-        "ratePercent": 8,
-        "holders": [
-          {
-            "role": "investor-1",
-            "accountId": "0.0.10366460",
-            "address": "0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931",
-            "numerator": "1036800000000000000",
-            "denominator": "3153600000000000",
-            "amount": "328767123",
-            "remainder": "907200000000000",
-            "scheduleId": "0.0.10368878",
-            "scheduleCreateTx": "0.0.10366450@1788556746.724064738",
-            "scheduleMemo": "creance coupon ODI-COMP-2026-01 1 investor-1",
-            "executeAt": "2026-09-04T21:21:11.000Z",
-            "createFeeHbar": "1.29264098",
-            "links": {
-              "schedule": "https://hashscan.io/testnet/schedule/0.0.10368878",
-              "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738",
-              "settlement": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738",
-              "topic": "https://hashscan.io/testnet/topic/0.0.10366471"
+      "couponSettlements": {
+        "1": {
+          "couponId": "1",
+          "seriesLabel": "ODI-COMP-2026-01",
+          "couponRef": "ODI-COMP-2026-01#1",
+          "recordDate": 1788553283,
+          "executionDate": 1788553583,
+          "startDate": 1788552983,
+          "endDate": 1791144983,
+          "ratePercent": 8,
+          "holders": [
+            {
+              "role": "investor-1",
+              "accountId": "0.0.10366460",
+              "address": "0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931",
+              "numerator": "1036800000000000000",
+              "denominator": "3153600000000000",
+              "amount": "328767123",
+              "remainder": "907200000000000",
+              "scheduleId": "0.0.10368878",
+              "scheduleCreateTx": "0.0.10366450@1788556746.724064738",
+              "scheduleMemo": "creance coupon ODI-COMP-2026-01 1 investor-1",
+              "executeAt": "2026-09-04T21:21:11.000Z",
+              "createFeeHbar": "1.29264098",
+              "links": {
+                "schedule": "https://hashscan.io/testnet/schedule/0.0.10368878",
+                "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738",
+                "settlement": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738",
+                "topic": "https://hashscan.io/testnet/topic/0.0.10366471"
+              },
+              "executedAt": "1788556871.150984988",
+              "executedTransactionId": "0.0.10366450-1788556746-724064738",
+              "result": "SUCCESS",
+              "settled": true,
+              "gasUsed": 62592,
+              "topicSequenceNumber": "1",
+              "topicTx": "0.0.10366450@1788556891.388923306"
             },
-            "executedAt": "1788556871.150984988",
-            "executedTransactionId": "0.0.10366450-1788556746-724064738",
-            "result": "SUCCESS",
-            "settled": true,
-            "gasUsed": 62592,
-            "topicSequenceNumber": "1",
-            "topicTx": "0.0.10366450@1788556891.388923306"
+            {
+              "role": "investor-2",
+              "accountId": "0.0.10366462",
+              "address": "0xcaa1184cd59b9296f757efc7303a10ecec6ce51e",
+              "numerator": "1036800000000000000",
+              "denominator": "3153600000000000",
+              "amount": "328767123",
+              "remainder": "907200000000000",
+              "scheduleId": "0.0.10368880",
+              "scheduleCreateTx": "0.0.10366450@1788556748.511830975",
+              "scheduleMemo": "creance coupon ODI-COMP-2026-01 1 investor-2",
+              "executeAt": "2026-09-04T21:21:11.000Z",
+              "createFeeHbar": "1.29264098",
+              "links": {
+                "schedule": "https://hashscan.io/testnet/schedule/0.0.10368880",
+                "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975",
+                "settlement": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975",
+                "topic": "https://hashscan.io/testnet/topic/0.0.10366471"
+              },
+              "executedAt": "1788556871.150985093",
+              "executedTransactionId": "0.0.10366450-1788556748-511830975",
+              "result": "SUCCESS",
+              "settled": true,
+              "gasUsed": 57792,
+              "topicSequenceNumber": "2",
+              "topicTx": "0.0.10366450@1788556890.534319993"
+            }
+          ],
+          "premiumSeed": {
+            "from": "0.0.10366453",
+            "amount": "657534246",
+            "transferTx": "0xd9b51875e52f63dc66eb1d73ebc949faab00bd32e15dc93a61625256f684840a",
+            "attributeTx": "0x219b93435de059c979fe8174dde65f82752416f8bafca289e8175fd4e2d69caf",
+            "attributeGasUsed": 66627
           },
-          {
-            "role": "investor-2",
-            "accountId": "0.0.10366462",
-            "address": "0xcaa1184cd59b9296f757efc7303a10ecec6ce51e",
-            "numerator": "1036800000000000000",
-            "denominator": "3153600000000000",
-            "amount": "328767123",
-            "remainder": "907200000000000",
-            "scheduleId": "0.0.10368880",
-            "scheduleCreateTx": "0.0.10366450@1788556748.511830975",
-            "scheduleMemo": "creance coupon ODI-COMP-2026-01 1 investor-2",
-            "executeAt": "2026-09-04T21:21:11.000Z",
-            "createFeeHbar": "1.29264098",
-            "links": {
-              "schedule": "https://hashscan.io/testnet/schedule/0.0.10368880",
-              "scheduleCreate": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975",
-              "settlement": "https://hashscan.io/testnet/transaction/0.0.10366450-1788556748-511830975",
-              "topic": "https://hashscan.io/testnet/topic/0.0.10366471"
-            },
-            "executedAt": "1788556871.150985093",
-            "executedTransactionId": "0.0.10366450-1788556748-511830975",
-            "result": "SUCCESS",
-            "settled": true,
-            "gasUsed": 57792,
-            "topicSequenceNumber": "2",
-            "topicTx": "0.0.10366450@1788556890.534319993"
+          "scheduledContractCall": {
+            "attempted": true,
+            "status": "create SUCCESS",
+            "scheduleId": "0.0.10368856",
+            "result": "CONTRACT_REVERT_EXECUTED",
+            "revert": "ZeroAmount"
           }
-        ],
-        "premiumSeed": {
-          "from": "0.0.10366453",
-          "amount": "657534246",
-          "transferTx": "0xd9b51875e52f63dc66eb1d73ebc949faab00bd32e15dc93a61625256f684840a",
-          "attributeTx": "0x219b93435de059c979fe8174dde65f82752416f8bafca289e8175fd4e2d69caf",
-          "attributeGasUsed": 66627
+        }
+      },
+      "subscriptions": [
+        {
+          "role": "investor-1",
+          "accountId": "0.0.10366460",
+          "address": "0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931",
+          "amount": "50000000000",
+          "fundTx": "0x8a9236435e7da6fb76189555d0cb51b83bd14c9750102a142896518fe7cf2e09",
+          "approveTx": "0x89df6835218dc73d31d48753cd1ad4124ef9f0be3409d9b090db75242bb6ee4c",
+          "subscribeTx": "0x74ae1a67b1a4af2e33aeab5a39841aeb03562788db29019c61b650df0173dfb8",
+          "gasUsed": 124230
         },
-        "scheduledContractCall": {
-          "attempted": true,
-          "status": "create SUCCESS",
-          "scheduleId": "0.0.10368856",
-          "result": "CONTRACT_REVERT_EXECUTED",
-          "revert": "ZeroAmount"
+        {
+          "role": "investor-2",
+          "accountId": "0.0.10366462",
+          "address": "0xcaa1184cd59b9296f757efc7303a10ecec6ce51e",
+          "amount": "50000000000",
+          "fundTx": "0x79b899ea25294a01419d56d067bab2746b4e869740f9575e5046dfa68c336bf0",
+          "approveTx": "0xc0018fdec4290d3e4bc1c9af85e3550136c9aa40500069edf0af9cdc7c43edca",
+          "subscribeTx": "0xf4eb398f22655e130d410a007c3c544a7cd19c4b808aa8a3a63ce76490670bc9",
+          "gasUsed": 90030
+        }
+      ]
+    },
+    {
+      "id": "0x4f44492d4f4646432d323032362d303100000000000000000000000000000000",
+      "label": "ODI-OFFC-2026-01",
+      "group": "office_admin_support",
+      "attachmentShock": "15000",
+      "levelLine": "8500",
+      "exhaustionShock": "30000",
+      "payoutMode": "full",
+      "maturityAt": 1820564654,
+      "openSeriesTx": "0x9fc196645928192e837e05435b35f8bbe2f0b3ed2c7ea6a1e0017ff6ff48a642",
+      "registerSeriesTx": "0x6d3d482202716347925dfdcadb89ec561837e770295b43c145aee638194bda33",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0x21647686fcae2df19070854f34eb5fe54c2d41351a51871498ad85f3a46c22f9",
+          "approveTx": "0xd66767bee2a8a8f33494051edcdcc90ae4cf158c4f42258274184d3cbe97c17c",
+          "subscribeTx": "0x256a8d9951acb8f63d4d5809d6eef96d209027722ba85eb71c278622d641804a",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10455865",
+          "address": "0x508ef4e5639e99f76F74ec56B488Ebaec78ABb75",
+          "name": "Creance Displacement Bond Note ODI-OFFC-2026-01",
+          "symbol": "CDBN02",
+          "isin": "ZZODIO2YVO83",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789029201,
+          "maturityDate": 1820564654,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0xa68e5dacff2c71120bee01613e575ff67ce14966004866878e999b6304458bf6",
+          "gasUsed": 7005487
+        },
+        "steps": {
+          "issue": {
+            "tx": "0xa68e5dacff2c71120bee01613e575ff67ce14966004866878e999b6304458bf6",
+            "result": "series ODI-OFFC-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005487
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0xe3ddcbe65ff6174033a04dd177f1d363177ba9e1dcc6e1adee76162f27e31548",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0xf87a5942defecbe913ee9b7c6b99d90df0e2e72371b64a344f32bad3f7c7f8bd",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0xda9f680427797ed9d506972e4de3ea6ede918b8739a6b3eecafb3517a28ad4d8",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0x4792df65f5ae6e763cbf605f659597ef67c5449822b05e144625d62969fc40e3",
+          "ROLE_KYC": "0xa6c5159f16b1b82c7ac1254b42ac79b40874e77a8f8bcc6fd75ee94a7a9ece27",
+          "ROLE_ISSUER": "0x19d6ac993e4a759d0b489753d3a806d50792283d9255b1fb592405293b5405fb"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:a3b27e0a-f290-4cef-99c7-30642d653240",
+            "validFrom": 1789029230,
+            "validTo": 4942629230,
+            "tx": "0xf87a5942defecbe913ee9b7c6b99d90df0e2e72371b64a344f32bad3f7c7f8bd"
+          }
         }
       }
     },
-    "subscriptions": [
-      {
-        "role": "investor-1",
-        "accountId": "0.0.10366460",
-        "address": "0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931",
-        "amount": "50000000000",
-        "fundTx": "0x8a9236435e7da6fb76189555d0cb51b83bd14c9750102a142896518fe7cf2e09",
-        "approveTx": "0x89df6835218dc73d31d48753cd1ad4124ef9f0be3409d9b090db75242bb6ee4c",
-        "subscribeTx": "0x74ae1a67b1a4af2e33aeab5a39841aeb03562788db29019c61b650df0173dfb8",
-        "gasUsed": 124230
-      },
-      {
-        "role": "investor-2",
-        "accountId": "0.0.10366462",
-        "address": "0xcaa1184cd59b9296f757efc7303a10ecec6ce51e",
-        "amount": "50000000000",
-        "fundTx": "0x79b899ea25294a01419d56d067bab2746b4e869740f9575e5046dfa68c336bf0",
-        "approveTx": "0xc0018fdec4290d3e4bc1c9af85e3550136c9aa40500069edf0af9cdc7c43edca",
-        "subscribeTx": "0xf4eb398f22655e130d410a007c3c544a7cd19c4b808aa8a3a63ce76490670bc9",
-        "gasUsed": 90030
+    {
+      "id": "0x4f44492d5452414e2d323032362d303100000000000000000000000000000000",
+      "label": "ODI-TRAN-2026-01",
+      "group": "transportation_material_moving",
+      "attachmentShock": "15000",
+      "levelLine": "43500",
+      "exhaustionShock": "30000",
+      "payoutMode": "full",
+      "maturityAt": 1820564726,
+      "openSeriesTx": "0x6e06fe3546d94f8a8dda1c4e1a541d727eecae87f1ae9692759615981b66c651",
+      "registerSeriesTx": "0x8afc305f69ef572c73eb937f994bad41bb1ea1afba6ea4f4f573fe082da205f9",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0x875f9b52e2981db2d986f09a83568d22c014c0dc239cfb14655c9d4e60e8a112",
+          "approveTx": "0xe8c4bf23240e7ffbfa7a803c4db26fb67caccb776ee0f6995b3739074cffb6f7",
+          "subscribeTx": "0x25f30daf5a01a16e2b97329c516e9405745feba0e3a79a47f3844cfd4c711095",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10455878",
+          "address": "0x41C6a3A0aB2Dd36d144028adf913e797135e50ce",
+          "name": "Creance Displacement Bond Note ODI-TRAN-2026-01",
+          "symbol": "CDBN03",
+          "isin": "ZZODIT4S5XQ5",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789029242,
+          "maturityDate": 1820564726,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0x5315f0ffb52801207e6dcaff20c9aef20c6947dc5a63f9069201788812f52a67",
+          "gasUsed": 7005611
+        },
+        "steps": {
+          "issue": {
+            "tx": "0x5315f0ffb52801207e6dcaff20c9aef20c6947dc5a63f9069201788812f52a67",
+            "result": "series ODI-TRAN-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005611
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0xfdc2bc6d02cf5218fe7dbcc6145dd1ac950eea2fce738aa80c6b5fcbb3363294",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0x53d7dcb7db2f9f3badd920450b8928ce48acac554c6840de960213bd306bb632",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0x700e53c405bfd7346274b9ef61d4356c7ad505f95d1257f6c05063b37bb5d540",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0xeaa6471d56d7c94ffae23606a305be1184c8242661d3e205328ddff97be34a3b",
+          "ROLE_KYC": "0xcff4df2986d9ce5f44b0277fc3c7f0678923db0949f037b1fcf70ab04a45e97a",
+          "ROLE_ISSUER": "0x91efdd9a8f8012e048bec68a95a4db847498f4eee059d7121a1e161a3eb986b0"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:b6e022af-2f6d-4f0d-a0fa-dc80d72d5ce5",
+            "validFrom": 1789029268,
+            "validTo": 4942629268,
+            "tx": "0x53d7dcb7db2f9f3badd920450b8928ce48acac554c6840de960213bd306bb632"
+          }
+        }
       }
-    ]
-  },
+    },
+    {
+      "id": "0x4f44492d50524f442d323032362d303100000000000000000000000000000000",
+      "label": "ODI-PROD-2026-01",
+      "group": "production",
+      "attachmentShock": "25000",
+      "levelLine": "37200",
+      "exhaustionShock": "50000",
+      "payoutMode": "full",
+      "maturityAt": 1820564755,
+      "openSeriesTx": "0x0c98e22a86d69ce2610e9aec61d8a228667074ab4c2e45425626bd2efc09c338",
+      "registerSeriesTx": "0xd4c42e3f2f34146751e00843ca656533be51946b0c0e6a4e2d2fb21740212d16",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0x8d0f8af830f5f042931bb6fa2150a26a5b2a92e69c5bee27dd81feb59fe18bae",
+          "approveTx": "0xc1b363eca5fb69d932c63e9376a86ff79b5893146c0fd638fce472233916a611",
+          "subscribeTx": "0x99294c1552d779dd7f35b2ee014a2045edfc9fb5f2202006571b428b3490eb61",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10455885",
+          "address": "0x877575D3C21551eB160C367810007EA28945701A",
+          "name": "Creance Displacement Bond Note ODI-PROD-2026-01",
+          "symbol": "CDBN04",
+          "isin": "ZZODIP2IBWS5",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789029277,
+          "maturityDate": 1820564755,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0x88a408c69fd821bc48192f799a6ffe75da418f2bef23d37415de1b19bd70a996",
+          "gasUsed": 7005698
+        },
+        "steps": {
+          "issue": {
+            "tx": "0x88a408c69fd821bc48192f799a6ffe75da418f2bef23d37415de1b19bd70a996",
+            "result": "series ODI-PROD-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005698
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0x7aabbbe3bd98937333fe86ed9387bd476071b38f7700cce4b8d2876f60d7e418",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0x9d52d13c03a28e221d884c5e8b45e10255580b76ca6b65a6eab4c82c57a0b046",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0x02a0379ed8a841aad569ceb47bbc037abb66146a39d46a3f8bd708bc677599f3",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0x3bf2cba684ba390767f00eaf05e3136575fc6412c14e98a42cf8867fb25f5335",
+          "ROLE_KYC": "0x03589384104740551af19de11e0f1caaa5b182a8598863824ac4b72035340d68",
+          "ROLE_ISSUER": "0xb6f1d164fc4a919139b303db8225f9633bd9fa782077293c65282f71fc427307"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:6973db55-e437-4e45-b3e7-1d33ca563e78",
+            "validFrom": 1789029307,
+            "validTo": 4942629307,
+            "tx": "0x9d52d13c03a28e221d884c5e8b45e10255580b76ca6b65a6eab4c82c57a0b046"
+          }
+        }
+      }
+    },
+    {
+      "id": "0x4f44492d53414c452d323032362d303100000000000000000000000000000000",
+      "label": "ODI-SALE-2026-01",
+      "group": "sales_related",
+      "attachmentShock": "15000",
+      "levelLine": "11500",
+      "exhaustionShock": "30000",
+      "payoutMode": "full",
+      "maturityAt": 1820564785,
+      "openSeriesTx": "0x7989c713061b08454b74fcd45a190f9988f8e71eb62f8aacea779430c7935573",
+      "registerSeriesTx": "0x3c2865c68b9669c9de3945fc731d8fa47ae8b0b965e31e77dfb68e768327fa68",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0x8afc63b46765cc0ebf095becab056496ee569c3916d2c48b2262029b87a4f10b",
+          "approveTx": "0x0e509bdc5128e56ff5c3beb4de256bb447369ed897ccacd44b0f8ca1eb27e48b",
+          "subscribeTx": "0x7965eade471719d925ac5d8d3bebc927dbc901c865631f6a6154bbfae504165f",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10455893",
+          "address": "0x5367c3746B6Be015834DDf5b0449d91da41e3Bb7",
+          "name": "Creance Displacement Bond Note ODI-SALE-2026-01",
+          "symbol": "CDBN05",
+          "isin": "ZZODIS626A18",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789029317,
+          "maturityDate": 1820564785,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0xea814aa0cf098831760b18e8d0424f50c841f8a6a429a26ae72170bc0b29e7b1",
+          "gasUsed": 7004807
+        },
+        "steps": {
+          "issue": {
+            "tx": "0xea814aa0cf098831760b18e8d0424f50c841f8a6a429a26ae72170bc0b29e7b1",
+            "result": "series ODI-SALE-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7004807
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0xefa3a877858b978b5909502d8a2e0bd0f5a7a5c44a61360e0897365793dd3375",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0x25b31b011dbf7b81cd571a74a90ab68dfa0415751c49d9e081afb858799e08f1",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0xb3e19d522147d08fc030ee1fa1b7536c659f48c184eae84fa9f91610c631b1cd",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0x3b5bf2ca5710278de6dbf31398a9b7af0deec000c6fe42cd180fde92e37be998",
+          "ROLE_KYC": "0x20064194faedbf74fd9b167d570889becff76a71b1364dfcd8edf39d288ff983",
+          "ROLE_ISSUER": "0x34ada0a4e840185b86daa5a5e0cf664ed55ce2ee576a1ff94620edc8fb4bbfef"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:d72df949-be9c-48da-bce9-d881dda63785",
+            "validFrom": 1789029343,
+            "validTo": 4942629343,
+            "tx": "0x25b31b011dbf7b81cd571a74a90ab68dfa0415751c49d9e081afb858799e08f1"
+          }
+        }
+      }
+    },
+    {
+      "id": "0x4f44492d4d474d542d323032362d303100000000000000000000000000000000",
+      "label": "ODI-MGMT-2026-01",
+      "group": "management_business_financial",
+      "attachmentShock": "15000",
+      "levelLine": "-9800",
+      "exhaustionShock": "30000",
+      "payoutMode": "full",
+      "maturityAt": 1820564812,
+      "openSeriesTx": "0x6cd2bfd0a0e9938e8e92def342eeea5d571616750354be3114c4364525adf33c",
+      "registerSeriesTx": "0xdc3dee34d33af1800f080befab671adec880b47e4b3eb665531bc003009c63a3",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0x18e721b08774410b30252820e8d0a7f2386f0ab8963ba589a812dad4e9cad5b0",
+          "approveTx": "0xc7fc41f5a6d178179686e734d395a9599794a07520b973037ba4b9e49f650173",
+          "subscribeTx": "0x37f773e2b1a0b88c2501dac749000b99b97f40395042bca30397b3a391de63fe",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10455899",
+          "address": "0x281c11E85Fb1200eF52526D2A1eb59350bD7133e",
+          "name": "Creance Displacement Bond Note ODI-MGMT-2026-01",
+          "symbol": "CDBN06",
+          "isin": "ZZODIM5N1CL8",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789029353,
+          "maturityDate": 1820564812,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0xe66de6ee07adc3f945dd7ec2b139a10320cda928b0e43025947bee263b646e55",
+          "gasUsed": 7005425
+        },
+        "steps": {
+          "issue": {
+            "tx": "0xe66de6ee07adc3f945dd7ec2b139a10320cda928b0e43025947bee263b646e55",
+            "result": "series ODI-MGMT-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005425
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0x032b91167dc2a4f02a13f7d44aeb6028851e4bed788824ac768c786261c7f9c9",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0xf8c87832bd7d1f793d97c7fd9742145c31a258d64abc29d9822c5e7bd739831c",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0xbcd788f74f5b30985d8407606719394f4f2a4950ebfb993ec9cb1302d572f4ec",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0x1df4a0cdf9c6b99b827389b6d369fcc166b40f51c0ac2a222eeee0619d74a4dc",
+          "ROLE_KYC": "0xaa0dd3cfbbaf7bc8c27511c65ece78a5c768f3d7a812ad39a8936cdb9d95dcd6",
+          "ROLE_ISSUER": "0xce3e8cfea38219b2fe3de05802b582ea15cb3a907bdccd54c17bdd72cfe067f3"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:0f30d88b-3686-4dbe-b78a-674ba45f6026",
+            "validFrom": 1789029379,
+            "validTo": 4942629379,
+            "tx": "0xf8c87832bd7d1f793d97c7fd9742145c31a258d64abc29d9822c5e7bd739831c"
+          }
+        }
+      }
+    },
+    {
+      "id": "0x4f44492d50524f462d323032362d303100000000000000000000000000000000",
+      "label": "ODI-PROF-2026-01",
+      "group": "professional_related",
+      "attachmentShock": "15000",
+      "levelLine": "-6200",
+      "exhaustionShock": "30000",
+      "payoutMode": "full",
+      "maturityAt": 1820564837,
+      "openSeriesTx": "0x029f782ffa821a7a76ea59b4ed45fc313c4f967a99dea48e30ea0cf56f6e75de",
+      "registerSeriesTx": "0xabb423968c37c89c67bc52a3493f471b60f3aa70ff2824e1c66923de21915c8b",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0x01e3ba52caeb17c9624df23c5a344c331bf9617b98dd62bb7d770528f2f5560c",
+          "approveTx": "0x8c0ae95a3bb7d1bd72ccc1cb9f40d1f15458bb07a1b6a7a7f1ab0f59415002d7",
+          "subscribeTx": "0xd4a40c671519f977b8ce08cfae4f35aa64f5595994a100a9697be99d6c198522",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10455905",
+          "address": "0x757d035cd2a8A0AA60261c7428727D9421bc8B9E",
+          "name": "Creance Displacement Bond Note ODI-PROF-2026-01",
+          "symbol": "CDBN07",
+          "isin": "ZZODIP1EHRA1",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789029389,
+          "maturityDate": 1820564837,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0xe501c12251996f57651b04281d8980434e7683b855e60d2b3b9f5971b603e7cd",
+          "gasUsed": 7005698
+        },
+        "steps": {
+          "issue": {
+            "tx": "0xe501c12251996f57651b04281d8980434e7683b855e60d2b3b9f5971b603e7cd",
+            "result": "series ODI-PROF-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005698
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0xf176f9d5cef42eafc364fc76cd633df2e41cc0098a9bb158adc587abbc34833b",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0x7e92e65b048cc6dc4309cf1d1c15ce817e00e9b96f50880586cbe67a8a8023ee",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0xffa1ee9b1cb2c436146f74362d79835633ea37956120911d4838eeae31570a9c",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0xc89dc6b9b86ec07a935cd9d54ee45ab2d1097c6429133f3c73b308f6a0ea6b4d",
+          "ROLE_KYC": "0xc5bf60168290f24bc3b7cbc8469b1243893c8f431d3842499a9ab6a07664cd93",
+          "ROLE_ISSUER": "0xfa0f12a853c50f5455210634dfb764efbaa95652c924c409acf8f034fe4d689c"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:48077b64-7290-4050-b850-7eaf9f6a3eca",
+            "validFrom": 1789029416,
+            "validTo": 4942629416,
+            "tx": "0x7e92e65b048cc6dc4309cf1d1c15ce817e00e9b96f50880586cbe67a8a8023ee"
+          }
+        }
+      }
+    },
+    {
+      "id": "0x4f44492d534552562d323032362d303100000000000000000000000000000000",
+      "label": "ODI-SERV-2026-01",
+      "group": "service",
+      "attachmentShock": "15000",
+      "levelLine": "22800",
+      "exhaustionShock": "30000",
+      "payoutMode": "full",
+      "maturityAt": 1820564866,
+      "openSeriesTx": "0x890a135457616e6bd9d3a60360c11e8bec20f49727a9cf2ad72257c6960b5b6a",
+      "registerSeriesTx": "0x2705512e1381cbd662de4dd42017d97de4ab332aca6fd85d474d85c4fa744526",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0x11667e6ec4ac2784d5ee61b3024b03e1b5858f1c37a128344499d228b5f0037e",
+          "approveTx": "0xc63813bdc0aaadf017b6595c991a379469988e65070db8a1f634cb19937dd6b5",
+          "subscribeTx": "0xb8707a72c34cd9342c02e56f30f5b19230eef1e768ca6afdc2b6a65d74a3d28c",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10455909",
+          "address": "0xA123f1FA442a8Ac04d90541F2eBF111401994985",
+          "name": "Creance Displacement Bond Note ODI-SERV-2026-01",
+          "symbol": "CDBN08",
+          "isin": "ZZODIS20K0K3",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789029427,
+          "maturityDate": 1820564866,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0x1c2b5185598244d906720378017f6d68f7bb9c3d8c05f5918addee7e234130b2",
+          "gasUsed": 7004894
+        },
+        "steps": {
+          "issue": {
+            "tx": "0x1c2b5185598244d906720378017f6d68f7bb9c3d8c05f5918addee7e234130b2",
+            "result": "series ODI-SERV-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7004894
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0xf3e6cb7b4af70c312749b4557e96ddd0db2fa82430101a9c8703d2519db27bb5",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0x04a28ebb3207da3d440197d7a06b1e5846af8dc1f0285b36a3fa5b891416dd2e",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0x9e846011ee679f7bb76408b52253fb0a2d245f41b23a2bbec4f21d52419762f5",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0x7945aaea3a959bbacecd5445e776982a8c3d110b7d396cf7ec242732e07e94cb",
+          "ROLE_KYC": "0x3f890da7bf441c4199ec94e78d6ace267dd5891c18525a3764f37964ced9c768",
+          "ROLE_ISSUER": "0xebefb70257d9f021a6e5f9e9f51e2264a0bea724a2103639f31c2115010f2d0b"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:bfc8cb95-dd92-4519-9547-ab1b274b63ef",
+            "validFrom": 1789029457,
+            "validTo": 4942629457,
+            "tx": "0x04a28ebb3207da3d440197d7a06b1e5846af8dc1f0285b36a3fa5b891416dd2e"
+          }
+        }
+      }
+    },
+    {
+      "id": "0x4f44492d434e53542d323032362d303100000000000000000000000000000000",
+      "label": "ODI-CNST-2026-01",
+      "group": "construction_extraction",
+      "attachmentShock": "35000",
+      "levelLine": "127800",
+      "exhaustionShock": "70000",
+      "payoutMode": "full",
+      "maturityAt": 1820564896,
+      "openSeriesTx": "0xcd2d85b101020a60b8ddeb96cc892da207f56ee47ce2d952c6fa58ef1d87eab9",
+      "registerSeriesTx": "0x054e94dc787a5b9223e21ed97f1afa4107ef0a58d4553436b9b2e187b1ee2204",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0x735b4b092b5ed0084bd6c77b8c9bbc170e2db0edeb26317b44fb520d3d14826d",
+          "approveTx": "0xecbaa79c1777c40111d0377efb3fdeed347cf8b434b74215ae465dbc138a266c",
+          "subscribeTx": "0x25a68090ecdab1d6ac8b252d545000489747b8a76717d9866d319f9a43dc259e",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10455914",
+          "address": "0x36a5736C9df2b6670449C25C6f2BF8012C630B50",
+          "name": "Creance Displacement Bond Note ODI-CNST-2026-01",
+          "symbol": "CDBN09",
+          "isin": "ZZODICAZC6P8",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789029472,
+          "maturityDate": 1820564896,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0xa94c2c01e84d012caf17e0866ae494c9a63b95a265ad5e39648bf2062ae24f93",
+          "gasUsed": 7005698
+        },
+        "steps": {
+          "issue": {
+            "tx": "0xa94c2c01e84d012caf17e0866ae494c9a63b95a265ad5e39648bf2062ae24f93",
+            "result": "series ODI-CNST-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005698
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0x77295aec34f08c63602930fa5e894aa185f03a30097a7c27f93b72ee53a2804e",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0xa82b885920dd2a5242525118894b1cb6685c7b801f1de0be0bd11430755136d3",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0xd422d9284e6a1c6f9849a5d30ac6004997f5c68b77e8eec96ab5d278fbd7bf8e",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0x3b0033cbf3278863dbaacc8906ce6b4fede9ad9674c9b29907aced661eabeaa9",
+          "ROLE_KYC": "0x619dc1df32e80946a8c20a2120750f32d2208ce2a32c7429a08d24479687b7eb",
+          "ROLE_ISSUER": "0x02ae04d1f123a7191737a5751962513a0cc96154051aac1ac0d95fe289afccdc"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:78546c9e-c0af-4880-81a1-ad552abca7ea",
+            "validFrom": 1789029498,
+            "validTo": 4942629498,
+            "tx": "0xa82b885920dd2a5242525118894b1cb6685c7b801f1de0be0bd11430755136d3"
+          }
+        }
+      }
+    },
+    {
+      "id": "0x4f44492d494e4d522d323032362d303100000000000000000000000000000000",
+      "label": "ODI-INMR-2026-01",
+      "group": "installation_maintenance_repair",
+      "attachmentShock": "20000",
+      "levelLine": "6500",
+      "exhaustionShock": "40000",
+      "payoutMode": "full",
+      "maturityAt": 1820564921,
+      "openSeriesTx": "0x7355fd0313091bd854925246038992cd435f3d2ce7f85f01f5b5a197c92696d5",
+      "registerSeriesTx": "0x46253595a5a8bca3daffb7277104d374038daf3a96d0d1062a2d80ff495f6172",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0x1e17f1adde8264f666e7f28d2c12ccafb4dab1af6516a88a904baa61448cd80a",
+          "approveTx": "0xa1fab2e6c0aa5e33839c4252be67b282bad8b701a56781c38c0c4f6475e5cd40",
+          "subscribeTx": "0x9dad98730863ed4d11bb4d96eb9087fc57bf2a100e7d3c96a459cc11e855e126",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10455918",
+          "address": "0x7192A6D68813f7F94077466FeBF91a234e14c5C6",
+          "name": "Creance Displacement Bond Note ODI-INMR-2026-01",
+          "symbol": "CDBN10",
+          "isin": "ZZODII5LN9D6",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789029509,
+          "maturityDate": 1820564921,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0xe459df7374a824ac66a8fb45f1bc5e1c8c5a34a044b1b045c3e211f3f8780e9f",
+          "gasUsed": 7005549
+        },
+        "steps": {
+          "issue": {
+            "tx": "0xe459df7374a824ac66a8fb45f1bc5e1c8c5a34a044b1b045c3e211f3f8780e9f",
+            "result": "series ODI-INMR-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005549
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0x9c4ddafa161aaef00351105b50434616b6b1f119d245a089436c7dcb3fa41d7e",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0xa35405951a81d6f198596a7c2fa8203701b5919a1eb2da671c900813fe078250",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0xc4a85f4c923c43a6c740c274f39675785940ecc2fbb4bc7adab1e46eafa06a8f",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0x841153c528adc0d6969108b43c924423d5aa7bf8d9bb55272c61f9ef70c79eaf",
+          "ROLE_KYC": "0xf5afd1e1863178efe2bf69978586625f536fc3dca702ec28fed6df954355650e",
+          "ROLE_ISSUER": "0x24fb05d88f73e90676495cddb0b334705edf4437d7cacb498d3043a46b8cc984"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:b54cfad3-607c-4146-9732-ae25e5c48277",
+            "validFrom": 1789029536,
+            "validTo": 4942629536,
+            "tx": "0xa35405951a81d6f198596a7c2fa8203701b5919a1eb2da671c900813fe078250"
+          }
+        }
+      }
+    },
+    {
+      "id": "0x4f44492d4641524d2d323032362d303100000000000000000000000000000000",
+      "label": "ODI-FARM-2026-01",
+      "group": "farming_fishing_forestry",
+      "attachmentShock": "55000",
+      "levelLine": "122500",
+      "exhaustionShock": "110000",
+      "payoutMode": "full",
+      "maturityAt": 1820564952,
+      "openSeriesTx": "0xa74bbc0ecce77c884328df91c60d6e5ead6b6b4e2439f6277ced41a22c4e5fdc",
+      "registerSeriesTx": "0x1c680dd9b44ea6b2774f3bb88143feaef08bbbc91e1685ca74037b965ca9bd77",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "approveTx": "0x1552ea9281474219962e74945b68dcbce4cb840ea4bfc81b895890d28b1daafb",
+          "subscribeTx": "0xd6fba6eb90fcb11ac9e65b60ebf018801278ff32265f4a90c80a89d2ec32b037",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10455929",
+          "address": "0x3c994A8a8F0E8Ded53935ab07d4cd5387ffF5B54",
+          "name": "Creance Displacement Bond Note ODI-FARM-2026-01",
+          "symbol": "CDBN11",
+          "isin": "ZZODIF56E7B7",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789029548,
+          "maturityDate": 1820564952,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0xcb550dc4a6dc69ff6d23311415024dc73edc3511c9049662accf5cecee49eb8f",
+          "gasUsed": 7005018
+        },
+        "steps": {
+          "issue": {
+            "tx": "0xcb550dc4a6dc69ff6d23311415024dc73edc3511c9049662accf5cecee49eb8f",
+            "result": "series ODI-FARM-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005018
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0xb97a10a7bbf6fe10beda5b441f240053b6e82a5aafd7e153107522c5b3201251",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0x41e5e1618d83e2bdaecf47249e420f9d0397926147bbc11017946a703fdf7719",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0xf394f85848fa5ea9eb8f87a81d553b84010f4312617ed0c21da796fa5ced7829",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0xefc09ce5765aaca93558993a01805b1acde88e155e47452635ef3dcd59e84e81",
+          "ROLE_KYC": "0x74488c127172db000446acdc76ca2a48d432e779d98b2671cc8fb1be03eaf4be",
+          "ROLE_ISSUER": "0xdf6fa9f58437f4fa2a5221c8651ee7d6105ca1b5dceb172a3ce13b85c5c35fe0"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:59715f1f-ca9c-4710-825b-a45e84dc7f9c",
+            "validFrom": 1789029577,
+            "validTo": 4942629577,
+            "tx": "0x41e5e1618d83e2bdaecf47249e420f9d0397926147bbc11017946a703fdf7719"
+          }
+        }
+      }
+    },
+    {
+      "id": "0x4f44492d425553462d323032362d303100000000000000000000000000000000",
+      "label": "ODI-BUSF-2026-01",
+      "group": "business_financial_ops",
+      "attachmentShock": "15000",
+      "levelLine": "-3800",
+      "exhaustionShock": "30000",
+      "payoutMode": "full",
+      "maturityAt": 1820565032,
+      "openSeriesTx": "0x8d906cd14bb9106d9ae51b27daa7c597320f38401bbb81560fbbc0524a7cb227",
+      "registerSeriesTx": "0x7aa0d317c36bfc44a2209d50454f726cb0e9816523928f4bb3a0b70b6dce0040",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0x0d3b36016cc65fdffddb956c521e46fc250a3c4938fc5ce0ad5740ef9f1c3a03",
+          "approveTx": "0xd987acd37d97ff4800d39f9ae84643ded56392ae7b2a81193a646cbf3bd73f81",
+          "subscribeTx": "0x096fb733b166f6dee956fbce6fdbdb0273f621966edea4b7d974effe1b31b53c",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10455942",
+          "address": "0xf33b67DC92B41543d39D72ABDCF16600D7Db76e1",
+          "name": "Creance Displacement Bond Note ODI-BUSF-2026-01",
+          "symbol": "CDBN12",
+          "isin": "ZZODIB2TT3Y9",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789029591,
+          "maturityDate": 1820565032,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0xf6c7a0119f27b07243f9d82d8db019b18a7186779f84c3e785f34f671f7f34c7",
+          "gasUsed": 7005425
+        },
+        "steps": {
+          "issue": {
+            "tx": "0xf6c7a0119f27b07243f9d82d8db019b18a7186779f84c3e785f34f671f7f34c7",
+            "result": "series ODI-BUSF-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005425
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0xa9b66213d1b9d1231df962bdb2fcc2df6f70f9243e353efaca2c8ef40cfda1fa",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0x1a3b6bca99eaf7d1b2451458f8c62dae24aaf5ee8736c493c95dd8a5dcf6ed72",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0xbcadf92b74a70d479eee636a438c882e7115d23b38bf8630e93a3af5cc5182d6",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0x37e6f61a818eb037dcc63653d34d6de596d2c8ef9c1aa822c3565419519eef3a",
+          "ROLE_KYC": "0x9111a87bb3a352958dd4323b8fd40ae5f5c2bcd26ba4192db1c84c75931bd9bc",
+          "ROLE_ISSUER": "0x9f3bb8a3a458125d71e44408acc88fc005792d5aef2c0d39a431a9c030fbbdf5"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:7fe955fa-ce3f-4885-b815-ebbefdb77d07",
+            "validFrom": 1789029618,
+            "validTo": 4942629618,
+            "tx": "0x1a3b6bca99eaf7d1b2451458f8c62dae24aaf5ee8736c493c95dd8a5dcf6ed72"
+          }
+        }
+      }
+    },
+    {
+      "id": "0x4f44492d454455432d323032362d303100000000000000000000000000000000",
+      "label": "ODI-EDUC-2026-01",
+      "group": "education_training_library",
+      "attachmentShock": "20000",
+      "levelLine": "16200",
+      "exhaustionShock": "40000",
+      "payoutMode": "full",
+      "maturityAt": 1820565062,
+      "openSeriesTx": "0x8f64107918fcb5ca4af29165f252a43250b1521c95f46f3da52975907cef56d4",
+      "registerSeriesTx": "0x63ecf4ab04494ae6ae85c62b8fd2d195ae4dd2a6b74e1c725cca95f5158b911b",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0x1cdecd5e8fc6770989b24d202d8868567079072b870686aa556f9b7e27f1e6c1",
+          "approveTx": "0x37b5da578f961e51ce73fc013b72ff095153296a3aa213561acc7f84b842d068",
+          "subscribeTx": "0xc09db351116995f5d3feefd98829faf3e483420bf0635a5cad505cffee48ce85",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10455953",
+          "address": "0xB93770Baf8397CC625464F479024F1524f174336",
+          "name": "Creance Displacement Bond Note ODI-EDUC-2026-01",
+          "symbol": "CDBN13",
+          "isin": "ZZODIE1GUVV0",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789029628,
+          "maturityDate": 1820565062,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0x18a4cee40c7daf48770c9828ec356dfb951d27853b231fe30b085c1e48f1eb0c",
+          "gasUsed": 7005636
+        },
+        "steps": {
+          "issue": {
+            "tx": "0x18a4cee40c7daf48770c9828ec356dfb951d27853b231fe30b085c1e48f1eb0c",
+            "result": "series ODI-EDUC-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005636
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0xddb5f825d43abaab38930adf08610b192e8c939614ad4595c7345cc8d24986ea",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0xc1568acee83d97e2241d6a6947a6923cfde8b1d771b0e67f42025a603283566c",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0x203af61baef56c0945ac24e9289c49ca62528a2ef892fba87f26256a346904b2",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0x75ffb9bfab7908860b9c4a653d0b5bc6df61eb0c5f86567318ca5fa306d7dcf5",
+          "ROLE_KYC": "0x2f3a3eb7c76e8f1c031794060b9b4aa6b5aee312ae97ffa330e8241a46a4737b",
+          "ROLE_ISSUER": "0x2224b9ca631a6d45e3e724e5ec99de1376132097711301d4534db2d9bb1310ad"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:a408d629-dd4f-4e18-873f-e7e2e6efe2c1",
+            "validFrom": 1789029998,
+            "validTo": 4942629998,
+            "tx": "0xc1568acee83d97e2241d6a6947a6923cfde8b1d771b0e67f42025a603283566c"
+          }
+        }
+      }
+    },
+    {
+      "id": "0x4f44492d4c45474c2d323032362d303100000000000000000000000000000000",
+      "label": "ODI-LEGL-2026-01",
+      "group": "legal",
+      "attachmentShock": "25000",
+      "levelLine": "-13200",
+      "exhaustionShock": "50000",
+      "payoutMode": "full",
+      "maturityAt": 1820565091,
+      "openSeriesTx": "0x738d9a577dbe8cb45bb5c12f6802a1063d09b41351b0ba64987b4d79052cc887",
+      "registerSeriesTx": "0x11da5739ea270db56d7ce72c0bf95b0e7a0a16518ea20c9f5d39237ff243ed2d",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0x2ce2524841265402e2867aab607123c2786058129b009f9719a5c055e817d0a3",
+          "approveTx": "0x18e6cc8fef896d8117913c1b5e80d996c54126fc60a4a579159c4aac218b144f",
+          "subscribeTx": "0x4922d784f1e7bbffa1b8b4126abf4bf24dc9a573bce3094e858c2442a92fc381",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10456002",
+          "address": "0x7D6aF98c022A941B5dD14dAf087de6771bde25Bb",
+          "name": "Creance Displacement Bond Note ODI-LEGL-2026-01",
+          "symbol": "CDBN14",
+          "isin": "ZZODIL4NEPF0",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789030008,
+          "maturityDate": 1820565091,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0x4b0fd1424a2abb05caefe2c019ac6ccaa8faa90f992a602f1299b98e542581f5",
+          "gasUsed": 7005698
+        },
+        "steps": {
+          "issue": {
+            "tx": "0x4b0fd1424a2abb05caefe2c019ac6ccaa8faa90f992a602f1299b98e542581f5",
+            "result": "series ODI-LEGL-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005698
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0x85028b9e23a39cd8f2cc95a3b044252bc626b559cb9dcf7865cd1a55d049bcff",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0xebfbbdbd924eb6cca62fc39d5a08222e051ffc39f9cfecfa0812e8a806538989",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0x7d7ff59c71af3a247431dc0c72d839e9ab76af6db0f6eef40939907ba3b02f61",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0x535affb319593e389c3a1b1604afa7644fa5169c85933fbeee6670b5b5c71d76",
+          "ROLE_KYC": "0x9cb5aa0304a614c9e596f2abb52451aa4c9e6e775211dd50d249df73ea31d38e",
+          "ROLE_ISSUER": "0xb1ae216feb7ded6938002ce92e9a38ae3e48e370d60d61843373f24764f69e48"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:5d6a2e7d-d621-411d-9a13-5ee9ce59f966",
+            "validFrom": 1789030036,
+            "validTo": 4942630036,
+            "tx": "0xebfbbdbd924eb6cca62fc39d5a08222e051ffc39f9cfecfa0812e8a806538989"
+          }
+        }
+      }
+    },
+    {
+      "id": "0x4f44492d415254532d323032362d303100000000000000000000000000000000",
+      "label": "ODI-ARTS-2026-01",
+      "group": "arts_design_ent_media",
+      "attachmentShock": "30000",
+      "levelLine": "13200",
+      "exhaustionShock": "60000",
+      "payoutMode": "full",
+      "maturityAt": 1820565120,
+      "openSeriesTx": "0x9603237a8c7993ba0aae806f1c01d121ac20199ea43e326abb52e99878f8d7c3",
+      "registerSeriesTx": "0xa7a9dfcb2eebf1f0f3665ac6c83f4cdfd6836e9a8883935e431a84d682f70e18",
+      "subscriptions": [
+        {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+          "amount": "25000000000",
+          "fundTx": "0xe850f83da653e86c0d64e07a92a0bcc606ffbe4dfff3854e5af0b552076f2d64",
+          "approveTx": "0xf25a2582d7e84c296793ef5337f18e3bd65309918fbbb6421509ab7f0033a691",
+          "subscribeTx": "0xe29bb1e932992612066e331b36f17561beda2584fc00643ca95d2c0a73bccf84",
+          "gasUsed": 124218
+        }
+      ],
+      "ats": {
+        "version": "8.0.0",
+        "tag": "v.8.0.0-ats",
+        "factoryId": "0.0.9213391",
+        "factory": "0xd1f118a40f3b02883d35909ef2517e7edd78379d",
+        "resolverId": "0.0.9212226",
+        "resolver": "0xba2d5fc2083a0b8f164c50e65d782087fba18e0a",
+        "configId": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "configVersion": 1,
+        "note": {
+          "contractId": "0.0.10456012",
+          "address": "0x8a5A1aC8AA7941ff61F63f81dd3F2A326F625e2F",
+          "name": "Creance Displacement Bond Note ODI-ARTS-2026-01",
+          "symbol": "CDBN15",
+          "isin": "ZZODIA11HVL8",
+          "decimals": 6,
+          "units": "25",
+          "nominalValue": "1000",
+          "principal": "25000",
+          "currency": "0x555344",
+          "maxSupply": "25000000",
+          "startingDate": 1789030046,
+          "maturityDate": 1820565120,
+          "internalKycActivated": true,
+          "regulation": "Regulation S",
+          "deployTx": "0x228fda038872384cab9546fba8aea1b8627dd1f5261c1f3a6656226abee5e765",
+          "gasUsed": 7005487
+        },
+        "steps": {
+          "issue": {
+            "tx": "0x228fda038872384cab9546fba8aea1b8627dd1f5261c1f3a6656226abee5e765",
+            "result": "series ODI-ARTS-2026-01 issued as an ATS bond, principal 25000, internal KYC on, clearing off, not controllable, Regulation S",
+            "gasUsed": 7005487
+          },
+          "roles": {
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+          },
+          "issuer": {
+            "tx": "0x31026d1546fa3bfacd8295934c6eaea406f478e07d855ac0be588dac65b875f2",
+            "result": "0x639444758B987b4D938c57169a1F61A62b2d009C registered as the credential issuer, isIssuer reads true",
+            "gasUsed": 126977
+          },
+          "kyc-operator": {
+            "tx": "0xcd64d9a3df7af3462f8a34edca0cd27fa5582c40e4150c86ecf5f7fad55d4fe4",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "gasUsed": 273893
+          },
+          "mint-operator": {
+            "tx": "0x1e3721e4753a98be40df6a62cb6e9852d6f280a05b214ddb7b3d7ad96215ce66",
+            "result": "balanceOf(operator) 0 to 25000000, the whole 25 unit supply",
+            "gasUsed": 473349
+          }
+        },
+        "roles": {
+          "ROLE_SSI_MANAGER": "0xf0de17ea1d0bef6ad341c26f1f2f373c078dab2c0953e0f4133e747683531276",
+          "ROLE_KYC": "0xa0cbe9739ff8f908280ca819ca1ba52e0b8d69cf24e60d813a2b3312c69fa151",
+          "ROLE_ISSUER": "0xe8480ee143c09e3e1a1559dfb4deb224bb949f28cdfb5d003cc3b48b7779b558"
+        },
+        "issuer": "0x639444758B987b4D938c57169a1F61A62b2d009C",
+        "kyc": {
+          "operator": {
+            "vcId": "urn:uuid:650432a0-ee17-4d9d-a28e-cfb36f09615c",
+            "validFrom": 1789030076,
+            "validTo": 4942630076,
+            "tx": "0xcd64d9a3df7af3462f8a34edca0cd27fa5582c40e4150c86ecf5f7fad55d4fe4"
+          }
+        }
+      }
+    }
+  ],
   "verification": {
     "CollateralVault": "https://hashscan.io/testnet/contract/0xD0473d355ECB299F2ECc0d92124bc8CF63554e60",
     "CoverPool": "https://hashscan.io/testnet/contract/0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09"

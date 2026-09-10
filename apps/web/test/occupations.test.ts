@@ -4,6 +4,7 @@ import {
   OCCUPATIONS,
   filterOccupations,
   findOccupation,
+  groupOccupations,
   hasCover,
   occupationLabel,
 } from '../src/lib/occupations.js';
@@ -101,6 +102,35 @@ describe('the search field', () => {
 
   it('finds nothing for a job title, because the product covers groups', () => {
     expect(filterOccupations('programmer')).toHaveLength(0);
+  });
+});
+
+describe('groupOccupations', () => {
+  it('puts every occupation in the open part, because all fifteen have a series', () => {
+    const groups = groupOccupations(OCCUPATIONS);
+    expect(groups.open).toHaveLength(15);
+    expect(groups.open[0]?.key).toBe('office_admin_support');
+    expect(groups.open.at(-1)?.key).toBe('farming_fishing_forestry');
+    expect(groups.noCover).toHaveLength(0);
+  });
+
+  it('still sinks an occupation with no series under the second part', () => {
+    // Nothing in the catalogue has a null series now. The partition is what
+    // T38 added and it has to keep working the day a series is retired, so it
+    // is exercised against a list built for it rather than the catalogue.
+    const withCover = OCCUPATIONS[1]!;
+    const groups = groupOccupations([
+      { ...OCCUPATIONS[0]!, key: 'no_series', series: null },
+      withCover,
+    ]);
+    expect(groups.open.map((row) => row.key)).toEqual([withCover.key]);
+    expect(groups.noCover.map((row) => row.key)).toEqual(['no_series']);
+  });
+
+  it('groups a filtered list, keeping the order the filter returned', () => {
+    const groups = groupOccupations(filterOccupations('legal'));
+    expect(groups.open.map((row) => row.key)).toEqual(['legal']);
+    expect(groups.noCover).toHaveLength(0);
   });
 });
 

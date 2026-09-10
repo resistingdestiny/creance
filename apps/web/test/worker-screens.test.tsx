@@ -69,11 +69,17 @@ const { INDEX } = await import('./worker-fixtures.js');
 afterEach(cleanup);
 
 describe('the occupation picker', () => {
-  it('lists the fifteen rows in the addendum order', () => {
+  it('puts all fifteen under the open heading, with no empty second heading', () => {
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('What do you do?');
     const rows = screen.getAllByRole('button').filter((node) => node.textContent !== 'Continue');
+    // T38 grouped the list when one occupation was buyable and fourteen were
+    // not. Every one carries a series now, so the open group holds all fifteen
+    // and the no cover group is not rendered at all.
     expect(rows).toHaveLength(15);
+    expect(rows[0]?.textContent).toContain('Office and administrative support');
+    expect(screen.getByText('Open to buy (15)')).toBeTruthy();
+    expect(screen.queryByText(/No cover behind these yet/)).toBeNull();
     expect(screen.getByText('Office and administrative support')).toBeTruthy();
     expect(screen.getByText('Farming, fishing and forestry')).toBeTruthy();
   });

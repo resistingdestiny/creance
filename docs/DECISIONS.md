@@ -5274,3 +5274,46 @@ The runner also now stops before it grants anything when a note's supply is
 already at its cap. A note that is issued and fully subscribed has nothing to
 seed, so the demo series is skipped outright and a repeat pass over all fifteen
 leaves the deployment record byte for byte identical.
+
+## T38, pointer and touch feedback and the occupation list, 10 September 2026
+
+### The v4 Preflight loss is answered in the base layer, not per component
+
+Tailwind v4's Preflight dropped the `cursor: pointer` rule for buttons that v3
+shipped, and every button in the product went to the default arrow at once: 38
+`onClick` handlers, four `cursor-pointer` uses, and no cursor rule in either
+`@layer base` block of globals.css. The fix is one set of base rules, not 38
+patches: the pointer on enabled buttons and button-roled elements, not-allowed
+on disabled ones, so a disabled control reads as not clickable rather than
+merely greyed. Anchors with an href need nothing; the browser's own stylesheet
+already gives them the pointer, which is why the failure was every button and
+not every link.
+
+### The pressed state is opacity, because that is what section 6 permits
+
+docs/DESIGN-TOKENS.md section 6 allows no hover effects beyond link colour and
+button opacity, so the pressed state is opacity 0.7 on `:active`, on the
+sheet's own 200ms ease-out, and gone under prefers-reduced-motion. Touch is
+the half that matters on a phone, where there is no hover at all and a tap
+used to look like nothing until the next screen arrived, and `touch-action:
+manipulation` on controls keeps a tap from waiting on the double tap zoom
+delay. The two label based controls in the claim flow, the checkbox row and
+the upload area, are not buttons, so they carry the same pressed state as
+utilities. The slider gets the pointer as well: it is a control, and clicking
+the track moves the thumb.
+
+### The occupation list admits what is buyable
+
+The addendum's picker correction drew fifteen rows in a flat order with no
+section headers. With one occupation buyable and fourteen not, the flat list
+spent a person's attention on rows that would not sell them anything. The
+list is now in two parts with a plain heading each, "Open to buy (1)" and "No
+cover behind these yet (14)", the count said out loud rather than the list
+dressed up to look fuller than it is. The addendum order survives inside each
+part. Both surfaces, the route picker and the landing quote, group the same
+way through `groupOccupations` and word the parts through one exported helper,
+for the same reason NO_COVER_YET is one string. The T35 decision is
+untouched: on the landing page all fifteen can still be selected, so the
+explorer can still be pointed at any occupation, and a search filters first
+and groups after, so a query matching only unbuyable occupations still shows
+them under their heading.

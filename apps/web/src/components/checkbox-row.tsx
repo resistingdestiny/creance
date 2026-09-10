@@ -29,7 +29,7 @@ export function CheckboxRow({
 
   return (
     <label
-      className="checkbox-row flex min-h-[52px] w-full cursor-pointer items-center gap-3 py-3"
+      className="checkbox-row flex min-h-[52px] w-full cursor-pointer items-center gap-3 py-3 transition-opacity duration-200 ease-out active:opacity-70 motion-reduce:transition-none"
       htmlFor={id}
     >
       <input

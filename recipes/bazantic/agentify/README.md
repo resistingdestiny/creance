@@ -30,6 +30,11 @@ The same bytes are served live, so an agent needs no repository:
 | `https://creance.co/skill.md` | the skill |
 | `https://creance.co/openapi/index.json` | the OpenAPI document |
 
+The API generates all three and answers all three. The public origin hands those
+paths to it, along with everything under `/v1/` that `llms.txt` links to, so an
+agent that follows a link out of the index file stays on one origin. See
+deploy/README.md under "The API's paths on the web origin".
+
 ## What this gateway exposes
 
 Three operations, which are the whole public index surface. Two are free, and

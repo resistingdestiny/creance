@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 
 import { ApiError, reportUnreachable } from '../lib/api';
+import { wrongKind } from './claim-actions';
 import { forgetCover, openCoverSession } from '../lib/current-cover';
 import { issueEligibilityFor, type EligibilityRequest } from '../lib/eligibility';
 import { AMOUNT_DEFAULT } from '../lib/cover-amount';
@@ -408,6 +409,12 @@ export async function startSignInCheck(): Promise<WorldRequestContextView | null
 export interface SignInResult {
   readonly found: boolean;
   readonly error: string | null;
+  /**
+   * The check was of a kind this deployment does not accept, so the screen can
+   * say which check to run instead rather than offering a retry that cannot
+   * work. Absent means it was not that kind of refusal. T42.
+   */
+  readonly wrongCheck?: boolean;
 }
 
 export async function signInWithWorld(result: unknown): Promise<SignInResult> {
@@ -416,11 +423,11 @@ export async function signInWithWorld(result: unknown): Promise<SignInResult> {
       wallet: DEMO_ACCOUNT.accountId,
       result,
     });
-    if (answer.cover === null) return { found: false, error: null };
+    if (answer.cover === null) return { found: false, error: null, wrongCheck: false };
     await openCoverSession(answer.cover.policy_id);
-    return { found: true, error: null };
-  } catch {
-    return { found: false, error: "We couldn't verify you." };
+    return { found: true, error: null, wrongCheck: false };
+  } catch (cause) {
+    return { found: false, error: "We couldn't verify you.", wrongCheck: wrongKind(cause) };
   }
 }
 

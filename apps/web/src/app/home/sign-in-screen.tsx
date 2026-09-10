@@ -71,7 +71,7 @@ export function SignInScreen({
     interim: false,
     actions: {
       context: startSignInCheck,
-      interim: async () => ({ ok: false, error: null, alreadyCovered: false }),
+      interim: async () => ({ ok: false, error: null, alreadyCovered: false, wrongCheck: false }),
       complete: async (result) => {
         const answer = await signInWithWorld(result);
         found.current = answer.found;
@@ -79,7 +79,12 @@ export function SignInScreen({
         // The hook throws on a refusal, which is what stops the widget calling
         // onSuccess, so "found nothing" is reported as a refusal here and said
         // calmly on the screen instead.
-        return { ok: answer.found, error: answer.error, alreadyCovered: false };
+        return {
+          ok: answer.found,
+          error: answer.error,
+          alreadyCovered: false,
+          wrongCheck: answer.wrongCheck ?? false,
+        };
       },
     },
   });

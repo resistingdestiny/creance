@@ -269,7 +269,10 @@ describe('verifySelfieCheck', () => {
       }),
       fetchImpl: verified(),
     });
-    expect(error.code).toBe('world_verification_failed');
+    expect(error.code).toBe('world_credential_unaccepted');
+    expect(error.message).toBe(
+      "That check isn't the one we asked for. Open the World app and run the face check.",
+    );
   });
 
   it('takes presence off the proof at claim rather than trusting the request', async () => {

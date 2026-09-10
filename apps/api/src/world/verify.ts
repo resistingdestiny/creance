@@ -131,8 +131,19 @@ export interface VerifyInput {
   onRefused?: (refusal: WorldRefusal) => void;
 }
 
-/** The one message a person sees for every rejection on this path. */
+/** The message a person sees for every rejection that has no better words. */
 const FAILED = "We couldn't verify you.";
+
+/**
+ * The exception, and the reason this code exists.
+ *
+ * A check of a kind this deployment does not accept is the one refusal where
+ * the generic line sends a person to do the one thing that cannot work: the
+ * same device answers with the same kind of check every time. It gets its own
+ * code so that the screen can say what happened and what to do instead, in the
+ * deck's words. docs/DESIGN-TOKENS.md section 8, the Verify line.
+ */
+const WRONG_KIND = "That check isn't the one we asked for. Open the World app and run the face check.";
 
 export async function verifySelfieCheck(input: VerifyInput): Promise<WorldVerification> {
   const { world, purpose, signal, result } = input;
@@ -188,10 +199,14 @@ export async function verifySelfieCheck(input: VerifyInput): Promise<WorldVerifi
 
   const identifier = (text(responses.identifier) ?? '').toLowerCase();
   if (!world.identifiers.includes(identifier)) {
+    const reason = `The check returned a ${identifier === '' ? 'nameless' : identifier} credential and this deployment accepts ${world.identifiers.join(' or ')}.`;
     throw refuse(
       report,
       'credential',
-      `The check returned a ${identifier === '' ? 'nameless' : identifier} credential and this deployment accepts ${world.identifiers.join(' or ')}.`,
+      reason,
+      new AppError(403, 'world_credential_unaccepted', 'Check of a different kind', WRONG_KIND, [
+        { path: 'world', message: reason },
+      ]),
     );
   }
 

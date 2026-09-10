@@ -34,7 +34,11 @@ export function ListRow({
         <span className="text-secondary text-ink-2">{label}</span>
         {caption ? <span className="text-caption text-ink-2">{caption}</span> : null}
       </span>
-      <span className="flex shrink-0 items-center gap-2 text-body text-ink">
+      {/* Both sides may shrink and wrap. The value used to hold its
+          max-content width, so a long value in a narrow row printed straight
+          through the label: "8 percent a year, paid monthly" over "Coupon" at
+          390. Nothing moves in a row that has the room. */}
+      <span className="flex min-w-0 items-center justify-end gap-2 text-right text-body text-ink">
         {value}
         {trailing === 'chevron' ? <ChevronRight className="text-ink" /> : null}
         {trailing === 'check' ? <Check className="text-ink" /> : null}

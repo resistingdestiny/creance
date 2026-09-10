@@ -22,6 +22,25 @@ export interface AtsNoteRecord {
   gasUsed?: number;
 }
 
+/// One ATS coupon corporate action: the rate, the accrual window and the two
+/// dates that decide when it is payable. It declares and snapshots and never
+/// moves money; the payment is a Scheduled Transaction, which is T14.
+export interface AtsCouponRecord {
+  id: string;
+  ratePercent: number;
+  rate: string;
+  rateDecimals: number;
+  recordTimestamp: number;
+  executionTimestamp: number;
+  startTimestamp: number;
+  endTimestamp: number;
+  fixingTimestamp: number;
+  tx: string;
+  /// True when the record date was brought forward so the period could be
+  /// settled before its accrual window closed. See docs/DECISIONS.md, T06.
+  recordDateBroughtForward?: boolean;
+}
+
 export interface AtsStepRecord {
   /// The transaction hash, or the reason there is none.
   tx?: string;
@@ -48,17 +67,13 @@ export interface AtsRecord {
   issuer?: string;
   roles?: Record<string, string>;
   kyc?: Record<string, { vcId: string; validFrom: number; validTo: number; tx: string }>;
-  coupon?: {
-    id: string;
-    ratePercent: number;
-    rate: string;
-    rateDecimals: number;
-    recordTimestamp: number;
-    executionTimestamp: number;
-    startTimestamp: number;
-    endTimestamp: number;
-    fixingTimestamp: number;
-    tx: string;
-  };
+  /// The first coupon declared on the note. It stays because a record written
+  /// before there was a list carries only this, and `coupons` is seeded from
+  /// it on the first run that reads either.
+  coupon?: AtsCouponRecord;
+  /// Every coupon declared on the note, oldest first, including the first.
+  /// A note pays a coupon a month, so the settlement runner needs the list and
+  /// not just the latest one.
+  coupons?: AtsCouponRecord[];
   steps?: Record<string, AtsStepRecord>;
 }

@@ -2,6 +2,7 @@ import type {
   ChainReader,
   CouponEntitlement,
   CoverPoolSeriesState,
+  DeclaredCoupon,
   HolderState,
   NoteState,
   VaultSeriesState,
@@ -15,6 +16,7 @@ export const SERIES: SeriesConfig = {
   label: 'ODI-COMP-2026-01',
   seriesId: '0x4f44492d434f4d502d323032362d303100000000000000000000000000000000',
   group: 'computer_math',
+  kind: 'occupation',
   maturityAt: 1820082162,
   vault: { address: '0xD0473d355ECB299F2ECc0d92124bc8CF63554e60', contractId: '0.0.10367194' },
   coverPool: { address: '0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09', contractId: '0.0.10367199' },
@@ -139,6 +141,7 @@ export class FakeChainReader implements ChainReader {
       coverPool?: CoverPoolSeriesState | null;
       holder?: Partial<HolderState>;
       entitlement?: CouponEntitlement | null;
+      schedule?: DeclaredCoupon[] | null;
     } = {},
   ) {}
 
@@ -167,7 +170,37 @@ export class FakeChainReader implements ChainReader {
   async couponFor(): Promise<CouponEntitlement | null> {
     return this.overrides.entitlement === undefined ? ENTITLEMENT : this.overrides.entitlement;
   }
+
+  async couponSchedule(): Promise<DeclaredCoupon[] | null> {
+    return this.overrides.schedule === undefined ? SCHEDULE : this.overrides.schedule;
+  }
 }
+
+/// The note's declared schedule as `getCoupon` returns it: the settled first
+/// period, and the fourth declared on its own record date, which is the one
+/// the screen reads as the next payment. Coupons 2 and 3 sit between them.
+export const SCHEDULE: DeclaredCoupon[] = [
+  {
+    couponId: '1',
+    recordDate: 1788553283,
+    executionDate: 1788553583,
+    startDate: 1788552983,
+    endDate: 1791144983,
+    rate: 8n,
+    rateDecimals: 2,
+    cancelled: false,
+  },
+  {
+    couponId: '4',
+    recordDate: 1799093783,
+    executionDate: 1799180183,
+    startDate: 1796415383,
+    endDate: 1799093783,
+    rate: 8n,
+    rateDecimals: 2,
+    cancelled: false,
+  },
+];
 
 /// The same series with no note deployed against it, which is what a series
 /// looks like between `openSeries` and `pnpm ats:issue`.

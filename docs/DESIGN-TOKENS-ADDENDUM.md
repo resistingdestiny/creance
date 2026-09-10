@@ -102,3 +102,34 @@ Rules that come with them. On the dark ground, body text is `rgba(255,255,255,.6
 
 The three step titles on the landing page ("Pick your occupation", "Confirm you're a real person", "Pay monthly") are provisional. They were written in the deck's voice because the original landing file was not available. Replace them if the original wording surfaces.
 
+
+## Investor screen additions, T47 (desktop)
+
+The coupon history moves above the series card, because what has been paid is
+what an investor came to see. It opens with two rows in a surface group, in the
+same register as the rows under Principal: "Earned to date", whose value is the
+settled coupons paid to the account on screen and whose caption names that
+account, and "Next payment", whose value is the date the next declared coupon
+becomes payable and whose caption names the period it accrues over. Neither row
+renders where there is nothing to say.
+
+Each row of the table names the month the coupon accrued over rather than only
+the day it was paid, so three settlements read as three periods. Where the
+record dates were brought forward the screen says so, under the heading, at
+`secondary` in `ink-2`.
+
+The series chooser labels each series with the occupation it covers, from the
+fifteen names in "Occupation picker correction". The identifier stays on screen
+as the title of the series the choice opens.
+
+## Copy deck additions, T47 (verbatim)
+
+"Earned to date" / "Next payment" / "The record dates on these coupons were
+brought forward so several months could be paid inside the demonstration. Every
+payment below settled on Hedera testnet." / "Maturity demonstration" / table
+columns: Period, Noteholder, State, Amount, Receipt
+
+"Next payment" is the Home block's own string from docs/DESIGN-TOKENS.md section
+8, reused here. Its value on this screen is a date alone, not "28.00 on 4
+October": the note reports no entitlement for a coupon whose record date has not
+been reached, so an amount there would have to be invented.

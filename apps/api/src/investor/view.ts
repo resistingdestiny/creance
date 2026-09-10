@@ -4,6 +4,7 @@ import type { CouponSettlementConfig, HolderConfig, SeriesConfig } from './confi
 import type {
   CouponEntitlement,
   CoverPoolSeriesState,
+  DeclaredCoupon,
   HolderState,
   NoteState,
   VaultSeriesState,
@@ -57,10 +58,27 @@ export interface CoverPoolView {
   hashscan: string;
 }
 
+/// The next coupon the note owes: declared on chain, not yet settled.
+///
+/// It comes from the note's own schedule and never from arithmetic over the
+/// maturity and the rate, so a screen that says when the next payment falls due
+/// is quoting the corporate action rather than predicting one.
+export interface NextCouponView {
+  coupon_id: string;
+  rate_percent: string;
+  record_date: string;
+  execution_date: string;
+  accrual_start: string;
+  accrual_end: string;
+}
+
 export interface SeriesView {
   series_id: string;
   series_key: string;
   group: string;
+  /// `occupation`, or `maturity_demonstration` for the short dated series that
+  /// carries cover for nobody.
+  kind: SeriesConfig['kind'];
   network: string;
   settlement_asset: { token_id: string; address: string; decimals: number; symbol: string };
   vault: {
@@ -97,6 +115,10 @@ export interface SeriesView {
     /// The rate the most recent coupon was declared at, so a screen can say
     /// "8 percent a year" without reading the coupons endpoint as well.
     rate_percent: string | null;
+    /// The next payment, or null where the note has declared none that is
+    /// still unpaid. Null is also what an unreadable schedule reads as: an
+    /// unknown next payment is not the same as no further payments.
+    next: NextCouponView | null;
   };
   links: { coupons: string; payments_topic: string | null };
 }
@@ -139,6 +161,45 @@ export function wholeUnits(amount: bigint, decimals: number): string {
   return (amount / 10n ** BigInt(decimals)).toString();
 }
 
+/// The rate as a whole number of percent a year, from the scaled rate the note
+/// stores. 8 at two decimals is 8 percent.
+export function declaredRatePercent(rate: bigint, rateDecimals: number): string {
+  return `${(Number(rate) * 100) / 10 ** rateDecimals}`;
+}
+
+/**
+ * The next coupon the note owes, from its declared schedule.
+ *
+ * A coupon is out of the running once any holder has been paid for it, because
+ * the settlement record is what says money moved and the note does not know.
+ * Cancelled coupons pay nothing. Of what is left the next payment is the
+ * earliest by execution date, which is the date the coupon becomes payable.
+ */
+export function nextCouponView(
+  schedule: DeclaredCoupon[] | null,
+  settlements: readonly CouponSettlementConfig[],
+): NextCouponView | null {
+  if (schedule === null) return null;
+  const paid = new Set(
+    settlements
+      .filter((coupon) => coupon.holders.some((holder) => holder.settled === true))
+      .map((coupon) => coupon.couponId),
+  );
+  const owed = schedule
+    .filter((coupon) => !coupon.cancelled && !paid.has(coupon.couponId))
+    .sort((left, right) => left.executionDate - right.executionDate);
+  const next = owed[0];
+  if (next === undefined) return null;
+  return {
+    coupon_id: next.couponId,
+    rate_percent: declaredRatePercent(next.rate, next.rateDecimals),
+    record_date: asTimestamp(next.recordDate),
+    execution_date: asTimestamp(next.executionDate),
+    accrual_start: asTimestamp(next.startDate),
+    accrual_end: asTimestamp(next.endDate),
+  };
+}
+
 export interface SeriesViewInput {
   series: SeriesConfig;
   network: string;
@@ -146,10 +207,13 @@ export interface SeriesViewInput {
   note: NoteState | null;
   holders: { config: HolderConfig; state: HolderState }[];
   coverPool: CoverPoolSeriesState | null;
+  /// Every coupon the note has declared, or null where it cannot be read.
+  schedule?: DeclaredCoupon[] | null;
 }
 
 export function buildSeriesView(input: SeriesViewInput): SeriesView {
   const { series, vault, note, holders, network, coverPool } = input;
+  const schedule = input.schedule ?? null;
   const asset = series.settlementToken.tokenId;
   const decimals = series.settlementToken.decimals;
   const amount = (value: bigint): Money => money(value, asset, decimals);
@@ -167,6 +231,7 @@ export function buildSeriesView(input: SeriesViewInput): SeriesView {
     series_id: series.label,
     series_key: series.seriesId,
     group: series.group,
+    kind: series.kind,
     network,
     settlement_asset: {
       token_id: series.settlementToken.tokenId,
@@ -244,6 +309,7 @@ export function buildSeriesView(input: SeriesViewInput): SeriesView {
       settled,
       latest_coupon_id: series.coupons.at(-1)?.couponId ?? null,
       rate_percent: series.coupons.at(-1)?.ratePercent.toString() ?? null,
+      next: nextCouponView(schedule, series.coupons),
     },
     links: {
       coupons: `/v1/series/${series.label}/coupons`,
@@ -260,6 +326,9 @@ export interface SeriesListEntry {
   series_id: string;
   series_key: string;
   group: string;
+  /// What the entry is, so a chooser can name what a series covers without
+  /// inferring an occupation for a series that covers none.
+  kind: SeriesConfig['kind'];
   matures_at: string;
   /// Whether a Displacement Bond Note has been issued for the series. Cover is
   /// buyable without one: the note is the investor facing instrument and the
@@ -292,6 +361,7 @@ export function buildSeriesListView(
       series_id: entry.label,
       series_key: entry.seriesId,
       group: entry.group,
+      kind: entry.kind,
       matures_at: new Date(entry.maturityAt * SECONDS).toISOString(),
       has_note: entry.note !== undefined,
       links: {

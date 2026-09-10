@@ -2912,3 +2912,44 @@ So a timeout in `apps/web` is worth re-running before it is worth reading. The
 suite passes on this branch: `pnpm test` exits 0 with the machine quiet, and
 `pnpm --filter @creance/web test` is the quickest way to check the web project
 without waiting for the rest.
+
+## What the ATS coupon facet actually validates, and what it will not tell you
+
+Measured 10 September 2026 against `@hashgraph/asset-tokenization-contracts`
+8.0.0 on testnet, while teaching the note to declare a second and a third
+coupon.
+
+`setCoupon` reads as though it checks its dates. It chains
+`onlyValidDates(startDate, endDate)`, `onlyValidDates(recordDate,
+executionDate)`, `onlyValidDates(fixingDate, executionDate)` and
+`onlyValidTimestamp` on the record date and the fixing date. Only the first part
+is what it sounds like: `DatesValidation.checkDates` requires the second date to
+be no earlier than the first, and `checkTimestamp` rejects zero and nothing
+else. So a record date is not required to be in the future, or after the start
+of the accrual window, or inside it at all. The one real constraint is
+`onlyValidCouponEndDate`: the accrual window may not end after the note's
+maturity date, which caps this note at twelve monthly periods.
+
+That is what lets the demonstration compress the cadence honestly. Coupons 2 and
+3 accrue over October and November and were snapshotted minutes after they were
+declared, which the record and the screen both say out loud.
+
+Two reads do not behave the way our own earlier note said:
+
+- `getCoupon(id)` for an id the note never declared **reverts**, with custom
+  error selector `0xd3924f4e` through `onlyMatchingActionType`, on the demo note
+  at id 5 and 99 and on `ODI-OFFC-2026-01` and the maturity demonstration note
+  at id 1. `contracts/ats/issue.ts` carried a comment from T06 saying such an id
+  read back as an all zero struct instead. The comment was wrong and is
+  corrected. Anything that walks the schedule has to bound itself by
+  `getCouponCount`, which answers 0 on a note with no coupons rather than
+  reverting.
+- `getCouponFor(id, holder)` before the record date returns a zero token balance
+  and `numerator` and `denominator` both zero. The struct's own documentation
+  says the fraction is "only meaningful when recordDateReached", and in practice
+  it is not merely unreliable, it is absent. A coupon declared for a future
+  record date therefore cannot say what it will pay, which is why the investor
+  screen's next payment is a date and not an amount.
+
+One more thing worth knowing before enumerating: `getCouponCount` counts every
+coupon ever declared, cancelled ones included, and coupon ids are one based.

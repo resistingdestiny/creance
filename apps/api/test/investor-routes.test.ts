@@ -41,7 +41,31 @@ describe('the investor endpoints', () => {
     // rather than hiding the series.
     expect(body.series[1].has_note).toBe(false);
     expect(body.series[1].group).toBe('office_admin_support');
+    // What each entry is, so a chooser can name what it covers.
+    expect(body.series[0].kind).toBe('occupation');
     await listing.close();
+  });
+
+  it('carries the next declared coupon on the series it serves', async () => {
+    const response = await app.inject({ method: 'GET', url: '/v1/series/ODI-COMP-2026-01' });
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.kind).toBe('occupation');
+    // Coupon 1 settled, so the next payment is the one declared after it.
+    expect(body.coupons.next.coupon_id).toBe('4');
+    expect(body.coupons.next.execution_date).toBe('2027-01-05T20:16:23Z');
+  });
+
+  it('says nothing about a next payment when the schedule cannot be read', async () => {
+    const unreadable = Fastify();
+    await unreadable.register(investorRoutes, {
+      config: CONFIG,
+      reader: new FakeChainReader({ schedule: null }),
+    });
+    await unreadable.ready();
+    const response = await unreadable.inject({ method: 'GET', url: '/v1/series/ODI-COMP-2026-01' });
+    expect(response.json().coupons.next).toBeNull();
+    await unreadable.close();
   });
 
   it('serves a second series through the same route', async () => {

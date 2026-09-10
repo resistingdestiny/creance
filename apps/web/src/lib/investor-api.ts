@@ -50,10 +50,30 @@ export interface CoverPoolView {
   readonly hashscan: string;
 }
 
+/** What kind of thing a series entry is. See apps/api/src/investor/config.ts. */
+export type SeriesKind = 'occupation' | 'maturity_demonstration';
+
+/**
+ * The next coupon the note owes, declared and not yet settled.
+ *
+ * The API reads it from the note's own coupon schedule, so the date on the
+ * screen is the corporate action's and not one the web app worked out from the
+ * maturity and the rate.
+ */
+export interface NextCouponView {
+  readonly coupon_id: string;
+  readonly rate_percent: string;
+  readonly record_date: string;
+  readonly execution_date: string;
+  readonly accrual_start: string;
+  readonly accrual_end: string;
+}
+
 export interface SeriesView {
   readonly series_id: string;
   readonly series_key: string;
   readonly group: string;
+  readonly kind: SeriesKind;
   readonly network: string;
   readonly settlement_asset: {
     readonly token_id: string;
@@ -93,6 +113,9 @@ export interface SeriesView {
     readonly settled: number;
     readonly latest_coupon_id: string | null;
     readonly rate_percent: string | null;
+    // Null where the note owes no further coupon, and also where its schedule
+    // could not be read: an unknown next payment is not no next payment.
+    readonly next: NextCouponView | null;
   };
   readonly links: {
     readonly coupons: string;
@@ -143,6 +166,7 @@ export interface SeriesListEntry {
   readonly series_id: string;
   readonly series_key: string;
   readonly group: string;
+  readonly kind: SeriesKind;
   readonly matures_at: string;
   readonly has_note: boolean;
   readonly links: { readonly self: string; readonly coupons: string };

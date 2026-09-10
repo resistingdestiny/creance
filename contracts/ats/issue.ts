@@ -34,10 +34,15 @@ import {
   send,
   type Session,
 } from './chain.js';
+import {
+  monthAfter,
+  nextCouponPeriod,
+  type CouponPeriodPlan,
+} from '../coupons/plan.js';
 import { createKycCredential, grantKycArguments, verifyCredential } from './credential.js';
 import { deployNote, emptyAtsRecord, planFor } from './note.js';
 import { testIsinFor } from './isin.js';
-import type { AtsRecord } from './record.js';
+import type { AtsCouponRecord, AtsRecord } from './record.js';
 
 /// `pnpm ats:issue` issues a note series through the Asset Tokenization Studio
 /// on Hedera testnet and runs the compliance sequence T06 asks for. It is
@@ -80,6 +85,8 @@ const STEPS = [
   'mint2',
   'controls',
   'coupon',
+  'period',
+  'nextcoupon',
   'couponcheck',
   'verify',
   'all',
@@ -150,15 +157,6 @@ function noteContract(ats: AtsRecord, runner: Wallet): Contract {
   return noteAt(ats.note.address, runner);
 }
 
-/// The accrual window is a real calendar month, because ATS prices a coupon as
-/// balance times nominal times rate times the window in seconds over 365 days,
-/// and a thirty day approximation would under pay a long month.
-function monthAfter(seconds: number): number {
-  const end = new Date(seconds * 1000);
-  end.setUTCMonth(end.getUTCMonth() + 1);
-  return Math.floor(end.getTime() / 1000);
-}
-
 async function status(session: Session, record: DeploymentRecord): Promise<void> {
   const ats = atsOf(record);
   await checkAtsAddresses();
@@ -176,6 +174,11 @@ async function status(session: Session, record: DeploymentRecord): Promise<void>
   console.log(`outsider      ${session.outsider.address} (${session.outsider.role})`);
   console.log(`throwaway     ${ats.throwaway?.address ?? 'not deployed'}`);
   console.log(`note          ${ats.note?.address ?? 'not issued'}`);
+  for (const entry of declaredCoupons(ats)) {
+    console.log(
+      `coupon ${entry.id.padEnd(7)}${entry.startTimestamp} to ${entry.endTimestamp}, record ${entry.recordTimestamp}, execution ${entry.executionTimestamp}`,
+    );
+  }
   console.log(`steps done    ${Object.keys(ats.steps ?? {}).join(', ') || 'none'}`);
 }
 
@@ -521,34 +524,50 @@ async function controls(session: Session, record: DeploymentRecord): Promise<voi
   });
 }
 
-/// ATS declares a coupon and snapshots the holders. It never moves money: the
-/// coupon facet has no settlement token anywhere in it. The payment is a
-/// Scheduled Transaction from the vault's premium account, which is T14.
-async function coupon(session: Session, record: DeploymentRecord): Promise<void> {
-  const ats = atsOf(record);
-  if (ats.coupon !== undefined) {
-    console.log(`  coupon ${ats.coupon.id} already declared`);
-    return;
-  }
+/// Every coupon declared on the note, oldest first.
+///
+/// The record carried one coupon before it carried a list, so the list is
+/// seeded from that field the first time either is read and both are written
+/// from then on. Nothing else in the build reads `ats.coupon`.
+function declaredCoupons(ats: AtsRecord): AtsCouponRecord[] {
+  ats.coupons ??= ats.coupon === undefined ? [] : [ats.coupon];
+  return ats.coupons;
+}
+
+/// Whether `pnpm coupons:pay` has settled a declared coupon for every holder
+/// it recorded. A coupon with no holders recorded has not been paid at all.
+function couponSettled(series: SeriesRecord, couponId: string): boolean {
+  const holders = series.couponSettlements?.[couponId]?.holders ?? [];
+  return holders.length > 0 && holders.every((holder) => holder.settled === true);
+}
+
+/// The note's maturity, which is the last date an accrual window may end on.
+function noteMaturity(ats: AtsRecord): number {
+  return ats.note?.maturityDate ?? 0;
+}
+
+/// Declare one coupon on the note and write it into the record.
+async function declareCoupon(
+  session: Session,
+  ats: AtsRecord,
+  plan: CouponPeriodPlan,
+): Promise<AtsCouponRecord> {
   const bond = noteContract(ats, session.operator);
-  const now = Math.floor(Date.now() / 1000);
-  // The accrual window is a real calendar month. The record and execution dates
-  // are minutes out rather than at the end of that window so the settlement half
-  // can be shown inside the event; a live series would put the record date at
-  // the end of the accrual month.
-  const plan = {
-    recordDate: now + 5 * 60,
-    executionDate: now + 10 * 60,
-    startDate: now,
-    endDate: monthAfter(now),
-    fixingDate: now + 5 * 60,
+  const call = {
+    recordDate: plan.recordDate,
+    executionDate: plan.executionDate,
+    startDate: plan.startDate,
+    endDate: plan.endDate,
+    fixingDate: plan.fixingDate,
     rate: COUPON.rate,
     rateDecimals: COUPON.rateDecimals,
     rateStatus: COUPON.rateStatusSet,
   };
-  const id = (await bond.setCoupon!.staticCall(plan, { gasLimit: GAS.setCoupon })) as bigint;
-  const sent = await send('setCoupon', bond.setCoupon!(plan, { gasLimit: GAS.setCoupon }));
-  ats.coupon = {
+  // staticCall first: setCoupon returns the id it assigned, and a transaction
+  // receipt does not carry a return value through the relay.
+  const id = (await bond.setCoupon!.staticCall(call, { gasLimit: GAS.setCoupon })) as bigint;
+  const sent = await send('setCoupon', bond.setCoupon!(call, { gasLimit: GAS.setCoupon }));
+  const declared: AtsCouponRecord = {
     id: id.toString(),
     ratePercent: COUPON.ratePercent,
     rate: COUPON.rate.toString(),
@@ -559,48 +578,156 @@ async function coupon(session: Session, record: DeploymentRecord): Promise<void>
     endTimestamp: plan.endDate,
     fixingTimestamp: plan.fixingDate,
     tx: sent.hash,
+    ...(plan.broughtForward ? { recordDateBroughtForward: true } : {}),
   };
-  step(ats, 'coupon', {
+  declaredCoupons(ats).push(declared);
+  step(ats, `coupon-${declared.id}`, {
     tx: sent.hash,
     result:
-      `coupon ${id} declared at ${COUPON.ratePercent} percent a year over ` +
-      `${plan.startDate} to ${plan.endDate}, record ${plan.recordDate}, execution ${plan.executionDate}`,
+      `coupon ${declared.id} declared at ${COUPON.ratePercent} percent a year over ` +
+      `${plan.startDate} to ${plan.endDate}, record ${plan.recordDate}, execution ` +
+      `${plan.executionDate}${plan.broughtForward ? ', record date brought forward' : ''}`,
     gasUsed: sent.gasUsed,
   });
+  console.log(
+    `  coupon ${declared.id} over ${plan.startDate} to ${plan.endDate}, record ${plan.recordDate}, execution ${plan.executionDate}`,
+  );
+  return declared;
 }
 
-/// After the record date, read the snapshot and the per holder entitlement.
-/// The fraction is what T14 turns into a settlement token transfer.
-async function couponcheck(session: Session, record: DeploymentRecord): Promise<void> {
+/// ATS declares a coupon and snapshots the holders. It never moves money: the
+/// coupon facet has no settlement token anywhere in it. The payment is a
+/// Scheduled Transaction from the vault's premium account, which is T14.
+///
+/// This is the first period, which is the one the note is issued with. The
+/// ones after it are the `period` step.
+async function coupon(session: Session, record: DeploymentRecord): Promise<void> {
   const ats = atsOf(record);
-  if (ats.coupon === undefined) throw new Error('no coupon declared yet');
-  const bond = noteContract(ats, session.operator);
-  const id = BigInt(ats.coupon.id);
-  // The second return is isDisabled_, not an existence flag: a coupon that was
-  // never declared reads back as an all zero struct rather than reverting.
-  const [registered, isDisabled] = (await bond.getCoupon!(id)) as [
-    { coupon: { recordDate: bigint }; snapshotId: bigint },
-    boolean,
-  ];
-  console.log(
-    `  coupon ${id} recordDate ${registered.coupon.recordDate}, snapshot ${registered.snapshotId}, disabled ${isDisabled}`,
+  const declared = declaredCoupons(ats);
+  if (declared.length > 0) {
+    console.log(`  coupon ${declared[0]!.id} already declared`);
+    return;
+  }
+  const now = Math.floor(Date.now() / 1000);
+  // The accrual window is a real calendar month. The record and execution dates
+  // are minutes out rather than at the end of that window so the settlement half
+  // can be shown inside the event; a live series would put the record date at
+  // the end of the accrual month.
+  const first = await declareCoupon(session, ats, {
+    recordDate: now + 5 * 60,
+    executionDate: now + 10 * 60,
+    startDate: now,
+    endDate: monthAfter(now),
+    fixingDate: now + 5 * 60,
+    broughtForward: true,
+  });
+  ats.coupon = first;
+}
+
+/// The next accrual period, declared so it can be settled today.
+///
+/// One period per run, and it refuses while an earlier period is payable and
+/// unpaid, because a note that declares coupons faster than it settles them is
+/// a note in arrears rather than a series accruing.
+async function period(session: Session, record: DeploymentRecord): Promise<void> {
+  const ats = atsOf(record);
+  const series = seriesOf(record);
+  const declared = declaredCoupons(ats);
+  if (declared.length === 0) {
+    throw new Error('no coupon declared yet: run `pnpm ats:issue coupon` first');
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const owing = declared.find(
+    (entry) => entry.executionTimestamp <= now && !couponSettled(series, entry.id),
   );
-  const lines: string[] = [`snapshotId ${registered.snapshotId}, isDisabled ${isDisabled}`];
-  for (const investor of session.investors) {
-    const detail = (await bond.getCouponFor!(id, investor.address)) as {
-      tokenBalance: bigint;
-      couponAmount: { numerator: bigint; denominator: bigint; recordDateReached: boolean };
-    };
-    const { numerator, denominator, recordDateReached } = detail.couponAmount;
-    const minor = denominator === 0n ? 0n : (numerator * 10n ** 6n) / denominator;
-    console.log(
-      `  ${investor.role} balance ${detail.tokenBalance} numerator ${numerator} denominator ${denominator} -> ${minor} minor units`,
-    );
-    lines.push(
-      `${investor.role} balance ${detail.tokenBalance}, ${numerator}/${denominator} = ${minor} minor units, recordDateReached ${recordDateReached}`,
+  if (owing !== undefined) {
+    throw new Error(
+      `coupon ${owing.id} is payable and unsettled: run \`pnpm coupons:pay all ${owing.id}\` before declaring another period`,
     );
   }
-  step(ats, 'coupon-entitlement', { result: lines.join('; ') });
+  const previousEnd = Math.max(...declared.map((entry) => entry.endTimestamp));
+  await declareCoupon(
+    session,
+    ats,
+    nextCouponPeriod({
+      previousEnd,
+      now,
+      maturityDate: noteMaturity(ats),
+      recordDate: 'brought forward',
+    }),
+  );
+}
+
+/// The period after the last one, declared on its own dates.
+///
+/// Its record date is the end of its own accrual window rather than minutes
+/// out, so it is the next payment the note owes and not one more period to
+/// settle today. It is what the investor screen reads as the next payment.
+async function nextcoupon(session: Session, record: DeploymentRecord): Promise<void> {
+  const ats = atsOf(record);
+  const declared = declaredCoupons(ats);
+  if (declared.length === 0) {
+    throw new Error('no coupon declared yet: run `pnpm ats:issue coupon` first');
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const ahead = declared.find((entry) => entry.recordTimestamp > now);
+  if (ahead !== undefined) {
+    console.log(`  coupon ${ahead.id} is already declared with a record date ahead of now`);
+    return;
+  }
+  const previousEnd = Math.max(...declared.map((entry) => entry.endTimestamp));
+  await declareCoupon(
+    session,
+    ats,
+    nextCouponPeriod({
+      previousEnd,
+      now,
+      maturityDate: noteMaturity(ats),
+      recordDate: 'at the window end',
+    }),
+  );
+}
+
+/// After the record date, read the snapshot and the per holder entitlement,
+/// for every coupon declared on the note. The fraction is what T14 turns into
+/// a settlement token transfer.
+async function couponcheck(session: Session, record: DeploymentRecord): Promise<void> {
+  const ats = atsOf(record);
+  const declared = declaredCoupons(ats);
+  if (declared.length === 0) throw new Error('no coupon declared yet');
+  const bond = noteContract(ats, session.operator);
+  const count = (await bond.getCouponCount!()) as bigint;
+  console.log(`  getCouponCount ${count}, ${declared.length} in the record`);
+  for (const entry of declared) {
+    const id = BigInt(entry.id);
+    // The second return is isDisabled_, not an existence flag. An id the note
+    // never declared does not read back as a zeroed struct: getCoupon reverts
+    // through onlyMatchingActionType. Measured, see docs/harness-notes.md.
+    const [registered, isDisabled] = (await bond.getCoupon!(id)) as [
+      { coupon: { recordDate: bigint; startDate: bigint; endDate: bigint }; snapshotId: bigint },
+      boolean,
+    ];
+    console.log(
+      `  coupon ${id} over ${registered.coupon.startDate} to ${registered.coupon.endDate}, ` +
+        `recordDate ${registered.coupon.recordDate}, snapshot ${registered.snapshotId}, disabled ${isDisabled}`,
+    );
+    const lines: string[] = [`snapshotId ${registered.snapshotId}, isDisabled ${isDisabled}`];
+    for (const investor of session.investors) {
+      const detail = (await bond.getCouponFor!(id, investor.address)) as {
+        tokenBalance: bigint;
+        couponAmount: { numerator: bigint; denominator: bigint; recordDateReached: boolean };
+      };
+      const { numerator, denominator, recordDateReached } = detail.couponAmount;
+      const minor = denominator === 0n ? 0n : (numerator * 10n ** 6n) / denominator;
+      console.log(
+        `  ${investor.role} balance ${detail.tokenBalance} numerator ${numerator} denominator ${denominator} -> ${minor} minor units`,
+      );
+      lines.push(
+        `${investor.role} balance ${detail.tokenBalance}, ${numerator}/${denominator} = ${minor} minor units, recordDateReached ${recordDateReached}`,
+      );
+    }
+    step(ats, `coupon-entitlement-${entry.id}`, { result: lines.join('; ') });
+  }
 }
 
 async function verify(session: Session, record: DeploymentRecord): Promise<void> {
@@ -653,6 +780,8 @@ const HANDLERS: Record<Exclude<Step, 'all'>, (s: Session, r: DeploymentRecord) =
   mint2: (s, r) => mint(s, r, 1, SECOND_MINT),
   controls,
   coupon,
+  period,
+  nextcoupon,
   couponcheck,
   verify,
 };

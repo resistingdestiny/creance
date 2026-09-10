@@ -45,7 +45,15 @@ export interface CouponSettlementConfig {
 export interface SeriesConfig {
   label: string;
   seriesId: string;
+  /// The occupation group the series carries cover for. Empty on a series that
+  /// covers no occupation, which is the maturity demonstration.
   group: string;
+  /// What the entry is. Every occupation series is `occupation`; the short
+  /// dated series T14 opened to reach maturity inside the event is
+  /// `maturity_demonstration`. It is a separate field because a screen that
+  /// names what a series covers would otherwise have to guess, and the group it
+  /// used to be given was the demo series' own.
+  kind: 'occupation' | 'maturity_demonstration';
   maturityAt: number;
   vault: { address: string; contractId?: string };
   coverPool?: { address: string; contractId?: string };
@@ -217,6 +225,7 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
       label: entry.label,
       seriesId: entry.id,
       group: entry.group,
+      kind: 'occupation' as const,
       maturityAt: entry.maturityAt,
       vault,
       ...(coverPool === undefined ? {} : { coverPool }),
@@ -243,7 +252,12 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
     series.push({
       label: record.maturityDemo.label,
       seriesId: record.maturityDemo.seriesId,
-      group: recorded[0]?.group ?? '',
+      // No group. It is a short dated series opened to show a redemption and it
+      // carries cover for nobody. It used to be given the demo series' own
+      // group, which made a screen that named the occupation say this series
+      // covered computer and mathematical work, which is false.
+      group: '',
+      kind: 'maturity_demonstration' as const,
       maturityAt: record.maturityDemo.maturityAt,
       vault,
       ...(coverPool === undefined ? {} : { coverPool }),

@@ -29,6 +29,11 @@ export const NOTE_ABI = [
   'function getFrozenTokens(address account) view returns (uint256)',
   'function getKycStatusFor(address account) view returns (uint256)',
   'function getCouponFor(uint256 couponId, address account) view returns (tuple(uint256 tokenBalance, uint8 decimals, uint256 nominalValue, uint256 nominalValueDecimals, bool recordDateReached, tuple(uint256 recordDate, uint256 executionDate, uint256 startDate, uint256 endDate, uint256 fixingDate, uint256 rate, uint8 rateDecimals, uint8 rateStatus) coupon, tuple(uint256 numerator, uint256 denominator, bool recordDateReached) couponAmount, bool isDisabled))',
+  // The declared schedule, which is how the API answers what the next payment
+  // is without guessing it from the maturity and the rate. The count is every
+  // coupon ever declared, cancelled ones included, and the ids are one based.
+  'function getCouponCount() view returns (uint256)',
+  'function getCoupon(uint256 couponId) view returns (tuple(tuple(uint256 recordDate, uint256 executionDate, uint256 startDate, uint256 endDate, uint256 fixingDate, uint256 rate, uint8 rateDecimals, uint8 rateStatus) coupon, uint256 snapshotId) registered, bool isDisabled)',
 ] as const;
 
 /// CoverPool, the policy registry. The investor screen needs two things from

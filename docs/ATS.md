@@ -495,6 +495,54 @@ internal KYC on, clearing off, not controllable, Regulation S: the same terms
 as the demo note at a quarter of the size. Configuration version and factory
 pair are the same for all fifteen and are on the record per series.
 
+### 17. A coupon a month, not a coupon
+
+Sections 12 to 14 declared and settled one coupon. A single settlement does not
+show an accrual, so T47 declared three more periods on `ODI-COMP-2026-01` and
+settled two of them.
+
+Each period is the calendar month after the last, because `setCoupon` prices
+nothing itself and `getCouponFor` derives the entitlement from the window in
+seconds: balance times nominal times rate times `(endDate - startDate)` over 365
+days. So the windows run 4 September to 4 October, then to 4 November, then to 4
+December 2026, then to 4 January 2027, and each one is worth what its own length
+says. A thirty one day month pays `339726027` TUSD minor units per holder where
+a thirty day month pays `328767123`.
+
+What `setCoupon` validates is narrower than the field names suggest. The three
+`onlyValidDates` pairs require only `second >= first` on start and end, on
+record and execution and on fixing and execution; `onlyValidTimestamp` on the
+record date and the fixing date rejects zero and nothing else, so a record date
+is not required to be in the future or inside the accrual window it belongs to.
+`onlyValidCouponEndDate` is the one real constraint: the accrual window may not
+end after the note's maturity, which caps this note at twelve monthly periods.
+
+That is what makes the compressed cadence possible. Coupons 2 and 3 were
+declared with their record dates five minutes out and their execution dates ten
+minutes out while their accrual windows sit in October and November, and they
+settled the same day. It is the T06 precedent, and both the deployment record
+and the investor screen say the record dates were brought forward.
+
+Coupon 4 is the counterpart: its record date is the end of its own accrual
+window, 4 January 2027, and its execution date the day after. It is declared and
+unpaid, which is what the investor screen reads as the next payment.
+
+Three reads matter for anything that walks the schedule:
+
+- `getCouponCount` returns every coupon ever declared, cancelled ones included,
+  and the ids are one based.
+- `getCoupon(id)` reverts through `onlyMatchingActionType` for an id the note
+  never declared, so the count is the only safe way to enumerate. It returns the
+  coupon and its snapshot id, and a second value that is `isDisabled_` rather
+  than an existence flag.
+- `getCouponFor(id, holder)` before the record date returns a zero token balance
+  and a zero entitlement, `numerator` and `denominator` both nought. A declared
+  future coupon therefore cannot say what it will pay, and no screen in this
+  build claims otherwise.
+
+The transactions, the schedules, the topic sequence numbers and what the two
+periods cost are in docs/HEDERA.md, "The coupons after the first".
+
 ## The test ISIN
 
 `ZZODIC55S1Q6` is a **structurally valid test identifier, not a registered
@@ -578,6 +626,8 @@ call whose cost depends on state it cannot see. The limits are in
 
 - Coupon id `1`, with `328767123` TUSD minor units payable to each of the two
   noteholders on or after `1788553583`. Settled on 4 September 2026, section 14.
+  Coupons 2 and 3 settled on 10 September 2026 and coupon 4 is declared for 5
+  January 2027, section 17.
 - The entitlement arrives as `numerator / denominator` in whole currency units;
   the settlement amount is `floor(numerator * 10^6 / denominator)` in TUSD minor
   units. That arithmetic is `contracts/coupons/plan.ts` and it carries tests.

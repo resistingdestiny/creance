@@ -598,6 +598,61 @@ demonstration, published to the payments topic at sequence numbers 1 and 2. The
 schedules and the executed transfers are in the Scheduled transactions section
 above and the full run through is docs/ATS.md section 14.
 
+### The coupons after the first, 10 September 2026
+
+The note pays a coupon a month and the history has to read as an accrual, so
+two more periods were declared and settled and a fourth was declared for its
+own date. Every accrual window is an untouched calendar month starting where the
+last one ended.
+
+| Coupon | Accrual window | Days | Each holder | Record date |
+|---|---|---|---|---|
+| 1 | 4 Sep to 4 Oct 2026 | 30 | `328767123` | 1788553283, brought forward |
+| 2 | 4 Oct to 4 Nov 2026 | 31 | `339726027` | 1789080027, brought forward |
+| 3 | 4 Nov to 4 Dec 2026 | 30 | `328767123` | 1789080041, brought forward |
+| 4 | 4 Dec 2026 to 4 Jan 2027 | 31 | not yet payable | 1799093783, the end of its window |
+
+A thirty one day month pays more than a thirty day one because ATS prices the
+coupon over the window in seconds: 50,000 at 8 percent for 31 of 365 days is
+339.726027 USD. `getCouponCount` reads 4 and `getCoupon` returns each of them.
+
+Coupon 2, [declared](https://hashscan.io/testnet/transaction/0xddaa0a4d7a41f0cbd92e90057aa1736c1faed4dab854bd27b2cd80e1ab7763f9)
+with 585,827 gas:
+
+| Holder | Schedule | Executed transfer | Topic sequence |
+|---|---|---|---|
+| investor-1 | [0.0.10467181](https://hashscan.io/testnet/schedule/0.0.10467181) | [0.0.10366450-1789080360-871260609](https://hashscan.io/testnet/transaction/0.0.10366450-1789080360-871260609) | 5750 |
+| investor-2 | [0.0.10467183](https://hashscan.io/testnet/schedule/0.0.10467183) | [0.0.10366450-1789080365-776042987](https://hashscan.io/testnet/transaction/0.0.10366450-1789080365-776042987) | 5751 |
+
+Coupon 3, [declared](https://hashscan.io/testnet/transaction/0x1b0478d8066eebb404a0ec4a295c368cec84d3bc000f992623f977c13b0b17fc)
+with 611,235 gas:
+
+| Holder | Schedule | Executed transfer | Topic sequence |
+|---|---|---|---|
+| investor-1 | [0.0.10467222](https://hashscan.io/testnet/schedule/0.0.10467222) | [0.0.10366450-1789080523-877923930](https://hashscan.io/testnet/transaction/0.0.10366450-1789080523-877923930) | 5769 |
+| investor-2 | [0.0.10467224](https://hashscan.io/testnet/schedule/0.0.10467224) | [0.0.10366450-1789080523-894229047](https://hashscan.io/testnet/transaction/0.0.10366450-1789080523-894229047) | 5770 |
+
+Coupon 4 is
+[declared](https://hashscan.io/testnet/transaction/0xe1b2969d052814fc055669ea58b67d4c11886201f262cbdd9701240b3ffacb5b)
+and unpaid, with 636,643 gas. It becomes payable at 1799180183, 5 January 2027,
+and it is what the investor screen reads as the next payment. Before its record
+date `getCouponFor` reports a zero balance and a zero entitlement for both
+holders, so nothing on chain says yet what it will pay.
+
+What the two paid periods cost, all of it from the demo accounts:
+
+| Item | Amount | Paid by |
+|---|---|---|
+| Premium seeded for coupon 2 | `679452054` TUSD minor units | policyholder-1 0.0.10366453 |
+| Premium seeded for coupon 3 | `657534246` TUSD minor units | policyholder-1 0.0.10366453 |
+| Four schedule creates | 1.32063177 HBAR each, 5.28252708 total | api 0.0.10366450 |
+| Two top ups of the api account to 12 HBAR | about 15 HBAR of operator balance with gas | operator |
+
+Each `fundCoupon` execution used 62,592 gas for investor-1 and 57,792 for
+investor-2, the same as the first coupon. `premiumBalanceOf` is back to zero
+after each period, because a coupon is funded with exactly what it owes and the
+truncation remainder is what stays behind.
+
 ### The maturity demonstration
 
 The demo series and its note both mature on 4 September 2027, the vault has no

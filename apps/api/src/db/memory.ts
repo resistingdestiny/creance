@@ -1,6 +1,7 @@
 import { AppError } from '../errors.js';
 import {
   ACTIVE_POLICY_STATUSES,
+  SIGN_IN_POLICY_STATUSES,
   type ClaimAuditRow,
   type ClaimEvidenceRow,
   type ClaimPaidInput,
@@ -103,7 +104,7 @@ export class MemoryRepository implements Repository {
     return [...this.policyRows.values()]
       .filter(
         (row) =>
-          row.nullifier === nullifier && ACTIVE_POLICY_STATUSES.includes(row.status),
+          row.nullifier === nullifier && SIGN_IN_POLICY_STATUSES.includes(row.status),
       )
       .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
   }

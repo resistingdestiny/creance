@@ -134,6 +134,34 @@ export type PolicyStatus =
   | 'expired'
   | 'void';
 
+/**
+ * The statuses a person signing in should be shown a cover for.
+ *
+ * Not `ACTIVE_POLICY_STATUSES`. That set answers "would a second purchase be
+ * refused", so it leaves out `lapsed`, `payment_failed` and `expired`, and a
+ * person whose cover has lapsed is exactly the person who most needs to reach
+ * it: the dashboard has a Payment due state built for them and a button that
+ * takes the payment. Telling them they never bought cover would be false.
+ *
+ * Everything but `void`, which is a bind that reverted and never became cover.
+ * That is also what a cover key opens, and the two ways in have to find the
+ * same covers or one of them is lying.
+ */
+export const SIGN_IN_POLICY_STATUSES: readonly PolicyStatus[] = [
+  'binding',
+  'bound',
+  'active',
+  'payment_failed',
+  'lapsed',
+  'claims_open',
+  'claimed',
+  'under_review',
+  'approved',
+  'paid',
+  'declined',
+  'expired',
+];
+
 /** The statuses the one-active-policy rule counts. Mirrors the partial index. */
 export const ACTIVE_POLICY_STATUSES: readonly PolicyStatus[] = [
   'binding',
@@ -418,12 +446,15 @@ export interface Repository {
    */
   activePolicy(nullifier: string, seriesId: string): Promise<PolicyRow | null>;
   /**
-   * Every cover this person still holds, newest first.
+   * Every cover this person holds, newest first, for signing in.
    *
    * `activePolicy` answers the one-active-policy rule, which is per series.
    * Signing in has no series to ask about: the person proves who they are and
    * the cover has to be found from that alone. Fifteen series are live, so the
    * alternative is fifteen reads to answer one question.
+   *
+   * `SIGN_IN_POLICY_STATUSES` and not the one-active-policy set, so a lapsed
+   * cover is found rather than reported as no cover at all.
    */
   policiesForPerson(nullifier: string): Promise<PolicyRow[]>;
   /** Records a cover key by its digest. Many keys may open one cover. */

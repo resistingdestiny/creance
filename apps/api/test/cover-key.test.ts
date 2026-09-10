@@ -280,6 +280,50 @@ describe('getting back into a cover', () => {
       expect(response.json()).toEqual({ cover: null, covers_held: 0 });
     });
 
+    /**
+     * A lapsed cover is still this person's cover. The dashboard has a Payment
+     * due state built for exactly this and a button that takes the payment, so
+     * answering "no cover" would tell the one person who most needs to get back
+     * in that they never bought anything. The cover key opens it either way, and
+     * the two ways in have to find the same covers.
+     */
+    it('finds a cover whose payment has lapsed, not only a live one', async () => {
+      const built = await harness();
+      const bound = await buy(built);
+      await built.repository.updatePolicy(bound.policy_id, { status: 'lapsed' });
+      worldConfirms();
+      const body = (await signIn(built, idKitResult())).json();
+      expect(body.cover?.policy_id).toBe(bound.policy_id);
+      expect(body.cover.status).toBe('lapsed');
+      expect(body.covers_held).toBe(1);
+    });
+
+    it('finds a cover whose last payment failed', async () => {
+      const built = await harness();
+      const bound = await buy(built);
+      await built.repository.updatePolicy(bound.policy_id, { status: 'payment_failed' });
+      worldConfirms();
+      expect((await signIn(built, idKitResult())).json().cover?.policy_id).toBe(bound.policy_id);
+    });
+
+    /**
+     * The two ways in agree about which covers exist. A key that opens a cover
+     * and a check that says there is none would be one of them lying.
+     */
+    it('finds every cover the cover key opens', async () => {
+      const built = await harness();
+      const bound = await buy(built);
+      for (const status of ['lapsed', 'payment_failed', 'expired', 'paid'] as const) {
+        await built.repository.updatePolicy(bound.policy_id, { status });
+        const byKey = await open(built, bound.cover_key);
+        worldConfirms();
+        const byPerson = await signIn(built, idKitResult());
+        expect(byKey.json().cover.policy_id, status).toBe(bound.policy_id);
+        expect(byPerson.json().cover?.policy_id, status).toBe(bound.policy_id);
+        vi.restoreAllMocks();
+      }
+    });
+
     it('issues no credential and hands back no cover key', async () => {
       const built = await harness();
       const bound = await buy(built);

@@ -11,7 +11,7 @@ import {
   insufficientCapacity,
   quoteConsumed,
 } from './memory.js';
-import { ACTIVE_POLICY_STATUSES } from './types.js';
+import { ACTIVE_POLICY_STATUSES, SIGN_IN_POLICY_STATUSES } from './types.js';
 import type {
   ClaimEvidenceRow,
   ClaimPaidInput,
@@ -216,17 +216,19 @@ export class PostgresRepository implements Repository {
   }
 
   /**
-   * Every cover this person still holds, newest first.
+   * Every cover this person holds, newest first, for signing in.
    *
-   * The same statuses `activePolicy` counts, with the series left out: signing
-   * in has no series to ask about. One read rather than one per live series.
+   * The series is left out, because signing in has no series to ask about, and
+   * so is the one-active-policy status set: a lapsed cover is still this
+   * person's cover and the dashboard has a Payment due state for it. One read
+   * rather than one per live series.
    */
   async policiesForPerson(nullifier: string): Promise<PolicyRow[]> {
     const { rows } = await this.pool.query(
       `SELECT * FROM policies
         WHERE nullifier = $1 AND status = ANY($2::text[])
         ORDER BY starts_at DESC`,
-      [nullifier, [...ACTIVE_POLICY_STATUSES]],
+      [nullifier, [...SIGN_IN_POLICY_STATUSES]],
     );
     return rows.map(toPolicy);
   }

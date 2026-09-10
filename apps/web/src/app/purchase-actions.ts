@@ -18,6 +18,7 @@ import { readConnectedAccount, UnknownAccountError } from '../lib/wallet-account
 import {
   DEMO_ACCOUNT,
   DEMO_WALLET_LABEL,
+  NO_RECEIPT_WARNING,
   OWN_WALLET_LABEL,
   SERVICE_PAYS_LABEL,
   type WalletAccount,
@@ -362,10 +363,6 @@ export interface PayConfirmation {
    */
   readonly receiptWarning: string | null;
 }
-
-/** Said before the press, because it is true after it. */
-export const NO_RECEIPT_WARNING =
-  "Your wallet doesn't accept new tokens, so the cover receipt can't be sent to it. The cover itself is unaffected.";
 
 export async function openPayment(): Promise<PayConfirmation | null> {
   const session = await readPurchase();

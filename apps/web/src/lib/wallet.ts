@@ -102,6 +102,16 @@ export const DEMO_WALLET_LABEL = 'Demo wallet. Testnet only.';
 export const OWN_WALLET_LABEL = 'Your own wallet. Hedera testnet.';
 
 /**
+ * Said on the pay sheet before the press, because it is true after it.
+ *
+ * The cover binds either way: apps/api mints the policy NFT after the cover is
+ * already bound and records a mint that failed rather than failing the bind. So
+ * this warns and does not block.
+ */
+export const NO_RECEIPT_WARNING =
+  "Your wallet doesn't accept new tokens, so the cover receipt can't be sent to it. The cover itself is unaffected.";
+
+/**
  * The caption on the paying account once a cover is bound to somebody else's
  * wallet. The premium is still settled by src/lib/payer.ts out of the service
  * account, so the row that names it may not be captioned as the person's own.

@@ -4,6 +4,7 @@ import {
   OCCUPATIONS,
   filterOccupations,
   findOccupation,
+  groupOccupations,
   hasCover,
   occupationLabel,
 } from '../src/lib/occupations.js';
@@ -93,6 +94,22 @@ describe('the search field', () => {
 
   it('finds nothing for a job title, because the product covers groups', () => {
     expect(filterOccupations('programmer')).toHaveLength(0);
+  });
+});
+
+describe('groupOccupations', () => {
+  it('puts what can be bought first and sinks the rest, in the addendum order inside each part', () => {
+    const groups = groupOccupations(OCCUPATIONS);
+    expect(groups.open.map((row) => row.key)).toEqual(['computer_math']);
+    expect(groups.noCover).toHaveLength(14);
+    expect(groups.noCover[0]?.key).toBe('office_admin_support');
+    expect(groups.noCover.at(-1)?.key).toBe('farming_fishing_forestry');
+  });
+
+  it('groups a filtered list, so a search matching only unbuyable rows still shows them', () => {
+    const groups = groupOccupations(filterOccupations('legal'));
+    expect(groups.open).toHaveLength(0);
+    expect(groups.noCover.map((row) => row.key)).toEqual(['legal']);
   });
 });
 

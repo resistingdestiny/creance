@@ -77,7 +77,7 @@ interface DeploymentFile {
   chainId?: number;
   coverPool?: { address: string };
   collateralVault?: { address: string };
-  series?: { id: string; label: string; group: string; maturityAt: number };
+  series?: { id: string; label: string; group: string; maturityAt: number }[];
 }
 
 interface ResourcesFile {
@@ -174,17 +174,16 @@ export function loadApiConfig(
   }
 
   const token = resources?.settlementToken;
-  const series: SeriesConfig[] =
-    record.series === undefined
-      ? []
-      : [
-          {
-            label: record.series.label,
-            seriesId: fromEnv('HEDERA_SERIES_ID') ?? record.series.id,
-            groupKey: record.series.group,
-            maturityAt: record.series.maturityAt,
-          },
-        ];
+  // `HEDERA_SERIES_ID` repoints the demo series, which is the head of the
+  // record. It predates the record carrying more than one series and it has
+  // never named which one it meant.
+  const seriesIdOverride = fromEnv('HEDERA_SERIES_ID');
+  const series: SeriesConfig[] = (record.series ?? []).map((entry, index) => ({
+    label: entry.label,
+    seriesId: (index === 0 ? seriesIdOverride : undefined) ?? entry.id,
+    groupKey: entry.group,
+    maturityAt: entry.maturityAt,
+  }));
 
   const apiAccount = resources?.accounts?.api;
   const operator = resources?.operator;

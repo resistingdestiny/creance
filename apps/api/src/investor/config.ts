@@ -78,18 +78,22 @@ interface DeploymentFile {
     maturityAt: number;
     note?: { address: string; contractId?: string };
   };
-  series?: {
-    id: string;
-    label: string;
-    group: string;
-    maturityAt: number;
-    ats?: { note?: { address: string; contractId?: string } };
-    couponSettlements?: Record<string, CouponSettlementConfig>;
-  };
+  series?: SeriesFile[];
+}
+
+interface SeriesFile {
+  id: string;
+  label: string;
+  group: string;
+  maturityAt: number;
+  ats?: { note?: { address: string; contractId?: string } };
+  couponSettlements?: Record<string, CouponSettlementConfig>;
+  subscriptions?: { role: string }[];
 }
 
 interface ResourcesFile {
   network?: string;
+  operator?: { accountId: string; evmAddress: string };
   accounts?: Record<string, { accountId: string; evmAddress: string }>;
   settlementToken?: { tokenId: string; evmAddress: string; decimals: number; symbol: string };
   topics?: Record<string, { topicId: string }>;
@@ -103,8 +107,27 @@ function readJson<T>(path: string): T | undefined {
   }
 }
 
-/** The noteholders the demo series has, in the order they were issued to. */
-const HOLDER_ROLES = ['investor-1', 'investor-2'];
+/**
+ * The noteholders a series has, in the order they were issued to.
+ *
+ * The demo series was issued to the two investor accounts. Every series the
+ * capacity runner opened is seeded by the operator, which is the account whose
+ * settlement tokens are in the vault, so the record's own subscription roles
+ * are what decides. The fallback is the demo pair, for a record written before
+ * the subscriptions were on it.
+ */
+const DEMO_HOLDER_ROLES = ['investor-1', 'investor-2'];
+
+function holdersFor(series: SeriesFile, resources: ResourcesFile | undefined): HolderConfig[] {
+  const roles = series.subscriptions?.map((subscription) => subscription.role) ?? [];
+  const wanted = roles.length > 0 ? [...new Set(roles)] : DEMO_HOLDER_ROLES;
+  return wanted.flatMap((role) => {
+    const account = role === 'operator' ? resources?.operator : resources?.accounts?.[role];
+    return account === undefined
+      ? []
+      : [{ role, accountId: account.accountId, address: account.evmAddress }];
+  });
+}
 
 /**
  * A variable set to nothing is not set. The same reader as apps/api/src/config.ts,
@@ -182,21 +205,19 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
     symbol: token?.symbol ?? 'TUSD',
   };
 
-  const holders: HolderConfig[] = HOLDER_ROLES.flatMap((role) => {
-    const account = resources?.accounts?.[role];
-    return account === undefined
-      ? []
-      : [{ role, accountId: account.accountId, address: account.evmAddress }];
-  });
-
-  const series: SeriesConfig[] = [];
-  if (record.series !== undefined) {
-    const noteAddress = fromEnv('ATS_NOTE_ADDRESS') ?? record.series.ats?.note?.address;
-    series.push({
-      label: record.series.label,
-      seriesId: record.series.id,
-      group: record.series.group,
-      maturityAt: record.series.maturityAt,
+  const recorded = record.series ?? [];
+  // `ATS_NOTE_ADDRESS` repoints the demo series' note, which is the head of
+  // the record. It predates the record carrying more than one series and it
+  // has never named which one it meant.
+  const noteOverride = fromEnv('ATS_NOTE_ADDRESS');
+  const series: SeriesConfig[] = recorded.map((entry, index) => {
+    const noteAddress = (index === 0 ? noteOverride : undefined) ?? entry.ats?.note?.address;
+    const contractId = entry.ats?.note?.contractId;
+    return {
+      label: entry.label,
+      seriesId: entry.id,
+      group: entry.group,
+      maturityAt: entry.maturityAt,
       vault,
       ...(coverPool === undefined ? {} : { coverPool }),
       ...(noteAddress === undefined
@@ -204,19 +225,17 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
         : {
             note: {
               address: noteAddress,
-              ...(record.series.ats?.note?.contractId === undefined
-                ? {}
-                : { contractId: record.series.ats.note.contractId }),
+              ...(contractId === undefined ? {} : { contractId }),
             },
           }),
       settlementToken,
-      holders,
-      coupons: Object.values(record.series.couponSettlements ?? {}),
+      holders: holdersFor(entry, resources),
+      coupons: Object.values(entry.couponSettlements ?? {}),
       ...(resources?.topics?.payments?.topicId === undefined
         ? {}
         : { paymentsTopicId: resources.topics.payments.topicId }),
-    });
-  }
+    };
+  });
   // The short dated maturity demonstration is served too, so the redemption can
   // be read through the same endpoint as the coupon. It is a demonstration and
   // its label says so; nothing derives the demo series from it.
@@ -224,13 +243,13 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
     series.push({
       label: record.maturityDemo.label,
       seriesId: record.maturityDemo.seriesId,
-      group: record.series?.group ?? '',
+      group: recorded[0]?.group ?? '',
       maturityAt: record.maturityDemo.maturityAt,
       vault,
       ...(coverPool === undefined ? {} : { coverPool }),
       ...(record.maturityDemo.note === undefined ? {} : { note: record.maturityDemo.note }),
       settlementToken,
-      holders,
+      holders: holdersFor({ id: '', label: '', group: '', maturityAt: 0 }, resources),
       coupons: [],
     });
   }

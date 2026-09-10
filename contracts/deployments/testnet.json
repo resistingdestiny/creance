@@ -182,6 +182,23 @@
             "tx": "0x1b0478d8066eebb404a0ec4a295c368cec84d3bc000f992623f977c13b0b17fc",
             "result": "coupon 3 declared at 8 percent a year over 1793823383 to 1796415383, record 1789080041, execution 1789080341, record date brought forward",
             "gasUsed": 611235
+          },
+          "coupon-4": {
+            "tx": "0xe1b2969d052814fc055669ea58b67d4c11886201f262cbdd9701240b3ffacb5b",
+            "result": "coupon 4 declared at 8 percent a year over 1796415383 to 1799093783, record 1799093783, execution 1799180183",
+            "gasUsed": 636643
+          },
+          "coupon-entitlement-1": {
+            "result": "snapshotId 0, isDisabled false; investor-1 balance 50000000, 1036800000000000000/3153600000000000 = 328767123 minor units, recordDateReached true; investor-2 balance 50000000, 1036800000000000000/3153600000000000 = 328767123 minor units, recordDateReached true"
+          },
+          "coupon-entitlement-2": {
+            "result": "snapshotId 0, isDisabled false; investor-1 balance 50000000, 1071360000000000000/3153600000000000 = 339726027 minor units, recordDateReached true; investor-2 balance 50000000, 1071360000000000000/3153600000000000 = 339726027 minor units, recordDateReached true"
+          },
+          "coupon-entitlement-3": {
+            "result": "snapshotId 0, isDisabled false; investor-1 balance 50000000, 1036800000000000000/3153600000000000 = 328767123 minor units, recordDateReached true; investor-2 balance 50000000, 1036800000000000000/3153600000000000 = 328767123 minor units, recordDateReached true"
+          },
+          "coupon-entitlement-4": {
+            "result": "snapshotId 0, isDisabled false; investor-1 balance 0, 0/0 = 0 minor units, recordDateReached false; investor-2 balance 0, 0/0 = 0 minor units, recordDateReached false"
           }
         },
         "configVersion": 1,
@@ -305,6 +322,18 @@
             "fixingTimestamp": 1789080041,
             "tx": "0x1b0478d8066eebb404a0ec4a295c368cec84d3bc000f992623f977c13b0b17fc",
             "recordDateBroughtForward": true
+          },
+          {
+            "id": "4",
+            "ratePercent": 8,
+            "rate": "8",
+            "rateDecimals": 2,
+            "recordTimestamp": 1799093783,
+            "executionTimestamp": 1799180183,
+            "startTimestamp": 1796415383,
+            "endTimestamp": 1799093783,
+            "fixingTimestamp": 1799093783,
+            "tx": "0xe1b2969d052814fc055669ea58b67d4c11886201f262cbdd9701240b3ffacb5b"
           }
         ]
       },

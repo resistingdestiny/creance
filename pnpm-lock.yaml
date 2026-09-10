@@ -223,6 +223,9 @@ importers:
       '@creance/client':
         specifier: workspace:*
         version: link:../packages/client
+      '@creance/index-model':
+        specifier: workspace:*
+        version: link:../packages/index-model
       '@hashgraph/asset-tokenization-contracts':
         specifier: 8.0.0
         version: 8.0.0

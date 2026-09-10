@@ -49,7 +49,6 @@ import { couponLine } from './investor-model';
 import {
   LANDING_GROUP,
   attachmentFor,
-  costAnswer,
   fromPriceLine,
   investorLine,
   landingIndexSection,
@@ -127,8 +126,6 @@ export interface LandingIndexView {
 export interface LandingPriceView {
   /** "From 28.00 a month", or null when no price could be quoted. */
   readonly priceLine: string | null;
-  /** "What does it cost." */
-  readonly costLine: string;
 }
 
 export interface LandingExplorerView {
@@ -294,7 +291,7 @@ async function readPrice(group: string): Promise<LandingPriceView> {
     reportUnreachable('the landing from price', cause);
     premium = null;
   }
-  return { priceLine: fromPriceLine(premium), costLine: costAnswer(premium) };
+  return { priceLine: fromPriceLine(premium) };
 }
 
 async function readCoupon(): Promise<string | null> {

@@ -35,9 +35,12 @@ export default async function PayPage() {
   return (
     <PayScreen
       cover={confirmation.cover}
+      heldIn={confirmation.heldIn}
+      heldInLabel={confirmation.heldInLabel}
       occupation={confirmation.occupation}
       paysFrom={confirmation.paysFrom}
       premium={confirmation.premium}
+      receiptWarning={confirmation.receiptWarning}
       walletLabel={confirmation.walletLabel}
     />
   );

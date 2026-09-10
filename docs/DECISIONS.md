@@ -5368,12 +5368,16 @@ carries no figure the page prints nowhere else. That answer carries the
 attachment and the full payout level, and until a visitor takes a quote neither
 appears anywhere else on the page.
 
-Nothing was reworded. `costAnswer` had two branches and the surviving strings
-are the branch that was already there for the no-price case; the covered answer
-was deleted whole. `LandingPriceView.costLine` went with it, so the ledger no
-longer waits on the quote at all and its Suspense boundary and three line
-resting state went too. The from price is still one live quote, still read once
-per hold, still printed in the hero.
+Nothing was reworded, and nothing was kept. `costAnswer` had two branches, the
+from price in front of the explanation and the explanation on its own where
+there was no price, and both were deleted with the function. The covered answer
+was deleted whole beside it. No string from either row is on the page, which
+apps/web/test/landing.test.tsx asserts by requiring the page not to contain
+"The price comes from your occupation's index, nothing else."
+`LandingPriceView.costLine` went with them, so the ledger no longer waits on the
+quote at all and its Suspense boundary and three line resting state went too.
+The from price is still one live quote, still read once per hold, still printed
+in the hero.
 
 ### The band came down with the rows
 

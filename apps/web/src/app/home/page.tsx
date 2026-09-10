@@ -14,7 +14,7 @@ import {
   replayBadgeLabel,
   type HomeView,
 } from '../../lib/claim-model';
-import { readCoverSession } from '../../lib/current-cover';
+import { currentPolicyId, readCoverSession } from '../../lib/current-cover';
 import { isInterimIssuer } from '../../lib/eligibility';
 import { formatDay, formatWholeMoney } from '../../lib/format';
 import { occupationLabel } from '../../lib/occupations';
@@ -42,7 +42,7 @@ import { WorkerUnavailable } from '../unavailable';
  * of its own, Claim in progress while one is being decided, Paid out once the
  * money has moved, and Payment due when the cover has lapsed.
  *
- * Which cover is the cover session's answer, not the address bar's. `?policy=`
+ * Which cover is `currentPolicyId`'s answer, not the address bar's. `?policy=`
  * is gone: T41 replaced it with a signed httpOnly cookie that a cover key or a
  * World ID check fills, so a person who closed the browser has a way back and
  * an id read over a shoulder is not one. See src/lib/current-cover.ts.
@@ -73,9 +73,13 @@ export default async function HomePage({
     if (view !== null) return <HomeScreen bound={false} demo view={view} />;
   }
 
+  const policyId = await currentPolicyId();
+  if (policyId === null) return <SignInScreen world={!isInterimIssuer()} />;
+  // The key is shown back only from inside a session that already holds this
+  // cover, so it is read from the cover session and only when that session is
+  // about this cover rather than another one.
   const session = await readCoverSession();
-  if (session === null) return <SignInScreen world={!isInterimIssuer()} />;
-  const policyId = session.policyId;
+  const coverKey = session?.policyId === policyId ? session.coverKey : '';
 
   try {
     const policy = await fetchPolicy(policyId);
@@ -106,7 +110,7 @@ export default async function HomePage({
       <HomeScreen
         bound={bound === '1'}
         chart={homeChart(index)}
-        coverKey={session.coverKey}
+        coverKey={coverKey}
         history={history}
         view={view}
       />

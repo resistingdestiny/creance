@@ -11,7 +11,7 @@ import {
 } from '@creance/client/src/x402/payer';
 
 import { serverVar } from './server-env';
-import { DEMO_ACCOUNT } from './wallet';
+import { DEMO_ACCOUNTS, type DemoRole } from './wallet';
 
 /**
  * How the web app pays for a gated call.
@@ -22,11 +22,17 @@ import { DEMO_ACCOUNT } from './wallet';
  * costs the first month's premium from the quote.
  *
  * DESIGN.md 3.6 mints the policy NFT to the person's own wallet and takes the
- * premium from it. There is no wallet in the browser that can sign, so this is
- * a server side payer holding the key of the same account the cover is bound
- * to, standing in for a wallet signature until HashPack is wired. No key ever
- * reaches the browser: every call in this flow is made from the server for
- * exactly this reason. Recorded in docs/DECISIONS.md.
+ * premium from it. This pays with a server side key holding the demo worker's
+ * account, standing in for a wallet signature. No key ever reaches the browser:
+ * every call in this flow is made from the server for exactly this reason.
+ * Recorded in docs/DECISIONS.md.
+ *
+ * T43 lets somebody bind a cover to their own wallet, and this module does not
+ * follow them: the cover is held in their account and the premium still leaves
+ * this one. That is why the pay sheet names two accounts once a wallet is
+ * connected rather than captioning one of them as the person's own, and why the
+ * chooser says it in plain words before the press. Moving the x402
+ * authorisation into the browser is what would close the gap.
  *
  * The key is derived rather than stored, with the same HKDF label the API uses
  * for its own account, so a clone with the operator key has it and no new
@@ -35,8 +41,17 @@ import { DEMO_ACCOUNT } from './wallet';
  * https://docs.x402.org/schemes/exact
  */
 
-/** The demo worker, whose wallet the cover is bound to. */
-const WORKER_ROLE = 'policyholder-1';
+/** The demo worker, and the account every premium in this flow leaves. */
+const WORKER_ROLE: DemoRole = 'policyholder-1';
+
+/**
+ * The account that actually settles, for the row on the pay sheet that names
+ * it. Taken from here rather than from the quote, because the quote names the
+ * wallet the cover binds to and those are no longer the same account.
+ */
+export function payerAccountId(): string {
+  return DEMO_ACCOUNTS[WORKER_ROLE].accountId;
+}
 
 /**
  * A ceiling, not a price. The server names the price and the payer refuses
@@ -75,7 +90,7 @@ export function workerPayer(asset: string): X402Payer | null {
 
   try {
     const payer = createX402Payer({
-      accountId: DEMO_ACCOUNT.accountId,
+      accountId: payerAccountId(),
       privateKey: roleKeyHex(operator, WORKER_ROLE),
       asset,
       maxAmountPerPayment: MAX_PER_PAYMENT,

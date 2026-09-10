@@ -34,7 +34,9 @@ export default async function AmountPage() {
     const quote = await requestQuote({
       group,
       limit: toMinorUnits(limit),
-      wallet: DEMO_ACCOUNT.accountId,
+      // The wallet the cover binds to, which is the demo one until somebody
+      // connects their own at the payment step.
+      wallet: (session?.wallet ?? DEMO_ACCOUNT).accountId,
     });
     return (
       <AmountScreen

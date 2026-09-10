@@ -14,7 +14,15 @@ import {
   updatePurchase,
   type PurchaseSession,
 } from '../lib/purchase-session';
-import { DEMO_ACCOUNT, DEMO_WALLET_LABEL } from '../lib/wallet';
+import { readConnectedAccount, UnknownAccountError } from '../lib/wallet-account';
+import {
+  DEMO_ACCOUNT,
+  DEMO_WALLET_LABEL,
+  OWN_WALLET_LABEL,
+  SERVICE_PAYS_LABEL,
+  type WalletAccount,
+} from '../lib/wallet';
+import { payerAccountId } from '../lib/payer';
 import {
   bindMessage,
   coverAmount,
@@ -46,6 +54,18 @@ import {
  * server side payer when T08 lands the x402 gate. Nothing in this file talks to
  * the chain directly.
  */
+
+/**
+ * The wallet this purchase names, which is the demo wallet until somebody
+ * connects their own at the payment step.
+ *
+ * Every call in this file that names a wallet reads it here, so there is one
+ * answer to "whose cover is this" and a session with nothing connected still
+ * sees exactly the account it always saw.
+ */
+function purchaseWallet(session: PurchaseSession | null): WalletAccount {
+  return session?.wallet ?? DEMO_ACCOUNT;
+}
 
 /**
  * Start screen: "Get a quote". Nothing calls this since T35.
@@ -120,7 +140,7 @@ export async function priceCover(limit: number): Promise<PriceResult> {
     const quote = await requestQuote({
       group,
       limit: toMinorUnits(limit),
-      wallet: DEMO_ACCOUNT.accountId,
+      wallet: purchaseWallet(session).accountId,
     });
     await updatePurchase({
       limit,
@@ -156,7 +176,7 @@ export async function startWorldCheck(): Promise<WorldRequestContextView | null>
   const session = await readPurchase();
   if (!session?.group) redirect('/occupation');
   try {
-    return await requestWorldContext(DEMO_ACCOUNT.accountId);
+    return await requestWorldContext(purchaseWallet(session).accountId);
   } catch {
     return null;
   }
@@ -174,7 +194,7 @@ export async function completeWorldCheck(result: unknown): Promise<VerifyResult>
   const session = await readPurchase();
   const group = session?.group;
   if (!group || session === null) redirect('/occupation');
-  return await earnCredential({ group, wallet: DEMO_ACCOUNT, proof: result });
+  return await earnCredential({ group, wallet: purchaseWallet(session), proof: result });
 }
 
 /**
@@ -187,7 +207,11 @@ export async function verifyPerson(): Promise<VerifyResult> {
   const session = await readPurchase();
   const group = session?.group;
   if (!group || session === null) redirect('/occupation');
-  return await earnCredential({ group, wallet: DEMO_ACCOUNT, nullifier: session.nullifier });
+  return await earnCredential({
+    group,
+    wallet: purchaseWallet(session),
+    nullifier: session.nullifier,
+  });
 }
 
 async function earnCredential(request: EligibilityRequest): Promise<VerifyResult> {
@@ -241,13 +265,68 @@ export async function continueToPay(): Promise<void> {
   redirect('/pay');
 }
 
+/**
+ * Pay step: bind this purchase to a wallet somebody just connected.
+ *
+ * The browser sends an account id and nothing else. The EVM address that goes
+ * with it is read from the mirror node here, because it is the address a payout
+ * is sent to and an address a browser supplies is an address a browser could
+ * have made up. A throw is what the chooser shows: the connection did not take,
+ * and the wallet the person had is the wallet they still have.
+ *
+ * Changing the wallet drops the eligibility credential. DESIGN.md 3.6 binds a
+ * check to the wallet id and /v1/bind refuses a quote and a credential that
+ * name different accounts, so a credential earned against the old wallet is not
+ * a credential for this cover. The quote goes with it, because the pay step
+ * takes a fresh one on entry anyway. The screens turn back to the check.
+ */
+export async function connectWallet(accountId: string): Promise<WalletAccount> {
+  const session = await readPurchase();
+  if (session === null || session.group === null) redirect('/occupation');
+
+  let account;
+  try {
+    account = await readConnectedAccount(accountId);
+  } catch (cause) {
+    if (cause instanceof UnknownAccountError) throw cause;
+    reportUnreachable('the connected wallet', cause);
+    throw new Error("We couldn't check that account. Try again in a moment.");
+  }
+
+  const unchanged = session.wallet?.accountId === account.accountId;
+  await updatePurchase({
+    wallet: { accountId: account.accountId, evmAddress: account.evmAddress },
+    walletHoldsReceipt: account.canHoldReceipt,
+    ...(unchanged ? {} : { credential: null, credentialExpiresAt: null, quoteId: null }),
+  });
+  return { accountId: account.accountId, evmAddress: account.evmAddress };
+}
+
+/**
+ * Pay step: go back to the demo wallet.
+ *
+ * The same rule in the other direction. The credential named the wallet that is
+ * being put down, so it goes, and the flow turns back to the check.
+ */
+export async function useDemoWallet(): Promise<void> {
+  const session = await readPurchase();
+  if (session === null || session.wallet === null) return;
+  await updatePurchase({
+    wallet: null,
+    walletHoldsReceipt: true,
+    credential: null,
+    credentialExpiresAt: null,
+    quoteId: null,
+  });
+}
+
 /** Verify screen, when this person already holds cover: the cover they have. */
 export async function goToCover(): Promise<void> {
   redirect('/home');
 }
 
 /**
- * Pay sheet: the five rows on it, and the price the button will name.
+ * Pay sheet: the rows on it, and the price the button will name.
  *
  * The quote is taken fresh, because the figure on the button is the figure that
  * will be bound and a quote lasts fifteen minutes. That is what /pay has always
@@ -258,33 +337,63 @@ export async function goToCover(): Promise<void> {
  * did not answer. The route turns the first two into the redirects it always
  * made and the third into the screen it always showed, and the landing page
  * says so on the card. Neither invents a premium.
+ *
+ * On the demo path there are five rows and they are the five the deck names. A
+ * connected wallet adds one, because the cover and the premium stop naming the
+ * same account: the cover is held in the person's wallet and src/lib/payer.ts
+ * still settles the premium out of the service account. Two rows saying what is
+ * true is the only honest way to draw that, and the alternative, one row
+ * captioned as somebody's own wallet, would be the overclaim this ticket
+ * forbids.
  */
 export interface PayConfirmation {
   readonly cover: string;
   readonly occupation: string;
   readonly premium: string;
+  /** The account the premium leaves. Always the service account today. */
   readonly paysFrom: string;
   readonly walletLabel: string | null;
+  /** The account the cover is held in, or null when it is the paying one. */
+  readonly heldIn: string | null;
+  readonly heldInLabel: string | null;
+  /**
+   * One sentence when the connected wallet will not accept the policy NFT, or
+   * null. The cover binds either way, so this warns rather than blocks.
+   */
+  readonly receiptWarning: string | null;
 }
+
+/** Said before the press, because it is true after it. */
+export const NO_RECEIPT_WARNING =
+  "Your wallet doesn't accept new tokens, so the cover receipt can't be sent to it. The cover itself is unaffected.";
 
 export async function openPayment(): Promise<PayConfirmation | null> {
   const session = await readPurchase();
   if (!session?.group || session.credential === null) return null;
 
   const group = session.group;
+  const wallet = purchaseWallet(session);
+  const connected = session.wallet !== null;
   try {
     const quote = await requestQuote({
       group,
       limit: toMinorUnits(session.limit ?? AMOUNT_DEFAULT),
-      wallet: DEMO_ACCOUNT.accountId,
+      wallet: wallet.accountId,
     });
     await updatePurchase({ quoteId: quote.quote_id, premiumMinorUnits: quote.premium.amount });
     return {
       cover: coverAmount(quote.limit),
       occupation: occupationLabel(group),
       premium: premiumAmount(quote.premium),
-      paysFrom: quote.pays_from,
-      walletLabel: DEMO_WALLET_LABEL,
+      // Not `quote.pays_from`. The quote echoes the wallet it was asked for,
+      // which is the wallet the cover binds to, and that is no longer the
+      // account the money comes out of. On the demo path the two are the same
+      // string and the row is unchanged.
+      paysFrom: payerAccountId(),
+      walletLabel: connected ? SERVICE_PAYS_LABEL : DEMO_WALLET_LABEL,
+      heldIn: connected ? wallet.accountId : null,
+      heldInLabel: connected ? OWN_WALLET_LABEL : null,
+      receiptWarning: connected && !session.walletHoldsReceipt ? NO_RECEIPT_WARNING : null,
     };
   } catch (cause) {
     reportUnreachable('the pay sheet', cause);
@@ -331,7 +440,7 @@ async function repriceAndBind(session: PurchaseSession): Promise<PayResult> {
     const fresh = await requestQuote({
       group: session.group,
       limit: toMinorUnits(session.limit),
-      wallet: DEMO_ACCOUNT.accountId,
+      wallet: purchaseWallet(session).accountId,
     });
     await updatePurchase({
       quoteId: fresh.quote_id,
@@ -400,7 +509,7 @@ export async function openWithCoverKey(formData: FormData): Promise<SignInResult
  */
 export async function startSignInCheck(): Promise<WorldRequestContextView | null> {
   try {
-    return await requestWorldContext(DEMO_ACCOUNT.accountId);
+    return await requestWorldContext(purchaseWallet(await readPurchase()).accountId);
   } catch {
     return null;
   }
@@ -421,7 +530,7 @@ export interface SignInResult {
 export async function signInWithWorld(result: unknown): Promise<SignInResult> {
   try {
     const answer = await signInWithWorldCheck({
-      wallet: DEMO_ACCOUNT.accountId,
+      wallet: purchaseWallet(await readPurchase()).accountId,
       result,
     });
     if (answer.cover === null) return { found: false, error: null, wrongCheck: false };

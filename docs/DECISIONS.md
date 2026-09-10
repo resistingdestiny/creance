@@ -5019,3 +5019,82 @@ the purchase path, and this ticket may not make one. So the card asks again,
 which costs a check and is never wrong, and the credential clearing is left as a
 ticket of its own. Recorded here rather than fixed quietly, because the second
 half of it is a real defect on the routes today.
+
+## T39, capacity for every occupation, 10 September 2026
+
+### The vault is opened before the note exists, which the T06 decision said it would not be
+
+"The vault's atsToken field stays zero, and the note address lives in the
+record" says that `openSeries` stored the zero address for the demo series
+because the note did not exist yet, and that **on any future deployment,
+`openSeries` is called with the note address**. This ticket does not do that,
+and the departure is deliberate rather than an oversight.
+
+The ticket's rule is that a Displacement Bond Note must not gate the cover: a
+series has to be openable and fundable whether or not its note deploys. The
+ATS factory call is 7 million gas and about 7.7 HBAR, the heaviest and least
+predictable call in the system, and there are fourteen of them. If
+`openSeries` took the note address then the note would have to exist first, so
+a factory failure would leave the occupation with no cover at all rather than
+with cover and an investor gap.
+
+The ordering is also forced by the maturity. The note takes the vault's own
+maturity, so the two halves agree on the day the principal comes back, exactly
+as T06 decided for the demo series. The vault's maturity is set by
+`openSeries`. Whichever way round it is run, one of the two has to go first,
+and the vault going first is the one that leaves a working product when the
+other fails.
+
+So `atsToken` is the zero address on all fifteen series, the note address of
+record is `series[].ats.note` in `contracts/deployments/testnet.json`, and the
+T06 sentence about future deployments is superseded. Filling the field would
+need `openSeries` to take a setter or the vault to be redeployed, and both are
+larger than this ticket.
+
+### The seed capacity is the operator's, and the note is minted to the operator
+
+Every new series is funded with 25,000 TUSD, which is the order of magnitude
+the ticket asks for and leaves headroom against the operator's 469,790. The
+money is the operator's, moved to the api account because `subscribe` pulls
+from `msg.sender` and SUBSCRIPTION_ROLE is the api account's, and credited to
+the operator as the holder.
+
+The note for each series is 25 units of 1,000, principal 25,000, and the whole
+supply is minted to the operator. That is the same number as the collateral in
+the vault on purpose. T14 had to go back and subscribe to the demo series
+because the note had 100 units minted against a vault holding nothing, so
+every principal figure on the investor screen read zero; minting to an account
+that had paid nothing would be the same disagreement in the other direction, a
+principal on screen with no collateral behind it.
+
+The demo series is untouched: it keeps its 100,000 from investor-1 and
+investor-2, and the runner measures capacity by the series' own
+`principalFunded` rather than by any one holder's subscription, so a run over
+the whole catalogue adds nothing to it.
+
+### Exhaustion is twice the attachment, because it is not calibrated
+
+`packages/index-model/src/calibration.json` freezes the shock attachment and
+the level line per group and says nothing about exhaustion. DESIGN.md 3.3 says
+exhaustion matters only to the optional indexed payout mode, and every series
+here is full payout, so nothing reads it. Registering zero would be a value
+that looks calibrated and is not, so it is registered at twice the attachment,
+which reproduces the 4.0 against 2.0 the demo series already carries on chain.
+If a series ever wants indexed payout, the exhaustion is the thing to
+calibrate first.
+
+### The picker keeps a constant list and the investor screens do not
+
+`apps/web/src/lib/occupations.ts` said there was no endpoint listing series and
+that the same thing would replace both it and `DEFAULT_SERIES_ID`. There is one
+now, `GET /v1/series`, and it replaced `DEFAULT_SERIES_ID`: the investor
+screens read the list and take its head, so no series id is written into the
+web bundle any more.
+
+The picker keeps its constant. It is rendered on the first screen a person
+sees, on the landing page, and making the fifteen rows wait on an API call
+would put a spinner in front of the whole product to answer a question that
+changes once a fortnight. A series registered on chain and missing from the
+constant reads as no cover, which is the safe direction to be wrong in, and
+the list endpoint is what the investor half uses where the answer has to be
+live.

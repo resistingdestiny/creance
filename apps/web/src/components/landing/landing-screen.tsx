@@ -407,10 +407,14 @@ function HeroCard({ occupation }: { occupation: string }) {
  * explaining what it was already showing. This one stays because its answer
  * carries the attachment and the full payout level, and the page prints neither
  * of them anywhere else until a quote is taken.
+ *
+ * The band came down from 128px of padding to 80px at the landing breakpoint
+ * with them. It was the height three rows stood in; one row left in it read as
+ * a section that had failed to load rather than as one statement.
  */
 function Questions({ index }: { index: Streamed<LandingIndexView> }) {
   return (
-    <section className={`mx-5 border-t border-hairline py-16 lg:mx-16 lg:py-32`}>
+    <section className={`mx-5 border-t border-hairline py-16 lg:mx-16 lg:py-20`}>
       <dl className={`flex flex-col ${CONTENT}`}>
         <Question
           answer={

@@ -1,4 +1,5 @@
 import { LandingScreen } from '../components/landing/landing-screen';
+import { demonstrationOn } from '../lib/demo-states';
 import { isInterimIssuer } from '../lib/eligibility';
 import { readLanding } from '../lib/landing-data';
 
@@ -28,5 +29,11 @@ import { readLanding } from '../lib/landing-data';
 export const dynamic = 'force-dynamic';
 
 export default function Landing() {
-  return <LandingScreen data={readLanding()} interim={isInterimIssuer()} />;
+  return (
+    <LandingScreen
+      data={readLanding()}
+      demo={demonstrationOn()}
+      interim={isInterimIssuer()}
+    />
+  );
 }

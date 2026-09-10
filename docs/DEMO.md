@@ -358,10 +358,54 @@ and are read from there rather than retyped.
 
 Same capture rules as the main video. If the host is slow, cut the waiting.
 
+## The link a judge follows
+
+A judge has minutes, no World ID and no wallet, and everything this product does
+after the purchase happens on a dashboard behind a check. So there is one link
+that gets past all three, and it is the link to give in a submission form, in a
+video description and in a message to a judge.
+
+    https://creance.co/home/demo
+
+It holds two kinds of thing and keeps them apart in words. The covers at the top
+are real: `pnpm demo:seed` bound each one on testnet, the page prints the cover
+key that opens it, and opening one opens the same dashboard a buyer reaches, with
+the same figures read from the same API and every one of them resolving on
+HashScan. The states underneath are fixtures, and are there because a cover only
+lapses when a premium goes unpaid and only pays out when a claim is decided, and
+neither can be arranged for a visitor. Each one says on its face that nothing on
+it came from the API.
+
+The front door and the way back in both offer the page under one link, "See a
+live cover", so nobody has to be told a URL on camera. A deployment that
+publishes nothing has no page there at all.
+
+Two things about it are worth knowing before a take.
+
+The covers live in whatever database `DATABASE_URL` named when the seed ran. A
+key seeded against a laptop opens nothing on a deployment pointed at another
+database, so the seed has to run against the database the deployment reads.
+
+A published key survives a redeploy and the session it opens does not. The key is
+a row in `cover_keys`; the cover session is a signed cookie, and
+`COVER_SESSION_SECRET` is a fresh random value per process when it is unset, so a
+restart signs everybody out. The reader follows the link again and is back where
+they were. That is the safe direction to fail in, and it is why the key is
+printed on the page rather than only posted by the button.
+
 ## What the seed leaves behind
 
 `pnpm demo:seed` prints an id block at the end and writes it to `var/demo/seed.json`.
 That block is what the operator keeps open in a scratch tab: the series, the
-contracts, the four topics, the two tokens, the two claimable policies with their
-holders and bind transactions, and the two noteholders. What it created on the
+contracts, the four topics, the two tokens, the two claimable policies and the
+published one with their holders and bind transactions, and the two noteholders. What it created on the
 run this document was written against is in docs/HEDERA.md under the T24 heading.
+
+It also binds the cover the published link opens, on the one holder that carries
+no packet, and captures that cover's key. It has to capture it there: the key is
+issued once at bind and the database keeps only a digest of it, so no command can
+print the key of a cover that is already bound. At the end of a run the seed
+prints the `WEB_DEMO_COVERS` line to paste into the environment the web process
+reads. A slot in that line is filled only from what the database says the cover
+is, so a database in which no claim has been paid publishes no paid cover and the
+payout on `/home/demo` stays the labelled fixture.

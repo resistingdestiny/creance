@@ -2805,6 +2805,50 @@ Worth measuring rather than trusting either way. `ls -S apps/web/.next/static/ch
 after a build, and the script tags in the served landing document, are the two
 things that answer it.
 
+## The submission document's health URL was on the wrong host, and the deploy is older than the document
+
+Measured on 10 September 2026 against the live deployment, not inferred.
+docs/SUBMISSION.md said `https://creance.co/health` "returns the commit the
+running build came from", and three parts of that were wrong at once.
+
+The web app has no `/health` route. `find apps/web/src -name '*health*'` returns
+nothing, and `https://creance.co/health` answers 404 with the Next.js not found
+page. The health endpoint is the API's, at `https://api.creance.co/health`, and
+that answers 200.
+
+It does not return the commit. The field is there and its value is the string
+`unknown`, because GIT_SHA is not baked into the running image.
+
+The same document said the deploy was Root pending and "what is missing is the
+host". `https://creance.co/` answers 200 and has for days.
+
+Two consequences worth keeping. The uptime workflow appends `/health` to
+PUBLIC_SITE_URL, so that variable has to name the API host rather than the site,
+which is the opposite of what its name suggests; and the workflow fails a 200
+that reports no commit, so setting the variable today would turn the check red
+rather than green. `gh variable list` prints nothing, so it is unset and the
+workflow is exiting early by design.
+
+The general lesson, and it cost nothing here only because it was checked: a
+deployment document is a claim about a running system and goes stale silently.
+Curl every URL in it before believing any of them.
+
+## A published cover key cannot be recovered, so the seed has to capture it at bind
+
+T41 stores a SHA-256 digest in `cover_keys` and never the key, and the key is
+printed once by the bind command. That is the mechanism working as designed, and
+it has a consequence for anything that wants to publish a key.
+
+The two covers on this database that have really paid out, from T13, have no row
+in `cover_keys` at all: they were bound before T41. So the cover that a published
+link opens cannot be an existing paid cover, however real that payout is, and no
+command can be written to fix it. `pnpm demo:seed` captures the key from the bind
+command's own stdout at the moment it binds, and a record entry with no captured
+key is reported as a slot nobody can publish rather than silently rebound.
+
+The check that tells you which case you are in is the database, not the seed
+record: `select policy_id, status from policies` against the deployment's own
+DATABASE_URL, joined against `select policy_id from cover_keys`.
 
 ## The three description URLs 404 at the web origin while the API serves them
 
@@ -2840,6 +2884,14 @@ The rule this breaks is the one docs/DECISIONS.md sets under "The description
 files are served, not only committed": the description files carry the public
 origin in every URL, so an agent that reads them is taught addresses which do
 not answer. T46 closes it inside the web app rather than at the edge.
+
+The note above this one, from T45, found the same gap from the other end:
+`https://creance.co/health` was 404 and the web app had no health route. It has
+one now, and so do the other six paths, so the sentence "the health endpoint is
+the API's" stays true about where the answer comes from and stops being true
+about which origin answers. `docs/SUBMISSION.md` was corrected to name
+`https://api.creance.co/health` and that URL is still right; once the host is
+rebuilt both origins answer it.
 
 ## The vitest DOM tests time out at twenty seconds when this host is oversubscribed
 

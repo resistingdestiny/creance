@@ -5749,6 +5749,96 @@ Only the native `hedera` adapter is built. The library's README pairs it with a
 this app does. Only the testnet chain definition is referenced, so there is no
 other network for a wallet to switch to.
 
+## T45, a judge sees the payout, 10 September 2026
+
+### The demonstration is published as a cover key, not as a new way in
+
+The ticket asks for one link that reaches a real cover with no World ID, no
+wallet and no purchase, and the obvious shapes for that are all worse than the
+one already built. A route that opens a cover from an id in the address is
+`?policy=` again, which T41 deleted for the reason recorded above it. A route
+that opens a named cover with no key is a keyless route, which the ticket
+forbids in as many words. A shorter key for demonstration covers is a weaker key
+on the same table as everyone else's.
+
+So there is no new way in. `/home/demo` prints the covers a deployment
+publishes and opens one by posting its key to `openWithCoverKey`, the same
+server action the cover key field on the way back in posts to. The key is a
+whole twenty characters, the API checks it exactly as it checks a typed one, and
+it opens its own cover and nothing else. The only thing that is different about
+these covers is that their keys are published rather than kept, which is a
+decision about six covers and not a change to the mechanism.
+
+The form is a POST from a server rendered page, which is the second half of the
+same point: the key is in the markup the server sent, not in the address, so it
+is not in the history, not in a screenshot of the address bar and not in the
+referrer of the next request. The page also carries `robots: noindex`, because
+what is in that markup is a set of live bearer keys.
+
+### The seed captures the key at bind, because nothing can print it again
+
+`POST /v1/bind` and `testnet:bind-backdated` both issue a cover key and print it
+once, and the `cover_keys` table holds a SHA-256 digest of it and nothing else.
+That is the property T41 chose deliberately and this ticket does not touch it.
+It has one consequence that decides the shape of the seeding: a cover that is
+already bound can never be published, because no command can print its key.
+
+So `pnpm demo:seed` reads the key out of the bind command's own output and keeps
+it in `var/demo/seed.json` beside the policy id. That file is a set of bearer
+keys to demonstration covers, and it is not committed: `var/` is gitignored
+because it is everything a run writes, and this belongs there for a second
+reason as well.
+
+The real covers of 5 September, including the one that was paid, were bound
+before any of this existed. They cannot be published and are not, and the record
+says so rather than quietly rebinding them.
+
+### The seed binds a third cover, because both packet covers are spent
+
+The two covers the seed already binds are claimed on camera: packet A is paid
+and packet B is declined. Neither of them is a cover that is simply running by
+the time anybody watches, and the state a reader most needs to see first is the
+ordinary one. So the `policies` stage binds a third, on policyholder-2, the only
+holder that carries no packet, and nothing ever claims on it.
+
+### The paid slot is filled from the database, so the screen cannot claim a payout
+
+`WEB_DEMO_COVERS` has two slots, covered and paid, and the seed fills the paid
+one only when the database says a cover it bound has actually been paid. A
+deployment that has paid no claim publishes no paid cover, and the payout a
+reader sees there is the fixture state, which says on its own face that nothing
+on it came from the API.
+
+That is the ticket's fallback rather than its goal, and it is the honest answer
+to a constraint rather than a shortcut. A real payout needs the reserve, and the
+reserve on ODI-COMP-2026-01 stands at exactly one cover limit with the month
+that would top it up held back for shot 5 of the video. Spending it to
+manufacture a second payout would take the on camera claim's money.
+
+### A demonstration state is refused to a browser that holds a cover
+
+`?demo=` was read before the cover was, so a link carrying it replaced a real
+person's real answer with a fixture on the one screen whose whole job is to say
+whether they are covered. The cover is read first now and the control is refused
+when there is one. It also means a reader who has just opened a published cover
+cannot then put a fixture over the top of it, which is why `/home/demo` says so
+in a line and offers the way to sign out.
+
+### The seeded covers live in one database, and the link is only as live as that
+
+The ticket does not say which database the demonstration is seeded into, and the
+answer matters more than it looks. The seed writes to whatever `DATABASE_URL`
+names, api.creance.co runs against the database on its own host, and a cover key
+seeded on a laptop opens nothing there. The decision is that the seed is run
+once against the deployment's own database, by whoever holds it, and both
+settings are set in that deployment's environment. Nothing in the repository can
+do that for it.
+
+A published key does survive a redeploy, because the key is a row in
+`cover_keys` and not a session. The cover session it opens does not:
+`COVER_SESSION_SECRET` is a fresh random value per process when it is unset, so
+a restart signs everybody out and the reader follows the link again. That is the
+safe direction to fail in and it is said where the links are published.
 ## T46, the API's paths answered on the web origin, 10 September 2026
 
 ### The web app answers the API's paths, because the description files name one origin

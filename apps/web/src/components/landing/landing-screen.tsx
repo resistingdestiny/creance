@@ -1,5 +1,6 @@
 import { Suspense, use, type ReactNode } from 'react';
 
+import { DEMO_ENTRY } from '../../app/home/home-copy';
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
 import type {
   LandingData,
@@ -81,6 +82,7 @@ const CONTENT = 'mx-auto w-full max-w-[1080px]';
 export function LandingScreen({
   data,
   interim = false,
+  demo = false,
 }: {
   data: LandingData;
   /**
@@ -89,6 +91,16 @@ export function LandingScreen({
    * configured deployment does and what a caller with nothing to say means.
    */
   interim?: boolean;
+  /**
+   * This deployment publishes a demonstration, so the footer names it.
+   *
+   * One link in the footer bar and nothing above it. A reader who wants to buy
+   * cover is served by every section on this page; a reader who wants to see
+   * what a cover looks like without buying one is looking for a link, and the
+   * footer is where a link is looked for. Anything longer would put back the
+   * words T44 took out.
+   */
+  demo?: boolean;
 }) {
   // Both index links open the public explorer, which is the page of record for
   // the index (T32). They pointed at the worker's Index tab, which is one
@@ -116,7 +128,7 @@ export function LandingScreen({
           <IndexSection explorer={data.explorer} index={data.index} />
           <Closing investorLine={data.investorLine} />
         </main>
-        <FooterBar indexHref={indexHref} />
+        <FooterBar demo={demo} indexHref={indexHref} />
       </div>
     </QuoteProvider>
   );
@@ -640,14 +652,15 @@ function InvestorLineResting() {
  * they are left out rather than pointed at something that is not them.
  * docs/DECISIONS.md.
  */
-function FooterBar({ indexHref }: { indexHref: string }) {
+function FooterBar({ demo, indexHref }: { demo: boolean; indexHref: string }) {
   return (
     <div
       className={`flex min-h-22 flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-hairline py-3 ${PAGE}`}
     >
       <span className="text-secondary text-ink-2">Creance</span>
-      <nav aria-label="Footer">
+      <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-6">
         <NavLink href={indexHref}>How the index works</NavLink>
+        {demo ? <NavLink href="/home/demo">{DEMO_ENTRY}</NavLink> : null}
       </nav>
     </div>
   );

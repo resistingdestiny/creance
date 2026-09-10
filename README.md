@@ -534,7 +534,31 @@ the series is open, Claim in progress while one is being decided, Paid out with
 the amount received and a receipt, and Payment due when a premium has been
 missed. A lapse, a failed payment and an offline browser have no server path to
 force, so `WEB_DEMO_STATES=true` turns on `/home?demo=lapsed` and its five
-siblings, which render from fixtures and say so on the screen.
+siblings, which render from fixtures and say so on the screen. They render only
+for a browser that holds no cover of its own, so a person who bought cover
+cannot be sent a link that replaces their own answer with a fixture.
+
+### Seeing a cover without buying one
+
+A reader with no World ID, no wallet and no purchase reaches the front door and
+stops, because everything after the purchase is on a dashboard behind a check.
+`/home/demo` is the way past that. It lists the covers this deployment
+publishes, prints the cover key that opens each, and opens one by posting that
+key to the same server action the cover key field on `/home` posts to. The
+covers behind it are real: `pnpm demo:seed` bound them on testnet, and every
+figure on the dashboard they open resolves on HashScan.
+
+Nothing about the way in is weakened to make that work. The key is a whole
+twenty character cover key, it is checked by the API exactly as a typed one is,
+and it opens its own cover and nothing else. What is different is only that it
+is published rather than kept.
+
+Two settings turn it on, both private and neither a `NEXT_PUBLIC_` name.
+`WEB_DEMO_COVERS` carries the covers, in the line `pnpm demo:seed` prints at the
+end of a run; `WEB_DEMO_STATES` adds the fixture states beneath them. A
+deployment with neither has no page there at all. The covers live in whatever
+database `DATABASE_URL` named when the seed ran, so a key seeded against one
+database opens nothing on a deployment pointed at another.
 
 ## The review queue
 

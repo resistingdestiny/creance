@@ -1,5 +1,5 @@
 import { homeStatus, type HomeView } from './claim-model';
-import { serverFlag } from './server-env';
+import { serverFlag, serverVar } from './server-env';
 
 /**
  * The labelled demo control, off by default.
@@ -85,4 +85,75 @@ export function demoStatesEnabled(): boolean {
 /** One state, or null for a name this control does not know. */
 export function demoHomeView(name: string): HomeView | null {
   return STATES[name]?.() ?? null;
+}
+
+/**
+ * The covers a deployment publishes a way into, and the key that opens each.
+ *
+ * A judge has minutes, no World ID and no wallet, and cover behind all three is
+ * cover nobody sees. The cover key is the one way into a dashboard that needs
+ * none of them, so `pnpm demo:seed` captures the key of every cover it binds
+ * and prints this line for the operator to set.
+ *
+ *     WEB_DEMO_COVERS=covered:K7QP...,paid:3ZDN...
+ *
+ * Two slots and no more, because the screen says in words what each one is and
+ * a name it has no words for would be a cover nobody could describe. The seed
+ * fills a slot from what the database says the cover is, so a deployment that
+ * has paid no claim publishes no paid cover.
+ *
+ * These keys are bearer keys, exactly as strong as every other cover key, and
+ * they are published on purpose. Each opens its own cover and nothing else,
+ * which is the property that makes publishing one safe. Private and never a
+ * NEXT_PUBLIC name for the same reason as the flag above: the key belongs in
+ * the page the server renders, not inlined into every bundle at build time.
+ */
+export const DEMO_COVER_SLOTS = ['covered', 'paid'] as const;
+export type DemoCoverSlot = (typeof DEMO_COVER_SLOTS)[number];
+
+export interface DemoCover {
+  readonly slot: DemoCoverSlot;
+  /** Canonical, twenty characters, as apps/api/src/cover-key.ts issued it. */
+  readonly key: string;
+}
+
+/** Crockford's base 32 without the four letters it never prints: I, L, O, U. */
+const KEY_SHAPE = /^[0-9A-HJKMNP-TV-Z]{20}$/;
+
+/**
+ * The setting, read.
+ *
+ * An entry this cannot make sense of is dropped rather than rendered, because a
+ * button that cannot open anything is worse on this screen than no button: the
+ * whole claim it makes is that what you are about to see is real. The API is
+ * still the authority on what opens a cover; this only decides what to offer.
+ */
+export function parseDemoCovers(raw: string): DemoCover[] {
+  const found: DemoCover[] = [];
+  for (const entry of raw.split(',')) {
+    const at = entry.indexOf(':');
+    if (at === -1) continue;
+    const slot = entry.slice(0, at).trim();
+    const key = entry.slice(at + 1).replace(/[\s\-_]/g, '').toUpperCase();
+    if (!(DEMO_COVER_SLOTS as readonly string[]).includes(slot)) continue;
+    if (!KEY_SHAPE.test(key)) continue;
+    if (found.some((cover) => cover.slot === slot)) continue;
+    found.push({ slot: slot as DemoCoverSlot, key });
+  }
+  return DEMO_COVER_SLOTS.flatMap((slot) => found.filter((cover) => cover.slot === slot));
+}
+
+export function demoCovers(): DemoCover[] {
+  return parseDemoCovers(serverVar('WEB_DEMO_COVERS') ?? '');
+}
+
+/**
+ * Whether this deployment has a demonstration to show at all.
+ *
+ * The front door only offers the link when there is something behind it, so a
+ * deployment that has published neither a cover nor the fixture states never
+ * mentions either.
+ */
+export function demonstrationOn(): boolean {
+  return demoCovers().length > 0 || demoStatesEnabled();
 }

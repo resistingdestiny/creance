@@ -9,7 +9,7 @@ import { rfc3339 } from '../views.js';
 import { continuityHolds } from './config.js';
 import { miniAppEntry, miniAppLaunchUrl, occupationIndexPath } from './mini-app.js';
 import { requestContext, WorldNotConfigured, type WorldPurpose } from './rp-context.js';
-import { verifySelfieCheck, type IdKitResult } from './verify.js';
+import { verifySelfieCheck, type IdKitResult, type VerifyInput } from './verify.js';
 
 /// The three World endpoints.
 ///
@@ -156,16 +156,7 @@ export const worldRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
       purpose: 'purchase',
       signal: wallet,
       result: result as IdKitResult,
-      onWorldError: (worldBody, status) =>
-        request.log?.warn(
-          {
-            status,
-            code: worldBody.code,
-            detail: worldBody.detail,
-            attribute: worldBody.attribute,
-          },
-          'World refused a proof',
-        ),
+      ...checkLogging(request),
     });
 
     // Before the pay step, not only at bind. The rule is the same rule the
@@ -240,6 +231,32 @@ export const worldRoutes: FastifyPluginAsync<{ services: Services }> = async (ap
 };
 
 /**
+ * The two log seams `verifySelfieCheck` offers, wired to this request's logger.
+ *
+ * Until T42 a refused check left a request going in, a 403 coming out and
+ * nothing at all in between, so the reason a person was turned away lived only
+ * in the response body they could not read. Both lines are warn, both are found
+ * by the request id the logger already stamps on every line, and neither
+ * carries the proof, the nullifier, the signal or the wallet: what refused and
+ * what this deployment expected are configuration, and configuration is the
+ * whole of what a diagnosis needs.
+ */
+function checkLogging(request: FastifyRequest): Pick<VerifyInput, 'onWorldError' | 'onRefused'> {
+  return {
+    onWorldError: (worldBody, status) =>
+      request.log?.warn(
+        { status, code: worldBody.code, detail: worldBody.detail, attribute: worldBody.attribute },
+        'World refused a proof',
+      ),
+    onRefused: (refusal) =>
+      request.log?.warn(
+        { check: refusal.check, code: refusal.code, reason: refusal.reason },
+        'a World check was refused',
+      ),
+  };
+}
+
+/**
  * The claim's identity leg. DESIGN.md 3.9 item 1.
  *
  * A fresh Selfie Check with `require_user_presence`, on the claim action, with
@@ -285,11 +302,7 @@ async function verifyClaim(
     purpose: 'claim',
     signal: policy.policyId,
     result: result as IdKitResult,
-    onWorldError: (worldBody, status) =>
-      request.log?.warn(
-        { status, code: worldBody.code, detail: worldBody.detail, attribute: worldBody.attribute },
-        'World refused a proof',
-      ),
+    ...checkLogging(request),
   });
 
   const continuity = continuityHolds(world);

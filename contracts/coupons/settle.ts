@@ -2,7 +2,7 @@ import { TopicMessageSubmitTransaction } from '@hiero-ledger/sdk';
 import { hashscanUrl, scheduleContractCall, waitForExecution } from '@creance/client';
 
 import { contractIdOf, send } from '../ats/chain.js';
-import type { DeploymentRecord } from '../scripts/deploy/record.js';
+import type { DeploymentRecord, SeriesRecord } from '../scripts/deploy/record.js';
 import { EXECUTION_POLL, GAS, PROBE_LEAD_SECONDS, SCHEDULE_LEAD_SECONDS } from './config.js';
 import {
   demoNoteAddress,
@@ -22,7 +22,8 @@ import {
   toBytes32,
 } from './plan.js';
 import type { CouponHolderSettlement, CouponSettlementRecord } from './record.js';
-import { fundAccounts, subscribeInvestor, tokenBalanceOf } from './vault.js';
+import { subscribe } from './subscribe.js';
+import { fundAccounts, tokenBalanceOf } from './vault.js';
 
 /// `pnpm coupons:pay` settles a declared ATS coupon on Hedera testnet.
 ///
@@ -54,10 +55,6 @@ type Step = (typeof STEPS)[number];
 
 const RUN: Step[] = ['fund', 'probe', 'seed', 'subscribe', 'pay', 'publish', 'verify'];
 
-/// What each noteholder subscribes for the demonstration: half the principal
-/// each, which is what they hold on the note.
-const SUBSCRIPTION_PER_INVESTOR = 50_000n * 1_000_000n;
-
 function now(): number {
   return Math.floor(Date.now() / 1000);
 }
@@ -71,9 +68,9 @@ function hbarAmount(value: string | null): string | undefined {
 }
 
 function couponMeta(record: DeploymentRecord): NonNullable<
-  NonNullable<NonNullable<DeploymentRecord['series']>['ats']>['coupon']
+  NonNullable<SeriesRecord['ats']>['coupon']
 > {
-  const coupon = record.series?.ats?.coupon;
+  const coupon = demoSeries(record).ats?.coupon;
   if (coupon === undefined) {
     throw new Error('no coupon declared on the note: run `pnpm ats:issue coupon` first');
   }
@@ -84,8 +81,7 @@ function couponMeta(record: DeploymentRecord): NonNullable<
 /// step can write into the same entry.
 function settlementOf(context: CouponContext): CouponSettlementRecord {
   const record = context.record;
-  const series = record.series;
-  if (series === undefined) throw new Error('no series in the deployment record');
+  const series = demoSeries(record);
   const coupon = couponMeta(record);
   series.couponSettlements ??= {};
   series.couponSettlements[coupon.id] ??= {
@@ -356,41 +352,6 @@ async function seed(context: CouponContext): Promise<void> {
     attributeTx: attribute.hash,
     attributeGasUsed: attribute.gasUsed,
   };
-}
-
-// ------------------------------------------------------------- subscribe
-
-/**
- * Subscribe both noteholders in the vault, so the principal the note reports
- * and the principal the vault holds are the same number.
- *
- * Nobody had subscribed to the demo series before this: the note had 100 units
- * minted against a vault holding nothing, so every principal figure on the
- * investor screen would have read zero. See docs/DECISIONS.md.
- */
-async function subscribe(context: CouponContext): Promise<void> {
-  const series = demoSeries(context.record);
-  const record = context.record.series;
-  if (record === undefined) throw new Error('no series in the deployment record');
-
-  for (const investor of context.investors) {
-    const subscription = await subscribeInvestor(
-      context,
-      series.id,
-      investor,
-      SUBSCRIPTION_PER_INVESTOR,
-    );
-    if (subscription === null) continue;
-    record.subscriptions = [
-      ...(record.subscriptions ?? []).filter((entry) => entry.role !== investor.role),
-      subscription,
-    ];
-    context.save();
-  }
-  const state = (await context.vault.getFunction('seriesOf')(series.id)) as {
-    principalFunded: bigint;
-  };
-  console.log(`  principalFunded ${state.principalFunded}`);
 }
 
 // ------------------------------------------------------------------- pay

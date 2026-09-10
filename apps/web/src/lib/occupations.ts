@@ -23,10 +23,14 @@
  * `series` is the Displacement Bond Note series that carries capacity for the
  * group. Capacity is committed per occupation (docs/DECISIONS.md), so an
  * occupation with no series has no price rather than a price nobody can buy,
- * and the picker says so. One series exists today, ODI-COMP-2026-01 for
- * computer and mathematical (docs/HEDERA.md, "The demo series"). There is no
- * endpoint that lists series, so this is the same shape as the investor
- * screens' DEFAULT_SERIES_ID and the same thing would replace both.
+ * and the picker says so. All fifteen have one now: ODI-COMP-2026-01 for
+ * computer and mathematical, the demo series, and one per group beside it
+ * (docs/HEDERA.md, "The series"). The API answers GET /v1/series with the same
+ * list, live from the deployment record, and that is what the investor screens
+ * read; this stays a constant because the picker is rendered on the first
+ * screen a person sees and must not wait on the API to say what is buyable.
+ * A series that is registered but absent here reads as no cover, which is the
+ * safe direction to be wrong in.
  *
  * `lastOpenPeriod` is from the backtest in docs/INDEX.md, every month from
  * 2010-01 to 2026-07 at the frozen per-series calibration. Null means claims
@@ -47,7 +51,7 @@ export const OCCUPATIONS: readonly Occupation[] = [
   {
     key: 'office_admin_support',
     label: 'Office and administrative support',
-    series: null,
+    series: 'ODI-OFFC-2026-01',
     lastOpenPeriod: null,
   },
   {
@@ -59,59 +63,59 @@ export const OCCUPATIONS: readonly Occupation[] = [
   {
     key: 'management_business_financial',
     label: 'Management, business and financial',
-    series: null,
+    series: 'ODI-MGMT-2026-01',
     lastOpenPeriod: '2021-08',
   },
   {
     key: 'professional_related',
     label: 'Professional and related',
-    series: null,
+    series: 'ODI-PROF-2026-01',
     lastOpenPeriod: '2021-07',
   },
   {
     key: 'business_financial_ops',
     label: 'Business and financial operations',
-    series: null,
+    series: 'ODI-BUSF-2026-01',
     lastOpenPeriod: '2021-09',
   },
-  { key: 'legal', label: 'Legal', series: null, lastOpenPeriod: '2021-09' },
+  { key: 'legal', label: 'Legal', series: 'ODI-LEGL-2026-01', lastOpenPeriod: '2021-09' },
   {
     key: 'arts_design_ent_media',
     label: 'Arts, design, entertainment and media',
-    series: null,
+    series: 'ODI-ARTS-2026-01',
     lastOpenPeriod: '2026-02',
   },
   {
     key: 'education_training_library',
     label: 'Education, training and library',
-    series: null,
+    series: 'ODI-EDUC-2026-01',
     lastOpenPeriod: '2022-08',
   },
-  { key: 'sales_related', label: 'Sales and related', series: null, lastOpenPeriod: '2020-07' },
-  { key: 'service', label: 'Service', series: null, lastOpenPeriod: '2021-05' },
-  { key: 'production', label: 'Production', series: null, lastOpenPeriod: '2010-05' },
+  { key: 'sales_related', label: 'Sales and related', series: 'ODI-SALE-2026-01', lastOpenPeriod: '2020-07' },
+  { key: 'service', label: 'Service', series: 'ODI-SERV-2026-01', lastOpenPeriod: '2021-05' },
+  { key: 'production', label: 'Production', series: 'ODI-PROD-2026-01', lastOpenPeriod: '2010-05' },
   {
     key: 'transportation_material_moving',
     label: 'Transportation and material moving',
-    series: null,
+    series: 'ODI-TRAN-2026-01',
     lastOpenPeriod: '2021-01',
   },
   {
     key: 'installation_maintenance_repair',
     label: 'Installation, maintenance and repair',
-    series: null,
+    series: 'ODI-INMR-2026-01',
     lastOpenPeriod: null,
   },
   {
     key: 'construction_extraction',
     label: 'Construction and extraction',
-    series: null,
+    series: 'ODI-CNST-2026-01',
     lastOpenPeriod: '2010-04',
   },
   {
     key: 'farming_fishing_forestry',
     label: 'Farming, fishing and forestry',
-    series: null,
+    series: 'ODI-FARM-2026-01',
     lastOpenPeriod: '2021-07',
   },
 ];

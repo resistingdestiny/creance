@@ -238,6 +238,65 @@ describe('the demo investor wallet', () => {
   });
 });
 
+const CHOICES = [
+  {
+    series_id: 'ODI-COMP-2026-01',
+    series_key: '0x4f44492d434f4d502d323032362d303100000000000000000000000000000000',
+    group: 'computer_math',
+    matures_at: '2027-09-04T00:00:00.000Z',
+    has_note: true,
+    links: { self: '/v1/series/ODI-COMP-2026-01', coupons: '/v1/series/ODI-COMP-2026-01/coupons' },
+  },
+  {
+    series_id: 'ODI-OFFC-2026-01',
+    series_key: '0x4f44492d4f4646432d323032362d303100000000000000000000000000000000',
+    group: 'office_admin_support',
+    matures_at: '2027-09-10T00:00:00.000Z',
+    has_note: true,
+    links: { self: '/v1/series/ODI-OFFC-2026-01', coupons: '/v1/series/ODI-OFFC-2026-01/coupons' },
+  },
+] as const;
+
+describe('the series a screen offers a choice from', () => {
+  it('links every series the API listed, marking the one on screen', () => {
+    const markup = renderToStaticMarkup(
+      <InvestorOverview
+        choices={CHOICES}
+        coupons={COUPONS}
+        investor={DEMO_ACCOUNTS['investor-1']}
+        series={SERIES}
+      />,
+    );
+    expect(markup).toContain('href="/invest?series=ODI-OFFC-2026-01"');
+    expect(markup).toContain('aria-current="page"');
+    expect(visibleText(markup)).toContain('ODI-OFFC-2026-01');
+  });
+
+  it('sends the head of the list to the route with no query string', () => {
+    const markup = renderToStaticMarkup(
+      <InvestorOverview
+        choices={CHOICES}
+        coupons={COUPONS}
+        investor={DEMO_ACCOUNTS['investor-1']}
+        series={SERIES}
+      />,
+    );
+    expect(markup).toContain('href="/invest/subscribe"');
+  });
+
+  it('offers nothing to choose when the deployment serves one series', () => {
+    const markup = renderToStaticMarkup(
+      <InvestorOverview
+        choices={[CHOICES[0]]}
+        coupons={COUPONS}
+        investor={DEMO_ACCOUNTS['investor-1']}
+        series={SERIES}
+      />,
+    );
+    expect(markup).not.toContain('aria-label="Series"');
+  });
+});
+
 describe('the investor overview screen', () => {
   const markup = renderToStaticMarkup(
     <InvestorOverview coupons={COUPONS} investor={DEMO_ACCOUNTS['investor-1']} series={SERIES} />,

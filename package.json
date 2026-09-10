@@ -27,6 +27,7 @@
     "steward:run": "pnpm --filter @creance/steward run start",
     "adjuster:run": "pnpm --filter @creance/adjuster run start",
     "contracts:deploy": "pnpm --filter @creance/contracts run deploy",
+    "series:capacity": "pnpm --filter @creance/contracts run series:capacity",
     "hedera:setup": "pnpm --filter @creance/contracts run hedera:setup",
     "hedera:schedule": "pnpm --filter @creance/contracts run hedera:schedule",
     "ats:issue": "pnpm --filter @creance/contracts run ats:issue",

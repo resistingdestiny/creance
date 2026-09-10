@@ -16,19 +16,22 @@ const MINIMAL = {
 };
 
 describe('oracle configuration', () => {
-  it('reads the demo series and the contracts out of the deployment record', () => {
+  it('reads every registered series and the contracts out of the deployment record', () => {
     const config = loadOracleConfig({ recordPath: RECORD, environment: MINIMAL });
     expect(config.network).toBe('testnet');
     expect(config.coverPoolAddress).toBe('0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09');
     expect(config.vaultAddress).toBe('0xD0473d355ECB299F2ECc0d92124bc8CF63554e60');
     expect(config.submitGasLimit).toBe(1_000_000);
-    expect(config.series).toEqual([
-      {
-        label: 'ODI-COMP-2026-01',
-        seriesId: '0x4f44492d434f4d502d323032362d303100000000000000000000000000000000',
-        groupKey: 'computer_math',
-      },
-    ]);
+    // The demo series stays the head, and every group registered beside it
+    // is a series the oracle may submit an on-chain observation for.
+    expect(config.series[0]).toEqual({
+      label: 'ODI-COMP-2026-01',
+      seriesId: '0x4f44492d434f4d502d323032362d303100000000000000000000000000000000',
+      groupKey: 'computer_math',
+    });
+    expect(new Set(config.series.map((series) => series.groupKey)).size).toBe(
+      config.series.length,
+    );
   });
 
   it('finds a series by label, by key and by group', () => {
@@ -37,7 +40,9 @@ describe('oracle configuration', () => {
     expect(findSeries(config, config.series[0]!.seriesId)?.label).toBe('ODI-COMP-2026-01');
     expect(findSeries(config, 'ODI-NOPE')).toBeUndefined();
     expect(seriesForGroup(config, 'computer_math')?.label).toBe('ODI-COMP-2026-01');
-    expect(seriesForGroup(config, 'legal')).toBeUndefined();
+    expect(seriesForGroup(config, 'legal')?.label).toBe('ODI-LEGL-2026-01');
+    // A group that is not an occupation the index covers has no series.
+    expect(seriesForGroup(config, 'armed_forces')).toBeUndefined();
   });
 
   it('falls back to the day 0 resources for the topic and the oracle account', () => {

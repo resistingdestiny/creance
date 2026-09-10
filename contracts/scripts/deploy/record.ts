@@ -23,7 +23,11 @@ export interface DeploymentRecord {
   settlementTokenAssociated?: boolean;
   associationTx?: string;
   roles?: Record<string, string>;
-  series?: SeriesRecord;
+  /// Every series opened in the vault and registered on the pool, in the order
+  /// they were issued. The demo series ODI-COMP-2026-01 is the first entry and
+  /// stays first, because the API's own series list is built from this one and
+  /// the testnet scripts default to its head.
+  series?: SeriesRecord[];
   verification?: Record<string, string>;
   gasUsed?: Record<string, number>;
   testnetRunthrough?: { series: string; at: string; links: Record<string, string> };
@@ -77,6 +81,11 @@ export interface SeriesRecord {
   /// What each noteholder has subscribed in the vault, so the principal the
   /// note reports and the principal the vault holds can be compared.
   subscriptions?: SubscriptionRecord[];
+  /// Why this series has no note. The ATS deploy is the heaviest call in the
+  /// system and it must not gate the cover, so a failure is written here and
+  /// the series stays buyable rather than the run stopping. Removed as soon as
+  /// a later run issues the note.
+  noteFailure?: { at: string; reason: string };
 }
 
 const RECORD_PATH = fileURLToPath(new URL('../../deployments/testnet.json', import.meta.url));
@@ -96,4 +105,42 @@ export function writeRecord(record: DeploymentRecord): void {
 
 export function recordPath(): string {
   return RECORD_PATH;
+}
+
+/// The series in the record, or an empty list before the first deploy. Every
+/// reader goes through this rather than touching the optional field, so a
+/// record written before the field became a list still reads.
+export function seriesList(record: DeploymentRecord): SeriesRecord[] {
+  return record.series ?? [];
+}
+
+/// The series a caller named, by label, group key or bytes32 id. The three
+/// spellings are accepted because a command line argument is a label, a
+/// catalogue entry is a group key and the chain only knows the id.
+export function findSeries(record: DeploymentRecord, id: string): SeriesRecord | undefined {
+  const wanted = id.trim().toLowerCase();
+  return seriesList(record).find(
+    (series) =>
+      series.label.toLowerCase() === wanted ||
+      series.group.toLowerCase() === wanted ||
+      series.id.toLowerCase() === wanted,
+  );
+}
+
+/// The first series in the record. It is the demo series, and it is what a
+/// command with no series argument acts on, so `pnpm ats:issue` and the coupon
+/// scripts keep doing exactly what they did when the record held one object.
+export function defaultSeries(record: DeploymentRecord): SeriesRecord | undefined {
+  return seriesList(record)[0];
+}
+
+/// Write a series into the record, replacing the entry with the same label and
+/// otherwise appending. The runner calls this the moment a series completes, so
+/// an interrupted run leaves every finished series on disk.
+export function upsertSeries(record: DeploymentRecord, series: SeriesRecord): void {
+  const list = seriesList(record);
+  const index = list.findIndex((entry) => entry.label === series.label);
+  if (index === -1) list.push(series);
+  else list[index] = series;
+  record.series = list;
 }

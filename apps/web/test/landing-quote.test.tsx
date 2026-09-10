@@ -175,7 +175,7 @@ describe('the occupation step keeps the deck', () => {
     expect(panel().getByLabelText('Search occupations')).toBeDefined();
   });
 
-  it('puts the buyable occupation first and sinks the rest under their own heading', async () => {
+  it('puts all fifteen under the open heading, with no empty second heading', async () => {
     page();
     await getAQuote();
     const rows = [
@@ -184,22 +184,22 @@ describe('the occupation step keeps the deck', () => {
       ),
     ].filter((button) => button.textContent !== 'Continue');
     expect(rows).toHaveLength(15);
-    // T38: the one occupation with a series behind it leads, the fourteen
-    // follow in the addendum order, and each part says what it is.
-    expect(rows[0]?.textContent).toContain('Computer and mathematical');
-    expect(rows[1]?.textContent).toContain('Office and administrative support');
+    // T38 grouped the list when one occupation was buyable. Every one carries
+    // a series now, so they stay in the addendum order under the open heading
+    // and the no cover heading is not rendered.
+    expect(rows[0]?.textContent).toContain('Office and administrative support');
     expect(rows.at(-1)?.textContent).toContain('Farming, fishing and forestry');
-    expect(panel().getByText('Open to buy (1)')).toBeDefined();
-    expect(panel().getByText('No cover behind these yet (14)')).toBeDefined();
+    expect(panel().getByText('Open to buy (15)')).toBeDefined();
+    expect(panel().queryByText(/No cover behind these yet/)).toBeNull();
   });
 
-  it('keeps a search that matches only unbuyable occupations under their heading', async () => {
+  it('keeps a search under the heading for the part it matched', async () => {
     page();
     await getAQuote();
     const search = panel().getByLabelText('Search occupations');
     fireEvent.change(search, { target: { value: 'legal' } });
-    expect(panel().queryByText(/^Open to buy/)).toBeNull();
-    expect(panel().getByText('No cover behind these yet (1)')).toBeDefined();
+    expect(panel().getByText('Open to buy (1)')).toBeDefined();
+    expect(panel().queryByText(/No cover behind these yet/)).toBeNull();
     expect(panel().getByText('Legal')).toBeDefined();
   });
 
@@ -236,27 +236,21 @@ describe('the occupation step keeps the deck', () => {
   });
 });
 
-describe('an occupation with no capacity behind it', () => {
-  it('says so on its row, in the words the route screen uses', async () => {
+describe('every occupation has capacity behind it', () => {
+  it('says nothing about cover being absent, because none is', async () => {
     page();
     await getAQuote();
-    // Two of the fourteen carry the backtest line in the same caption, so the
-    // sentence is asserted where it starts rather than as the whole string.
-    const said = panel()
-      .getAllByText(/^No cover behind this occupation yet\./)
-      .filter((node) => node.tagName === 'SPAN');
-    expect(said).toHaveLength(14);
+    expect(panel().queryAllByText(/^No cover behind this occupation yet\./)).toHaveLength(0);
   });
 
-  it('says so in place when it is the one in hand, and quotes nothing', async () => {
+  it('quotes the occupation that could not be bought before, in place', async () => {
     page();
     await getAQuote();
-    fireEvent.click(row('Legal'));
+    fireEvent.click(row('Office and administrative support'));
 
-    expect(screen.getAllByText('No cover behind this occupation yet.').length).toBeGreaterThan(1);
-    expect(continueButton()).toHaveProperty('disabled', true);
-    expect(quoteOccupation).not.toHaveBeenCalled();
-    expect(screen.queryByTestId('landing-quote-premium')).toBeNull();
+    expect(continueButton()).toHaveProperty('disabled', false);
+    fireEvent.click(continueButton());
+    await waitFor(() => expect(quoteOccupation).toHaveBeenCalled());
   });
 });
 

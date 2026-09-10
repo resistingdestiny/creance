@@ -211,6 +211,88 @@ group "computer and mathematical".
 [registered in the pool](https://hashscan.io/testnet/transaction/0x15e833ad75e2f1ae5ef38956959ac13d6b76eba7906ee9e6ba6b48895675bfda).
 Nothing in the terms is mutable after registration except the status.
 
+### Every series, one per occupation group
+
+T39 opened the remaining fourteen. One series per occupation group is the
+capacity rule in DESIGN.md 3.2, and the thresholds are the frozen per group
+calibration in `packages/index-model/src/calibration.json`, scaled by 1e4.
+Exhaustion is not calibrated: it only matters to the optional indexed payout
+mode and every series here is full payout, so it is registered at twice the
+attachment, which is what the demo series already carried.
+
+Written by `pnpm series:capacity`, which is idempotent against the chain and
+resumable: it reads what the vault, the pool and the note already say and
+does only what is missing, writing the record after every series.
+
+| Series | Group | A | L | E | Opened | Registered |
+|---|---|---|---|---|---|---|
+| `ODI-COMP-2026-01` | computer_math | 2 | -0.68 | 4 | [tx](https://hashscan.io/testnet/transaction/0x2c042123014090e5b40ad3142518397ecf9d377471cde59fd75c7ee2138432d0) | [tx](https://hashscan.io/testnet/transaction/0x15e833ad75e2f1ae5ef38956959ac13d6b76eba7906ee9e6ba6b48895675bfda) |
+| `ODI-OFFC-2026-01` | office_admin_support | 1.5 | 0.85 | 3 | [tx](https://hashscan.io/testnet/transaction/0x9fc196645928192e837e05435b35f8bbe2f0b3ed2c7ea6a1e0017ff6ff48a642) | [tx](https://hashscan.io/testnet/transaction/0x6d3d482202716347925dfdcadb89ec561837e770295b43c145aee638194bda33) |
+| `ODI-TRAN-2026-01` | transportation_material_moving | 1.5 | 4.35 | 3 | [tx](https://hashscan.io/testnet/transaction/0x6e06fe3546d94f8a8dda1c4e1a541d727eecae87f1ae9692759615981b66c651) | [tx](https://hashscan.io/testnet/transaction/0x8afc305f69ef572c73eb937f994bad41bb1ea1afba6ea4f4f573fe082da205f9) |
+| `ODI-PROD-2026-01` | production | 2.5 | 3.72 | 5 | [tx](https://hashscan.io/testnet/transaction/0x0c98e22a86d69ce2610e9aec61d8a228667074ab4c2e45425626bd2efc09c338) | [tx](https://hashscan.io/testnet/transaction/0xd4c42e3f2f34146751e00843ca656533be51946b0c0e6a4e2d2fb21740212d16) |
+| `ODI-SALE-2026-01` | sales_related | 1.5 | 1.15 | 3 | [tx](https://hashscan.io/testnet/transaction/0x7989c713061b08454b74fcd45a190f9988f8e71eb62f8aacea779430c7935573) | [tx](https://hashscan.io/testnet/transaction/0x3c2865c68b9669c9de3945fc731d8fa47ae8b0b965e31e77dfb68e768327fa68) |
+| `ODI-MGMT-2026-01` | management_business_financial | 1.5 | -0.98 | 3 | [tx](https://hashscan.io/testnet/transaction/0x6cd2bfd0a0e9938e8e92def342eeea5d571616750354be3114c4364525adf33c) | [tx](https://hashscan.io/testnet/transaction/0xdc3dee34d33af1800f080befab671adec880b47e4b3eb665531bc003009c63a3) |
+| `ODI-PROF-2026-01` | professional_related | 1.5 | -0.62 | 3 | [tx](https://hashscan.io/testnet/transaction/0x029f782ffa821a7a76ea59b4ed45fc313c4f967a99dea48e30ea0cf56f6e75de) | [tx](https://hashscan.io/testnet/transaction/0xabb423968c37c89c67bc52a3493f471b60f3aa70ff2824e1c66923de21915c8b) |
+| `ODI-SERV-2026-01` | service | 1.5 | 2.28 | 3 | [tx](https://hashscan.io/testnet/transaction/0x890a135457616e6bd9d3a60360c11e8bec20f49727a9cf2ad72257c6960b5b6a) | [tx](https://hashscan.io/testnet/transaction/0x2705512e1381cbd662de4dd42017d97de4ab332aca6fd85d474d85c4fa744526) |
+| `ODI-CNST-2026-01` | construction_extraction | 3.5 | 12.78 | 7 | [tx](https://hashscan.io/testnet/transaction/0xcd2d85b101020a60b8ddeb96cc892da207f56ee47ce2d952c6fa58ef1d87eab9) | [tx](https://hashscan.io/testnet/transaction/0x054e94dc787a5b9223e21ed97f1afa4107ef0a58d4553436b9b2e187b1ee2204) |
+| `ODI-INMR-2026-01` | installation_maintenance_repair | 2 | 0.65 | 4 | [tx](https://hashscan.io/testnet/transaction/0x7355fd0313091bd854925246038992cd435f3d2ce7f85f01f5b5a197c92696d5) | [tx](https://hashscan.io/testnet/transaction/0x46253595a5a8bca3daffb7277104d374038daf3a96d0d1062a2d80ff495f6172) |
+| `ODI-FARM-2026-01` | farming_fishing_forestry | 5.5 | 12.25 | 11 | [tx](https://hashscan.io/testnet/transaction/0xa74bbc0ecce77c884328df91c60d6e5ead6b6b4e2439f6277ced41a22c4e5fdc) | [tx](https://hashscan.io/testnet/transaction/0x1c680dd9b44ea6b2774f3bb88143feaef08bbbc91e1685ca74037b965ca9bd77) |
+| `ODI-BUSF-2026-01` | business_financial_ops | 1.5 | -0.38 | 3 | [tx](https://hashscan.io/testnet/transaction/0x8d906cd14bb9106d9ae51b27daa7c597320f38401bbb81560fbbc0524a7cb227) | [tx](https://hashscan.io/testnet/transaction/0x7aa0d317c36bfc44a2209d50454f726cb0e9816523928f4bb3a0b70b6dce0040) |
+| `ODI-EDUC-2026-01` | education_training_library | 2 | 1.62 | 4 | [tx](https://hashscan.io/testnet/transaction/0x8f64107918fcb5ca4af29165f252a43250b1521c95f46f3da52975907cef56d4) | [tx](https://hashscan.io/testnet/transaction/0x63ecf4ab04494ae6ae85c62b8fd2d195ae4dd2a6b74e1c725cca95f5158b911b) |
+| `ODI-LEGL-2026-01` | legal | 2.5 | -1.32 | 5 | [tx](https://hashscan.io/testnet/transaction/0x738d9a577dbe8cb45bb5c12f6802a1063d09b41351b0ba64987b4d79052cc887) | [tx](https://hashscan.io/testnet/transaction/0x11da5739ea270db56d7ce72c0bf95b0e7a0a16518ea20c9f5d39237ff243ed2d) |
+| `ODI-ARTS-2026-01` | arts_design_ent_media | 3 | 1.32 | 6 | [tx](https://hashscan.io/testnet/transaction/0x9603237a8c7993ba0aae806f1c01d121ac20199ea43e326abb52e99878f8d7c3) | [tx](https://hashscan.io/testnet/transaction/0xa7a9dfcb2eebf1f0f3665ac6c83f4cdfd6836e9a8883935e431a84d682f70e18) |
+
+Every series carries 25,000 TUSD of capacity in the vault, subscribed by the
+operator so a bind has collateral behind it, except the demo series, which
+carries the 100,000 its two noteholders subscribed under T14. A quote prices
+against that capacity and a bind spends it, so a series with none would price
+and then fail.
+
+| Series | Capacity | Subscribed by | Fund | Approve | Subscribe |
+|---|---|---|---|---|---|
+| `ODI-COMP-2026-01` | 100,000 | investor-1, investor-2 | see the T14 run through | | |
+| `ODI-OFFC-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0x21647686fcae2df19070854f34eb5fe54c2d41351a51871498ad85f3a46c22f9) | [tx](https://hashscan.io/testnet/transaction/0xd66767bee2a8a8f33494051edcdcc90ae4cf158c4f42258274184d3cbe97c17c) | [tx](https://hashscan.io/testnet/transaction/0x256a8d9951acb8f63d4d5809d6eef96d209027722ba85eb71c278622d641804a) |
+| `ODI-TRAN-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0x875f9b52e2981db2d986f09a83568d22c014c0dc239cfb14655c9d4e60e8a112) | [tx](https://hashscan.io/testnet/transaction/0xe8c4bf23240e7ffbfa7a803c4db26fb67caccb776ee0f6995b3739074cffb6f7) | [tx](https://hashscan.io/testnet/transaction/0x25f30daf5a01a16e2b97329c516e9405745feba0e3a79a47f3844cfd4c711095) |
+| `ODI-PROD-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0x8d0f8af830f5f042931bb6fa2150a26a5b2a92e69c5bee27dd81feb59fe18bae) | [tx](https://hashscan.io/testnet/transaction/0xc1b363eca5fb69d932c63e9376a86ff79b5893146c0fd638fce472233916a611) | [tx](https://hashscan.io/testnet/transaction/0x99294c1552d779dd7f35b2ee014a2045edfc9fb5f2202006571b428b3490eb61) |
+| `ODI-SALE-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0x8afc63b46765cc0ebf095becab056496ee569c3916d2c48b2262029b87a4f10b) | [tx](https://hashscan.io/testnet/transaction/0x0e509bdc5128e56ff5c3beb4de256bb447369ed897ccacd44b0f8ca1eb27e48b) | [tx](https://hashscan.io/testnet/transaction/0x7965eade471719d925ac5d8d3bebc927dbc901c865631f6a6154bbfae504165f) |
+| `ODI-MGMT-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0x18e721b08774410b30252820e8d0a7f2386f0ab8963ba589a812dad4e9cad5b0) | [tx](https://hashscan.io/testnet/transaction/0xc7fc41f5a6d178179686e734d395a9599794a07520b973037ba4b9e49f650173) | [tx](https://hashscan.io/testnet/transaction/0x37f773e2b1a0b88c2501dac749000b99b97f40395042bca30397b3a391de63fe) |
+| `ODI-PROF-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0x01e3ba52caeb17c9624df23c5a344c331bf9617b98dd62bb7d770528f2f5560c) | [tx](https://hashscan.io/testnet/transaction/0x8c0ae95a3bb7d1bd72ccc1cb9f40d1f15458bb07a1b6a7a7f1ab0f59415002d7) | [tx](https://hashscan.io/testnet/transaction/0xd4a40c671519f977b8ce08cfae4f35aa64f5595994a100a9697be99d6c198522) |
+| `ODI-SERV-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0x11667e6ec4ac2784d5ee61b3024b03e1b5858f1c37a128344499d228b5f0037e) | [tx](https://hashscan.io/testnet/transaction/0xc63813bdc0aaadf017b6595c991a379469988e65070db8a1f634cb19937dd6b5) | [tx](https://hashscan.io/testnet/transaction/0xb8707a72c34cd9342c02e56f30f5b19230eef1e768ca6afdc2b6a65d74a3d28c) |
+| `ODI-CNST-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0x735b4b092b5ed0084bd6c77b8c9bbc170e2db0edeb26317b44fb520d3d14826d) | [tx](https://hashscan.io/testnet/transaction/0xecbaa79c1777c40111d0377efb3fdeed347cf8b434b74215ae465dbc138a266c) | [tx](https://hashscan.io/testnet/transaction/0x25a68090ecdab1d6ac8b252d545000489747b8a76717d9866d319f9a43dc259e) |
+| `ODI-INMR-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0x1e17f1adde8264f666e7f28d2c12ccafb4dab1af6516a88a904baa61448cd80a) | [tx](https://hashscan.io/testnet/transaction/0xa1fab2e6c0aa5e33839c4252be67b282bad8b701a56781c38c0c4f6475e5cd40) | [tx](https://hashscan.io/testnet/transaction/0x9dad98730863ed4d11bb4d96eb9087fc57bf2a100e7d3c96a459cc11e855e126) |
+| `ODI-FARM-2026-01` | 25,000 | operator | already held | [tx](https://hashscan.io/testnet/transaction/0x1552ea9281474219962e74945b68dcbce4cb840ea4bfc81b895890d28b1daafb) | [tx](https://hashscan.io/testnet/transaction/0xd6fba6eb90fcb11ac9e65b60ebf018801278ff32265f4a90c80a89d2ec32b037) |
+| `ODI-BUSF-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0x0d3b36016cc65fdffddb956c521e46fc250a3c4938fc5ce0ad5740ef9f1c3a03) | [tx](https://hashscan.io/testnet/transaction/0xd987acd37d97ff4800d39f9ae84643ded56392ae7b2a81193a646cbf3bd73f81) | [tx](https://hashscan.io/testnet/transaction/0x096fb733b166f6dee956fbce6fdbdb0273f621966edea4b7d974effe1b31b53c) |
+| `ODI-EDUC-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0x1cdecd5e8fc6770989b24d202d8868567079072b870686aa556f9b7e27f1e6c1) | [tx](https://hashscan.io/testnet/transaction/0x37b5da578f961e51ce73fc013b72ff095153296a3aa213561acc7f84b842d068) | [tx](https://hashscan.io/testnet/transaction/0xc09db351116995f5d3feefd98829faf3e483420bf0635a5cad505cffee48ce85) |
+| `ODI-LEGL-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0x2ce2524841265402e2867aab607123c2786058129b009f9719a5c055e817d0a3) | [tx](https://hashscan.io/testnet/transaction/0x18e6cc8fef896d8117913c1b5e80d996c54126fc60a4a579159c4aac218b144f) | [tx](https://hashscan.io/testnet/transaction/0x4922d784f1e7bbffa1b8b4126abf4bf24dc9a573bce3094e858c2442a92fc381) |
+| `ODI-ARTS-2026-01` | 25,000 | operator | [tx](https://hashscan.io/testnet/transaction/0xe850f83da653e86c0d64e07a92a0bcc606ffbe4dfff3854e5af0b552076f2d64) | [tx](https://hashscan.io/testnet/transaction/0xf25a2582d7e84c296793ef5337f18e3bd65309918fbbb6421509ab7f0033a691) | [tx](https://hashscan.io/testnet/transaction/0xe29bb1e932992612066e331b36f17561beda2584fc00643ca95d2c0a73bccf84) |
+
+### The Displacement Bond Note for every series
+
+One ATS bond per series, deployed as a second pass so a factory failure
+cannot stop a series being opened and funded. The note is the same size as
+the capacity the vault holds, so the instrument and the collateral agree on
+the principal, and the whole supply is minted to the operator because the
+operator's own settlement tokens are the ones in the vault. The demo series
+is the T06 run through and is unchanged.
+
+| Series | Note | Symbol | ISIN | Units | Principal | Deploy |
+|---|---|---|---|---|---|---|
+| `ODI-COMP-2026-01` | [0.0.10368240](https://hashscan.io/testnet/contract/0.0.10368240) | `CDBN01` | `ZZODIC55S1Q6` | 100 | 100,000 | [tx](https://hashscan.io/testnet/transaction/0x226d62fd0b562535baf1c027c8bd320df2b017326c56921328b6af27849ad398) |
+| `ODI-OFFC-2026-01` | [0.0.10455865](https://hashscan.io/testnet/contract/0.0.10455865) | `CDBN02` | `ZZODIO2YVO83` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0xa68e5dacff2c71120bee01613e575ff67ce14966004866878e999b6304458bf6) |
+| `ODI-TRAN-2026-01` | [0.0.10455878](https://hashscan.io/testnet/contract/0.0.10455878) | `CDBN03` | `ZZODIT4S5XQ5` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0x5315f0ffb52801207e6dcaff20c9aef20c6947dc5a63f9069201788812f52a67) |
+| `ODI-PROD-2026-01` | [0.0.10455885](https://hashscan.io/testnet/contract/0.0.10455885) | `CDBN04` | `ZZODIP2IBWS5` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0x88a408c69fd821bc48192f799a6ffe75da418f2bef23d37415de1b19bd70a996) |
+| `ODI-SALE-2026-01` | [0.0.10455893](https://hashscan.io/testnet/contract/0.0.10455893) | `CDBN05` | `ZZODIS626A18` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0xea814aa0cf098831760b18e8d0424f50c841f8a6a429a26ae72170bc0b29e7b1) |
+| `ODI-MGMT-2026-01` | [0.0.10455899](https://hashscan.io/testnet/contract/0.0.10455899) | `CDBN06` | `ZZODIM5N1CL8` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0xe66de6ee07adc3f945dd7ec2b139a10320cda928b0e43025947bee263b646e55) |
+| `ODI-PROF-2026-01` | [0.0.10455905](https://hashscan.io/testnet/contract/0.0.10455905) | `CDBN07` | `ZZODIP1EHRA1` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0xe501c12251996f57651b04281d8980434e7683b855e60d2b3b9f5971b603e7cd) |
+| `ODI-SERV-2026-01` | [0.0.10455909](https://hashscan.io/testnet/contract/0.0.10455909) | `CDBN08` | `ZZODIS20K0K3` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0x1c2b5185598244d906720378017f6d68f7bb9c3d8c05f5918addee7e234130b2) |
+| `ODI-CNST-2026-01` | [0.0.10455914](https://hashscan.io/testnet/contract/0.0.10455914) | `CDBN09` | `ZZODICAZC6P8` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0xa94c2c01e84d012caf17e0866ae494c9a63b95a265ad5e39648bf2062ae24f93) |
+| `ODI-INMR-2026-01` | [0.0.10455918](https://hashscan.io/testnet/contract/0.0.10455918) | `CDBN10` | `ZZODII5LN9D6` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0xe459df7374a824ac66a8fb45f1bc5e1c8c5a34a044b1b045c3e211f3f8780e9f) |
+| `ODI-FARM-2026-01` | [0.0.10455929](https://hashscan.io/testnet/contract/0.0.10455929) | `CDBN11` | `ZZODIF56E7B7` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0xcb550dc4a6dc69ff6d23311415024dc73edc3511c9049662accf5cecee49eb8f) |
+| `ODI-BUSF-2026-01` | [0.0.10455942](https://hashscan.io/testnet/contract/0.0.10455942) | `CDBN12` | `ZZODIB2TT3Y9` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0xf6c7a0119f27b07243f9d82d8db019b18a7186779f84c3e785f34f671f7f34c7) |
+| `ODI-EDUC-2026-01` | [0.0.10455953](https://hashscan.io/testnet/contract/0.0.10455953) | `CDBN13` | `ZZODIE1GUVV0` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0x18a4cee40c7daf48770c9828ec356dfb951d27853b231fe30b085c1e48f1eb0c) |
+| `ODI-LEGL-2026-01` | [0.0.10456002](https://hashscan.io/testnet/contract/0.0.10456002) | `CDBN14` | `ZZODIL4NEPF0` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0x4b0fd1424a2abb05caefe2c019ac6ccaa8faa90f992a602f1299b98e542581f5) |
+| `ODI-ARTS-2026-01` | [0.0.10456012](https://hashscan.io/testnet/contract/0.0.10456012) | `CDBN15` | `ZZODIA11HVL8` | 25 | 25,000 | [tx](https://hashscan.io/testnet/transaction/0x228fda038872384cab9546fba8aea1b8627dd1f5261c1f3a6656226abee5e765) |
+
 ### Measured gas
 
 From the testnet run through, `pnpm test:testnet`, which drives one full claim
@@ -225,6 +307,7 @@ The per transaction cap is 15 million.
 | deploy CoverPool | 3,847,387 | 6,000,000 |
 | `associateSettlementToken` | 735,563 | 2,000,000 |
 | `registerSeries` | 108,134 | 600,000 |
+| `approve` on the settlement token (HTS) | 729,787 | 2,000,000 |
 | `subscribe` (HTS transferFrom) | 141,378 | 1,500,000 |
 | `bind` | 224,668 | 800,000 |
 | `submitObservation` on an opening month | 271,024 | 1,000,000 |
@@ -233,6 +316,18 @@ The per transaction cap is 15 million.
 | `fundCoupon` (HTS transfer out, scheduled) | 62,592 | 1,500,000 |
 | `redeemAtMaturity` (HTS transfer out) | 86,424 | 1,500,000 |
 | ATS `fullRedeemAtMaturity` | 218,097 | 3,000,000 |
+| ATS `deployBond` | 7,005,698 | 15,000,000 |
+| ATS `grantRole` | 179,937 | 2,000,000 |
+| ATS `addIssuer` | 126,977 | 1,500,000 |
+| ATS `grantKyc` | 273,893 | 1,500,000 |
+| ATS `issueByPartition` | 473,349 | 3,000,000 |
+
+The `approve` figure is the one that decides how much HBAR the api account
+needs. It is an HTS call through the ERC-20 facade and costs about 1.7 HBAR,
+so funding fifteen series costs the api account about 25 HBAR and it has to
+be topped up as the run goes rather than once at the start. `deployBond` is
+the largest single spend at about 7.7 HBAR, measured from the charged fee on
+the mirror node rather than from gas used, because unused gas is refunded.
 
 Run through transactions:
 [subscribe](https://hashscan.io/testnet/transaction/0xafcf4a83a90455cf8c94d8ea8423994bdc479cdc588488cacd25b767c6745e46),

@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util';
 import { EthersChainGateway } from '../../src/chain/cover-pool.js';
 import { SdkHederaGateway } from '../../src/chain/hedera.js';
 import { loadApiConfig } from '../../src/config.js';
+import { seriesNamed } from './series-argument.js';
 import { createPool } from '../../src/db/postgres.js';
 import { migrate } from '../../src/db/migrate.js';
 import { newId, nullifierToBytes32, toBytes32 } from '../../src/ids.js';
@@ -44,6 +45,7 @@ const { values } = parseArgs({
     holder: { type: 'string', default: 'policyholder-1' },
     start: { type: 'string', default: '2025-12-01' },
     limit: { type: 'string', default: '1000000000' },
+    series: { type: 'string' },
     premium: { type: 'string', default: '28000000' },
   },
 });
@@ -66,7 +68,7 @@ assert.ok(Number.isFinite(startAt), `--start takes a calendar date, got ${String
 const limit = BigInt(values.limit as string);
 const premium = BigInt(values.premium as string);
 
-const series = config.series[0];
+const series = seriesNamed(config, values.series);
 assert.ok(series, 'the deployment record has no registered series');
 
 const pool = createPool(databaseUrl);

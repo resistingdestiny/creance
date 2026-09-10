@@ -44,7 +44,7 @@ import { replayBadgeLabel } from './claim-model';
 import { AMOUNT_MIN } from './cover-amount';
 import { readExplorer, type ExplorerData } from './explorer-data';
 import { heldRead, heldReadPerKey } from './held-read';
-import { fetchSeries } from './investor-api';
+import { fetchSeries, fetchSeriesList } from './investor-api';
 import { couponLine } from './investor-model';
 import {
   LANDING_GROUP,
@@ -224,12 +224,24 @@ const prices = heldReadPerKey<HeldQuote>((group) =>
   }),
 );
 
-/** The coupon the note pays, from the series the investor screens already read. */
+/**
+ * The coupon the note pays, from the series the investor screens already read.
+ *
+ * Which series is the API's to say, not this page's: it is the head of
+ * GET /v1/series, the same default /invest opens on, so the landing page and
+ * the investor screen never quote different notes. Both calls sit inside the
+ * hold, so listing the series costs the same as it did to name one.
+ */
 const coupons = heldRead({
   what: 'the landing investor line',
   ttlMs: COUPON_TTL_MS,
   staleMs: COUPON_STALE_MS,
-  read: async () => couponLine(await fetchSeries()),
+  read: async () => {
+    const listing = await fetchSeriesList();
+    const first = listing.series[0]?.series_id;
+    if (first === undefined) throw new Error('the API serves no series');
+    return couponLine(await fetchSeries(first));
+  },
 });
 
 /** Tests only. Module level holds outlive a test file otherwise. */

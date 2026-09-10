@@ -12,6 +12,7 @@ import type { Pool } from 'pg';
 
 import { EthersChainGateway } from '../../../src/chain/cover-pool.js';
 import { loadApiConfig, type ApiConfig } from '../../../src/config.js';
+import { seriesNamed } from '../series-argument.js';
 import { createPool } from '../../../src/db/postgres.js';
 import {
   COVER,
@@ -272,8 +273,11 @@ async function investors(context: Context): Promise<void> {
 
   const deployment = JSON.parse(
     readFileSync(`${ROOT}contracts/deployments/testnet.json`, 'utf8'),
-  ) as { series?: { ats?: { address?: string; holders?: Record<string, { balance?: string }> } } };
-  const note = deployment.series?.ats?.address;
+  ) as { series?: { label: string; ats?: { note?: { address?: string } } }[] };
+  // The series the record carries for the one this run is seeding, which is
+  // the head of the list unless `--series` named another.
+  const note = deployment.series?.find((entry) => entry.label === context.series.label)?.ats?.note
+    ?.address;
   context.record.investors = INVESTOR_ROLES.map((role) => {
     const account = accountOf(context.config, role);
     return {
@@ -430,7 +434,7 @@ function printScenario(): void {
 // -------------------------------------------------------------------- main
 
 const { values, positionals } = parseArgs({
-  options: { plan: { type: 'boolean', default: false } },
+  options: { plan: { type: 'boolean', default: false }, series: { type: 'string' } },
   allowPositionals: true,
 });
 
@@ -453,7 +457,7 @@ if (values.plan === true) {
 const config = loadApiConfig();
 assert.equal(config.network, 'testnet', 'this run is testnet only');
 assert.ok(config.databaseUrl, 'DATABASE_URL is not set, so there is nowhere to write a policy');
-const series = config.series[0];
+const series = seriesNamed(config, values.series);
 assert.ok(series, 'the deployment record has no registered series: run pnpm contracts:deploy');
 
 const record = readRecord(config.network);

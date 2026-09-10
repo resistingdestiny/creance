@@ -4,14 +4,17 @@ import { EthersChainReader, type ChainReader, type CouponEntitlement } from './c
 import { findSeries, loadInvestorConfig, type InvestorConfig, type SeriesConfig } from './config.js';
 import {
   buildCouponsView,
+  buildSeriesListView,
   buildSeriesView,
   entitlementKey,
   type CouponsView,
+  type SeriesListView,
   type SeriesView,
 } from './view.js';
 
 /// The investor endpoints.
 ///
+///     GET /v1/series
 ///     GET /v1/series/:id
 ///     GET /v1/series/:id/coupons
 ///
@@ -86,6 +89,13 @@ export const investorRoutes: FastifyPluginAsync<InvestorPluginOptions> = async (
   const config = options.config ?? loadInvestorConfig();
   const reader = options.reader ?? new EthersChainReader(config.rpcUrl);
 
+  /// The list, so a screen can offer a choice rather than carry a constant.
+  /// It reads no chain state: the deployment record is what says a series
+  /// exists, and the per series route is what says how it is doing.
+  app.get('/v1/series', async (_request, reply) => {
+    return reply.send(buildSeriesListView(config.network, config.series));
+  });
+
   app.get<{ Params: SeriesParams }>('/v1/series/:id', async (request, reply) => {
     const series = await seriesOr404(config, request, reply);
     if (series === null) return reply;
@@ -100,6 +110,11 @@ export const investorRoutes: FastifyPluginAsync<InvestorPluginOptions> = async (
     return reply.send(view);
   });
 };
+
+/** Every series, as a screen offering a choice reads it. */
+export function readSeriesList(config: InvestorConfig): SeriesListView {
+  return buildSeriesListView(config.network, config.series);
+}
 
 /** One series, as the investor screen reads it. */
 export async function readSeries(

@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util';
 import { ClaimClient, claimPacket, roleKeyHex, signClaimAttestation } from '@creance/client';
 
 import { loadApiConfig } from '../../src/config.js';
+import { seriesNamed } from './series-argument.js';
 
 /// `pnpm --filter @creance/api testnet:claim`
 ///
@@ -17,6 +18,7 @@ import { loadApiConfig } from '../../src/config.js';
 ///     --packet a|b            which committed packet, default a
 ///     --wait                  poll until the claim is decided
 ///     --url http://...        the API, default http://127.0.0.1:3210
+///     --series label          the series, default the first in the record
 ///
 /// Packet A is the clean redundancy that a reviewer approves and the pool pays.
 /// Packet B is the resignation, which the Adjuster declines on the statement
@@ -64,6 +66,7 @@ const { values } = parseArgs({
     url: { type: 'string' },
     wait: { type: 'boolean', default: false },
     holder: { type: 'string', default: 'policyholder-1' },
+    series: { type: 'string' },
   },
 });
 
@@ -76,7 +79,7 @@ const config = loadApiConfig();
 assert.equal(config.network, 'testnet', 'this run is testnet only');
 const operatorKey = process.env.HEDERA_OPERATOR_KEY;
 assert.ok(operatorKey, 'HEDERA_OPERATOR_KEY is not set, so the wallet cannot sign anything');
-const series = config.series[0];
+const series = seriesNamed(config, values.series);
 assert.ok(series, 'the deployment record has no registered series');
 
 const baseUrl = (values.url ?? process.env.CREANCE_API_URL ?? 'http://127.0.0.1:3210').replace(

@@ -79,6 +79,31 @@ describe('the API configuration under a copied example environment', () => {
     );
   });
 
+  it('reads every series in the record, the demo one first', () => {
+    stub(copiedExample());
+    const config = loadApiConfig();
+    // The demo series stays the head, because the testnet scripts and the
+    // Mini App entry both take the first series as their default.
+    expect(config.series[0]?.label).toBe('ODI-COMP-2026-01');
+    expect(config.series.length).toBeGreaterThan(1);
+    expect(config.series.map((series) => series.groupKey)).toContain('office_admin_support');
+    expect(new Set(config.series.map((series) => series.groupKey)).size).toBe(
+      config.series.length,
+    );
+  });
+
+  it('gives the investor endpoints the same series, with the holders who funded them', () => {
+    stub(copiedExample());
+    const config = loadInvestorConfig();
+    const demo = config.series.find((series) => series.label === 'ODI-COMP-2026-01');
+    const office = config.series.find((series) => series.label === 'ODI-OFFC-2026-01');
+    expect(demo?.holders.map((holder) => holder.role)).toEqual(['investor-1', 'investor-2']);
+    // The capacity runner seeds a new series from the operator, so that is
+    // the holder the investor screen has to show.
+    expect(office?.holders.map((holder) => holder.role)).toEqual(['operator']);
+    expect(office?.group).toBe('office_admin_support');
+  });
+
   it('lets a filled in value win over the record', () => {
     stub({ ...copiedExample(), HEDERA_COVERPOOL_ADDRESS: '0x00000000000000000000000000000000000f00d5' });
     expect(loadApiConfig().coverPoolAddress).toBe(

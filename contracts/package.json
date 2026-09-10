@@ -12,6 +12,7 @@
     "typecheck": "hardhat build && tsc --noEmit",
     "deploy": "tsx --env-file-if-exists=../.env scripts/deploy/all.ts",
     "deploy:step": "tsx --env-file-if-exists=../.env scripts/deploy/deploy.ts",
+    "series:capacity": "tsx --env-file-if-exists=../.env scripts/deploy/capacity.ts",
     "verify": "tsx --env-file-if-exists=../.env scripts/deploy/verify.ts",
     "test:testnet": "tsx --env-file-if-exists=../.env scripts/testnet/runthrough.ts",
     "hedera:schedule": "tsx --env-file-if-exists=../.env scripts/hedera/schedule-spike.ts",
@@ -37,6 +38,7 @@
   },
   "dependencies": {
     "@creance/client": "workspace:*",
+    "@creance/index-model": "workspace:*",
     "@hashgraph/asset-tokenization-contracts": "8.0.0",
     "@hiero-ledger/sdk": "2.87.0",
     "@openzeppelin/contracts": "5.6.1",

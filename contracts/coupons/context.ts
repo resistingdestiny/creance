@@ -4,7 +4,13 @@ import { Contract, JsonRpcProvider, Wallet, type InterfaceAbi } from 'ethers';
 import { ASSET_ABI } from '../ats/abi.js';
 import { CHAIN_ID, MIRROR_URL, RPC_URL, readResources, type HederaResources } from '../ats/config.js';
 import { deriveRoleKeyHex, labelForRole, normaliseRawKeyHex } from '../scripts/hedera/derive.js';
-import { readRecord, writeRecord, type DeploymentRecord } from '../scripts/deploy/record.js';
+import {
+  defaultSeries,
+  readRecord,
+  writeRecord,
+  type DeploymentRecord,
+  type SeriesRecord,
+} from '../scripts/deploy/record.js';
 import { ERC20_ABI, VAULT_ABI } from './abi.js';
 
 /// Everything a coupon settlement or a maturity redemption needs to reach the
@@ -142,20 +148,26 @@ export function noteContract(address: string, runner: Wallet | JsonRpcProvider):
   return new Contract(address, ASSET_ABI as InterfaceAbi, runner);
 }
 
+/**
+ * The demo series, which is the head of the record.
+ *
+ * The coupon and maturity scripts are the T14 demonstration and they run
+ * against that one series. The record carries every series now, so the head is
+ * named here rather than in each of them.
+ */
+export function demoSeries(record: DeploymentRecord): SeriesRecord {
+  const series = defaultSeries(record);
+  if (series === undefined) {
+    throw new Error('no series in the deployment record: run `pnpm contracts:deploy` first');
+  }
+  return series;
+}
+
 /** The note issued for the demo series, from the deployment record. */
 export function demoNoteAddress(record: DeploymentRecord): string {
-  const address = record.series?.ats?.note?.address;
+  const address = demoSeries(record).ats?.note?.address;
   if (address === undefined) {
     throw new Error('no note in the deployment record: run `pnpm ats:issue` first');
   }
   return address;
-}
-
-/** The demo series id, as the bytes32 the vault and the pool both take. */
-export function demoSeries(record: DeploymentRecord): { id: string; label: string } {
-  const series = record.series;
-  if (series === undefined) {
-    throw new Error('no series in the deployment record: run `pnpm contracts:deploy` first');
-  }
-  return { id: series.id, label: series.label };
 }

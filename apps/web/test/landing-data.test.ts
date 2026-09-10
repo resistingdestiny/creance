@@ -18,6 +18,7 @@ const fetchIndex = vi.fn();
 const fetchIndexCatalogue = vi.fn();
 const requestQuote = vi.fn();
 const fetchSeries = vi.fn();
+const fetchSeriesList = vi.fn();
 const readExplorer = vi.fn();
 const fetchReplay = vi.fn();
 
@@ -30,7 +31,8 @@ vi.mock('../src/lib/worker-api.js', async (importOriginal) => ({
 
 vi.mock('../src/lib/investor-api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/lib/investor-api.js')>()),
-  fetchSeries: () => fetchSeries(),
+  fetchSeries: (...args: unknown[]) => fetchSeries(...args),
+  fetchSeriesList: () => fetchSeriesList(),
 }));
 
 vi.mock('../src/lib/explorer-data.js', () => ({
@@ -81,6 +83,26 @@ beforeEach(() => {
     expires_at: new Date(QUOTE_LIFE_MS).toISOString(),
   });
   fetchSeries.mockReset().mockResolvedValue(SERIES);
+  // The coupon line names the head of GET /v1/series rather than a constant,
+  // and both calls sit inside the same hold, so a hundred views buy one of
+  // each.
+  fetchSeriesList.mockReset().mockResolvedValue({
+    network: 'testnet',
+    count: 1,
+    series: [
+      {
+        series_id: SERIES.series_id,
+        series_key: SERIES.series_key,
+        group: SERIES.group,
+        matures_at: SERIES.vault.matures_at,
+        has_note: true,
+        links: {
+          self: `/v1/series/${SERIES.series_id}`,
+          coupons: `/v1/series/${SERIES.series_id}/coupons`,
+        },
+      },
+    ],
+  });
   readExplorer.mockReset().mockResolvedValue({
     occupations: [],
     missing: [],
@@ -103,6 +125,7 @@ describe('what a hundred page views cost', () => {
     expect(fetchIndex).toHaveBeenCalledTimes(1);
     expect(requestQuote).toHaveBeenCalledTimes(1);
     expect(fetchSeries).toHaveBeenCalledTimes(1);
+    expect(fetchSeriesList).toHaveBeenCalledTimes(1);
   });
 
   it('is one reading and one quote when they arrive one after another', async () => {

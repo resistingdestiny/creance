@@ -59,10 +59,18 @@ describe('the occupation picker rows', () => {
     );
   });
 
-  it('has one occupation with capacity behind it today', () => {
+  it('has capacity behind every occupation, one series each', () => {
     const covered = OCCUPATIONS.filter(hasCover);
-    expect(covered.map((row) => row.key)).toEqual(['computer_math']);
-    expect(covered[0]?.series).toBe('ODI-COMP-2026-01');
+    expect(covered).toHaveLength(OCCUPATIONS.length);
+    expect(findOccupation('computer_math')?.series).toBe('ODI-COMP-2026-01');
+    // The copy deck's worked example, which could not be bought until T39.
+    expect(findOccupation('office_admin_support')?.series).toBe('ODI-OFFC-2026-01');
+  });
+
+  it('gives every occupation a series of its own', () => {
+    const series = OCCUPATIONS.map((row) => row.series);
+    expect(new Set(series).size).toBe(OCCUPATIONS.length);
+    for (const label of series) expect(label).toMatch(/^ODI-[A-Z]{4}-2026-01$/);
   });
 
   it('marks the two occupations whose claims have never opened since 2010', () => {
@@ -98,18 +106,31 @@ describe('the search field', () => {
 });
 
 describe('groupOccupations', () => {
-  it('puts what can be bought first and sinks the rest, in the addendum order inside each part', () => {
+  it('puts every occupation in the open part, because all fifteen have a series', () => {
     const groups = groupOccupations(OCCUPATIONS);
-    expect(groups.open.map((row) => row.key)).toEqual(['computer_math']);
-    expect(groups.noCover).toHaveLength(14);
-    expect(groups.noCover[0]?.key).toBe('office_admin_support');
-    expect(groups.noCover.at(-1)?.key).toBe('farming_fishing_forestry');
+    expect(groups.open).toHaveLength(15);
+    expect(groups.open[0]?.key).toBe('office_admin_support');
+    expect(groups.open.at(-1)?.key).toBe('farming_fishing_forestry');
+    expect(groups.noCover).toHaveLength(0);
   });
 
-  it('groups a filtered list, so a search matching only unbuyable rows still shows them', () => {
+  it('still sinks an occupation with no series under the second part', () => {
+    // Nothing in the catalogue has a null series now. The partition is what
+    // T38 added and it has to keep working the day a series is retired, so it
+    // is exercised against a list built for it rather than the catalogue.
+    const withCover = OCCUPATIONS[1]!;
+    const groups = groupOccupations([
+      { ...OCCUPATIONS[0]!, key: 'no_series', series: null },
+      withCover,
+    ]);
+    expect(groups.open.map((row) => row.key)).toEqual([withCover.key]);
+    expect(groups.noCover.map((row) => row.key)).toEqual(['no_series']);
+  });
+
+  it('groups a filtered list, keeping the order the filter returned', () => {
     const groups = groupOccupations(filterOccupations('legal'));
-    expect(groups.open).toHaveLength(0);
-    expect(groups.noCover.map((row) => row.key)).toEqual(['legal']);
+    expect(groups.open.map((row) => row.key)).toEqual(['legal']);
+    expect(groups.noCover).toHaveLength(0);
   });
 });
 

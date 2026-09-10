@@ -69,29 +69,33 @@ const { INDEX } = await import('./worker-fixtures.js');
 afterEach(cleanup);
 
 describe('the occupation picker', () => {
-  it('puts the one that can be bought first and the fourteen under their own heading', () => {
+  it('puts all fifteen under the open heading, with no empty second heading', () => {
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('What do you do?');
     const rows = screen.getAllByRole('button').filter((node) => node.textContent !== 'Continue');
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.textContent).toContain('Computer and mathematical');
-    expect(screen.getByText('Open to buy (1)')).toBeTruthy();
-    expect(screen.getByText('No cover behind these yet (14)')).toBeTruthy();
+    // T38 grouped the list when one occupation was buyable and fourteen were
+    // not. Every one carries a series now, so the open group holds all fifteen
+    // and the no cover group is not rendered at all.
+    expect(rows).toHaveLength(15);
+    expect(rows[0]?.textContent).toContain('Office and administrative support');
+    expect(screen.getByText('Open to buy (15)')).toBeTruthy();
+    expect(screen.queryByText(/No cover behind these yet/)).toBeNull();
     expect(screen.getByText('Office and administrative support')).toBeTruthy();
     expect(screen.getByText('Farming, fishing and forestry')).toBeTruthy();
   });
 
-  it('offers only the occupation with a series behind it', () => {
+  it('offers every occupation, because every one has a series behind it', () => {
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
     const selectable = screen
       .getAllByRole('button')
       .filter((node) => node.textContent !== 'Continue');
-    expect(selectable[0]?.textContent).toContain('Computer and mathematical');
+    expect(selectable[0]?.textContent).toContain('Office and administrative support');
+    expect(selectable).toHaveLength(OCCUPATIONS.length);
   });
 
-  it('says why the other fourteen cannot be chosen', () => {
+  it('has nothing left to say cannot be chosen', () => {
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
-    expect(screen.getAllByText(/No cover behind this occupation yet\./)).toHaveLength(14);
+    expect(screen.queryAllByText(/No cover behind this occupation yet\./)).toHaveLength(0);
   });
 
   it('carries the honest line for the two that have never opened since 2010', () => {

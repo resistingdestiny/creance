@@ -18,7 +18,15 @@ import {
   isLongZero,
   readResources,
 } from './config.js';
-import { readRecord, recordPath, writeRecord, type ContractRecord, type DeploymentRecord } from './record.js';
+import {
+  findSeries,
+  readRecord,
+  recordPath,
+  upsertSeries,
+  writeRecord,
+  type ContractRecord,
+  type DeploymentRecord,
+} from './record.js';
 
 const STEPS = ['status', 'vault', 'associate', 'pool', 'wire', 'roles', 'series'] as const;
 type Step = (typeof STEPS)[number];
@@ -280,7 +288,7 @@ async function registerSeries(record: DeploymentRecord, deployer: Wallet) {
     exhaustionShock: EXHAUSTION_SHOCK.toString(),
     payoutMode: 'full',
     maturityAt,
-    ...record.series,
+    ...findSeries(record, SERIES_LABEL),
   };
 
   if (existing.maturityAt === 0n) {
@@ -324,7 +332,7 @@ async function registerSeries(record: DeploymentRecord, deployer: Wallet) {
   } else {
     console.log('series already registered in the pool');
   }
-  record.series = series;
+  upsertSeries(record, series);
 }
 
 function required<T>(value: T | undefined, message: string): T {

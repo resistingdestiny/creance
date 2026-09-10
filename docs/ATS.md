@@ -5,6 +5,12 @@ Tokenization Studio bond, deployed by the ATS testnet factory on Hedera testnet
 on 4 September 2026. This file is the run through: what was sent, what came
 back, and what each step proves. `pnpm ats:issue` reproduces all of it.
 
+Every occupation group now has a note of its own, fifteen in all, deployed by
+the same factory against the same resolver on 10 September 2026. Section 16
+lists them and says which of the steps below each one runs and why the rest
+are not repeated. `pnpm ats:issue <step> <series>` runs a step against any of
+them; with no arguments it is the demo series and does exactly what it did.
+
 ## The note
 
 | Field | Value |
@@ -431,6 +437,64 @@ redeeming there receives their share of the remaining principal and not of the
 funded principal, which is the arithmetic
 `subscribed * (principalFunded - principalPaid) / principalFunded`.
 
+### 16. One note per occupation group
+
+T39 issued the remaining fourteen. Sections 1 to 14 above are the run through
+that proved the ATS surface once, on `ODI-COMP-2026-01`: the throwaway probe
+that found the supply cap encoding, the blocked transfer, the pause, the
+freeze, the coupon and the entitlement. None of that is repeated per series.
+Repeating a compliance demonstration fourteen times proves nothing it has not
+already proved and costs about 100 HBAR in factory deploys.
+
+What each new series runs is the issue path and nothing else, five steps:
+
+1. `deployBond` on the factory, at the vault's own maturity so the note and
+   the vault agree on the day the principal comes back.
+2. `grantRole` for `ROLE_SSI_MANAGER`, `ROLE_KYC` and `ROLE_ISSUER`, which are
+   the three the issue path needs. `ROLE_PAUSER`, `ROLE_FREEZE_MANAGER`,
+   `ROLE_CORPORATE_ACTION`, `ROLE_MATURITY_REDEEMER` and
+   `ROLE_MATURITY_MANAGER` are left ungranted; the diamond owner can grant
+   them if a series ever needs to pause, freeze, declare a coupon or redeem.
+3. `addIssuer` for the operator, which has to land before any KYC grant.
+4. `grantKyc` for the operator, under a credential this build signs with the
+   operator key and verifies before sending.
+5. `issueByPartition` of the whole supply to the operator.
+
+The operator is the holder because the operator's own settlement tokens are
+the 25,000 sitting in the vault for that series. Minting the supply to an
+account that had paid nothing would put a principal on the investor screen
+that no collateral stands behind, which is the exact disagreement between the
+note and the vault that T14 had to go back and fix on the demo series.
+
+Every step is guarded by what the chain already says, so `pnpm series:capacity
+notes` can be run again and does nothing. The whole pass is separate from
+opening and funding the series, so a factory failure leaves the cover buyable:
+the failure is written to `noteFailure` on the series in
+`contracts/deployments/testnet.json`, the run carries on to the next series
+and exits non-zero at the end.
+
+| Series | Note | Symbol | ISIN | Deploy | Supply |
+|---|---|---|---|---|---|
+| `ODI-OFFC-2026-01` | [0.0.10455865](https://hashscan.io/testnet/contract/0.0.10455865) | `CDBN02` | `ZZODIO2YVO83` | [deploy](https://hashscan.io/testnet/transaction/0xa68e5dacff2c71120bee01613e575ff67ce14966004866878e999b6304458bf6) | [mint](https://hashscan.io/testnet/transaction/0xda9f680427797ed9d506972e4de3ea6ede918b8739a6b3eecafb3517a28ad4d8) |
+| `ODI-TRAN-2026-01` | [0.0.10455878](https://hashscan.io/testnet/contract/0.0.10455878) | `CDBN03` | `ZZODIT4S5XQ5` | [deploy](https://hashscan.io/testnet/transaction/0x5315f0ffb52801207e6dcaff20c9aef20c6947dc5a63f9069201788812f52a67) | [mint](https://hashscan.io/testnet/transaction/0x700e53c405bfd7346274b9ef61d4356c7ad505f95d1257f6c05063b37bb5d540) |
+| `ODI-PROD-2026-01` | [0.0.10455885](https://hashscan.io/testnet/contract/0.0.10455885) | `CDBN04` | `ZZODIP2IBWS5` | [deploy](https://hashscan.io/testnet/transaction/0x88a408c69fd821bc48192f799a6ffe75da418f2bef23d37415de1b19bd70a996) | [mint](https://hashscan.io/testnet/transaction/0x02a0379ed8a841aad569ceb47bbc037abb66146a39d46a3f8bd708bc677599f3) |
+| `ODI-SALE-2026-01` | [0.0.10455893](https://hashscan.io/testnet/contract/0.0.10455893) | `CDBN05` | `ZZODIS626A18` | [deploy](https://hashscan.io/testnet/transaction/0xea814aa0cf098831760b18e8d0424f50c841f8a6a429a26ae72170bc0b29e7b1) | [mint](https://hashscan.io/testnet/transaction/0xb3e19d522147d08fc030ee1fa1b7536c659f48c184eae84fa9f91610c631b1cd) |
+| `ODI-MGMT-2026-01` | [0.0.10455899](https://hashscan.io/testnet/contract/0.0.10455899) | `CDBN06` | `ZZODIM5N1CL8` | [deploy](https://hashscan.io/testnet/transaction/0xe66de6ee07adc3f945dd7ec2b139a10320cda928b0e43025947bee263b646e55) | [mint](https://hashscan.io/testnet/transaction/0xbcd788f74f5b30985d8407606719394f4f2a4950ebfb993ec9cb1302d572f4ec) |
+| `ODI-PROF-2026-01` | [0.0.10455905](https://hashscan.io/testnet/contract/0.0.10455905) | `CDBN07` | `ZZODIP1EHRA1` | [deploy](https://hashscan.io/testnet/transaction/0xe501c12251996f57651b04281d8980434e7683b855e60d2b3b9f5971b603e7cd) | [mint](https://hashscan.io/testnet/transaction/0xffa1ee9b1cb2c436146f74362d79835633ea37956120911d4838eeae31570a9c) |
+| `ODI-SERV-2026-01` | [0.0.10455909](https://hashscan.io/testnet/contract/0.0.10455909) | `CDBN08` | `ZZODIS20K0K3` | [deploy](https://hashscan.io/testnet/transaction/0x1c2b5185598244d906720378017f6d68f7bb9c3d8c05f5918addee7e234130b2) | [mint](https://hashscan.io/testnet/transaction/0x9e846011ee679f7bb76408b52253fb0a2d245f41b23a2bbec4f21d52419762f5) |
+| `ODI-CNST-2026-01` | [0.0.10455914](https://hashscan.io/testnet/contract/0.0.10455914) | `CDBN09` | `ZZODICAZC6P8` | [deploy](https://hashscan.io/testnet/transaction/0xa94c2c01e84d012caf17e0866ae494c9a63b95a265ad5e39648bf2062ae24f93) | [mint](https://hashscan.io/testnet/transaction/0xd422d9284e6a1c6f9849a5d30ac6004997f5c68b77e8eec96ab5d278fbd7bf8e) |
+| `ODI-INMR-2026-01` | [0.0.10455918](https://hashscan.io/testnet/contract/0.0.10455918) | `CDBN10` | `ZZODII5LN9D6` | [deploy](https://hashscan.io/testnet/transaction/0xe459df7374a824ac66a8fb45f1bc5e1c8c5a34a044b1b045c3e211f3f8780e9f) | [mint](https://hashscan.io/testnet/transaction/0xc4a85f4c923c43a6c740c274f39675785940ecc2fbb4bc7adab1e46eafa06a8f) |
+| `ODI-FARM-2026-01` | [0.0.10455929](https://hashscan.io/testnet/contract/0.0.10455929) | `CDBN11` | `ZZODIF56E7B7` | [deploy](https://hashscan.io/testnet/transaction/0xcb550dc4a6dc69ff6d23311415024dc73edc3511c9049662accf5cecee49eb8f) | [mint](https://hashscan.io/testnet/transaction/0xf394f85848fa5ea9eb8f87a81d553b84010f4312617ed0c21da796fa5ced7829) |
+| `ODI-BUSF-2026-01` | [0.0.10455942](https://hashscan.io/testnet/contract/0.0.10455942) | `CDBN12` | `ZZODIB2TT3Y9` | [deploy](https://hashscan.io/testnet/transaction/0xf6c7a0119f27b07243f9d82d8db019b18a7186779f84c3e785f34f671f7f34c7) | [mint](https://hashscan.io/testnet/transaction/0xbcadf92b74a70d479eee636a438c882e7115d23b38bf8630e93a3af5cc5182d6) |
+| `ODI-EDUC-2026-01` | [0.0.10455953](https://hashscan.io/testnet/contract/0.0.10455953) | `CDBN13` | `ZZODIE1GUVV0` | [deploy](https://hashscan.io/testnet/transaction/0x18a4cee40c7daf48770c9828ec356dfb951d27853b231fe30b085c1e48f1eb0c) | [mint](https://hashscan.io/testnet/transaction/0x203af61baef56c0945ac24e9289c49ca62528a2ef892fba87f26256a346904b2) |
+| `ODI-LEGL-2026-01` | [0.0.10456002](https://hashscan.io/testnet/contract/0.0.10456002) | `CDBN14` | `ZZODIL4NEPF0` | [deploy](https://hashscan.io/testnet/transaction/0x4b0fd1424a2abb05caefe2c019ac6ccaa8faa90f992a602f1299b98e542581f5) | [mint](https://hashscan.io/testnet/transaction/0x7d7ff59c71af3a247431dc0c72d839e9ab76af6db0f6eef40939907ba3b02f61) |
+| `ODI-ARTS-2026-01` | [0.0.10456012](https://hashscan.io/testnet/contract/0.0.10456012) | `CDBN15` | `ZZODIA11HVL8` | [deploy](https://hashscan.io/testnet/transaction/0x228fda038872384cab9546fba8aea1b8627dd1f5261c1f3a6656226abee5e765) | [mint](https://hashscan.io/testnet/transaction/0x1e3721e4753a98be40df6a62cb6e9852d6f280a05b214ddb7b3d7ad96215ce66) |
+
+Each note is 25 units of 1,000 nominal, principal 25,000, six decimals,
+internal KYC on, clearing off, not controllable, Regulation S: the same terms
+as the demo note at a quarter of the size. Configuration version and factory
+pair are the same for all fifteen and are on the record per series.
+
 ## The test ISIN
 
 `ZZODIC55S1Q6` is a **structurally valid test identifier, not a registered
@@ -442,7 +506,9 @@ and can therefore never be issued by a national numbering agency, then the four
 leading alphanumerics of the series label, then five characters of the base36
 SHA-256 of the same label, then the check digit. The rule is in
 `contracts/ats/isin.ts` and its tests check the algorithm against published
-ISINs. Do not put this value on screen as though it were real.
+ISINs. Do not put this value on screen as though it were real. Every series has
+its own, derived the same way from its own label, and they are in the table in
+section 16.
 
 ## What "verified on HashScan" means for this note
 

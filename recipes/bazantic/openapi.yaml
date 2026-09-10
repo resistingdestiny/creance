@@ -463,6 +463,25 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /v1/series:
+    get:
+      tags:
+        - series
+      operationId: listSeries
+      summary: Every Displacement Bond Note series this deployment serves
+      description: |-
+        One series per occupation group that has capacity behind it. Free, and it
+        reads no chain state: ask for the one series you are going to show.
+
+        `has_note` is false where the series has capacity in the vault but no ATS
+        note yet. Cover is buyable either way.
+      responses:
+        '200':
+          description: The series.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeriesList'
   /v1/series/{seriesId}:
     get:
       tags:
@@ -1050,6 +1069,72 @@ components:
               type: string
             href:
               type: string
+    SeriesList:
+      type: object
+      description: >-
+        Every series this deployment serves, in the order they were issued. The first is the demo
+        series.
+      required:
+        - network
+        - count
+        - series
+      properties:
+        network:
+          type: string
+          example: testnet
+        count:
+          type: integer
+          example: 15
+        series:
+          type: array
+          items:
+            type: object
+            required:
+              - series_id
+              - series_key
+              - group
+              - matures_at
+              - has_note
+            properties:
+              series_id:
+                type: string
+                example: ODI-COMP-2026-01
+              series_key:
+                type: string
+                description: The bytes32 key the contracts take.
+                example: '0x4f44492d434f4d502d323032362d303100000000000000000000000000000000'
+              group:
+                type: string
+                enum:
+                  - management_business_financial
+                  - professional_related
+                  - service
+                  - sales_related
+                  - office_admin_support
+                  - farming_fishing_forestry
+                  - construction_extraction
+                  - installation_maintenance_repair
+                  - production
+                  - transportation_material_moving
+                  - computer_math
+                  - legal
+                  - arts_design_ent_media
+                  - business_financial_ops
+                  - education_training_library
+              matures_at:
+                type: string
+                format: date-time
+              has_note:
+                type: boolean
+              links:
+                type: object
+                properties:
+                  self:
+                    type: string
+                    example: /v1/series/ODI-COMP-2026-01
+                  coupons:
+                    type: string
+                    example: /v1/series/ODI-COMP-2026-01/coupons
     Series:
       type: object
       description: >-

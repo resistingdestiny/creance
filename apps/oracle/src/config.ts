@@ -59,7 +59,7 @@ interface DeploymentFile {
   network?: string;
   collateralVault?: { address: string };
   coverPool?: { address: string };
-  series?: { id: string; label: string; group: string };
+  series?: { id: string; label: string; group: string }[];
 }
 
 /** docs/hedera.testnet.json, what `pnpm hedera:setup` wrote on day 0. */
@@ -128,14 +128,15 @@ export function loadOracleConfig(options: LoadOptions = {}): OracleConfig {
     throw new Error(`refusing to run against ${network}: this build is testnet only`);
   }
 
-  const series: OracleSeries[] = [];
-  if (record.series !== undefined) {
-    series.push({
-      label: record.series.label,
-      seriesId: fromEnv(vars, 'HEDERA_SERIES_ID') ?? record.series.id,
-      groupKey: record.series.group,
-    });
-  }
+  // `HEDERA_SERIES_ID` repoints the demo series, which is the head of the
+  // record. It predates the record carrying more than one series and it has
+  // never named which one it meant.
+  const seriesIdOverride = fromEnv(vars, 'HEDERA_SERIES_ID');
+  const series: OracleSeries[] = (record.series ?? []).map((entry, index) => ({
+    label: entry.label,
+    seriesId: (index === 0 ? seriesIdOverride : undefined) ?? entry.id,
+    groupKey: entry.group,
+  }));
 
   return {
     network,

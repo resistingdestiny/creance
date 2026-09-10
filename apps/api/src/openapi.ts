@@ -37,6 +37,7 @@ export const OPERATIONS = [
   'POST /v1/bind',
   'GET /v1/policy/{policyId}',
   'GET /v1/audit/{policyId}',
+  'GET /v1/series',
   'GET /v1/series/{seriesId}',
   'GET /v1/series/{seriesId}/coupons',
 ] as const;
@@ -318,6 +319,28 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
             },
             '400': problemResponse('`bad_id_prefix`: that is not a policy id.'),
             '404': problemResponse('`policy_not_found`.'),
+          },
+        },
+      },
+      '/v1/series': {
+        get: {
+          tags: ['series'],
+          operationId: 'listSeries',
+          summary: 'Every Displacement Bond Note series this deployment serves',
+          description: [
+            'One series per occupation group that has capacity behind it. Free, and it',
+            'reads no chain state: ask for the one series you are going to show.',
+            '',
+            '`has_note` is false where the series has capacity in the vault but no ATS',
+            'note yet. Cover is buyable either way.',
+          ].join('\n'),
+          responses: {
+            '200': {
+              description: 'The series.',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/SeriesList' } },
+              },
+            },
           },
         },
       },
@@ -631,6 +654,42 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
             premium_schedule: {
               type: 'object',
               properties: { status: { type: 'string' }, href: { type: 'string' } },
+            },
+          },
+        },
+        SeriesList: {
+          type: 'object',
+          description:
+            'Every series this deployment serves, in the order they were issued. The first is the demo series.',
+          required: ['network', 'count', 'series'],
+          properties: {
+            network: { type: 'string', example: 'testnet' },
+            count: { type: 'integer', example: 15 },
+            series: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['series_id', 'series_key', 'group', 'matures_at', 'has_note'],
+                properties: {
+                  series_id: { type: 'string', example: 'ODI-COMP-2026-01' },
+                  series_key: {
+                    type: 'string',
+                    description: 'The bytes32 key the contracts take.',
+                    example:
+                      '0x4f44492d434f4d502d323032362d303100000000000000000000000000000000',
+                  },
+                  group: { type: 'string', enum: GROUP_KEYS },
+                  matures_at: { type: 'string', format: 'date-time' },
+                  has_note: { type: 'boolean' },
+                  links: {
+                    type: 'object',
+                    properties: {
+                      self: { type: 'string', example: '/v1/series/ODI-COMP-2026-01' },
+                      coupons: { type: 'string', example: '/v1/series/ODI-COMP-2026-01/coupons' },
+                    },
+                  },
+                },
+              },
             },
           },
         },

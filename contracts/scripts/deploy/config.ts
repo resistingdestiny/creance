@@ -12,6 +12,22 @@ export const ATTACHMENT_SHOCK = 20_000n;
 export const LEVEL_LINE = -6_800n;
 export const EXHAUSTION_SHOCK = 40_000n;
 
+/// Points to the chain's scale. Every threshold on CoverPool is a signed
+/// int64 at 1e4, so 2.0 points is 20000 and -0.68 points is -6800. Rounded
+/// rather than truncated because -0.68 times 10000 is not -6800 in binary
+/// floating point.
+export const POINT_SCALE = 10_000;
+
+export function toScaledPoints(points: number): bigint {
+  return BigInt(Math.round(points * POINT_SCALE));
+}
+
+/// Exhaustion as a multiple of the attachment. It only matters to the optional
+/// indexed payout mode (DESIGN.md 3.3) and every series this build registers
+/// is full payout, so it is a fixed multiple rather than a calibrated value.
+/// Two is what the demo series carries on chain: 4.0 points against 2.0.
+export const EXHAUSTION_MULTIPLE = 2n;
+
 const DAY = 24 * 60 * 60;
 
 export const SERIES_TERMS = {
@@ -37,6 +53,12 @@ export const GAS = {
   openSeries: 300_000,
   registerSeries: 600_000,
   setCoverPool: 200_000,
+  /// The three calls that fund a series' capacity. An HTS transfer or approve
+  /// through the ERC-20 facade is priced by converting a USD cost to gas, so
+  /// it is orders of magnitude dearer than a storage write.
+  transfer: 2_000_000,
+  approve: 2_000_000,
+  subscribe: 1_500_000,
 };
 
 export interface HederaResources {

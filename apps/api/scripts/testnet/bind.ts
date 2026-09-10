@@ -4,6 +4,7 @@ import { randomInt } from 'node:crypto';
 import { decodeJsonMessage, MirrorClient, pollMirror } from '@creance/client';
 
 import { loadApiConfig } from '../../src/config.js';
+import { chosenGroup } from './series-argument.js';
 import { createPool, PostgresRepository } from '../../src/db/postgres.js';
 import { migrate } from '../../src/db/migrate.js';
 import { buildServer } from '../../src/server.js';
@@ -74,7 +75,7 @@ async function main(): Promise<void> {
   const written = await backfillObservations(app.services);
   console.log(`observations loaded from the archive: ${written} new`);
 
-  const groupKey = config.series[0]?.groupKey;
+  const groupKey = chosenGroup(config);
   assert.ok(groupKey, 'the deployment record has no registered series');
 
   // 1. The index feed, which is what the Steward buys and what prices the quote.
@@ -149,11 +150,22 @@ async function main(): Promise<void> {
   assert.equal(receipt['limit'], LIMIT);
   console.log(`receipt read back at sequence ${message.sequence_number}: ${JSON.stringify(receipt)}`);
 
-  // The outcome message resolves the binding one. It is the next sequence
-  // number, because nothing else writes to this topic during the run.
-  const outcome = await pollMirror(`the outcome message`, () =>
-    mirror.topicMessage(policy.hcs_receipt.topic_id, policy.hcs_receipt.sequence_number + 1),
-  );
+  // The outcome message resolves the binding one. It is found by reading
+  // forward from the receipt and matching the policy, not by taking the next
+  // sequence number: the payments topic carries every settlement this
+  // deployment makes, so anything else running writes between the two.
+  const outcome = await pollMirror(`the outcome message`, async () => {
+    const window = await mirror.topicMessagesFrom(
+      policy.hcs_receipt.topic_id,
+      policy.hcs_receipt.sequence_number + 1,
+    );
+    return (
+      window.find((candidate) => {
+        const body = decodeJsonMessage<Record<string, unknown>>(candidate);
+        return body['kind'] === 'policy' && body['policy'] === policy.policy_id;
+      }) ?? null
+    );
+  });
   const resolved = decodeJsonMessage<Record<string, unknown>>(outcome);
   assert.equal(resolved['status'], 'bound');
   assert.equal(resolved['receiptSeq'], policy.hcs_receipt.sequence_number);

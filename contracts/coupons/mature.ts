@@ -6,6 +6,7 @@ import { testIsinFor } from '../ats/isin.js';
 import { GAS, MATURITY_LEAD_SECONDS } from './config.js';
 import {
   demoNoteAddress,
+  demoSeries,
   noteContract,
   openCouponContext,
   type CouponContext,
@@ -110,7 +111,7 @@ async function bond(context: CouponContext): Promise<void> {
     console.log(`  note ${demo.note.address} already deployed`);
     return;
   }
-  const ats = context.record.series?.ats;
+  const ats = demoSeries(context.record).ats;
   if (ats?.configVersion === undefined) {
     throw new Error('no ATS configuration version recorded: run `pnpm ats:issue` first');
   }

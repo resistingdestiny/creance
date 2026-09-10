@@ -2,7 +2,7 @@ import { TopicMessageSubmitTransaction } from '@hiero-ledger/sdk';
 import { hashscanUrl, scheduleContractCall, waitForExecution } from '@creance/client';
 
 import { contractIdOf, send } from '../ats/chain.js';
-import type { DeploymentRecord } from '../scripts/deploy/record.js';
+import type { DeploymentRecord, SeriesRecord } from '../scripts/deploy/record.js';
 import { EXECUTION_POLL, GAS, PROBE_LEAD_SECONDS, SCHEDULE_LEAD_SECONDS } from './config.js';
 import {
   demoNoteAddress,
@@ -71,9 +71,9 @@ function hbarAmount(value: string | null): string | undefined {
 }
 
 function couponMeta(record: DeploymentRecord): NonNullable<
-  NonNullable<NonNullable<DeploymentRecord['series']>['ats']>['coupon']
+  NonNullable<SeriesRecord['ats']>['coupon']
 > {
-  const coupon = record.series?.ats?.coupon;
+  const coupon = demoSeries(record).ats?.coupon;
   if (coupon === undefined) {
     throw new Error('no coupon declared on the note: run `pnpm ats:issue coupon` first');
   }
@@ -84,8 +84,7 @@ function couponMeta(record: DeploymentRecord): NonNullable<
 /// step can write into the same entry.
 function settlementOf(context: CouponContext): CouponSettlementRecord {
   const record = context.record;
-  const series = record.series;
-  if (series === undefined) throw new Error('no series in the deployment record');
+  const series = demoSeries(record);
   const coupon = couponMeta(record);
   series.couponSettlements ??= {};
   series.couponSettlements[coupon.id] ??= {
@@ -370,8 +369,6 @@ async function seed(context: CouponContext): Promise<void> {
  */
 async function subscribe(context: CouponContext): Promise<void> {
   const series = demoSeries(context.record);
-  const record = context.record.series;
-  if (record === undefined) throw new Error('no series in the deployment record');
 
   for (const investor of context.investors) {
     const subscription = await subscribeInvestor(

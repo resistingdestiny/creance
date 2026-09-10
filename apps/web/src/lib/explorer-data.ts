@@ -13,14 +13,20 @@
  * 0.01 TUSD per call whatever history it carries, so five years for a chart is
  * one call and not sixty. See apps/api/src/routes/index-feed.ts.
  *
- * And the round of fifteen is cached in module memory for TTL_MS, behind a
- * single in-flight promise. Without it every page view would pay fifteen times
- * and two viewers arriving together would pay thirty. This is a departure from
+ * And the round of fifteen is held in module memory for TTL_MS, behind a single
+ * in-flight promise. Without it every page view would pay fifteen times and two
+ * viewers arriving together would pay thirty. This is a departure from
  * src/lib/api.ts's rule that nothing is cached, and it is deliberate: the index
  * publishes once a month, so a reading a few minutes old is the same reading,
  * and the page prints the month it is showing and the moment it read it. The
  * one thing never cached is the replay badge, because the demo clock moves in
  * ten second steps and a stale badge would be a lie about what is on screen.
+ *
+ * The hold itself is src/lib/held-read.ts, which the landing page's own reads
+ * use too (T40). It is the same two windows for both pages: TTL_MS, then
+ * STALE_MS in which the round already bought is served while the next one is
+ * bought behind the reader, so nobody waits ten seconds for a round because
+ * they happened to arrive a moment after an expiry.
  *
  * T33's live ticker takes the same fifteen readings: call `readExplorerIndex`
  * and it will hit this cache rather than pay again.
@@ -30,6 +36,7 @@ import { reportUnreachable } from './api';
 import { fetchReplay } from './claim-api';
 import { replayBadgeLabel } from './claim-model';
 import { explorerOccupation, hashscanTopicUrl, type ExplorerOccupation } from './explorer-model';
+import { heldRead } from './held-read';
 import { OCCUPATIONS } from './occupations';
 import {
   fetchIndex,
@@ -43,6 +50,14 @@ export const EXPLORER_MONTHS = 60;
 
 /** How long a round of fifteen readings stands before it is bought again. */
 export const TTL_MS = 10 * 60 * 1000;
+
+/**
+ * How long past that the round already bought is served while the next one is
+ * bought behind the reader. Fifteen paid reads take about ten seconds cold, so
+ * this is the difference between one reader in every ten minutes waiting for
+ * them and none.
+ */
+export const STALE_MS = 5 * 60 * 1000;
 
 /**
  * How many paid reads are in flight at once. The gate settles each one through
@@ -76,23 +91,24 @@ export interface ExplorerData {
   readonly readAt: string;
 }
 
-/** One round of paid reads, as it sits in the cache. */
+/** One round of paid reads, as it sits in the hold. */
 export interface ExplorerRound {
-  /** When the round was bought, as a monotonic-enough epoch for the TTL. */
-  readonly at: number;
   readonly readings: readonly IndexView[];
   readonly missing: readonly string[];
   readonly catalogue: IndexCatalogueView | null;
   readonly readAt: string;
 }
 
-let round: ExplorerRound | null = null;
-let inFlight: Promise<ExplorerRound> | null = null;
+const rounds = heldRead({
+  what: 'the index explorer round',
+  ttlMs: TTL_MS,
+  staleMs: STALE_MS,
+  read: buyRound,
+});
 
-/** Tests only. A module-level cache outlives a test file otherwise. */
+/** Tests only. A module-level hold outlives a test file otherwise. */
 export function forgetExplorerRound(): void {
-  round = null;
-  inFlight = null;
+  rounds.forget();
 }
 
 /**
@@ -118,13 +134,8 @@ export async function readExplorer(now: number = Date.now()): Promise<ExplorerDa
  * anything else on a public page reuses the same round rather than paying for
  * its own.
  */
-export async function readExplorerIndex(now: number = Date.now()): Promise<ExplorerRound> {
-  if (round !== null && now - round.at < TTL_MS) return round;
-  inFlight ??= buyRound().finally(() => {
-    inFlight = null;
-  });
-  round = await inFlight;
-  return round;
+export function readExplorerIndex(now: number = Date.now()): Promise<ExplorerRound> {
+  return rounds.read(now);
 }
 
 async function buyRound(): Promise<ExplorerRound> {
@@ -149,7 +160,6 @@ async function buyRound(): Promise<ExplorerRound> {
   readings.sort((left, right) => keys.indexOf(left.group) - keys.indexOf(right.group));
 
   return {
-    at: Date.now(),
     readings,
     missing,
     catalogue: await readCatalogue(),

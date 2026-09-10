@@ -183,7 +183,7 @@ describe('the degraded index section', () => {
   it('shows the note and no figure when nothing has ever been published here', () => {
     const text = visibleText(cold);
     expect(text).toContain('The live feed is not answering, so there is no reading to show.');
-    expect(COLD.explorer).toBeNull();
+    expect(COLD.explorer.round).toBeNull();
     // No chart, no reading, and above all no zero standing in for one.
     expect(cold).not.toContain('data-testid="explorer-chart-line"');
     expect(text).not.toContain('0.00');
@@ -275,7 +275,7 @@ describe('the ticker of occupation readings', () => {
   );
 
   it('carries all fifteen groups twice, so the loop closes on itself', () => {
-    expect(LIVE.ticker).toHaveLength(15);
+    expect(LIVE.explorer.ticker).toHaveLength(15);
     expect(labels).toHaveLength(30);
     expect(labels.slice(0, 15)).toStrictEqual(labels.slice(15));
   });
@@ -311,7 +311,9 @@ describe('the ticker of occupation readings', () => {
   });
 
   it('is absent altogether when no reading could be bought', () => {
-    const markup = renderToStaticMarkup(<LandingScreen data={{ ...LIVE, ticker: [] }} />);
+    const markup = renderToStaticMarkup(
+      <LandingScreen data={{ ...LIVE, explorer: { ...LIVE.explorer, ticker: [] } }} />,
+    );
     expect(markup).not.toContain('landing-ticker');
   });
 });
@@ -333,16 +335,16 @@ describe('the public index explorer, on the front door', () => {
   });
 
   it('says where the same figures can be read without trusting the page', () => {
-    expect(live).toContain(LIVE.explorer!.provenance.hashscan!);
-    expect(visibleText(live)).toContain(LIVE.explorer!.provenance.source);
+    expect(live).toContain(LIVE.explorer.round!.provenance.hashscan!);
+    expect(visibleText(live)).toContain(LIVE.explorer.round!.provenance.source);
   });
 
   it('buys nothing of its own: the page shows the round the explorer bought', () => {
     // src/lib/landing-data.ts asks readExplorer for it, which holds one round
     // for ten minutes behind a single in-flight promise, and words the ticker
     // from the same fifteen readings rather than reading a sixteenth.
-    expect(LIVE.explorer!.occupations).toHaveLength(15);
-    expect(LIVE.ticker).toHaveLength(15);
+    expect(LIVE.explorer.round!.occupations).toHaveLength(15);
+    expect(LIVE.explorer.ticker).toHaveLength(15);
   });
 });
 

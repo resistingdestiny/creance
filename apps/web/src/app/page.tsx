@@ -13,9 +13,11 @@ import { readLanding } from '../lib/landing-data';
  * one when there is none, so the four routes that send a visitor here when
  * their session is missing still land on a page that can start one.
  *
- * Dynamic and uncached, because the price, the reading and the demo clock on it
- * are live state and a front door that shows yesterday's premium is worse than
- * one that shows no premium.
+ * Dynamic, because the price, the reading and the demo clock on it are live
+ * state and none of them may be baked into a build. It is not awaited: the
+ * figures are read behind a short hold and handed to the page as promises, so
+ * the shell is on the first byte and each figure arrives in its own place
+ * (T40). Nothing here is a fixture and nothing is a build time constant.
  *
  * T37 brought the World check and the payment onto it too, so it now needs the
  * one thing /verify needed from the server: whether this deployment has a World
@@ -25,6 +27,6 @@ import { readLanding } from '../lib/landing-data';
 
 export const dynamic = 'force-dynamic';
 
-export default async function Landing() {
-  return <LandingScreen data={await readLanding()} interim={isInterimIssuer()} />;
+export default function Landing() {
+  return <LandingScreen data={readLanding()} interim={isInterimIssuer()} />;
 }

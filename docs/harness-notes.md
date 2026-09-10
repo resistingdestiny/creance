@@ -2573,3 +2573,33 @@ So anything an acceptance asks to be confirmed on iOS Safari cannot be confirmed
 by an agent on this host, and Playwright's WebKit would not have settled it
 anyway: it does not reproduce iOS viewport height behaviour or the mobile
 compositor. T36 needed this and left it to Root on a real device.
+
+## The x402 gate's settle is the whole latency of a paid call, 10 September 2026
+
+The Hedera exact scheme is documented as verify, then the handler, then settle,
+and nothing in the scheme or in the facilitator's reference says what settle
+costs in wall clock. It costs consensus, on the response path, every time.
+
+Measured against this build's own API on Hedera testnet, from the API's own
+`responseTime` and from curl on the same host:
+
+    unpaid 402 challenge, GET /v1/index/{group}   0.7 ms median, n=36
+    free route, GET /v1/replay                    1.4 to 2.3 ms
+    free route, GET /v1/index (catalogue)         18.6 ms
+    paid 200, GET /v1/index/{group}               3,833 ms median, n=38
+    paid 201, POST /v1/quote                      4,175 ms median, n=2
+
+The unpaid challenge and the free routes are the same server doing the same
+work. Everything above three seconds is the settle, and it gets worse rather
+than better under concurrency: the same paid read was 2,468 ms when one client
+was measured on its own and 3,833 ms with five in flight through the same
+facilitator.
+
+The consequence for anything built on it is a client side rule, not a server
+side one. A paid call cannot be made fast, so a page that makes one per visitor
+is a page that is three seconds slow per visitor, and the only two things that
+help are buying once for a window rather than once per visitor, and never
+putting a person behind the call at all. Both are in
+apps/web/src/lib/held-read.ts and apps/web/src/app/page.tsx, and together they
+took this build's front door from 4.12 seconds to first byte to 12 milliseconds
+without removing a single real payment.

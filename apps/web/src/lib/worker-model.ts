@@ -404,3 +404,13 @@ export function bindMessage(cause: unknown): string {
       return fallback;
   }
 }
+
+/**
+ * A check of a kind this deployment does not accept, told apart from a check
+ * that simply failed. It lives here rather than in a server action module
+ * because both the claim path and the sign in path need it, and every export of
+ * a 'use server' file has to be an async function. T42.
+ */
+export function wrongKind(cause: unknown): boolean {
+  return cause instanceof ApiError && cause.code === 'world_credential_unaccepted';
+}

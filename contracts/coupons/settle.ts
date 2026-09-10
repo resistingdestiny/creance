@@ -2,7 +2,8 @@ import { TopicMessageSubmitTransaction } from '@hiero-ledger/sdk';
 import { hashscanUrl, scheduleContractCall, waitForExecution } from '@creance/client';
 
 import { contractIdOf, send } from '../ats/chain.js';
-import type { DeploymentRecord, SeriesRecord } from '../scripts/deploy/record.js';
+import type { AtsCouponRecord } from '../ats/record.js';
+import type { DeploymentRecord } from '../scripts/deploy/record.js';
 import { EXECUTION_POLL, GAS, PROBE_LEAD_SECONDS, SCHEDULE_LEAD_SECONDS } from './config.js';
 import {
   demoNoteAddress,
@@ -39,6 +40,15 @@ import { fundAccounts, tokenBalanceOf } from './vault.js';
 /// contracts/deployments/testnet.json, skips what is already there and writes
 /// back what it did, so a relay timeout half way through is recovered by
 /// running the same command again.
+///
+/// The coupon is the second argument, or the `COUPON_ID` environment variable.
+/// With neither it is the earliest declared coupon that is payable and not yet
+/// settled, so a note that has declared three periods and paid one is caught up
+/// by running the command again.
+///
+///     pnpm coupons:pay              the period that is owed, every step
+///     pnpm coupons:pay all 3        one named coupon
+///     pnpm coupons:pay status       what the chain says, no transactions
 
 const STEPS = [
   'status',
@@ -59,6 +69,10 @@ function now(): number {
   return Math.floor(Date.now() / 1000);
 }
 
+/// The coupon this run settles, from the argument or the environment. Empty
+/// means the run picks the period that is owed.
+let target = (process.env.COUPON_ID ?? '').trim();
+
 /// The SDK prints an HBAR amount with its symbol on the end. The record is read
 /// by machines, so it keeps the number.
 function hbarAmount(value: string | null): string | undefined {
@@ -67,14 +81,51 @@ function hbarAmount(value: string | null): string | undefined {
   return match?.[0];
 }
 
-function couponMeta(record: DeploymentRecord): NonNullable<
-  NonNullable<SeriesRecord['ats']>['coupon']
-> {
-  const coupon = demoSeries(record).ats?.coupon;
-  if (coupon === undefined) {
+/// Every coupon declared on the note, oldest first. The record carried one
+/// coupon before it carried a list, so a record written then still reads.
+function declaredCoupons(record: DeploymentRecord): AtsCouponRecord[] {
+  const ats = demoSeries(record).ats;
+  if (ats === undefined) return [];
+  return ats.coupons ?? (ats.coupon === undefined ? [] : [ats.coupon]);
+}
+
+/// Whether every holder recorded against a coupon was paid.
+function alreadySettled(record: DeploymentRecord, couponId: string): boolean {
+  const holders = demoSeries(record).couponSettlements?.[couponId]?.holders ?? [];
+  return holders.length > 0 && holders.every((holder) => holder.settled === true);
+}
+
+/// Which coupon this run is about, decided once.
+///
+/// Resolved once and remembered, because the answer depends on what is settled
+/// and the `pay` step changes that: a run whose `publish` step asked again
+/// would publish the next period's empty settlement instead of the one it just
+/// paid.
+let chosen: AtsCouponRecord | undefined;
+
+function couponMeta(record: DeploymentRecord): AtsCouponRecord {
+  if (chosen !== undefined) return chosen;
+  const declared = declaredCoupons(record);
+  if (declared.length === 0) {
     throw new Error('no coupon declared on the note: run `pnpm ats:issue coupon` first');
   }
-  return coupon;
+  if (target !== '') {
+    const named = declared.find((entry) => entry.id === target);
+    if (named === undefined) {
+      throw new Error(
+        `no coupon ${target} on the note: declared are ${declared.map((entry) => entry.id).join(', ')}`,
+      );
+    }
+    chosen = named;
+    return chosen;
+  }
+  // The period that is owed: payable, and not paid. Failing that the last one
+  // declared, so every step reports "already settled" rather than throwing.
+  chosen =
+    declared.find(
+      (entry) => entry.executionTimestamp <= now() && !alreadySettled(record, entry.id),
+    ) ?? declared[declared.length - 1];
+  return chosen as AtsCouponRecord;
 }
 
 /// The settlement record for the declared coupon, created on first use so every
@@ -189,7 +240,23 @@ async function status(context: CouponContext): Promise<void> {
   console.log(`  reserved        ${state.reserved}`);
   console.log(`  premiumBalance  ${premium}`);
   console.log(`  vault TUSD      ${await tokenBalanceOf(context, (context.vault.target as string))}`);
-  console.log(`  coupon ${coupon.id} at ${coupon.ratePercent} percent, execution ${coupon.executionTimestamp} (now ${now()})`);
+  for (const entry of declaredCoupons(record)) {
+    console.log(
+      `  coupon ${entry.id} at ${entry.ratePercent} percent over ${entry.startTimestamp} to ` +
+        `${entry.endTimestamp}, execution ${entry.executionTimestamp}, settled ` +
+        `${alreadySettled(record, entry.id)}${entry.recordDateBroughtForward === true ? ', record date brought forward' : ''}`,
+    );
+  }
+  console.log(`  this run would settle coupon ${coupon.id} (now ${now()})`);
+
+  // What the next period costs and who pays for it. The premium account is
+  // seeded from a policyholder and the schedules are paid for by the api
+  // account, so a run that is about to run short says so before it starts.
+  for (const party of [context.policyholder, ...context.investors, context.api, context.operator]) {
+    const hbar = await context.provider.getBalance(party.address);
+    const tusd = await tokenBalanceOf(context, party.address);
+    console.log(`  ${party.role.padEnd(15)}${hbar / 10n ** 18n} HBAR, ${tusd} TUSD minor units`);
+  }
 
   for (const investor of context.investors) {
     const detail = (await note.getFunction('getCouponFor')(BigInt(coupon.id), investor.address)) as {
@@ -231,6 +298,19 @@ async function probe(context: CouponContext): Promise<void> {
   const settlement = settlementOf(context);
   if (settlement.scheduledContractCall?.result !== undefined) {
     console.log(`  already measured: ${settlement.scheduledContractCall.status}`);
+    return;
+  }
+  // The answer is a property of the network and the vault, not of a coupon, so
+  // a measurement taken for an earlier period stands. Re-probing would cost
+  // another schedule fee to learn the same thing.
+  const earlier = Object.values(demoSeries(context.record).couponSettlements ?? {}).find(
+    (entry) => entry.scheduledContractCall?.result !== undefined,
+  );
+  if (earlier !== undefined) {
+    console.log(
+      `  measured on coupon ${earlier.couponId}: ${earlier.scheduledContractCall?.status}, ` +
+        `${earlier.scheduledContractCall?.result} ${earlier.scheduledContractCall?.revert ?? ''}`,
+    );
     return;
   }
   const series = demoSeries(context.record);
@@ -590,7 +670,10 @@ async function main(): Promise<void> {
   if (!STEPS.includes(requested)) {
     throw new Error(`unknown step "${requested}". One of: ${STEPS.join(', ')}`);
   }
+  const named = (process.argv[3] ?? '').trim();
+  if (named !== '') target = named;
   const context = openCouponContext();
+  console.log(`coupon        ${couponMeta(context.record).id}`);
   const steps = requested === 'all' ? RUN : [requested];
   for (const name of steps) {
     console.log(name);

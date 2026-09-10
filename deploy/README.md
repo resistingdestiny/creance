@@ -79,6 +79,25 @@ when they differ, which is what a redeploy that did not rebuild looks like.
 `deploy/deploy.sh --no-build` starts what is already built without rebuilding,
 which is useful for a restart and is the quickest way to see that check work.
 
+## The API's paths on the web origin
+
+The description files an agent reads, and the one `servers` entry of both
+OpenAPI documents, name `https://creance.co` and nothing else. The Caddyfile
+above keeps that promise by handing `/v1/*`, `/health`, `/healthz`,
+`/.well-known/jwks.json`, `/llms.txt`, `/skill.md` and `/openapi/*` to the API
+before the web app sees them.
+
+A deployment that does not put that site file in front of the two apps, two
+origins behind a CDN for instance, gets the same paths from the web app itself:
+`apps/web/src/app` has a route for each of them which hands the request to
+`CREANCE_API_URL` and returns the answer unchanged. So the promised URLs answer
+either way, and behind Caddy the routes are never reached. What both need is
+`CREANCE_API_URL` pointing at the API, which the compose file sets and which
+every screen already depends on.
+
+    curl -s https://creance.co/llms.txt | head -3
+    curl -sI https://creance.co/openapi/index.json
+
 ## Checking it
 
     curl -s https://creance.co/health

@@ -49,6 +49,19 @@ describe('the Bazantic OpenAPI document', () => {
     expect(read('openapi.json')).toBe(renderJson());
   });
 
+  it('is the same bytes at apps/web/public/openapi.json, which the web origin serves', () => {
+    // The recipe README hands an importer https://creance.co/openapi.json, and
+    // the framework serves that from the file. It was copied by hand until T46
+    // and had drifted: no /v1/series, and a servers entry naming a different
+    // origin from the document it claimed to be. `pnpm api:openapi` writes it
+    // now, and this fails if anyone edits it or forgets to run the generator.
+    const served = readFileSync(
+      fileURLToPath(new URL('../../web/public/openapi.json', import.meta.url)),
+      'utf8',
+    );
+    expect(served).toBe(renderJson());
+  });
+
   it('targets OpenAPI 3.0.3, which every importer accepts', () => {
     const document = buildOpenApiDocument({ version: '0.1.0' });
     expect(document.openapi).toBe('3.0.3');

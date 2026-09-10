@@ -64,6 +64,10 @@ describe('the agent description files', () => {
       '/v1/index/{group}',
       '/v1/replay',
     ]);
+    // The same document as the committed file, which is what Bazantic imports
+    // and what the web origin passes through. Parsed rather than compared byte
+    // for byte: the file is indented for a reader and the response is not.
+    expect(document).toEqual(JSON.parse(read('openapi.json')));
   });
 
   it('state the payment terms in words, in both files', () => {

@@ -2849,3 +2849,66 @@ key is reported as a slot nobody can publish rather than silently rebound.
 The check that tells you which case you are in is the database, not the seed
 record: `select policy_id, status from policies` against the deployment's own
 DATABASE_URL, joined against `select policy_id from cover_keys`.
+
+## The three description URLs 404 at the web origin while the API serves them
+
+Measured 10 September 2026 at 19:30 UTC from this machine, with curl. The three
+URLs `recipes/bazantic/agentify/README.md` states as live all answer 404:
+
+    https://creance.co/llms.txt            404 text/html   12719 bytes
+    https://creance.co/skill.md            404 text/html   12719 bytes
+    https://creance.co/openapi/index.json  404 text/html   12719 bytes
+
+The bytes are the Next.js not-found page, not a proxy error: the response
+carries `x-powered-by: Next.js`, `x-nextjs-cache: HIT` and Next's `vary` list,
+behind Cloudflare. So the web app is answering those paths and has no route for
+them, and nothing in front of it sends them anywhere else.
+
+The same paths on the API origin answer, from the same commit:
+
+    https://api.creance.co/llms.txt            200 text/plain       5911 bytes
+    https://api.creance.co/skill.md            200 text/markdown    9772 bytes
+    https://api.creance.co/openapi/index.json  200 application/json 23226 bytes
+
+Every other path the description files link to behaves the same way: `/v1/index`,
+`/v1/replay`, `/v1/attribution`, `/v1/index/computer_math` and `/health` are 404
+on `https://creance.co` and 200 on `https://api.creance.co`.
+
+So the deployment is two origins, and `deploy/Caddyfile`, which routes `/v1/*`,
+`/health`, `/healthz`, `/.well-known/jwks.json`, `/llms.txt`, `/skill.md` and
+`/openapi/*` to the API on one origin, is not what is in front of the live host.
+`https://creance.co/openapi.json` is the exception at 200, because that one is a
+real file in `apps/web/public/`.
+
+The rule this breaks is the one docs/DECISIONS.md sets under "The description
+files are served, not only committed": the description files carry the public
+origin in every URL, so an agent that reads them is taught addresses which do
+not answer. T46 closes it inside the web app rather than at the edge.
+
+The note above this one, from T45, found the same gap from the other end:
+`https://creance.co/health` was 404 and the web app had no health route. It has
+one now, and so do the other six paths, so the sentence "the health endpoint is
+the API's" stays true about where the answer comes from and stops being true
+about which origin answers. `docs/SUBMISSION.md` was corrected to name
+`https://api.creance.co/health` and that URL is still right; once the host is
+rebuilt both origins answer it.
+
+## The vitest DOM tests time out at twenty seconds when this host is oversubscribed
+
+Measured 10 September 2026. `pnpm test` failed four times in a row on this box
+with between four and nine failures, every one of them
+`Error: Test timed out in 20000ms` in `apps/web`, and once with
+`Error: [vitest-worker]: Timeout calling "onTaskUpdate"`, which is the worker
+losing its RPC rather than a test failing at all.
+
+Which tests fail changes between runs, and none of them fails on its own. The
+same two files that failed the first run passed 46 of 46 when they were the only
+thing running, and the whole web project passed 680 of 680 in 130 seconds a few
+minutes later. The difference is the load average, which was between 20 and 213
+on four cores while other work was building on the same machine, and under 10
+when the suite went green.
+
+So a timeout in `apps/web` is worth re-running before it is worth reading. The
+suite passes on this branch: `pnpm test` exits 0 with the machine quiet, and
+`pnpm --filter @creance/web test` is the quickest way to check the web project
+without waiting for the rest.

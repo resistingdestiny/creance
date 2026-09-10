@@ -290,7 +290,7 @@ export async function connectWallet(accountId: string): Promise<WalletAccount> {
   } catch (cause) {
     if (cause instanceof UnknownAccountError) throw cause;
     reportUnreachable('the connected wallet', cause);
-    throw new Error("We couldn't check that account. Try again in a moment.");
+    throw new Error("We couldn't check that account. Try again in a moment.", { cause });
   }
 
   const unchanged = session.wallet?.accountId === account.accountId;

@@ -455,6 +455,57 @@ describe('the pay step is the pay sheet, on the card', () => {
     expect(panel().getByRole('button', { name: 'Pay 4.25' })).toBeDefined();
   });
 
+  it('offers the wallet chooser above the rows, on the demo wallet', async () => {
+    page(false, fakeWallet());
+    await toPayment();
+
+    expect(panel().getByRole('radio', { name: /Demo wallet/ }).getAttribute('aria-checked')).toBe(
+      'true',
+    );
+    expect(panel().getByRole('radio', { name: /Your own wallet/ })).toBeDefined();
+    expect(panel().getByText('World App holds your ID, Hedera holds the money.')).toBeDefined();
+  });
+
+  it('turns back to the check when another wallet is chosen, because the check went with it', async () => {
+    page(false, fakeWallet());
+    await toPayment();
+
+    fireEvent.click(panel().getByRole('radio', { name: /Your own wallet/ }));
+
+    // Back on the check, and asking for it again rather than still claiming the
+    // person is verified: the credential named the wallet they just put down.
+    await turned("Confirm you're a real person.");
+    expect(panel().queryByText("You're verified")).toBeNull();
+    expect(panel().getByRole('button', { name: 'Verify with World ID' })).toBeDefined();
+  });
+
+  it('names the account it connected once the card comes back to the pay step', async () => {
+    page(false, fakeWallet());
+    await toPayment();
+
+    fireEvent.click(panel().getByRole('radio', { name: /Your own wallet/ }));
+    await turned("Confirm you're a real person.");
+
+    vi.mocked(openPayment).mockResolvedValue({
+      ...CONFIRMATION,
+      heldIn: CONNECTED_ACCOUNT.accountId,
+      heldInLabel: 'Your own wallet. Hedera testnet.',
+      walletLabel: 'Settled by the service. Testnet only.',
+    });
+    await passTheCheck();
+    await waitFor(() => expect(panel().getByText("You're verified")).toBeDefined());
+    fireEvent.click(await settledButton('Continue'));
+    await turned('Confirm your cover');
+
+    // Two rows, because the cover and the premium name different accounts until
+    // the x402 authorisation moves into the browser.
+    expect(panel().getByText('Cover held in')).toBeDefined();
+    // Twice: once on the chooser's own row and once on the sheet's.
+    expect(panel().getAllByText(CONNECTED_ACCOUNT.accountId)).toHaveLength(2);
+    expect(panel().getByText('Pays from')).toBeDefined();
+    expect(panel().getByText('Settled by the service. Testnet only.')).toBeDefined();
+  });
+
   it('says so on the card when there is no price to confirm', async () => {
     vi.mocked(openPayment).mockResolvedValue(null);
     page();

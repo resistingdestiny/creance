@@ -8,7 +8,7 @@ import {
 } from '@hashgraph/hedera-wallet-connect';
 import { createAppKit } from '@reown/appkit';
 
-import { HEDERA_TESTNET_CAIP, WALLET_METADATA, testnetAccountId } from './wallet';
+import { WALLET_METADATA, testnetAccountId } from './wallet';
 
 /**
  * The WalletConnect session, and the only module that knows the library.

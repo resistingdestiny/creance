@@ -90,7 +90,7 @@
             "gasUsed": 7005006
           },
           "roles": {
-            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER"
+            "result": "the operator holds ROLE_SSI_MANAGER, ROLE_KYC, ROLE_ISSUER, ROLE_CORPORATE_ACTION, ROLE_PAUSER, ROLE_FREEZE_MANAGER, ROLE_MATURITY_REDEEMER, ROLE_MATURITY_MANAGER"
           },
           "issuer": {
             "tx": "0x7a1a32e3178bea2e894552cd3822e1006933abe6e83c4a9098265bd052f89230",
@@ -170,7 +170,7 @@
           },
           "kyc-operator": {
             "tx": "0x06f99ebaf4c48c239510b28102c91b856429b1f31e04a4a51eb4faac252ef00f",
-            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1)",
+            "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1); granted by the T39 capacity runner before it learned to leave a fully subscribed note alone, and additive to the T06 run through",
             "gasUsed": 256793
           }
         },

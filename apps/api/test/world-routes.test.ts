@@ -54,11 +54,33 @@ function worldConfirms(nullifier = NULLIFIER_HEX) {
   );
 }
 
+/**
+ * Every line the server's own logger writes, taken at the stream so that what
+ * is asserted is the JSON that would reach journalctl, redaction and all,
+ * rather than the arguments a call was made with.
+ */
+function captureLog(app: FastifyInstance): string[] {
+  const lines: string[] = [];
+  const logger = app.log as unknown as Record<symbol, { write: (chunk: string) => void }>;
+  // The destination the logger and every child of it write through. Pino keeps
+  // it on a symbol of its own rather than a name, and a request's logger is a
+  // child, so this is the one point both are visible from.
+  const stream = Object.getOwnPropertySymbols(logger).find(
+    (symbol) => symbol.description === 'pino.stream',
+  );
+  if (stream === undefined) throw new Error('the logger has no stream to read');
+  vi.spyOn(logger[stream], 'write').mockImplementation((chunk: string) => {
+    lines.push(chunk);
+  });
+  return lines;
+}
+
 describe('the World endpoints', () => {
   let app: FastifyInstance | null = null;
 
   afterEach(async () => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     await app?.close();
     app = null;
   });
@@ -247,6 +269,52 @@ describe('the World endpoints', () => {
       expect(response.statusCode).toBe(409);
       expect(response.json().code).toBe('no_capacity_for_group');
       expect(fetched).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The line this ticket exists for. A refused check used to leave a request
+     * in the log, a 403 out and nothing to say why, so a diagnosis meant
+     * reading the source. The reason is now on a warn line beside the request
+     * id, and the proof, the nullifier and the wallet are all absent from it.
+     */
+    it('logs why a check was refused, with nothing about the person on the line', async () => {
+      // The suite runs the server silent, because a line per request is noise.
+      // This one test wants the lines, so it builds a server that writes them.
+      vi.stubEnv('LOG_LEVEL', 'warn');
+      const built = await harness();
+      worldConfirms();
+      const lines = captureLog(built.app);
+      const response = await verify(
+        built,
+        idKitResult({
+          responses: [
+            {
+              identifier: 'orb',
+              signal_hash: hashSignal(POLICYHOLDER_1.accountId),
+              proof: '0x1a2b3c',
+              nullifier: NULLIFIER_HEX,
+            },
+          ],
+        }),
+      );
+      expect(response.statusCode).toBe(403);
+      expect(response.json().code).toBe('world_credential_unaccepted');
+
+      const written = lines.find((line) => line.includes('a World check was refused'));
+      expect(written).toBeDefined();
+      const line = JSON.parse(written ?? '{}');
+      expect(line.level).toBe(40);
+      expect(line.check).toBe('credential');
+      expect(line.code).toBe('world_credential_unaccepted');
+      expect(line.reason).toBe(
+        'The check returned a orb credential and this deployment accepts selfie or face.',
+      );
+      // The request id is what joins this line to the 403 the person saw, and
+      // it is the whole of the context the line needs.
+      expect(line.reqId).toBe(response.json().request_id);
+      expect(written).not.toContain(NULLIFIER_HEX);
+      expect(written).not.toContain(POLICYHOLDER_1.accountId);
+      expect(written).not.toContain('0x1a2b3c');
     });
 
     /**

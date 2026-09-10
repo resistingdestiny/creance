@@ -1,7 +1,6 @@
 import { Suspense, use, type ReactNode } from 'react';
 
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
-import { COVERED_ANSWER } from '../../lib/landing-model';
 import type {
   LandingData,
   LandingExplorerView,
@@ -24,10 +23,13 @@ import { QuoteProvider } from './quote-state';
  * The landing page, section for section from the design of record.
  *
  * Order, which is the acceptance: the navigation, the hero with the cover card
- * and the from price, the three questions, the three steps, the index section,
- * the closing line, the investor line, the footer bar. The sections are local
- * to this file so that the order is one list a reader can check rather than
- * eight imports.
+ * and the from price, the ledger, the index section, the closing line, the
+ * investor line, the footer bar. The sections are local to this file so that
+ * the order is one list a reader can check rather than eight imports.
+ *
+ * The three steps went with T34 and two of the three ledger questions with T44,
+ * both for the same reason: the page shows the thing, so it stops describing it
+ * as well.
  *
  * Two things this page does not do. It runs no scroll triggered reveal: there
  * is no observer and no scroll listener anywhere in it, because on a data dense
@@ -110,7 +112,7 @@ export function LandingScreen({
               <Ticker explorer={data.explorer} />
             </Suspense>
           </section>
-          <Questions index={data.index} price={data.price} />
+          <Questions index={data.index} />
           <IndexSection explorer={data.explorer} index={data.index} />
           <Closing investorLine={data.investorLine} />
         </main>
@@ -394,37 +396,34 @@ function HeroCard({ occupation }: { occupation: string }) {
 }
 
 /**
- * The three questions, as a definition list: each one is a term and the answer
- * beside it is its definition, which is what the design's two column ledger is.
- * At 390 the answer sits under its question instead of beside it.
+ * The one question left in the ledger, as a definition list: the question is a
+ * term and the answer beside it is its definition, which is what the design's
+ * two column ledger is. At 390 the answer sits under its question instead of
+ * beside it.
+ *
+ * There were three (T44). "What does it cost." answered with the from price the
+ * hero prints four inches above it, and "Am I covered." answered with the card
+ * standing beside it wearing a green "Covered" pill, so both were the page
+ * explaining what it was already showing. This one stays because its answer
+ * carries the attachment and the full payout level, and the page prints neither
+ * of them anywhere else until a quote is taken.
+ *
+ * The band came down from 128px of padding to 80px at the landing breakpoint
+ * with them. It was the height three rows stood in; one row left in it read as
+ * a section that had failed to load rather than as one statement.
  */
-function Questions({
-  index,
-  price,
-}: {
-  index: Streamed<LandingIndexView>;
-  price: Streamed<LandingPriceView>;
-}) {
+function Questions({ index }: { index: Streamed<LandingIndexView> }) {
   return (
-    <section className={`mx-5 border-t border-hairline py-16 lg:mx-16 lg:py-32`}>
+    <section className={`mx-5 border-t border-hairline py-16 lg:mx-16 lg:py-20`}>
       <dl className={`flex flex-col ${CONTENT}`}>
         <Question
           answer={
-            <Suspense fallback={<AnswerResting lines={3} />}>
-              <CostAnswer price={price} />
-            </Suspense>
-          }
-          question="What does it cost."
-        />
-        <Question
-          answer={
-            <Suspense fallback={<AnswerResting lines={2} />}>
+            <Suspense fallback={<AnswerResting />}>
               <PayAnswer index={index} />
             </Suspense>
           }
           question="When does it pay."
         />
-        <Question answer={COVERED_ANSWER} question="Am I covered." />
       </dl>
     </section>
   );
@@ -441,45 +440,34 @@ function Question({ question, answer }: { question: string; answer: ReactNode })
   );
 }
 
-function CostAnswer({ price }: { price: Streamed<LandingPriceView> }) {
-  return <>{figureOf(price).costLine}</>;
-}
-
 function PayAnswer({ index }: { index: Streamed<LandingIndexView> }) {
   return <>{figureOf(index).payLine}</>;
 }
 
 /**
- * An answer before its figure has been read.
+ * The answer before its figure has been read.
  *
  * The space is kept by the answer's own empty lines rather than by a height
  * this file would have to keep in step with the type scale, and the bars are
  * laid over them. The ledger aligns its two columns on the baseline of the
  * answer, so a block of bars with no line in it would sit at a different height
  * from the sentence that replaces it, and the row would move by a few pixels as
- * each answer landed.
+ * the answer landed.
  *
- * The cost answer takes three lines at 390 and two from the landing breakpoint
- * up, where the ledger gives it four hundred pixels; the pay answer takes two
- * at both widths. Measured in a browser with the figures in them.
+ * The pay answer takes two lines at both widths. Measured in a browser with the
+ * figures in it. It took a `lines` argument while the cost answer beside it
+ * took three at 390; that answer is gone (T44) and so is the argument.
  */
-function AnswerResting({ lines }: { lines: 2 | 3 }) {
+function AnswerResting() {
   return (
     <div className="relative" data-testid="landing-resting">
       <span aria-hidden="true" className="invisible">
         {'\u00a0'}
         <br />
-        {lines === 3 ? (
-          <>
-            {'\u00a0'}
-            <br className="lg:hidden" />
-          </>
-        ) : null}
         {'\u00a0'}
       </span>
       <span className="absolute inset-0 flex flex-col gap-1.5">
         <Skeleton className="flex-1" />
-        {lines === 3 ? <Skeleton className="flex-1 lg:hidden" /> : null}
         <Skeleton className="flex-1 lg:w-2/3 lg:self-end" />
       </span>
     </div>

@@ -208,7 +208,6 @@ describe('a call that fails costs the page its figure and never the page', () =>
     const { price } = await pageView();
 
     expect(price.priceLine).toBeNull();
-    expect(price.costLine).toBe("The price comes from your occupation's index, nothing else.");
   });
 
   it('shows the last reading this process published when the feed stops answering', async () => {

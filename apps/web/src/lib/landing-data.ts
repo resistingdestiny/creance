@@ -28,8 +28,8 @@
  * moves in ten second steps and a stale badge is a lie about what is on screen.
  *
  * And nothing is awaited before the page is drawn. Every figure below is handed
- * to the page as a promise, so the hero, the card, the copy and the steps are
- * on the first byte and each figure lands in its own place as it arrives. A
+ * to the page as a promise, so the hero, the card and the copy are on the first
+ * byte and each figure lands in its own place as it arrives. A
  * cold hold costs the visitor a resting state rather than a blank screen and
  * three seconds of nothing.
  *
@@ -49,7 +49,6 @@ import { couponLine } from './investor-model';
 import {
   LANDING_GROUP,
   attachmentFor,
-  costAnswer,
   fromPriceLine,
   investorLine,
   landingIndexSection,
@@ -127,8 +126,6 @@ export interface LandingIndexView {
 export interface LandingPriceView {
   /** "From 28.00 a month", or null when no price could be quoted. */
   readonly priceLine: string | null;
-  /** "What does it cost." */
-  readonly costLine: string;
 }
 
 export interface LandingExplorerView {
@@ -294,7 +291,7 @@ async function readPrice(group: string): Promise<LandingPriceView> {
     reportUnreachable('the landing from price', cause);
     premium = null;
   }
-  return { priceLine: fromPriceLine(premium), costLine: costAnswer(premium) };
+  return { priceLine: fromPriceLine(premium) };
 }
 
 async function readCoupon(): Promise<string | null> {

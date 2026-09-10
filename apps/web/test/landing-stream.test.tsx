@@ -97,11 +97,11 @@ describe('the shell', () => {
     const reader = stream.getReader();
     const shell = await readUntil(reader, 'How the index works');
 
-    // The hero, the card, the questions and the closing band, all of them.
+    // The hero, the card, the question and the closing band, all of them.
     expect(shell).toContain('Cover for the day your job is automated.');
     expect(shell).toContain('A monthly payment now. A payout if your occupation is displaced.');
     expect(shell).toContain('Get a quote');
-    expect(shell).toContain('What does it cost.');
+    expect(shell).toContain('When does it pay.');
     expect(shell).toContain('The quiet kind of ready.');
     expect(shell).toContain('One number decides. You can watch it.');
 

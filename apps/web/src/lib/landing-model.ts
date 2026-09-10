@@ -41,13 +41,6 @@ export function fromPriceLine(premium: string | null): string | null {
   return premium === null ? null : `From ${premium} a month`;
 }
 
-/** "What does it cost." The from price, then the sentence that explains it. */
-export function costAnswer(premium: string | null): string {
-  const explanation = "The price comes from your occupation's index, nothing else.";
-  const line = fromPriceLine(premium);
-  return line === null ? explanation : `${line}. ${explanation}`;
-}
-
 /**
  * "When does it pay." The attachment and the full payout level, interpolated.
  *
@@ -66,9 +59,6 @@ export function payAnswer(attachment: string | number | null, seriesId: string |
   if (exhaustion === null) return first;
   return `${first} Full payout at ${pointsInProse(exhaustion)}.`;
 }
-
-/** "Am I covered." No figure in it, so it is the design's sentence and nothing else. */
-export const COVERED_ANSWER = 'Your card says so at all times. Green means yes.';
 
 /**
  * The investor line under the closing buttons.

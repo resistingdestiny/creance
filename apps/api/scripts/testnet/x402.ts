@@ -16,6 +16,7 @@ import {
 } from '@creance/client';
 
 import { loadApiConfig } from '../../src/config.js';
+import { chosenGroup } from './series-argument.js';
 import { createPool, PostgresRepository } from '../../src/db/postgres.js';
 import { migrate } from '../../src/db/migrate.js';
 import { buildServer } from '../../src/server.js';
@@ -126,7 +127,7 @@ async function main(): Promise<void> {
   await app.listen({ port: PORT, host: '127.0.0.1' });
   const base = `http://127.0.0.1:${PORT}`;
 
-  const groupKey = config.series[0]?.groupKey;
+  const groupKey = chosenGroup(config);
   assert.ok(groupKey, 'the deployment record has no registered series');
 
   const payer = createX402Payer({

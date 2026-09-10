@@ -3,7 +3,11 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState, useTransition, type ReactNode, type Ref } from 'react';
 
-import { NO_COVER_YET, captionFor } from '../../app/occupation/occupation-picker';
+import {
+  NO_COVER_YET,
+  captionFor,
+  occupationGroupHeading,
+} from '../../app/occupation/occupation-picker';
 import {
   goToCover,
   openPayment,
@@ -19,6 +23,7 @@ import { formatAmount } from '../../lib/format';
 import {
   filterOccupations,
   findOccupation,
+  groupOccupations,
   hasCover,
   occupationLabel,
 } from '../../lib/occupations';
@@ -308,6 +313,12 @@ function StepHeading({ children, ref }: { children: ReactNode; ref?: Ref<HTMLHea
  * behind them, and on the metal that dimming is 3.47:1 at the card's darkest
  * stop. The caption under each row says the same thing in words, so nothing is
  * lost by taking the colour out of it.
+ *
+ * T38 puts the rows in two parts with the picker's own headings: the one that
+ * can be bought first, the fourteen sunk to the bottom. The split is order and
+ * grouping only. Choosing is unchanged: all fifteen still move the explorer,
+ * and the search still matches across both parts, so a query that finds only
+ * unbuyable occupations still shows them under their heading.
  */
 function OccupationFace({
   current,
@@ -323,7 +334,8 @@ function OccupationFace({
   const { choose, go, group } = useQuote();
   const [pending, startTransition] = useTransition();
   const heading = useRef<HTMLHeadingElement>(null);
-  const visible = filterOccupations(query);
+  const groups = groupOccupations(filterOccupations(query));
+  const nothing = groups.open.length === 0 && groups.noCover.length === 0;
   const chosen = findOccupation(group);
   const buyable = chosen !== null && hasCover(chosen);
 
@@ -334,6 +346,16 @@ function OccupationFace({
       go('amount');
     });
   }
+
+  const renderRow = (row: (typeof groups.open)[number]) => (
+    <ListRow
+      caption={captionFor(row)}
+      key={row.key}
+      label={<span className="text-body text-ink">{row.label}</span>}
+      onSelect={() => choose(row.key)}
+      trailing={group === row.key ? 'check' : 'none'}
+    />
+  );
 
   return (
     <QuoteFace current={current}>
@@ -348,23 +370,28 @@ function OccupationFace({
         value={query}
       />
 
-      {visible.length === 0 ? (
+      {nothing ? (
         <p className="text-secondary text-ink-2">
           Nothing matches that. This cover is sold by occupation group, not by job title.
         </p>
       ) : (
-        <div className="max-h-[212px] divide-y divide-hairline overflow-y-auto lg:max-h-[268px]">
-          {visible.map((row) => {
-            return (
-              <ListRow
-                caption={captionFor(row)}
-                key={row.key}
-                label={<span className="text-body text-ink">{row.label}</span>}
-                onSelect={() => choose(row.key)}
-                trailing={group === row.key ? 'check' : 'none'}
-              />
-            );
-          })}
+        <div className="max-h-[212px] overflow-y-auto lg:max-h-[268px]">
+          {groups.open.length === 0 ? null : (
+            <div className="pb-5">
+              <h3 className="pb-1 text-secondary font-medium text-ink">
+                {occupationGroupHeading('open', groups.open.length)}
+              </h3>
+              <div className="divide-y divide-hairline">{groups.open.map(renderRow)}</div>
+            </div>
+          )}
+          {groups.noCover.length === 0 ? null : (
+            <div>
+              <h3 className="pb-1 text-secondary font-medium text-ink">
+                {occupationGroupHeading('noCover', groups.noCover.length)}
+              </h3>
+              <div className="divide-y divide-hairline">{groups.noCover.map(renderRow)}</div>
+            </div>
+          )}
         </div>
       )}
 

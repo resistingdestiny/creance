@@ -7,7 +7,12 @@ import { FormField } from '../../components/form-field';
 import { ListRow } from '../../components/list-row';
 import { PillButton } from '../../components/pill-button';
 import { SurfaceGroup } from '../../components/surface-group';
-import { filterOccupations, hasCover, type Occupation } from '../../lib/occupations';
+import {
+  filterOccupations,
+  groupOccupations,
+  hasCover,
+  type Occupation,
+} from '../../lib/occupations';
 import { chooseOccupation } from '../purchase-actions';
 
 /**
@@ -27,6 +32,12 @@ import { chooseOccupation } from '../purchase-actions';
  * have never opened for an occupation since 2010 the row says that too: it is
  * the one fact a buyer most needs and it is on the first screen that offers
  * them anything.
+ *
+ * T38 puts the list in that shape: the one occupation that can be bought comes
+ * first under its own heading, and the fourteen sink to the bottom under
+ * theirs. A search filters first and groups after, so a query that matches
+ * only unbuyable occupations still shows them rather than looking like nothing
+ * matched. The landing quote groups the same list the same way.
  */
 
 export function OccupationPicker({
@@ -38,7 +49,25 @@ export function OccupationPicker({
 }) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(chosen);
-  const visible = useMemo(() => filterOccupations(query, rows), [query, rows]);
+  const groups = useMemo(() => groupOccupations(filterOccupations(query, rows)), [query, rows]);
+  const nothing = groups.open.length === 0 && groups.noCover.length === 0;
+
+  const renderRow = (row: Occupation) => {
+    const available = hasCover(row);
+    return (
+      <ListRow
+        caption={captionFor(row)}
+        key={row.key}
+        label={
+          <span className={available ? 'text-body text-ink' : 'text-body text-ink-2'}>
+            {row.label}
+          </span>
+        }
+        onSelect={available ? () => setSelected(row.key) : undefined}
+        trailing={selected === row.key ? 'check' : 'none'}
+      />
+    );
+  };
 
   return (
     <AppFrame>
@@ -55,30 +84,29 @@ export function OccupationPicker({
           value={query}
         />
 
-        {visible.length === 0 ? (
+        {nothing ? (
           <p className="text-secondary text-ink-2">
             Nothing matches that. This cover is sold by occupation group, not by job title.
           </p>
         ) : (
-          <SurfaceGroup>
-            {visible.map((row) => {
-              const available = hasCover(row);
-              const caption = captionFor(row);
-              return (
-                <ListRow
-                  caption={caption}
-                  key={row.key}
-                  label={
-                    <span className={available ? 'text-body text-ink' : 'text-body text-ink-2'}>
-                      {row.label}
-                    </span>
-                  }
-                  onSelect={available ? () => setSelected(row.key) : undefined}
-                  trailing={selected === row.key ? 'check' : 'none'}
-                />
-              );
-            })}
-          </SurfaceGroup>
+          <div className="flex flex-col gap-6">
+            {groups.open.length === 0 ? null : (
+              <section className="flex flex-col gap-2">
+                <h2 className="text-secondary font-medium text-ink">
+                  {occupationGroupHeading('open', groups.open.length)}
+                </h2>
+                <SurfaceGroup>{groups.open.map(renderRow)}</SurfaceGroup>
+              </section>
+            )}
+            {groups.noCover.length === 0 ? null : (
+              <section className="flex flex-col gap-2">
+                <h2 className="text-secondary font-medium text-ink">
+                  {occupationGroupHeading('noCover', groups.noCover.length)}
+                </h2>
+                <SurfaceGroup>{groups.noCover.map(renderRow)}</SurfaceGroup>
+              </section>
+            )}
+          </div>
         )}
 
         <form action={chooseOccupation} className="mt-auto flex flex-col gap-3">
@@ -102,6 +130,17 @@ export function OccupationPicker({
  * is the only way two surfaces cannot come to word it differently.
  */
 export const NO_COVER_YET = 'No cover behind this occupation yet.';
+
+/**
+ * The heading over one part of the grouped list, with how many are in it.
+ * One open row above fourteen with nothing behind them is a stark list, and
+ * T38 states it rather than dressing it up. Exported for the same reason as
+ * NO_COVER_YET: the landing quote groups the same list (T35), and the two
+ * surfaces word the parts the same way or not at all.
+ */
+export function occupationGroupHeading(part: 'open' | 'noCover', count: number): string {
+  return part === 'open' ? `Open to buy (${count})` : `No cover behind these yet (${count})`;
+}
 
 /**
  * What a row says under its name. Both lines are facts, not marketing: the

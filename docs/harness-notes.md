@@ -2573,3 +2573,57 @@ So anything an acceptance asks to be confirmed on iOS Safari cannot be confirmed
 by an agent on this host, and Playwright's WebKit would not have settled it
 anyway: it does not reproduce iOS viewport height behaviour or the mobile
 compositor. T36 needed this and left it to Root on a real device.
+
+## The ERC-20 `approve` on an HTS token costs 730,000 gas, and drains the api account
+
+Funding a series is three calls: the operator transfers the settlement token to
+the api account, the api account approves the vault, and the api account calls
+`subscribe`. The transfer is 39,647 gas and the subscribe 124,218, both
+unremarkable. The `approve` is **729,787 gas**, about 1.7 HBAR, because it is a
+token service call priced by converting a USD cost to gas rather than a storage
+write. It is not in the measured gas table in docs/HEDERA.md, which records
+`subscribe` at 141,378 and says nothing about the approve that has to precede
+it, so a run budgeted from that table is budgeted eighteen times short.
+
+The api account holds no HBAR of its own on this deployment: every other path
+it is on is paid for by somebody else. Topping it up to twelve HBAR once at the
+start of a fifteen series run is enough for seven series, and the eighth dies
+with `INSUFFICIENT_FUNDS` from the relay in the middle of the approve, with the
+25,000 already transferred to it. `pnpm series:capacity` therefore checks the
+balance before every series rather than once, against a floor below the target
+so a run that does nothing else sends nothing.
+
+The approve figure is now in the measured gas table.
+
+## docs/HEDERA.md's operator balance line is stale and cannot be corrected by hand
+
+The generated block says "Operator balance when this file was last changed:
+974.83002702 HBAR." The mirror node said 859.74 HBAR before this ticket spent
+anything. The line is inside the `pnpm hedera:setup` markers, so editing it
+would be deleted by the next setup run and it is left alone. Read the balance
+from the mirror node, not from the file.
+
+## The payments topic carries every settlement, so a bind's two messages are not adjacent
+
+`apps/api/scripts/testnet/bind.ts` read the bind outcome message by asking for
+the receipt's sequence number plus one, with the comment "because nothing else
+writes to this topic during the run". That holds only when one process is
+running. With a second API on the host paying for index reads, seventeen x402
+settlement messages landed between the two halves of one bind, and the
+assertion failed on a bind that had in fact succeeded: receipt at 4622, outcome
+at 4640.
+
+`MirrorClient.topicMessagesFrom` already exists for exactly this and its own
+comment says so. The script now reads the window forward from the receipt and
+matches on the policy id.
+
+## The settlement token's decimals are not on its ERC-20 facade
+
+`contracts/coupons/abi.ts` carries `transfer`, `approve`, `allowance` and
+`balanceOf` for the settlement token and no `decimals`, and calling it through
+ethers fails client side with `no matching function` rather than reverting. The
+decimals live on the mirror node's token record, `GET /api/v1/tokens/{id}`,
+which is where the runner reads them and checks them against
+`docs/hedera.testnet.json` before scaling any amount.
+
+https://docs.hedera.com/hedera/sdks-and-apis/rest-api

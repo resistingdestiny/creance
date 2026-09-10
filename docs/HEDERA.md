@@ -1148,7 +1148,7 @@ which is the retry path the decide endpoint is written for.
 
     pnpm --filter @creance/api testnet:bind-backdated --holder policyholder-1 --start 2025-12-01
     pnpm dev
-    # open /home?policy=pol_..., claim through the screens
+    # open /home, sign in with the cover_key the bind returned, claim through the screens
     pnpm adjuster:run
     # approve at /admin/claims, then publish the decision hash
     pnpm adjuster:run

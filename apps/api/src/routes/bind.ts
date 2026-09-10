@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 
 import { findSeries } from '../config.js';
+import { newCoverKey } from '../cover-key.js';
 import type { PaymentRow, PolicyRow } from '../db/types.js';
 import { AppError } from '../errors.js';
 import { newId, nullifierToBytes32, toBytes32 } from '../ids.js';
@@ -37,6 +38,7 @@ import { requiredString } from './quote.js';
 ///   5  the policy reaches `bound`
 ///   6  the policy NFT is minted to the holder, transferred and frozen
 ///   7  a second receipt records the outcome
+///   8  a cover key is issued, and this response is the only place it appears
 ///
 /// Step 3 before step 4 is forced by the contract. It means a receipt can be
 /// orphaned by a revert, which is why there is a second message rather than
@@ -51,11 +53,26 @@ import { requiredString } from './quote.js';
 /// reason on it. The web app already polls this policy until the serial
 /// appears, and `GET /v1/policy/:id` is the endpoint it polls.
 ///
+/// Step 8 is the way back in. The purchase session that bought the cover is
+/// thirty minutes long and lives in one web process's memory, so without a key
+/// a person who closes the browser has no route to their own dashboard. The key
+/// is returned once, here, where the caller has just proved eligibility and paid
+/// for the cover; `GET /v1/policy/:id` is free and never carries it. Only its
+/// digest is stored. See apps/api/src/cover-key.ts and docs/DECISIONS.md.
+///
 /// The payment is the first month's premium, settled over x402 before step 7
 /// returns and after step 5, so a bind that reverts costs the payer nothing.
 /// The gate is apps/api/src/x402/bind.ts rather than the route map, because the
 /// price is per quote and the quote id is in the body. The `payments` row this
 /// writes at `uncollected` is the row the settlement hook then settles.
+
+/**
+ * What a bind answers with: the policy view every other endpoint returns, and
+ * the cover key, which no other endpoint returns.
+ */
+export interface BoundPolicyView extends PolicyView {
+  cover_key: string;
+}
 
 export interface BindBody {
   quote_id?: unknown;
@@ -96,7 +113,7 @@ export async function bind(
   services: Services,
   body: BindBody,
   request: Pick<FastifyRequest, 'headers' | 'id'> & { log?: FastifyRequest['log'] },
-): Promise<PolicyView> {
+): Promise<BoundPolicyView> {
   const quoteId = requiredString(body.quote_id, 'quote_id');
   const token = credentialToken(body, request);
   const credential = await services.issuer.verify(token);
@@ -359,7 +376,28 @@ export async function bind(
 
   const bound = await services.repository.policy(policyId);
   if (bound === null) throw new Error(`the policy ${policyId} vanished between writes`);
-  return buildPolicyView(bound, services.config.coverPoolAddress);
+
+  // After the cover is real, and never before: a key to a policy that reverted
+  // would open nothing. A failure here cannot fail the request either, for the
+  // same reason the receipt above cannot, so it is logged and the response
+  // carries an empty key rather than turning a bound policy into a 500.
+  let coverKey = '';
+  try {
+    const issued = newCoverKey();
+    await services.repository.insertCoverKey({
+      keyHash: issued.hash,
+      policyId,
+      createdAt: new Date().toISOString(),
+    });
+    coverKey = issued.key;
+  } catch (error) {
+    request.log?.error(
+      { err: error, policy_id: policyId },
+      'the policy is bound but no cover key was issued for it',
+    );
+  }
+
+  return { ...buildPolicyView(bound, services.config.coverPoolAddress), cover_key: coverKey };
 }
 
 /**

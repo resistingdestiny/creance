@@ -3,7 +3,17 @@ import type { Wallet } from 'ethers';
 import { entryFor } from '../scripts/deploy/catalogue.js';
 import type { SeriesRecord } from '../scripts/deploy/record.js';
 import { bondData, maxSupplyFor, principalFor, regulationData, type BondPlan } from './bond.js';
-import { ATS, ATS_TAG, ATS_VERSION, GAS, NOTE, noteNameFor, PARTITION_1, ROLES } from './config.js';
+import {
+  ATS,
+  ATS_TAG,
+  ATS_VERSION,
+  GAS,
+  NOTE,
+  noteNameFor,
+  PARTITION_1,
+  ROLES,
+  type RoleName,
+} from './config.js';
 import {
   bondConfigVersion,
   checkAtsAddresses,
@@ -159,6 +169,19 @@ export async function seedNote(
   }
 
   const bond = noteAt(ats.note.address, session.operator);
+
+  // Nothing left to seed. The guard is here rather than after the roles so a
+  // note that is already issued and fully subscribed is left completely
+  // alone: the demo series went through the whole T06 sequence and this must
+  // not grant it a role, a credential or a step line of its own.
+  const supply = (await bond.totalSupply!()) as bigint;
+  const cap = BigInt(ats.note.maxSupply);
+  if (supply >= cap) {
+    console.log(`  ${supply} of ${cap} already minted, nothing to seed`);
+    return;
+  }
+
+  const granted: RoleName[] = [];
   for (const role of SEED_ROLES) {
     if ((await bond.hasRole!(ROLES[role], owner)) as boolean) continue;
     const sent = await send(
@@ -166,8 +189,14 @@ export async function seedNote(
       bond.grantRole!(ROLES[role], owner, { gasLimit: GAS.grantRole }),
     );
     ats.roles = { ...ats.roles, [role]: sent.hash };
+    granted.push(role);
   }
-  step(ats, 'roles', { result: `the operator holds ${SEED_ROLES.join(', ')}` });
+  // Named as what this run granted, not as what the operator holds: a note
+  // that already carries more roles than these must not have that written
+  // down as fewer.
+  if (granted.length > 0) {
+    step(ats, 'roles', { result: `the operator was granted ${granted.join(', ')}` });
+  }
 
   if (((await bond.isIssuer!(owner)) as boolean) !== true) {
     const sent = await send('addIssuer', bond.addIssuer!(owner, { gasLimit: GAS.addIssuer }));
@@ -204,14 +233,6 @@ export async function seedNote(
     });
   }
 
-  // The cap is the whole supply, so a balance already at the cap means the
-  // mint landed even if the run died before the record was written.
-  const supply = (await bond.totalSupply!()) as bigint;
-  const cap = BigInt(ats.note.maxSupply);
-  if (supply >= cap) {
-    console.log(`  ${supply} of ${cap} already minted`);
-    return;
-  }
   const sent = await send(
     `issueByPartition ${cap - supply} to the operator`,
     bond.issueByPartition!(

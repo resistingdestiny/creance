@@ -2,10 +2,15 @@
  * The one place the web app talks to the API.
  *
  * Every call happens on the server, in a route's own render or in a server
- * action, never in the browser. That is why there is no CORS plugin on the API
- * and no rewrite in next.config.ts: the origin never reaches the bundle, so it
- * is a private variable and not a NEXT_PUBLIC one. See docs/DECISIONS.md,
- * "The web app reads the API on the server".
+ * action, never in the browser. That is why there is no CORS plugin on the API:
+ * the origin never reaches the bundle, so it is a private variable and not a
+ * NEXT_PUBLIC one. See docs/DECISIONS.md, "The web app reads the API on the
+ * server".
+ *
+ * `apiBaseUrl` has one other caller, src/app/api-proxy.ts, which answers the
+ * API's own paths on this origin because the description files an agent reads
+ * name that origin and nothing else. That is not a proxy for these screens and
+ * it changes nothing here.
  *
  * Every amount that crosses the wire is the money envelope: an integer string
  * in the settlement asset's minor units with the asset and its scale beside it.

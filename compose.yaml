@@ -117,7 +117,9 @@ services:
       PORT: 3000
       # Every screen fetches on the server, so this is the address of the api
       # service on this network and it never reaches a browser. There is no CORS
-      # plugin and no proxy anywhere in the app.
+      # plugin. The app also hands the API's own paths through to this address,
+      # which is what answers /llms.txt, /skill.md, /openapi/index.json and
+      # /v1/* when the request did not reach Caddy first.
       CREANCE_API_URL: http://api:3210
     ports:
       - '127.0.0.1:${WEB_PORT:-3000}:3000'

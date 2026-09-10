@@ -247,6 +247,7 @@ function RestingBar({ className }: { className?: string }) {
     <span
       aria-hidden="true"
       className={['inline-block rounded-field bg-white/12', className].filter(Boolean).join(' ')}
+      data-testid="landing-resting"
     />
   );
 }
@@ -447,7 +448,7 @@ function PayAnswer({ index }: { index: Streamed<LandingIndexView> }) {
  */
 function AnswerResting() {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5" data-testid="landing-resting">
       <Skeleton className="h-[21px] w-full" />
       <Skeleton className="h-[21px] w-2/3 lg:self-end" />
     </div>
@@ -467,7 +468,7 @@ function Ticker({ explorer }: { explorer: Streamed<LandingExplorerView> }) {
  * that failed rather than a page with nothing to say.
  */
 function TickerResting() {
-  return <div aria-hidden="true" className="h-11 border-t border-white/10" />;
+  return <div aria-hidden="true" className="h-11 border-t border-white/10" data-testid="landing-resting" />;
 }
 
 /**
@@ -543,7 +544,11 @@ function Explorer({ explorer }: { explorer: Streamed<LandingExplorerView> }) {
  * note, which is the one state where this space closes rather than fills.
  */
 function ExplorerResting() {
-  return <Skeleton className="h-[1148px] w-full lg:h-[788px]" />;
+  return (
+    <div data-testid="landing-resting">
+      <Skeleton className="h-[1148px] w-full lg:h-[788px]" />
+    </div>
+  );
 }
 
 function IndexNote({ index }: { index: Streamed<LandingIndexView> }) {

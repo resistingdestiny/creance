@@ -2805,3 +2805,38 @@ Worth measuring rather than trusting either way. `ls -S apps/web/.next/static/ch
 after a build, and the script tags in the served landing document, are the two
 things that answer it.
 
+
+## The three description URLs 404 at the web origin while the API serves them
+
+Measured 10 September 2026 at 19:30 UTC from this machine, with curl. The three
+URLs `recipes/bazantic/agentify/README.md` states as live all answer 404:
+
+    https://creance.co/llms.txt            404 text/html   12719 bytes
+    https://creance.co/skill.md            404 text/html   12719 bytes
+    https://creance.co/openapi/index.json  404 text/html   12719 bytes
+
+The bytes are the Next.js not-found page, not a proxy error: the response
+carries `x-powered-by: Next.js`, `x-nextjs-cache: HIT` and Next's `vary` list,
+behind Cloudflare. So the web app is answering those paths and has no route for
+them, and nothing in front of it sends them anywhere else.
+
+The same paths on the API origin answer, from the same commit:
+
+    https://api.creance.co/llms.txt            200 text/plain       5911 bytes
+    https://api.creance.co/skill.md            200 text/markdown    9772 bytes
+    https://api.creance.co/openapi/index.json  200 application/json 23226 bytes
+
+Every other path the description files link to behaves the same way: `/v1/index`,
+`/v1/replay`, `/v1/attribution`, `/v1/index/computer_math` and `/health` are 404
+on `https://creance.co` and 200 on `https://api.creance.co`.
+
+So the deployment is two origins, and `deploy/Caddyfile`, which routes `/v1/*`,
+`/health`, `/healthz`, `/.well-known/jwks.json`, `/llms.txt`, `/skill.md` and
+`/openapi/*` to the API on one origin, is not what is in front of the live host.
+`https://creance.co/openapi.json` is the exception at 200, because that one is a
+real file in `apps/web/public/`.
+
+The rule this breaks is the one docs/DECISIONS.md sets under "The description
+files are served, not only committed": the description files carry the public
+origin in every URL, so an agent that reads them is taught addresses which do
+not answer. T46 closes it inside the web app rather than at the edge.

@@ -172,6 +172,16 @@
             "tx": "0x06f99ebaf4c48c239510b28102c91b856429b1f31e04a4a51eb4faac252ef00f",
             "result": "getKycStatusFor(0x639444758B987b4D938c57169a1F61A62b2d009C) reads GRANTED (1); granted by the T39 capacity runner before it learned to leave a fully subscribed note alone, and additive to the T06 run through",
             "gasUsed": 256793
+          },
+          "coupon-2": {
+            "tx": "0xddaa0a4d7a41f0cbd92e90057aa1736c1faed4dab854bd27b2cd80e1ab7763f9",
+            "result": "coupon 2 declared at 8 percent a year over 1791144983 to 1793823383, record 1789080027, execution 1789080327, record date brought forward",
+            "gasUsed": 585827
+          },
+          "coupon-3": {
+            "tx": "0x1b0478d8066eebb404a0ec4a295c368cec84d3bc000f992623f977c13b0b17fc",
+            "result": "coupon 3 declared at 8 percent a year over 1793823383 to 1796415383, record 1789080041, execution 1789080341, record date brought forward",
+            "gasUsed": 611235
           }
         },
         "configVersion": 1,
@@ -256,7 +266,47 @@
           "endTimestamp": 1791144983,
           "fixingTimestamp": 1788553283,
           "tx": "0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804"
-        }
+        },
+        "coupons": [
+          {
+            "id": "1",
+            "ratePercent": 8,
+            "rate": "8",
+            "rateDecimals": 2,
+            "recordTimestamp": 1788553283,
+            "executionTimestamp": 1788553583,
+            "startTimestamp": 1788552983,
+            "endTimestamp": 1791144983,
+            "fixingTimestamp": 1788553283,
+            "tx": "0xcf162de307a74ecb440c357d80dc8ea34cc0ac33c49a8cd7b5c8669925dbe804"
+          },
+          {
+            "id": "2",
+            "ratePercent": 8,
+            "rate": "8",
+            "rateDecimals": 2,
+            "recordTimestamp": 1789080027,
+            "executionTimestamp": 1789080327,
+            "startTimestamp": 1791144983,
+            "endTimestamp": 1793823383,
+            "fixingTimestamp": 1789080027,
+            "tx": "0xddaa0a4d7a41f0cbd92e90057aa1736c1faed4dab854bd27b2cd80e1ab7763f9",
+            "recordDateBroughtForward": true
+          },
+          {
+            "id": "3",
+            "ratePercent": 8,
+            "rate": "8",
+            "rateDecimals": 2,
+            "recordTimestamp": 1789080041,
+            "executionTimestamp": 1789080341,
+            "startTimestamp": 1793823383,
+            "endTimestamp": 1796415383,
+            "fixingTimestamp": 1789080041,
+            "tx": "0x1b0478d8066eebb404a0ec4a295c368cec84d3bc000f992623f977c13b0b17fc",
+            "recordDateBroughtForward": true
+          }
+        ]
       },
       "couponSettlements": {
         "1": {

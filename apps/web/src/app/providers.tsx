@@ -4,6 +4,8 @@ import { MiniKitProvider, useMiniKit } from '@worldcoin/minikit-js/minikit-provi
 import type { ReactNode } from 'react';
 
 import { detectSurface, SurfaceContext } from '../lib/surface';
+import { WalletContextProvider } from '../lib/use-wallet';
+import { connectWallet } from './purchase-actions';
 
 /**
  * MiniKit, installed once around the whole app.
@@ -26,11 +28,25 @@ import { detectSurface, SurfaceContext } from '../lib/surface';
  * render agree and the canonical index page stays server rendered.
  *
  * https://docs.world.org/mini-apps/quick-start/installing
+ *
+ * The wallet is mounted here too, around the same tree.
+ *
+ * It holds a choice, not a connection: nothing is imported, opened or asked for
+ * until somebody chooses their own wallet on the payment step, and the library
+ * that opens a WalletConnect session is loaded at that moment and not before.
+ * So the landing page still ships the bundle T40 left it with.
+ *
+ * `connectWallet` is the server action that turns a connected account id into
+ * the account a cover binds to. It is passed in rather than imported by the
+ * context, so a test can mount the context with a wallet that connects to
+ * nothing.
  */
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <MiniKitProvider>
-      <Surface>{children}</Surface>
+      <WalletContextProvider resolve={connectWallet}>
+        <Surface>{children}</Surface>
+      </WalletContextProvider>
     </MiniKitProvider>
   );
 }

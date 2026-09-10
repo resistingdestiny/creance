@@ -9,6 +9,7 @@ import {
   disconnectedState,
   readWalletConnectProjectId,
   type ResolveWalletAccount,
+  type WalletAccount,
   type WalletMode,
   type WalletProvider,
   type WalletState,
@@ -32,7 +33,8 @@ import {
 interface WalletContextValue extends WalletState {
   /** Whether a real wallet can be reached at all on this deployment. */
   readonly offersWalletConnect: boolean;
-  connect(mode: WalletMode): Promise<void>;
+  /** The account on success, null when the connection did not happen. */
+  connect(mode: WalletMode): Promise<WalletAccount | null>;
   disconnect(): Promise<void>;
 }
 
@@ -64,7 +66,7 @@ export function WalletContextProvider({
   const [state, setState] = useState<WalletState>(() => disconnectedState(demo.mode, demo.label));
 
   const connect = useCallback(
-    async (mode: WalletMode) => {
+    async (mode: WalletMode): Promise<WalletAccount | null> => {
       let next: WalletProvider;
       try {
         next =
@@ -79,7 +81,7 @@ export function WalletContextProvider({
           label: null,
           error: cause instanceof Error ? cause.message : 'That wallet is not available here.',
         });
-        return;
+        return null;
       }
       setState({
         mode: next.mode,
@@ -98,10 +100,15 @@ export function WalletContextProvider({
           label: next.label,
           error: null,
         });
+        return account;
       } catch (cause) {
         // The provider that failed is not made current, so the wallet the
         // person already had is the wallet they still have. On the payment
-        // step that is the demo wallet, untouched.
+        // step that is the demo wallet, untouched. It is torn down all the same:
+        // the session may have been approved and only the account behind it
+        // refused, and a pairing this app has forgotten but the wallet still
+        // lists is a connection somebody thinks they have.
+        await next.disconnect().catch(() => undefined);
         setState({
           mode: next.mode,
           status: 'error',
@@ -109,6 +116,7 @@ export function WalletContextProvider({
           label: next.label,
           error: cause instanceof Error ? cause.message : 'The wallet did not connect.',
         });
+        return null;
       }
     },
     [demo, offersWalletConnect, projectId, resolve],

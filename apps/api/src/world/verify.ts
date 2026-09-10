@@ -199,7 +199,9 @@ export async function verifySelfieCheck(input: VerifyInput): Promise<WorldVerifi
 
   const identifier = (text(responses.identifier) ?? '').toLowerCase();
   if (!world.identifiers.includes(identifier)) {
-    const reason = `The check returned a ${identifier === '' ? 'nameless' : identifier} credential and this deployment accepts ${world.identifiers.join(' or ')}.`;
+    const named = identifier === '' ? 'nameless' : identifier;
+    const article = 'aeiou'.includes(named[0] ?? '') ? 'an' : 'a';
+    const reason = `The check returned ${article} ${named} credential and this deployment accepts ${world.identifiers.join(' or ')}.`;
     throw refuse(
       report,
       'credential',

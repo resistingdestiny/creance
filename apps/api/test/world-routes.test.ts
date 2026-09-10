@@ -308,7 +308,7 @@ describe('the World endpoints', () => {
       expect(line.check).toBe('credential');
       expect(line.code).toBe('world_credential_unaccepted');
       expect(line.reason).toBe(
-        'The check returned a orb credential and this deployment accepts selfie or face.',
+        'The check returned an orb credential and this deployment accepts selfie or face.',
       );
       // The request id is what joins this line to the 403 the person saw, and
       // it is the whole of the context the line needs.

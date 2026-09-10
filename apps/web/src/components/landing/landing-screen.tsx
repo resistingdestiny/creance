@@ -231,7 +231,7 @@ function IndexLiveFrom({ index }: { index: Streamed<LandingIndexView> }) {
 function IndexLiveResting() {
   return (
     <IndexLivePill dot="bg-white/24">
-      <RestingBar className="h-5 w-[15rem] max-w-full" />
+      <RestingBar className="h-5 w-[18.5rem] max-w-full" />
     </IndexLivePill>
   );
 }
@@ -349,9 +349,12 @@ function PriceLine({ price }: { price: Streamed<LandingPriceView> }) {
   return priceLine === null ? null : <p className="text-body text-white/66">{priceLine}</p>;
 }
 
-/** One line of body type, which is what the price will be. */
+/**
+ * One line of body type at the width the sentence takes, so that the centred
+ * column at 390 does not move sideways when the figure lands.
+ */
 function PriceLineResting() {
-  return <RestingBar className="h-6 w-40" />;
+  return <RestingBar className="h-6 w-36" />;
 }
 
 /**
@@ -407,7 +410,7 @@ function Questions({
       <dl className={`flex flex-col ${CONTENT}`}>
         <Question
           answer={
-            <Suspense fallback={<AnswerResting />}>
+            <Suspense fallback={<AnswerResting lines={3} />}>
               <CostAnswer price={price} />
             </Suspense>
           }
@@ -415,7 +418,7 @@ function Questions({
         />
         <Question
           answer={
-            <Suspense fallback={<AnswerResting />}>
+            <Suspense fallback={<AnswerResting lines={2} />}>
               <PayAnswer index={index} />
             </Suspense>
           }
@@ -447,15 +450,38 @@ function PayAnswer({ index }: { index: Streamed<LandingIndexView> }) {
 }
 
 /**
- * An answer before its figure has been read. Two lines of body-lg at every
- * width, which is what both of these answers take with their figure in them and
- * what they take without it.
+ * An answer before its figure has been read.
+ *
+ * The space is kept by the answer's own empty lines rather than by a height
+ * this file would have to keep in step with the type scale, and the bars are
+ * laid over them. The ledger aligns its two columns on the baseline of the
+ * answer, so a block of bars with no line in it would sit at a different height
+ * from the sentence that replaces it, and the row would move by a few pixels as
+ * each answer landed.
+ *
+ * The cost answer takes three lines at 390 and two from the landing breakpoint
+ * up, where the ledger gives it four hundred pixels; the pay answer takes two
+ * at both widths. Measured in a browser with the figures in them.
  */
-function AnswerResting() {
+function AnswerResting({ lines }: { lines: 2 | 3 }) {
   return (
-    <div className="flex flex-col gap-1.5" data-testid="landing-resting">
-      <Skeleton className="h-[21px] w-full" />
-      <Skeleton className="h-[21px] w-2/3 lg:self-end" />
+    <div className="relative" data-testid="landing-resting">
+      <span aria-hidden="true" className="invisible">
+        {'\u00a0'}
+        <br />
+        {lines === 3 ? (
+          <>
+            {'\u00a0'}
+            <br className="lg:hidden" />
+          </>
+        ) : null}
+        {'\u00a0'}
+      </span>
+      <span className="absolute inset-0 flex flex-col gap-1.5">
+        <Skeleton className="flex-1" />
+        {lines === 3 ? <Skeleton className="flex-1 lg:hidden" /> : null}
+        <Skeleton className="flex-1 lg:w-2/3 lg:self-end" />
+      </span>
     </div>
   );
 }
@@ -476,7 +502,7 @@ function TickerResting() {
   return (
     <div
       aria-hidden="true"
-      className="h-11 border-t border-white/10"
+      className="h-[45px] border-t border-white/10"
       data-testid="landing-resting"
     />
   );
@@ -557,7 +583,7 @@ function Explorer({ explorer }: { explorer: Streamed<LandingExplorerView> }) {
 function ExplorerResting() {
   return (
     <div data-testid="landing-resting">
-      <Skeleton className="h-[1148px] w-full lg:h-[788px]" />
+      <Skeleton className="h-[2367px] w-full lg:h-[1307px]" />
     </div>
   );
 }
@@ -606,12 +632,18 @@ function InvestorLine({ line }: { line: Streamed<string> }) {
 }
 
 /**
- * One line of secondary type, which is what the investor line is at both
- * widths. It sits inside the paragraph rather than replacing it, so the line
- * box it rests in is the line box it fills.
+ * The investor line takes two lines of secondary type at 390 and one from the
+ * landing breakpoint up. Both are measured, and both are the width the sentence
+ * itself takes, because the band centres its contents and a bar of another
+ * width would move the line sideways as it filled.
  */
 function InvestorLineResting() {
-  return <RestingBar className="h-5 w-[22rem] max-w-full align-middle" />;
+  return (
+    <span className="flex flex-col items-center gap-1 lg:gap-0">
+      <RestingBar className="h-[18px] w-[21.5rem] max-w-full lg:h-5 lg:w-[27rem]" />
+      <RestingBar className="h-[18px] w-[14rem] max-w-full lg:hidden" />
+    </span>
+  );
 }
 
 /**

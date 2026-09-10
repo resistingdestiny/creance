@@ -18,13 +18,18 @@ import {
   COVER,
   INVESTOR_ROLES,
   PACKETS,
+  SHOWCASE,
   coverProblems,
+  demoCoversSetting,
   emptyRecord,
   inUnits,
   packetsNeedingCover,
   parseBoundPolicy,
+  showcaseNeedsCover,
   stagesToRun,
+  type DemoCoverSlot,
   type SeedRecord,
+  type SeededCover,
   type Stage,
 } from './plan.js';
 import { SCENARIO, runtime, timecode } from './scenario.js';
@@ -49,7 +54,7 @@ import { SCENARIO, runtime, timecode } from './scenario.js';
 ///
 ///     pnpm demo:seed                 every stage, in order
 ///     pnpm demo:seed status          read the world and change none of it
-///     pnpm demo:seed policies        bind the two claimable policies
+///     pnpm demo:seed policies        bind the two claimable covers and the published one
 ///     pnpm demo:seed investors       the note holdings and the vault positions
 ///     pnpm demo:seed packets         render, fingerprint and window check
 ///     pnpm demo:seed verify          read it all back and print the id block
@@ -202,6 +207,14 @@ async function status(context: Context): Promise<void> {
     );
   }
 
+  const showcase = context.record.showcase;
+  const showcaseRow = showcase === undefined ? undefined : await policyRow(context.pool, showcase.policyId);
+  console.log(
+    `  published cover   ${
+      isUsable(showcaseRow) ? `${showcase?.policyId ?? ''} ready` : 'not bound yet'
+    }`,
+  );
+
   if (state.lastObservedMonth >= TOP_UP_PERIOD) {
     console.log(
       `  top-up month      ${TOP_UP_PERIOD} is already observed, so the reserve cannot be topped up again`,
@@ -214,53 +227,77 @@ async function status(context: Context): Promise<void> {
 
 // ------------------------------------------------------------------ policies
 
+/**
+ * One backdated cover on one holder, bound by the command that already knows
+ * how, and read back as a record entry.
+ *
+ * The cover key comes back in the same block as the policy id and is kept here
+ * and nowhere else, because the command that printed it cannot print it again.
+ */
+async function bindOne(context: Context, role: string): Promise<SeededCover> {
+  const output = await run('pnpm', [
+    '--filter',
+    '@creance/api',
+    'testnet:bind-backdated',
+    '--holder',
+    role,
+    '--start',
+    COVER.startAt,
+    '--limit',
+    COVER.limit,
+    '--premium',
+    COVER.premium,
+  ]);
+  const bound = parseBoundPolicy(output);
+  const account = accountOf(context.config, role);
+  return {
+    role,
+    policyId: bound.policyId,
+    accountId: account.accountId,
+    address: account.evmAddress,
+    startAt: COVER.startAt,
+    claimsPayableFrom: bound.claimsPayableFrom ?? '',
+    limit: COVER.limit,
+    ...(bound.coverKey === undefined ? {} : { coverKey: bound.coverKey }),
+    ...(bound.bindTx === undefined ? {} : { bindTx: bound.bindTx }),
+    ...(bound.nftSerial === undefined ? {} : { nftSerial: bound.nftSerial }),
+  };
+}
+
 async function policies(context: Context): Promise<void> {
   const usable = new Map<string, boolean>();
-  for (const policy of context.record.policies) {
-    usable.set(policy.policyId, isUsable(await policyRow(context.pool, policy.policyId)));
+  const known = [
+    ...context.record.policies.map((policy) => policy.policyId),
+    ...(context.record.showcase === undefined ? [] : [context.record.showcase.policyId]),
+  ];
+  for (const policyId of known) {
+    usable.set(policyId, isUsable(await policyRow(context.pool, policyId)));
   }
-  const needed = packetsNeedingCover(context.record, (id) => usable.get(id) === true);
-  if (needed.length === 0) {
-    console.log('  both packets already have cover to claim on, nothing bound');
+  const held = (policyId: string): boolean => usable.get(policyId) === true;
+  const needed = packetsNeedingCover(context.record, held);
+  const showcase = showcaseNeedsCover(context.record, held);
+  if (needed.length === 0 && !showcase) {
+    console.log('  every cover this demonstration needs is already bound, nothing bound');
     stage(context, 'policies', 'nothing to do');
     return;
   }
 
   for (const plan of needed) {
     console.log(`  binding cover for packet ${plan.packet} on ${plan.role}`);
-    const output = await run('pnpm', [
-      '--filter',
-      '@creance/api',
-      'testnet:bind-backdated',
-      '--holder',
-      plan.role,
-      '--start',
-      COVER.startAt,
-      '--limit',
-      COVER.limit,
-      '--premium',
-      COVER.premium,
-    ]);
-    const bound = parseBoundPolicy(output);
-    const account = accountOf(context.config, plan.role);
+    const cover = await bindOne(context, plan.role);
     context.record.policies = [
       ...context.record.policies.filter((policy) => policy.packet !== plan.packet),
-      {
-        role: plan.role,
-        packet: plan.packet,
-        policyId: bound.policyId,
-        accountId: account.accountId,
-        address: account.evmAddress,
-        startAt: COVER.startAt,
-        claimsPayableFrom: bound.claimsPayableFrom ?? '',
-        limit: COVER.limit,
-        ...(bound.bindTx === undefined ? {} : { bindTx: bound.bindTx }),
-        ...(bound.nftSerial === undefined ? {} : { nftSerial: bound.nftSerial }),
-      },
+      { ...cover, packet: plan.packet },
     ];
     context.save();
   }
-  stage(context, 'policies', `${needed.length} bound`);
+
+  if (showcase) {
+    console.log(`  binding the cover a published link opens, on ${SHOWCASE.role}`);
+    context.record.showcase = await bindOne(context, SHOWCASE.role);
+    context.save();
+  }
+  stage(context, 'policies', `${needed.length + (showcase ? 1 : 0)} bound`);
 }
 
 // ----------------------------------------------------------------- investors
@@ -401,6 +438,8 @@ async function verify(context: Context): Promise<void> {
   console.log(`  window ends   ${new Date(state.windowEndsAt * 1000).toISOString()}`);
   console.log('');
 
+  await publishable(context);
+
   if (reserved < needed && state.lastObservedMonth >= TOP_UP_PERIOD) {
     throw new Error(
       `the reserve is ${reserved.toString()} and the approved claim needs ${needed.toString()}, and ${TOP_UP_PERIOD} is spent`,
@@ -414,6 +453,50 @@ async function verify(context: Context): Promise<void> {
   context.record.seededAt = new Date().toISOString();
   stage(context, 'verify', `reserved ${reserved.toString()}`);
   console.log(`  written to    ${RECORD}`);
+}
+
+/**
+ * The covers this run can publish a link to, and the line that publishes them.
+ *
+ * A judge has minutes, no World ID and no wallet, so the web app offers a way
+ * into a cover that needs none of the three: the cover key, which is what T41
+ * built and the only thing that opens a cover session without a check. The keys
+ * printed here are bearer keys to these demonstration covers and to nothing
+ * else, and they are printed here because this is the one moment they exist
+ * outside the database as anything but a digest.
+ *
+ * A slot is filled from what the database says the cover is, never from what
+ * this run hoped it would be. So a deployment that has paid no claim publishes
+ * no paid cover, and the screen cannot claim a payout that did not happen.
+ */
+async function publishable(context: Context): Promise<void> {
+  const covers: { slot: DemoCoverSlot; key: string | undefined }[] = [];
+  const showcase = context.record.showcase;
+  if (showcase !== undefined && isUsable(await policyRow(context.pool, showcase.policyId))) {
+    covers.push({ slot: 'covered', key: showcase.coverKey });
+  }
+  for (const policy of context.record.policies) {
+    const row = await policyRow(context.pool, policy.policyId);
+    if (row?.status === 'paid') covers.push({ slot: 'paid', key: policy.coverKey });
+  }
+
+  const setting = demoCoversSetting(covers);
+  console.log('');
+  console.log('  a judge with no World ID and no wallet');
+  if (setting === '') {
+    console.log('    nothing to publish: no bound cover in this database has a captured key');
+    console.log('    a cover bound before the seed kept its key cannot be published, because the');
+    console.log('    key is a digest in cover_keys and no command can print it again. Drop the');
+    console.log(`    entry from ${RECORD} and run the policies stage to bind a fresh one.`);
+    return;
+  }
+  console.log(`    ${setting}`);
+  console.log('    put that line in the environment the web process reads, beside');
+  console.log('    WEB_DEMO_STATES=true, and restart it. Then /home/demo opens each of these.');
+  if (!covers.some((cover) => cover.slot === 'paid')) {
+    console.log('    no cover in this database has been paid, so the payout on /home/demo is the');
+    console.log('    labelled demonstration state until a claim runs here.');
+  }
 }
 
 // ------------------------------------------------------------------ printing

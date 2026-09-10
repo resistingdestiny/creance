@@ -2721,3 +2721,59 @@ all, so the deployment showed a request going in, a 403 coming out, and no way t
 tell this apart from a failed proof. Every local refusal in
 `apps/api/src/world/verify.ts` now reports its reason on a warn line carrying the
 request id, with no proof, nullifier, signal or wallet on it.
+
+## The Hedera WalletConnect package's ESM build cannot be imported by node
+
+`@hashgraph/hedera-wallet-connect` 2.1.3 is published as ESM: `"type": "module"`
+in its manifest and `./dist/index.js` as its entry. Its own emitted code imports
+directories rather than files, `export * from './lib'` and `export * from './reown'`,
+which is a resolution TypeScript's compiler will emit and node's ESM loader will
+not follow. Importing the package in plain node fails with:
+
+    Directory import '.../dist/lib' is not supported resolving ES modules
+
+Read and reproduced on 10 September 2026 against node 22.23.1. The
+documentation, https://github.com/hashgraph/hedera-wallet-connect, gives an
+`npm install` and an import and says nothing about this, because the audience it
+is written for is bundled: Turbopack, webpack and Vite all resolve a directory
+import to its `index.js` and the package builds and runs perfectly inside a
+Next application, which is what this build does with it.
+
+What it costs is that the package cannot be reached from a vitest file, which
+runs in node. It is not a problem here for a reason worth stating rather than
+discovering: the module that imports it, `apps/web/src/lib/wallet-connect.ts`,
+is loaded by a dynamic `import()` inside the connect path and by nothing else,
+so no test file reaches it. The parts of the connection this build owns, the
+CAIP account parsing and the provider factory, are in `apps/web/src/lib/wallet.ts`,
+which imports nothing.
+
+## A public variable in the repository root environment file never reaches a web build
+
+Recorded because it cost days once already and the same trap was in front of
+T43. `next build` runs with `apps/web` as its working directory, and the
+framework reads an environment file from the application directory only. A
+`NEXT_PUBLIC_` name set in the repository root `.env` is inlined into nothing:
+`NEXT_PUBLIC_SITE_URL` was set there for days and never reached a build.
+
+So `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` lives in the web application's own
+environment file, and the root `.env.example` documents it by saying where it
+goes rather than by carrying it. `apps/web/src/lib/server-env.ts` exists for the
+other half of the same fact: private variables are read from the root file by
+node's own loader, in the module that needs them, because the framework will not
+read that file either.
+
+## A directory import in .dockerignore excludes the root environment file only
+
+Related, and found while removing a build argument that no longer does anything.
+`.dockerignore` writes every workspace pattern with `**/`, deliberately and with
+a comment saying why, except the three environment lines: `.env`, `.env.*` and
+`!.env.example`. A pattern without `**/` matches at the root of the context only,
+so the repository root environment file is excluded from the image and the web
+application's own one, which `COPY apps/web apps/web` brings in, is not.
+
+That is what makes the WalletConnect project id reach a container build with no
+build argument, so it is useful rather than broken. It is written down because it
+is an accident of a pattern that reads as though it excludes both, and because
+the file it copies must stay public only. Anything secret in a web application
+environment file would be in the image.
+

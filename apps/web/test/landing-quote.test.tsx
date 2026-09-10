@@ -31,6 +31,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('../src/app/purchase-actions.js', () => ({
+  connectWallet: vi.fn(),
+  useDemoWallet: vi.fn(),
   beginPurchase: vi.fn(),
   chooseOccupation: vi.fn(),
   completeWorldCheck: vi.fn(),
@@ -50,6 +52,7 @@ vi.mock('../src/app/purchase-actions.js', () => ({
 vi.mock('../src/app/verify/world-check.js', () => ({ WorldCheck: () => null }));
 
 const { LandingScreen } = await import('../src/components/landing/landing-screen.js');
+const { withWallet } = await import('./wallet-harness.js');
 const { continueToVerify, priceCover, quoteOccupation } = await import(
   '../src/app/purchase-actions.js'
 );
@@ -69,7 +72,7 @@ const PRICE = {
 const DEARER = { ...PRICE, limit: '7,000', premium: '5.95' };
 
 function page() {
-  return render(<LandingScreen data={LIVE} />);
+  return render(withWallet(<LandingScreen data={LIVE} />));
 }
 
 /**

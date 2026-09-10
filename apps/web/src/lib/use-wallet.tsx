@@ -42,22 +42,27 @@ const WalletContext = createContext<WalletContextValue | null>(null);
 
 export function WalletContextProvider({
   children,
-  provider,
   resolve,
+  walletConnect,
 }: {
   children: ReactNode;
-  /** A test seam, and the only way a fake wallet gets in. */
-  provider?: WalletProvider;
   /**
    * Turns a connected account id into the account the cover binds to. It is a
    * server action in the app, because the EVM address that goes with an
    * account id has to be read rather than trusted. src/lib/wallet-account.ts.
    */
   resolve?: ResolveWalletAccount;
+  /**
+   * A test seam, and the only way a wallet that is not a real WalletConnect
+   * session gets in. The demo provider is never replaced: it is what the
+   * unchanged path is made of.
+   */
+  walletConnect?: WalletProvider;
 }) {
-  const demo = useMemo(() => provider ?? createDemoWalletProvider(), [provider]);
+  const demo = useMemo(() => createDemoWalletProvider(), []);
   const projectId = useMemo(() => readWalletConnectProjectId(), []);
-  const offersWalletConnect = provider === undefined && projectId !== null && resolve !== undefined;
+  const offersWalletConnect =
+    walletConnect !== undefined || (projectId !== null && resolve !== undefined);
 
   // The live provider, kept in a ref rather than in state: disconnect has to
   // reach the one that is actually holding a session, and a re-render between
@@ -69,10 +74,10 @@ export function WalletContextProvider({
     async (mode: WalletMode): Promise<WalletAccount | null> => {
       let next: WalletProvider;
       try {
-        next =
-          mode === 'walletconnect' && offersWalletConnect && resolve !== undefined
-            ? createWalletConnectProvider({ projectId, resolve })
-            : demo;
+        if (mode !== 'walletconnect') next = demo;
+        else if (walletConnect !== undefined) next = walletConnect;
+        else if (resolve !== undefined) next = createWalletConnectProvider({ projectId, resolve });
+        else next = demo;
       } catch (cause) {
         setState({
           mode,
@@ -119,7 +124,7 @@ export function WalletContextProvider({
         return null;
       }
     },
-    [demo, offersWalletConnect, projectId, resolve],
+    [demo, projectId, resolve, walletConnect],
   );
 
   const disconnect = useCallback(async () => {

@@ -21,6 +21,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('../src/app/purchase-actions.js', () => ({
+  connectWallet: vi.fn(),
+  useDemoWallet: vi.fn(),
   beginPurchase: vi.fn(),
   chooseOccupation: vi.fn(),
   completeWorldCheck: vi.fn(),
@@ -73,6 +75,7 @@ const { attributionPanel, attributionSnapshot } = await import(
   '../src/lib/attribution-model.js'
 );
 const { INDEX } = await import('./worker-fixtures.js');
+const { withWallet } = await import('./wallet-harness.js');
 
 afterEach(() => {
   widgetProps.length = 0;
@@ -286,13 +289,18 @@ describe('the verify screen', () => {
 describe('the pay sheet', () => {
   function renderSheet() {
     return render(
-      <PayScreen
-        cover="1,000"
-        occupation="Computer and mathematical"
-        paysFrom="0.0.10366453"
-        premium="0.86"
-        walletLabel="Demo wallet. Testnet only."
-      />,
+      withWallet(
+        <PayScreen
+          cover="1,000"
+          heldIn={null}
+          heldInLabel={null}
+          occupation="Computer and mathematical"
+          paysFrom="0.0.10366453"
+          premium="0.86"
+          receiptWarning={null}
+          walletLabel="Demo wallet. Testnet only."
+        />,
+      ),
     );
   }
 

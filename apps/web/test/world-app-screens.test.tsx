@@ -34,6 +34,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('../src/app/purchase-actions.js', () => ({
+  connectWallet: vi.fn(),
+  useDemoWallet: vi.fn(),
   beginPurchase: vi.fn(),
   chooseOccupation: vi.fn(),
   completeWorldCheck: vi.fn(),

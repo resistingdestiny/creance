@@ -42,6 +42,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('../src/app/purchase-actions.js', () => ({
+  connectWallet: vi.fn(),
+  useDemoWallet: vi.fn(),
   beginPurchase: vi.fn(),
   chooseOccupation: vi.fn(),
   completeWorldCheck: vi.fn(),
@@ -67,6 +69,8 @@ vi.mock('../src/app/verify/world-check.js', () => ({
 }));
 
 const { LandingScreen } = await import('../src/components/landing/landing-screen.js');
+const { CONNECTED_ACCOUNT, fakeWallet, withWallet } = await import('./wallet-harness.js');
+type WalletProvider = import('../src/lib/wallet.js').WalletProvider;
 const {
   completeWorldCheck,
   continueToPay,
@@ -97,6 +101,9 @@ const CONFIRMATION = {
   premium: '4.25',
   paysFrom: '0.0.10366453',
   walletLabel: 'Demo wallet. Testnet only.',
+  heldIn: null,
+  heldInLabel: null,
+  receiptWarning: null,
 };
 
 /** The signed context the API answers with, as T11's own test records it. */
@@ -114,8 +121,8 @@ const CONTEXT = {
   signature: `0x${'a'.repeat(130)}`,
 };
 
-function page(interim = false) {
-  return render(<LandingScreen data={LIVE} interim={interim} />);
+function page(interim = false, wallet?: WalletProvider) {
+  return render(withWallet(<LandingScreen data={LIVE} interim={interim} />, wallet));
 }
 
 function panel() {

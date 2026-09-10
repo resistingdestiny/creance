@@ -34,6 +34,8 @@ vi.mock('next/navigation', () => ({
 // The hook's default actions are the purchase flow's, so the module has to
 // answer for those too even though this screen passes its own three.
 vi.mock('../src/app/purchase-actions.js', () => ({
+  connectWallet: vi.fn(),
+  useDemoWallet: vi.fn(),
   completeWorldCheck: vi.fn(),
   openWithCoverKey: vi.fn(),
   signInWithWorld: vi.fn(),

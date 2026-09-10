@@ -202,7 +202,7 @@ export function testnetAccountId(caipAccount: string): string | null {
  * in the root file never reaches a build.
  */
 export function readWalletConnectProjectId(
-  value: string | undefined = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID,
+  value: string | null | undefined = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID,
 ): string | null {
   const trimmed = value?.trim() ?? '';
   return trimmed === '' ? null : trimmed;
@@ -238,9 +238,10 @@ export interface WalletConnectOptions {
  * visitor downloads to read a price.
  */
 export function createWalletConnectProvider(options: WalletConnectOptions): WalletProvider {
-  const projectId = options.projectId === undefined
-    ? readWalletConnectProjectId()
-    : options.projectId;
+  // Through the same reader whether it came from the environment or a caller,
+  // so a blank string is as absent as an unset variable is. A project id made
+  // of spaces would otherwise build a provider that fails at the modal.
+  const projectId = readWalletConnectProjectId(options.projectId);
   if (projectId === null) {
     throw new Error(
       'Connecting your own wallet needs a Reown project id. Set NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID in apps/web/.env.',

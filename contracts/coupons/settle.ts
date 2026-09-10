@@ -378,8 +378,8 @@ async function subscribe(context: CouponContext): Promise<void> {
       SUBSCRIPTION_PER_INVESTOR,
     );
     if (subscription === null) continue;
-    record.subscriptions = [
-      ...(record.subscriptions ?? []).filter((entry) => entry.role !== investor.role),
+    series.subscriptions = [
+      ...(series.subscriptions ?? []).filter((entry) => entry.role !== investor.role),
       subscription,
     ];
     context.save();

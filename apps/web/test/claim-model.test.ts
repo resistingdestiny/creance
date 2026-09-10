@@ -21,6 +21,7 @@ import {
   separationLabel,
   waitingPeriodDays,
 } from '../src/lib/claim-model.js';
+import { verifyCopy } from '../src/lib/worker-model.js';
 import { SEPARATION_TYPES } from '@creance/client/src/claim';
 import {
   DECLINED_CLAIM,
@@ -227,6 +228,22 @@ describe('the C4 copy', () => {
   it('drops the second device inside World App', () => {
     expect(claimCheckCopy('failed', 'world-app').line).toBe('Try again.');
     expect(claimCheckCopy('idle', 'world-app')).toEqual(claimCheckCopy('idle'));
+  });
+
+  /**
+   * The same check refused for the same reason gets the same words here as at
+   * purchase, taken from one place rather than written twice. T42.
+   */
+  it('names the check to run when the one that came back is of another kind', () => {
+    expect(claimCheckCopy('wrong-check')).toEqual({
+      heading: "That check isn't the one we asked for.",
+      line: 'Open the World app and run the face check.',
+      button: 'Verify with World ID',
+    });
+    expect(claimCheckCopy('wrong-check')).toEqual(verifyCopy('wrong-check'));
+    expect(claimCheckCopy('wrong-check', 'world-app')).toEqual(
+      verifyCopy('wrong-check', 'world-app'),
+    );
   });
 });
 

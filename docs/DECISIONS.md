@@ -5708,13 +5708,41 @@ wrongly. Naming the collection would remove it, and the web app does not know
 the collection's id, and giving it one to print a warning is a worse trade than
 a warning that is occasionally too careful.
 
-### The library is imported when somebody connects, and not before
+### The library is loaded on the tap, through a component, because `await import()` did not split it
 
-`@reown/appkit` and `@hashgraph/hedera-wallet-connect` are a large tree and the
-landing page is server rendered with its reads held (T40). So `src/lib/wallet.ts`
-holds no import of either: the provider's `connect` does `await import('./wallet-connect')`
-at the moment somebody chooses their own wallet. A visitor who reads a price and
-leaves downloads none of it.
+`@reown/appkit` and `@hashgraph/hedera-wallet-connect` are 3.5MB of client
+JavaScript. The landing page carries the whole purchase on a card, the payment
+step included, so the chooser is on the front door, and T40 exists because what
+the front door costs a visitor matters.
+
+The first attempt was the obvious one: keep every import of the library inside
+`src/lib/wallet-connect.ts` and reach it with `await import('./wallet-connect')`
+from the provider's `connect`. It does not work here. Measured on the built
+output, `next build` with Turbopack put the entire tree into the landing page's
+own chunk and served it as a `<script async>` on `/`:
+
+- origin/main: 130 chunks, 1.4MB in total, largest 224kB.
+- with the plain dynamic import: 8.5MB in total, largest 3.5MB, and that 3.5MB
+  chunk is one of the twenty four the landing document loads.
+
+Removing the `'use client'` directive from the imported module changed nothing,
+and neither did moving the provider factory out of `src/lib/wallet.ts`, which
+server modules also import, into a client only module. The chunk name and size
+were identical across all three.
+
+What does split is `next/dynamic` on a component, which this codebase already
+relies on for IDKit: `quote-panel.tsx` loads the World widget that way and the
+baseline above proves the widget is not in the page's chunk. So the library sits
+behind `src/app/pay/wallet-session.tsx`, a component that renders nothing and
+exists only to be that boundary. It builds a `WalletProvider` and hands it up,
+so the interface every screen reads is unchanged and the wallet context stays
+free of heavy imports. The chooser mounts it when somebody taps "Your own
+wallet" and not before.
+
+The cost of the shape is one wart, and it is in the chooser: the wallet context
+carries a `walletConnect` provider that is null in the app and set only by a
+test, because a test cannot mount a component whose module node refuses to load
+(docs/harness-notes.md). It is named as the test seam it is.
 
 Only the native `hedera` adapter is built. The library's README pairs it with a
 `WagmiAdapter` so the same session can send Ethereum JSON-RPC, and nothing in

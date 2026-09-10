@@ -2777,3 +2777,31 @@ is an accident of a pattern that reads as though it excludes both, and because
 the file it copies must stay public only. Anything secret in a web application
 environment file would be in the image.
 
+## Turbopack did not code split a plain dynamic import out of a client module
+
+Next 16.3.4, measured on 10 September 2026 against the built output rather than
+inferred. `await import('./heavy-module')` inside a module that a client
+component imports did not produce a separate chunk: the whole tree went into the
+page's own chunk and was served as a `<script async>` on the landing document.
+
+The tree in question is `@reown/appkit` with `@hashgraph/hedera-wallet-connect`,
+3.5MB. On origin/main the web app builds 130 chunks totalling 1.4MB with the
+largest at 224kB. With the plain dynamic import it built 8.5MB with the largest
+at 3.5MB, and the landing page loaded that one.
+
+Three shapes were tried and all three produced a chunk of identical name and
+size: the imported module with `'use client'`, the same module without it, and
+the factory moved out of a module that server code also imports into a client
+only one.
+
+`next/dynamic` on a component splits correctly, and this repository already
+depended on that: `src/components/landing/quote-panel.tsx` loads the IDKit
+widget that way, and IDKit is nowhere near the landing chunk in the baseline
+above. So the rule to work to here is that a component is the only reliable
+split boundary, and a module behind `await import()` should be assumed to be in
+the bundle until the built output says otherwise.
+
+Worth measuring rather than trusting either way. `ls -S apps/web/.next/static/chunks`
+after a build, and the script tags in the served landing document, are the two
+things that answer it.
+

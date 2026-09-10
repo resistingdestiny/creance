@@ -8,33 +8,27 @@ import {
   OWN_WALLET_LABEL,
   WALLET_METADATA,
   createDemoWalletProvider,
-  createWalletConnectProvider,
   demoRoleOf,
   readWalletConnectProjectId,
+  requireWalletConnectProjectId,
   testnetAccountId,
 } from '../src/lib/wallet.js';
 
 describe('the WalletConnect provider', () => {
-  const resolve = async (accountId: string) => ({ accountId, evmAddress: '0x00' });
-
   it('refuses to be built without a project id rather than quietly using the demo account', () => {
     // The mode used to throw outright for the same reason, and the reason has
     // not changed now that the mode is a choice somebody makes on screen: a
     // demo that silently looks like a real connection is worse than one that
-    // says what it is.
-    expect(() => createWalletConnectProvider({ projectId: null, resolve })).toThrow(
-      /Reown project id/,
-    );
-    expect(() => createWalletConnectProvider({ projectId: '  ', resolve })).toThrow(
-      /Reown project id/,
-    );
+    // says what it is. `createWalletConnectProvider` is this call and nothing
+    // else standing between it and the modal.
+    expect(() => requireWalletConnectProjectId(null)).toThrow(/Reown project id/);
+    expect(() => requireWalletConnectProjectId('  ')).toThrow(/Reown project id/);
+    expect(requireWalletConnectProjectId('37d0eec9')).toBe('37d0eec9');
   });
 
   it('is labelled as a real connection, not as the demo one', () => {
-    const provider = createWalletConnectProvider({ projectId: 'abc', resolve });
-    expect(provider.mode).toBe('walletconnect');
-    expect(provider.label).toBe(OWN_WALLET_LABEL);
-    expect(provider.label).not.toBe(DEMO_WALLET_LABEL);
+    expect(OWN_WALLET_LABEL).toBe('Your own wallet. Hedera testnet.');
+    expect(OWN_WALLET_LABEL).not.toBe(DEMO_WALLET_LABEL);
   });
 });
 

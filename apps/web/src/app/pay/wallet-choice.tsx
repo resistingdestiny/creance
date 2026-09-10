@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import dynamic from 'next/dynamic';
+import { useCallback, useState, useTransition } from 'react';
 
 import { Check } from '../../components/icons';
 import { useWallet } from '../../lib/use-wallet';
-import type { WalletMode } from '../../lib/wallet';
+import { readWalletConnectProjectId, type WalletMode, type WalletProvider } from '../../lib/wallet';
 import { useDemoWallet } from '../purchase-actions';
 
 /**
@@ -33,6 +34,18 @@ import { useDemoWallet } from '../purchase-actions';
  * no test network for it and MISSION rule 1 forbids real funds. The one
  * sentence at the foot is that decision, said plainly.
  */
+
+/**
+ * The WalletConnect library, mounted on the tap and not before.
+ *
+ * It renders nothing and is a component only because that is the shape the
+ * framework code splits reliably. 3.5MB sits behind it, this chooser is on the
+ * landing page's own card, and a visitor who came to read a price must not
+ * download a wallet. See src/app/pay/wallet-session.tsx.
+ */
+const WalletSession = dynamic(() => import('./wallet-session').then((m) => m.WalletSession), {
+  ssr: false,
+});
 
 export const CHOICE_HEADING = 'How do you want to pay?';
 
@@ -71,18 +84,40 @@ export function WalletChoice({
   const [chosen, setChosen] = useState<WalletMode>(
     connectedAccount === null ? 'demo' : 'walletconnect',
   );
+  const [opening, setOpening] = useState(false);
   const [leaving, startLeaving] = useTransition();
 
+  // A deployment with no Reown project id cannot reach a wallet, so it does not
+  // offer one. That is the same rule the provider factory keeps by throwing: an
+  // option that quietly fell back to the demo account would be a demo looking
+  // like a real connection.
+  const projectId = readWalletConnectProjectId();
+  const offersWalletConnect = wallet.walletConnect !== null || projectId !== null;
+
   const account = wallet.account?.accountId ?? connectedAccount;
-  const connecting = wallet.status === 'connecting' || leaving;
+  const connecting = wallet.status === 'connecting' || opening || leaving;
+
+  const hold = useCallback(
+    (provider: WalletProvider) => {
+      setOpening(false);
+      void wallet.connect(provider).then((connected) => {
+        if (connected === null) return;
+        setChosen('walletconnect');
+        onChanged();
+      });
+    },
+    [onChanged, wallet],
+  );
 
   const chooseOwn = () => {
-    if (connecting || !wallet.offersWalletConnect) return;
-    void wallet.connect('walletconnect').then((connected) => {
-      if (connected === null) return;
-      setChosen('walletconnect');
-      onChanged();
-    });
+    if (connecting || !offersWalletConnect) return;
+    // The injected wallet is a test's; the app has none and loads one.
+    if (wallet.walletConnect !== null) {
+      hold(wallet.walletConnect);
+      return;
+    }
+    wallet.opening();
+    setOpening(true);
   };
 
   const chooseDemo = () => {
@@ -103,7 +138,7 @@ export function WalletChoice({
         <ChoiceRow
           aria-checked={chosen === 'walletconnect'}
           body={OWN_WALLET_BODY}
-          disabled={!wallet.offersWalletConnect || connecting}
+          disabled={!offersWalletConnect || connecting}
           onSelect={chooseOwn}
           recommended
           title={OWN_WALLET_TITLE}
@@ -125,13 +160,17 @@ export function WalletChoice({
         />
       </div>
 
+      {opening && projectId !== null ? (
+        <WalletSession onReady={hold} projectId={projectId} />
+      ) : null}
+
       {wallet.status === 'error' && wallet.error !== null ? (
         <p className="text-secondary text-triggered" data-testid="wallet-choice-error" role="status">
           {wallet.error}
         </p>
       ) : null}
 
-      {wallet.offersWalletConnect ? (
+      {offersWalletConnect ? (
         <p className="text-caption text-ink-2">{CHECK_AGAIN_NOTE}</p>
       ) : (
         <p className="text-caption text-ink-2">{NO_PROJECT_ID_NOTE}</p>

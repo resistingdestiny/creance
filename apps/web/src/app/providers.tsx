@@ -5,7 +5,6 @@ import type { ReactNode } from 'react';
 
 import { detectSurface, SurfaceContext } from '../lib/surface';
 import { WalletContextProvider } from '../lib/use-wallet';
-import { connectWallet } from './purchase-actions';
 
 /**
  * MiniKit, installed once around the whole app.
@@ -36,15 +35,15 @@ import { connectWallet } from './purchase-actions';
  * that opens a WalletConnect session is loaded at that moment and not before.
  * So the landing page still ships the bundle T40 left it with.
  *
- * `connectWallet` is the server action that turns a connected account id into
- * the account a cover binds to. It is passed in rather than imported by the
- * context, so a test can mount the context with a wallet that connects to
- * nothing.
+ * The context is handed a provider rather than building one, so nothing heavy
+ * is reachable from here: the chooser loads the WalletConnect library through
+ * `next/dynamic` at the moment somebody asks for it, and a test can mount the
+ * context with a wallet that connects to nothing.
  */
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <MiniKitProvider>
-      <WalletContextProvider resolve={connectWallet}>
+      <WalletContextProvider>
         <Surface>{children}</Surface>
       </WalletContextProvider>
     </MiniKitProvider>

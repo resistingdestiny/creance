@@ -1,5 +1,3 @@
-'use client';
-
 import {
   HederaAdapter,
   HederaChainDefinition,
@@ -8,7 +6,14 @@ import {
 } from '@hashgraph/hedera-wallet-connect';
 import { createAppKit } from '@reown/appkit';
 
-import { WALLET_METADATA, testnetAccountId } from './wallet';
+import {
+  OWN_WALLET_LABEL,
+  WALLET_METADATA,
+  requireWalletConnectProjectId,
+  testnetAccountId,
+  type ResolveWalletAccount,
+  type WalletProvider,
+} from './wallet';
 
 /**
  * The WalletConnect session, and the only module that knows the library.
@@ -25,10 +30,12 @@ import { WALLET_METADATA, testnetAccountId } from './wallet';
  * app does; the EVM address that goes with the account id is read from the
  * mirror node on the server, where it can be checked rather than trusted.
  *
- * Everything here is browser only and is imported by `createWalletConnectProvider`
- * at the moment somebody connects, never at module load. The library is large
- * and the landing page is server rendered and held (T40), so it may not sit in
- * the bundle a visitor downloads to read a price.
+ * Everything here is browser only and nothing imports it directly. The chooser
+ * reaches it through `next/dynamic` on src/app/pay/wallet-session.tsx, at the
+ * moment somebody chooses their own wallet. The library is 3.5MB, the landing
+ * page is server rendered and held (T40), and a visitor who reads a price and
+ * leaves must not download a wallet. A plain `await import()` does not do it:
+ * Turbopack put the whole tree in the page's own chunk. docs/DECISIONS.md.
  *
  * https://github.com/hashgraph/hedera-wallet-connect
  * https://docs.reown.com/appkit/overview
@@ -164,4 +171,29 @@ export async function closeWalletSession(): Promise<void> {
   if (building === null) return;
   const { kit } = await building;
   await kit.disconnect(hederaNamespace);
+}
+
+/**
+ * A wallet reached over the WalletConnect network, behind the same interface
+ * the demo provider is behind.
+ *
+ * Building one without a project id throws rather than falling back to the demo
+ * account, because a demo that silently looks like a real connection is worse
+ * than one that says what it is. That was true when asking for a real wallet
+ * threw outright and it is still true now that the mode is a choice somebody
+ * makes on screen.
+ */
+export function createWalletConnectProvider(options: {
+  readonly projectId?: string | null;
+  readonly resolve: ResolveWalletAccount;
+}): WalletProvider {
+  const projectId = requireWalletConnectProjectId(options.projectId);
+  return {
+    mode: 'walletconnect',
+    label: OWN_WALLET_LABEL,
+    async connect() {
+      return await options.resolve(await openWalletSession(projectId));
+    },
+    disconnect: closeWalletSession,
+  };
 }

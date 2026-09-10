@@ -223,52 +223,34 @@ export function readWalletConnectProjectId(
  *
  * A session gives an account id and nothing else, and DESIGN.md 3.6 needs the
  * EVM address too. Resolving it is a server side read of the mirror node, so
- * it arrives here as a function rather than being done in the browser: the
- * server is going to have to look the account up anyway, because an address a
- * browser supplies is an address a browser could have made up.
+ * it arrives as a function rather than being done in the browser: the server is
+ * going to have to look the account up anyway, because an address a browser
+ * supplies is an address a browser could have made up.
  */
 export type ResolveWalletAccount = (accountId: string) => Promise<WalletAccount>;
 
-export interface WalletConnectOptions {
-  readonly projectId?: string | null;
-  readonly resolve: ResolveWalletAccount;
-}
-
 /**
- * A wallet reached over the WalletConnect network.
+ * The project id, or a throw.
  *
- * Building one without a project id throws rather than falling back to the demo
- * account, because a demo that silently looks like a real connection is worse
- * than one that says what it is. That was true when the mode threw outright and
- * it is still true now that the mode is a choice somebody makes on screen.
+ * The one invariant that survives the mode becoming a runtime choice: a real
+ * wallet is never quietly replaced by the demo account. Asking for one without
+ * a project id used to throw from the mode and now throws from here, for the
+ * same reason. A demo that silently looks like a real connection is worse than
+ * one that says what it is.
  *
- * The session itself lives in src/lib/wallet-connect.ts and is imported only
- * when somebody connects. The library it uses is large and the landing page is
- * server rendered and held (T40), so it may not be in the first bundle a
- * visitor downloads to read a price.
+ * It is separate from `createWalletConnectProvider` so that it can be reached
+ * without the library: the factory lives beside the session it opens, in a
+ * module node cannot import (docs/harness-notes.md), and this rule is the part
+ * of it that has to be provable in a test.
  */
-export function createWalletConnectProvider(options: WalletConnectOptions): WalletProvider {
-  // Through the same reader whether it came from the environment or a caller,
-  // so a blank string is as absent as an unset variable is. A project id made
-  // of spaces would otherwise build a provider that fails at the modal.
-  const projectId = readWalletConnectProjectId(options.projectId);
+export function requireWalletConnectProjectId(value?: string | null): string {
+  const projectId = readWalletConnectProjectId(value);
   if (projectId === null) {
     throw new Error(
-      'Connecting your own wallet needs a Reown project id. Set NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID in apps/web/.env.',
+      'Connecting your own wallet needs a Reown project id. Set NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID in the web application environment file.',
     );
   }
-  return {
-    mode: 'walletconnect',
-    label: OWN_WALLET_LABEL,
-    async connect() {
-      const { openWalletSession } = await import('./wallet-connect');
-      return await options.resolve(await openWalletSession(projectId));
-    },
-    async disconnect() {
-      const { closeWalletSession } = await import('./wallet-connect');
-      await closeWalletSession();
-    },
-  };
+  return projectId;
 }
 
 export const disconnectedState = (mode: WalletMode, label: string | null): WalletState => ({

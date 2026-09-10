@@ -199,6 +199,33 @@ describe('getting back into a cover', () => {
     expect(screen.queryByTestId('no-cover')).toBeNull();
   });
 
+  /**
+   * A redirect from a server action resolves the call with nothing rather than
+   * with a result, so the success path comes back here empty and must not be
+   * read as an error.
+   */
+  it('shows no error when the key opened a cover and the server redirected', async () => {
+    vi.mocked(openWithCoverKey).mockResolvedValue(undefined as never);
+    render(<SignInScreen world />);
+    fireEvent.change(screen.getByLabelText('Cover key'), { target: { value: '00001111222233334444' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Open my cover' }));
+    await waitFor(() => expect(openWithCoverKey).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/doesn't open a cover/)).toBeNull();
+  });
+
+  it('clears the last answer when the person tries again', async () => {
+    vi.mocked(signInWithWorld).mockResolvedValue({ found: false, error: null });
+    render(<SignInScreen world />);
+    await openTheWidget();
+    await completeTheCheck();
+    expect(screen.getByTestId('no-cover')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Sign in with World ID' }));
+    });
+    expect(screen.queryByTestId('no-cover')).toBeNull();
+  });
+
   it('completes the whole key form from the keyboard alone', async () => {
     vi.mocked(openWithCoverKey).mockResolvedValue({ found: true, error: null });
     render(<SignInScreen world />);

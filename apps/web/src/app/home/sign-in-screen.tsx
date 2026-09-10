@@ -92,12 +92,21 @@ export function SignInScreen({
   };
 
   const submitKey = (formData: FormData) => {
+    clear();
+    startTransition(async () => {
+      // A key that opened a cover redirects, and a redirect from a server
+      // action resolves the call with nothing rather than with a result, so the
+      // answer is read defensively: there is no error to show on the path that
+      // never comes back here.
+      const answer = await openWithCoverKey(formData);
+      setKeyError(answer?.error ?? null);
+    });
+  };
+
+  /** Whatever the last attempt said, gone, so a retry starts from a clean screen. */
+  const clear = () => {
     setOutcome('none');
     setKeyError(null);
-    startTransition(async () => {
-      const answer = await openWithCoverKey(formData);
-      setKeyError(answer.error);
-    });
   };
 
   const failed = outcome === 'failed' || (outcome === 'none' && check.state === 'failed');
@@ -132,7 +141,10 @@ export function SignInScreen({
           <PillButton
             className="w-full"
             loading={check.pending || check.state === 'waiting'}
-            onClick={check.start}
+            onClick={() => {
+              clear();
+              check.start();
+            }}
           >
             {BACK_IN_WORLD}
           </PillButton>

@@ -41,7 +41,7 @@ describe('the series chooser', () => {
   );
 
   it('is a native disclosure, shut, with no script of its own', () => {
-    expect(markup).toMatch(/^<details class="group relative mt-6">/);
+    expect(markup).toMatch(/^<details class="group relative mt-6 lg:w-fit">/);
     expect(markup).not.toContain(' open');
     expect(markup).not.toContain('onClick');
     expect(markup).toContain('<summary');

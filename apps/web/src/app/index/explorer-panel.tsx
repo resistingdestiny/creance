@@ -419,7 +419,7 @@ function Picker({
       <button
         aria-controls={panelId}
         aria-expanded={open}
-        className="flex min-h-13 w-full items-center justify-between gap-3 rounded-xl border border-hairline bg-canvas px-4 text-left text-body text-ink transition-colors duration-200 ease-out hover:bg-surface motion-reduce:transition-none lg:w-auto lg:min-w-[380px]"
+        className="flex min-h-13 w-full items-center justify-between gap-3 rounded-xl border border-hairline bg-canvas px-4 text-left text-body text-ink transition-colors duration-200 ease-out hover:bg-surface motion-reduce:transition-none lg:w-auto lg:min-w-[400px]"
         onClick={() => (open ? hide(true) : show())}
         ref={row}
         type="button"
@@ -433,7 +433,7 @@ function Picker({
       </button>
 
       <div
-        className="absolute left-0 right-0 top-full z-20 mt-2 flex max-h-[420px] flex-col gap-2 overflow-y-auto rounded-2xl border border-hairline bg-canvas p-2 lg:right-auto lg:w-[480px]"
+        className="absolute left-0 right-0 top-full z-20 mt-2 flex max-h-[420px] flex-col gap-2 overflow-y-auto rounded-2xl border border-hairline bg-canvas p-2 lg:right-auto lg:w-[400px]"
         hidden={!open}
         id={panelId}
       >

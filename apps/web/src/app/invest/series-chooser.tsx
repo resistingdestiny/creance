@@ -39,11 +39,11 @@ export function SeriesChooser({ choices, current, base }: SeriesChooserProps) {
   const chosen = choices.find((choice) => choice.series_id === current);
   const chosenName = chosen === undefined ? current : (seriesName(chosen) ?? chosen.series_id);
   return (
-    <details className="group relative mt-6">
+    <details className="group relative mt-6 lg:w-fit">
       {/* A flex summary loses the browser's own marker, so the chevron is the
           affordance and it turns a quarter when the disclosure opens. */}
       <summary
-        className="flex min-h-13 w-full cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-hairline bg-canvas px-4 text-body font-medium text-ink transition-colors duration-200 ease-out hover:bg-surface motion-reduce:transition-none [&::-webkit-details-marker]:hidden lg:w-auto lg:min-w-[380px]"
+        className="flex min-h-13 w-full cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-hairline bg-canvas px-4 text-body font-medium text-ink transition-colors duration-200 ease-out hover:bg-surface motion-reduce:transition-none [&::-webkit-details-marker]:hidden lg:w-auto lg:min-w-[400px]"
         title={current}
       >
         {chosenName}
@@ -51,7 +51,7 @@ export function SeriesChooser({ choices, current, base }: SeriesChooserProps) {
       </summary>
       <nav
         aria-label="Series"
-        className="absolute left-0 right-0 top-full z-20 mt-2 flex max-h-[420px] flex-col overflow-y-auto rounded-2xl border border-hairline bg-canvas p-2 lg:right-auto lg:w-[480px]"
+        className="absolute left-0 right-0 top-full z-20 mt-2 flex max-h-[420px] flex-col overflow-y-auto rounded-2xl border border-hairline bg-canvas p-2 lg:right-auto lg:w-[400px]"
       >
         {choices.map((choice) => {
           const here = choice.series_id === current;

@@ -6462,3 +6462,177 @@ Measured in the tests rather than asserted in prose: a hundred views with a
 hundred distinct unknown ids leave the two holds at one entry each, the one
 series the API serves, with nothing forgotten to get there, and an id the API
 starts serving later is bought exactly once.
+
+## T52, one header and a polish pass, 11 September 2026
+
+Root looked at the built site after T50 and said the header still looked
+different from page to page, the product did not feel like one application,
+and the index and investor pages were not good enough; and then that the
+landing and the card were not finished either. This section records what
+changed, which halves of earlier decisions it reverses, which halves stand,
+and what it left for T51's version of the investor page.
+
+### The header band takes night on every route; the content under it does not
+
+Two recorded decisions carried the header's tone. "Two tones, one component"
+(T50) is reversed in full: the header is one component in one tone now, the
+night ground with the addendum's text rules for it, on the landing, the
+explorer, every worker screen and every investor screen. Root's reason: the
+landing's header was the good one, and lightening it on the next page was the
+visible change of clothes that made the product read as three sites.
+
+The before kick-off rule, "the marketing surface may use a dark ground, the
+product may not", which T49 and T50 both restated as standing in full, is
+reversed by exactly one element: the 72px header band. Everything under the
+band stands. Every worker and investor screen is still light, on canvas and
+surface; `night-2` is still the landing's alone; the elevation is still spent
+on `.cover-card--depth` and nowhere else; the landing's night bands and its
+sheet are the landing's own. site-chrome.test.tsx counts `bg-night` once on
+each product frame, in the header, so the ground cannot travel further
+without a test saying so.
+
+No page was found that could not take the dark header. The admin review queue
+takes it too, because the ticket asked for one header and the queue only has
+to be legible.
+
+### "Get cover" on the explorer is overridden by the deck's string
+
+T50 kept the explorer's "Get cover" on purpose, as the day tone counterpart of
+"Get a quote". T52 overrides it: the action is "Get a quote" on every route,
+which is the deck's string, held in one constant (`CHROME_ACTION`) that the
+landing's button and every other route's link both read. On the landing the
+action is the quote button, which opens the quote where the hero card stands;
+on every other route it is a link to the front door with the same words, in
+the same night primary pill, because there is no query or hash that opens the
+quote from another route and a relabel is not logic. The worker and investor
+screens, which T50 left with no action, carry it too: the acceptance asks for
+the same items and the same action label on the cover screens as well.
+
+### The desktop sheet goes, the worker sheet stays, and the two frames stand on the ground each width needs
+
+T50's construction was "a canvas sheet on surface with hairline sides where
+the ground shows", at 390 and at 1280. It is revised for the 1280 frame and
+kept for the 390 column. At 1440 the desktop sheet left 80px of surface
+either side of a bordered 1280 box under a header that spanned the viewport,
+which Root read as a card floating inside a browser. `DesktopFrame` now stands
+on continuous canvas from the header to the footer with no side hairlines,
+and its 1280 frame is a measure for the content, exactly as it is for the
+header above it. Beside a 390 column the ground is most of the screen, and it
+is what makes the column read as a deliberate object rather than a page that
+stopped early, so `AppFrame` keeps its canvas sheet on surface with
+`sm:border-x`. The two frames therefore no longer stand on one ground: they
+stand under one header, and each on the ground its width needs.
+
+### The focus outline reads its colour off the ground
+
+T50 left the outline as it was, 2px solid black everywhere, invisible on the
+night header, because that was a landing only problem and a token decision.
+With the header on every route it is neither, so it is decided here as a
+token: the outline is still 2px solid black with a 2px offset everywhere, and
+inside an element carrying `data-tone="night"` its colour is white. The
+header carries the attribute. built-css.test.ts holds the black rule on
+every focus-visible block that is not scoped to that attribute, and holds the
+night rule to one selector that sets the colour and nothing else. The
+landing's hero band and closing line do not carry the attribute yet: their
+buttons are the night pills, whose white fill is visible against the ground
+with or without an outline, and the quote's steps stand on the card's light
+face, where black is right.
+
+### The from price says what it buys, and is still built from the quote
+
+DECISIONS.md and landing.test.tsx record that the page never names an amount
+nobody quoted, and that the price line is absent, not a placeholder, when the
+quote fails. Both stand. The line gained a second line, "for 1,000 of cover",
+and both are figures built in src/lib/landing-model.ts: the first from the
+premium the quote returned, the second from the limit the quote was asked
+for, which src/lib/landing-data.ts hands in beside the premium so the two
+lines are about one price. Neither is typed anywhere. The wording is the
+explorer's own, "Monthly premium for 5,000 of cover", with the hero's figure.
+The T44 word budget is untouched by construction: the line is built the same
+way on every render, and the test that compares the page with and without the
+demo control still holds to one difference of four words. The exact string is
+in the addendum's copy deck under T52.
+
+The price stands between the lead and the hero actions at the headline scale
+in white, where it was body type at the secondary opacity under the buttons.
+The demo control's test, which held the price after the primary, now holds
+the figure before it.
+
+### The light page is a sheet on the night ground
+
+The hero's night ground stopped at the ticker and white began, which on a page
+this considered looked accidental. The main is the night ground now, from the
+header through the closing line, and the two light sections between the hero
+and the closing line are one canvas sheet laid on it with rounded corners:
+the sheet radius (20) at 390 and the hero card's (32) from the landing
+breakpoint. The night shows at the sheet's corners above and below, so the
+boundary is a drawn edge. The page root and the document are still canvas.
+
+### The metal is a reflection on a neutral face, and one test changed to let it be
+
+T34's shimmer was five pale hues at 16 percent across a third of a band two
+and a bit cards wide, which put colour over some seventy percent of the face
+at once, evenly, and Root read the result as iridescent plastic. The band is a
+fifth of that width now, with a white core at 55 percent and the hues fringing
+it at 20 percent, so the base gradient's silver is what most of the face shows
+and the rainbow is the light crossing it; the edge is a deeper, cooler grey
+(#b3bac4, from #cfd4dc) and the thickness behind the face is darker still.
+The base gradient, the sheen and the brushing are unchanged, and the metal is
+still a modifier that sets one property, so T34's construction stands.
+
+The contrast argument stands too and the test that computes it is unchanged:
+every hue is still pale at a low alpha and the core is white, so the worst
+composite over the darkest stop of any treatment is above 12:1 for ink. What
+changed in built-css.test.ts is the edge colour it expects, and one test
+added that holds the band's shape, so a later hand cannot widen it back into
+a fill.
+
+At landing size the occupation label and the "Cover" caption step up one size,
+to body-lg and body: a 14px label wrapping over two lines in the corner of a
+720px card left the face reading as empty. Every other card is as it was.
+
+### The pickers are controls, not lists
+
+The explorer's picker was the search box over fifteen pills wrapping four rows
+deep, on `/index` and on the landing's index section alike, and it pushed the
+verdict below the fold. It is one row naming the occupation on screen, with a
+panel under it holding the search box and the fifteen as buttons. The panel is
+in the markup at all times and hidden with the attribute, so both pages still
+carry every occupation as a button and the landing's test that counts them is
+unchanged. Opening the row shows them; the keyboard walks them in full
+(arrows, Home, End, Enter in the box picks the first match, Escape closes and
+returns focus to the row, Tab walks the same buttons); the pointer presses
+the row and then an option. Options keep the caret in the search box while
+they are pressed, because a browser that does not focus a button on press
+would otherwise close the panel under the pointer.
+
+The investor screens' series chooser was sixteen pills. It is the same shape
+as a native disclosure: a summary naming the series on screen, and the
+series as plain links under it, still server rendered with no client JS. The
+identifier is still the title of every link and of the row.
+
+### Test counts that changed, with the reason
+
+site-chrome.test.tsx no longer compares the two tones, because there is one;
+it asserts the night ground on every frame and the same action on every one,
+and the two grounds the frames now stand on. landing.test.tsx counted three
+`bg-night`; it counts two, the header and the main, and asserts the sheet
+between them. Its demo control test held the price after the primary and
+holds it before. built-css.test.ts expects the deeper edge and holds the
+band's shape, and allows the one night focus rule. explorer-screen.test.tsx
+opens the row before counting the fifteen. components.test.tsx accepts a
+white alpha border, which is the addendum's own line on the night ground and
+which the frame's header now carries; the gallery snapshot follows the header
+and the hero labels. series-chooser.test.tsx is new.
+
+### Left for T51's investor page
+
+The ticket's investor layout, the occupation leading the identifier and the
+certificate and terms using the width at 1440, lives in
+apps/web/src/app/invest/investor-overview.tsx, which PR #58 (T51) rewrites by
+some six hundred lines with Suspense resting states measured at both widths.
+That pull request was open and in review while this one was built, so this
+ticket did not reach into that file: the bordered box is gone through the
+frame, the series chooser is done in its own file, and the heading and the
+grid wait for T51 to land so they can be laid out on its version and its
+resting heights re-measured once rather than twice.

@@ -471,11 +471,13 @@ function Principal({ series }: { series: Streamed<SeriesView | null> }) {
 }
 
 /**
- * The bar and its two lines at their own heights, with the section's gap
+ * The bar and its three lines at their own heights, with the section's gap
  * between them, so that the explainer under them does not move when they land.
- * Three pieces rather than one slab because the section is a column with a
+ * Four pieces rather than one slab because the section is a column with a
  * gap, and the fallback has to be worth the same number of gaps. The caption
  * is two lines of secondary type at 390 and one from the landing breakpoint.
+ * The third line is "if triggered", which renders only while a reserve is
+ * held; the demo series holds one, so the space is kept for it.
  */
 function PrincipalResting() {
   return (
@@ -483,6 +485,7 @@ function PrincipalResting() {
       <Skeleton className="h-3 w-full rounded-full" />
       <Skeleton className="h-10 w-72 max-w-full lg:h-5" />
       <Skeleton className="h-6 w-64 max-w-full" />
+      <Skeleton className="h-6 w-40 max-w-full" />
     </div>
   );
 }

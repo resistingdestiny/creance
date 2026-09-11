@@ -77,11 +77,14 @@ export function OccupationPicker({
         <h1 className="text-title font-display font-semibold tracking-title text-ink">
           What do you do?
         </h1>
+        {/* No placeholder. FormField's rule is that every field has a visible
+            label and the placeholder is never a substitute for it, and a
+            placeholder repeating the label word for word is the label printed
+            twice. */}
         <FormField
           autoComplete="off"
           label="Search occupations"
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search occupations"
           type="search"
           value={query}
         />
@@ -91,12 +94,19 @@ export function OccupationPicker({
             Nothing matches that. This cover is sold by occupation group, not by job title.
           </p>
         ) : (
+          /* The headings name two parts of a split list, so they are drawn
+             only where the list is actually split. Since T39 issued capacity
+             for all fifteen there is usually one part, and "Open to buy (15)"
+             over every occupation there is names nothing: a heading that
+             cannot be contrasted with anything is a label on the page. */
           <div className="flex flex-col gap-6">
             {groups.open.length === 0 ? null : (
               <section className="flex flex-col gap-2">
-                <h2 className="text-secondary font-medium text-ink">
-                  {occupationGroupHeading('open', groups.open.length)}
-                </h2>
+                {groups.noCover.length === 0 ? null : (
+                  <h2 className="text-secondary font-medium text-ink">
+                    {occupationGroupHeading('open', groups.open.length)}
+                  </h2>
+                )}
                 <SurfaceGroup>{groups.open.map(renderRow)}</SurfaceGroup>
               </section>
             )}
@@ -149,24 +159,32 @@ export function occupationGroupHeading(part: 'open' | 'noCover', count: number):
  * history, 2000 to 2026 (T56). The occupation can still open claims, because
  * the shock form is independent of the level form and does open; what the
  * sentence stops is a buyer reading a distance to that line as a countdown.
- * The span is the whole published history and not the backtest's 2010 start,
- * because the sentence has to be false for legal, which reached its line in
- * 2007. Exported so the test and the copy deck can hold it to one string.
+ *
+ * It used to name the span, "never been reached in the published history since
+ * 2000", and say what follows from it in a second clause. Five of the fifteen
+ * rows carry this and ten carry nothing, so at three lines each it made the
+ * list look broken rather than honest. The claim a buyer has to hear is the
+ * consequence, and it is the same claim in a third of the words. The span it
+ * was measured over is on the index page, which is where a reader who wants to
+ * check it is going anyway. Exported so the test and the copy deck can hold it
+ * to one string.
  */
-export const LEVEL_LINE_NEVER_REACHED =
-  'Its level line has never been reached in the published history since 2000. Only a sudden jump would open claims.';
+export const LEVEL_LINE_NEVER_REACHED = 'Only a sudden jump would open claims here.';
 
 /**
  * What a row says under its name. Every line is a fact, not marketing: the
  * first is capacity, the second is the backtest in docs/INDEX.md, the third
  * is the whole published history since 2000.
+ *
+ * Both history lines are cut to their consequence for the same reason, and
+ * they collapse into one another: an occupation whose claims have never opened
+ * and whose level line has never been reached does not need to be told twice
+ * that nothing has happened to it.
  */
 export function captionFor(row: Occupation): string | undefined {
   const lines: string[] = [];
   if (!hasCover(row)) lines.push(NO_COVER_YET);
-  if (row.lastOpenPeriod === null) {
-    lines.push('Claims have never opened for this occupation since 2010.');
-  }
+  if (row.lastOpenPeriod === null) lines.push('Claims have never opened here.');
   if (row.levelLineNeverReached) lines.push(LEVEL_LINE_NEVER_REACHED);
   return lines.length === 0 ? undefined : lines.join(' ');
 }

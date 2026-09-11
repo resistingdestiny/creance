@@ -329,15 +329,26 @@ on every render of the page.
 
 ## Copy deck additions, T56 (verbatim)
 
-"Its level line has never been reached in the published history since 2000. Only a sudden jump would open claims."
+"Only a sudden jump would open claims here."
 
 The third sentence a picker row can carry, after the capacity line and the
 never-opened line, for the five occupations whose level line the smoothed
 excess has never reached across the whole published history, 2000 to 2026.
-It says the published history and not 2010, because it has to be false for
-legal, which reached its line once in 2007. The landing quote's chooser
-renders the same caption. See `LEVEL_LINE_NEVER_REACHED` in
-`occupation-picker.tsx`.
+It is true of legal's row too in form and is not drawn there, because legal
+reached its line once in 2007.
+
+It was written as "Its level line has never been reached in the published
+history since 2000. Only a sudden jump would open claims.", which named the
+span it was measured over and then said what follows from it. Five of fifteen
+rows carry this and ten carry nothing, so at three lines a row it made the list
+read as broken rather than as careful. What a buyer has to hear is the
+consequence, which is the second clause, and the span is on the index page,
+where a reader who wants to check it is going anyway. The never-opened line was
+cut to its consequence in the same pass, from "Claims have never opened for
+this occupation since 2010." to "Claims have never opened here."
+
+The landing quote's chooser renders the same captions. See
+`LEVEL_LINE_NEVER_REACHED` in `occupation-picker.tsx`.
 
 "In July 2026 the index was 0.69 points short of the line for staying worse, and 2.07 points short of the line for a sudden jump."
 

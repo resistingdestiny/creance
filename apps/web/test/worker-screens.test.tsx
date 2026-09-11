@@ -84,16 +84,17 @@ afterEach(() => {
 });
 
 describe('the occupation picker', () => {
-  it('puts all fifteen under the open heading, with no empty second heading', () => {
+  it('puts all fifteen in one list, with no heading over it at all', () => {
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('What do you do?');
     const rows = screen.getAllByRole('button').filter((node) => node.textContent !== 'Continue');
     // T38 grouped the list when one occupation was buyable and fourteen were
-    // not. Every one carries a series now, so the open group holds all fifteen
-    // and the no cover group is not rendered at all.
+    // not. Every one carries a series now, so the open group holds all fifteen,
+    // the no cover group is not rendered, and neither heading is drawn: they
+    // name the two parts of a split list and there is no split.
     expect(rows).toHaveLength(15);
     expect(rows[0]?.textContent).toContain('Office and administrative support');
-    expect(screen.getByText('Open to buy (15)')).toBeTruthy();
+    expect(screen.queryByText(/Open to buy/)).toBeNull();
     expect(screen.queryByText(/No cover behind these yet/)).toBeNull();
     expect(screen.getByText('Office and administrative support')).toBeTruthy();
     expect(screen.getByText('Farming, fishing and forestry')).toBeTruthy();
@@ -115,20 +116,18 @@ describe('the occupation picker', () => {
 
   it('carries the honest line for the two that have never opened since 2010', () => {
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
-    expect(
-      screen.getAllByText(/Claims have never opened for this occupation since 2010\./),
-    ).toHaveLength(2);
+    expect(screen.getAllByText(/Claims have never opened here\./)).toHaveLength(2);
   });
 
   it('says where the level line has never been reached, beside the never-opened line', () => {
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
-    const rows = screen.getAllByText(/Its level line has never been reached/);
+    const rows = screen.getAllByText(new RegExp(LEVEL_LINE_NEVER_REACHED));
     expect(rows).toHaveLength(5);
     // Office and administrative support carries both facts in one caption,
     // the backtest's first and the whole history's second.
     const office = rows.find((node) => node.textContent?.startsWith('Claims have never opened'));
     expect(office?.textContent).toBe(
-      `Claims have never opened for this occupation since 2010. ${LEVEL_LINE_NEVER_REACHED}`,
+      `Claims have never opened here. ${LEVEL_LINE_NEVER_REACHED}`,
     );
     // Legal reached its line once, in 2007, and must not carry the sentence.
     const legal = screen.getByText('Legal').closest('button');

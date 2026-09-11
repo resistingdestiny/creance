@@ -50,10 +50,13 @@ import { QuoteProvider } from './quote-state';
  * page, the ticker's travel and the card's drift, are the surface being alive
  * rather than a reveal, and both stop dead under the same preference.
  *
- * The dark ground is two bands, the navigation with the hero and the ticker,
- * and the closing line. It is on those sections and never on the body, so the
- * marketing surface can be dark (docs/DESIGN-TOKENS-ADDENDUM.md) without the
- * document itself changing colour under any other route.
+ * The dark ground is the header and the main, and the light sections between
+ * the hero and the closing line are one canvas sheet laid on it with rounded
+ * corners (T52), so the night shows at the sheet's corners and the boundary
+ * between the two grounds is a drawn edge rather than a seam. The ground is
+ * on this page's own elements and never on the body, so the marketing surface
+ * can be dark (docs/DESIGN-TOKENS-ADDENDUM.md) without the document itself
+ * changing colour under any other route.
  *
  * Every interactive element is a button or an anchor, so the base layer's
  * outline is the focus state on all of them. The design draws them as divs and
@@ -113,8 +116,8 @@ export function LandingScreen({
     <QuoteProvider>
       <div className="flex flex-col bg-canvas">
         <SiteHeader action={<QuoteButton variant="night" />} />
-        <main>
-          <section className="bg-night">
+        <main className="bg-night">
+          <section>
             <HeroBand
               demo={demo}
               index={data.index}
@@ -126,8 +129,15 @@ export function LandingScreen({
               <Ticker explorer={data.explorer} />
             </Suspense>
           </section>
-          <Questions index={data.index} />
-          <IndexSection explorer={data.explorer} index={data.index} />
+          {/* The light page is a sheet laid on the night ground (T52): the
+              sheet's own radius at 390 and the hero card's at the landing
+              breakpoint, so the night shows at its corners above and below
+              and the change of ground is an edge that was drawn rather than
+              a seam where one colour stopped. */}
+          <div className="rounded-[20px] bg-canvas lg:rounded-hero">
+            <Questions index={data.index} />
+            <IndexSection explorer={data.explorer} index={data.index} />
+          </div>
           <Closing investorLine={data.investorLine} />
         </main>
       </div>
@@ -589,14 +599,14 @@ function IndexNote({ index }: { index: Streamed<LandingIndexView> }) {
 
 
 /**
- * The closing line, on the same dark ground as the hero, which is the second
- * and last band of it on the page. The hairline that used to separate it from
- * the section above is gone: the ground changes, and a hairline over a change
- * of ground is a second separator doing the same job.
+ * The closing line, on the same dark ground as the hero: the main's own, seen
+ * again below the sheet. The hairline that used to separate it from the
+ * section above is gone: the ground changes, and a hairline over a change of
+ * ground is a second separator doing the same job.
  */
 function Closing({ investorLine }: { investorLine: Streamed<string> }) {
   return (
-    <section className={`bg-night py-16 lg:py-28 ${PAGE}`}>
+    <section className={`py-16 lg:py-28 ${PAGE}`}>
       <div className="mx-auto flex max-w-[800px] flex-col items-center text-center">
         <h2 className="text-balance font-display text-headline font-semibold tracking-headline text-white lg:text-display-xl lg:tracking-landing-tight">
           The quiet kind of ready.

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
-import { fetchCoupons, fetchSeries, fetchSeriesList } from '../../lib/investor-api';
+import { fetchSeriesList, type SeriesListView } from '../../lib/investor-api';
+import { readInvestor } from '../../lib/investor-data';
 import { demoInvestorAccount } from '../../lib/wallet';
 import { InvestorOverview } from './investor-overview';
 import { InvestorUnavailable } from './unavailable';
@@ -13,6 +14,13 @@ import { InvestorUnavailable } from './unavailable';
  * short dated maturity demonstration, and being able to open it is how the
  * redemption is checked through the same screen; the label on the screen is
  * always the series' own.
+ *
+ * The list is the one read awaited here. It answers in under two
+ * milliseconds and it decides which series the page is about, so nothing can
+ * be drawn without it. The two chain reads behind the figures are not
+ * awaited: src/lib/investor-data.ts starts both behind a hold and hands them
+ * to the screen as promises, so the heading, the chooser and the copy are on
+ * the first byte and each figure lands in its own place as it arrives (T51).
  */
 
 export const metadata: Metadata = { title: 'Invest' };
@@ -30,23 +38,26 @@ export default async function InvestPage({
   const retryHref =
     requested === undefined ? '/invest' : `/invest?series=${encodeURIComponent(requested)}`;
 
+  let listing: SeriesListView;
   try {
-    const listing = await fetchSeriesList();
-    // The list decides the default, not a constant in this bundle. A series
-    // the API does not serve is asked for anyway, so the endpoint answers the
-    // 404 and the screen says it cannot be reached rather than silently
-    // showing a different series.
-    const id = requested ?? listing.series[0]?.series_id ?? '';
-    const [series, coupons] = await Promise.all([fetchSeries(id), fetchCoupons(id)]);
-    return (
-      <InvestorOverview
-        choices={listing.series}
-        coupons={coupons}
-        investor={demoInvestorAccount()}
-        series={series}
-      />
-    );
+    listing = await fetchSeriesList();
   } catch {
     return <InvestorUnavailable retryHref={retryHref} />;
   }
+
+  // The list decides the default, not a constant in this bundle. A series
+  // the API does not serve is asked for anyway, so the endpoint answers the
+  // 404 and the screen says it cannot load that series rather than silently
+  // showing a different one.
+  const id = requested ?? listing.series[0]?.series_id ?? '';
+  const data = readInvestor(id);
+  return (
+    <InvestorOverview
+      choices={listing.series}
+      coupons={data.coupons}
+      investor={demoInvestorAccount()}
+      series={data.series}
+      seriesId={id}
+    />
+  );
 }

@@ -167,6 +167,7 @@ export default async function Image() {
             width: 480,
             height: 288,
             borderRadius: 24,
+            overflow: 'hidden',
             border: `1px solid ${EDGE}`,
             background: METAL,
             boxShadow: '0 40px 80px -32px rgba(0, 0, 0, 0.55)',
@@ -175,7 +176,19 @@ export default async function Image() {
         >
           <div style={{ ...layer, background: SHEEN }} />
           <div style={{ ...layer, background: BRUSHING }} />
-          <div style={{ ...layer, background: SHIMMER }} />
+          {/* The stylesheet draws the band on a box a quarter taller and
+              sixty percent wider each side than the card and lets the card
+              clip it, so the band is as wide here as it is on the page. */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '-25%',
+              right: '-60%',
+              bottom: '-25%',
+              left: '-60%',
+              background: SHIMMER,
+            }}
+          />
           <div
             style={{
               ...layer,

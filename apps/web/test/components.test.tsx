@@ -349,7 +349,9 @@ describe('the gallery', () => {
   });
 
   it('never leaves a border utility without a colour, which in v4 paints black', () => {
-    const palette = /^border-(hairline|ink|ink-2|ink-3|canvas|surface|covered|watch|triggered|transparent|white)$/;
+    // White at an alpha is the addendum's own rule for a line on the night
+    // ground, which the header the frame wears stands on (T52).
+    const palette = /^border-(hairline|ink|ink-2|ink-3|canvas|surface|covered|watch|triggered|transparent|white(\/\d+)?)$/;
     for (const match of markup.matchAll(/class="([^"]*)"/g)) {
       const classes = (match[1] ?? '').split(/\s+/);
       const hasEdge = classes.some((name) => /^border(-[trblxy])?(-\d+)?$/.test(name));

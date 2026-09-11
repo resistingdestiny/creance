@@ -786,7 +786,7 @@ export function Gallery() {
         <p className="text-secondary text-ink-2">
           The tab bar is a mobile pattern. On a wide viewport the 390 column stays a column: it
           stands on the surface ground under the product&apos;s header, as a canvas sheet with
-          hairline sides, the same construction the investor frame uses at 1280.
+          hairline sides. The desktop pages stand on continuous canvas under the same header.
         </p>
         <AppFrame>
           <div className="flex flex-col gap-6 px-5 py-8">

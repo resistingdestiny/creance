@@ -246,7 +246,7 @@ function HeroBand({
   price: Streamed<LandingPriceView>;
 }) {
   return (
-    <div className={`pb-24 pt-16 lg:pb-32 lg:pt-24 ${PAGE}`}>
+    <div className={`pb-20 pt-14 lg:pb-24 lg:pt-20 ${PAGE}`}>
       <div className="mx-auto grid w-full max-w-[1200px] items-center gap-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)] lg:gap-20">
         <Hero demo={demo} index={index} price={price} />
         {/* The card's own column, with the soft ground behind whichever of the
@@ -285,12 +285,19 @@ function Hero({
       <p className="mt-6 max-w-[500px] text-balance text-body-lg text-white/66 lg:mt-8 lg:text-landing-lead">
         A monthly payment now. A payout if your occupation is displaced.
       </p>
+      {/* The price stands between the lead and the actions, as a figure (T52).
+          It was a line of body type at the addendum's secondary opacity under
+          the buttons, which is how a footnote is drawn, and it is the most
+          persuasive fact on the page: a live binding quote, not a marketing
+          number. So it is read before the action it argues for, at the
+          headline scale, in white. */}
+      <Suspense fallback={<PriceLineResting />}>
+        <PriceLine price={price} />
+      </Suspense>
       {/* The row wraps at the landing breakpoint rather than squeezing: two
-          pills and the price do not fit the text column beside the card, so
-          with the example on the row the price line steps under the pills,
-          and without it the row is the one line it always was. Nothing in it
-          may break inside itself, which is what the nowrap is for. */}
-      <div className="mt-8 flex flex-col items-center gap-4 lg:mt-11 lg:flex-row lg:flex-wrap lg:gap-x-6 lg:gap-y-4">
+          pills do not always fit the text column beside the card. Nothing in
+          it may break inside itself, which is what the nowrap is for. */}
+      <div className="mt-8 flex flex-col items-center gap-4 lg:mt-10 lg:flex-row lg:flex-wrap lg:gap-x-6 lg:gap-y-4">
         <QuoteButton className="whitespace-nowrap" variant="night" />
         {/* The way in to the example, secondary on this ground so that "Get a
             quote" stays the one primary action. Only where there is an example
@@ -300,9 +307,6 @@ function Hero({
             {DEMO_EXAMPLE}
           </PillLink>
         ) : null}
-        <Suspense fallback={<PriceLineResting />}>
-          <PriceLine price={price} />
-        </Suspense>
       </div>
     </div>
   );
@@ -316,26 +320,45 @@ function Hero({
 const DEMO_EXAMPLE = 'See an example of cover';
 
 /**
- * "From 4.25 a month", beside the hero button.
+ * "From 4.25 a month" at the headline scale, with "for 1,000 of cover" under
+ * it, between the lead and the hero actions.
+ *
+ * Two lines and one figure. The first is the deck's own string; the second
+ * says what that price buys, because 1.51 with nothing beside it reads as too
+ * small to be real. Both are built in src/lib/landing-model.ts from the quote
+ * that was actually taken, so the page still composes no copy and names no
+ * amount nobody quoted.
  *
  * No price, no line. The one thing this page may never do is name an amount
- * nobody quoted, so a quote that could not be taken leaves the line out
+ * nobody quoted, so a quote that could not be taken leaves both lines out
  * altogether. The space it was resting in goes with it: a line that is never
  * coming is not a space this page keeps open.
  */
 function PriceLine({ price }: { price: Streamed<LandingPriceView> }) {
-  const { priceLine } = figureOf(price);
+  const { priceLine, buysLine } = figureOf(price);
   return priceLine === null ? null : (
-    <p className="whitespace-nowrap text-body text-white/66">{priceLine}</p>
+    <p className="mt-8 flex flex-col gap-1 lg:mt-10">
+      <span className="whitespace-nowrap font-display text-headline font-semibold tracking-headline text-white">
+        {priceLine}
+      </span>
+      <span className="text-body-lg text-white/66">{buysLine}</span>
+    </p>
   );
 }
 
 /**
- * One line of body type at the width the sentence takes, so that the centred
- * column at 390 does not move sideways when the figure lands.
+ * The two lines at the heights they will take, one of headline type and one
+ * of body-lg, at the widths the sentences take, so that the centred column at
+ * 390 does not move when the figure lands. The margin above is the figure's
+ * own, so the space is the same whether the figure is there or resting.
  */
 function PriceLineResting() {
-  return <RestingBar className="h-6 w-36" />;
+  return (
+    <span className="mt-8 flex flex-col items-center gap-1 lg:mt-10 lg:items-start">
+      <RestingBar className="h-10 w-[19rem] max-w-full" />
+      <RestingBar className="h-6 w-40" />
+    </span>
+  );
 }
 
 /**

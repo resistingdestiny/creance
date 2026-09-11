@@ -131,7 +131,7 @@ export function ConfirmScreen({
 
   return (
     <AppFrame>
-      <main className="flex min-h-dvh flex-col justify-between px-5 py-10">
+      <main className="flex min-h-frame flex-col justify-between px-5 py-10">
         <div className="flex flex-col gap-4">
           <h1 className="text-title font-display font-semibold tracking-title text-ink">
             {copy.heading}

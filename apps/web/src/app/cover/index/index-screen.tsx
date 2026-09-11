@@ -54,7 +54,7 @@ export function IndexScreen({
 }) {
   return (
     <AppFrame>
-      <div className="flex min-h-dvh flex-col">
+      <div className="flex min-h-frame flex-col">
         <main className="flex flex-1 flex-col gap-8 px-5 py-10">
           <div className="flex flex-col gap-2">
             {replayBadge === null ? null : <ReplayBar label={replayBadge} variant="compact" />}

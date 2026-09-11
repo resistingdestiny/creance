@@ -131,7 +131,7 @@ export function SignInScreen({
 
   return (
     <AppFrame>
-      <main className="flex min-h-dvh flex-col gap-8 px-5 py-10">
+      <main className="flex min-h-frame flex-col gap-8 px-5 py-10">
         <header className="flex flex-col gap-2">
           <h1 className="text-title font-display font-semibold tracking-title text-ink">
             {BACK_IN_HEADING}

@@ -37,7 +37,8 @@ import { ExplorerScreen } from './explorer-screen';
 export const metadata: Metadata = {
   title: 'The index',
   description:
-    'The Occupation Displacement Index for fifteen occupation groups, month by month, with the line that opens claims.',
+    'The Occupation Displacement Index for fifteen occupation groups, month by month, with the line that opens claims. Unemployment in your occupation, compared with everyone else, smoothed over three months, compared with a year ago.',
+  alternates: { canonical: '/index' },
 };
 
 export const dynamic = 'force-dynamic';

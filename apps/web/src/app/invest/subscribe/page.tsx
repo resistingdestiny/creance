@@ -7,7 +7,11 @@ import { SubscribeScreen } from './subscribe-screen';
 
 /** The subscribe screen. `?series=` names one of the series GET /v1/series lists. */
 
-export const metadata: Metadata = { title: 'Subscribe' };
+export const metadata: Metadata = {
+  title: 'Subscribe',
+  description: 'Subscribe to a series of Displacement Bond Notes on Hedera testnet.',
+  alternates: { canonical: '/invest/subscribe' },
+};
 
 export const dynamic = 'force-dynamic';
 

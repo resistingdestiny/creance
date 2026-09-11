@@ -57,7 +57,12 @@ import { WorkerUnavailable } from '../unavailable';
  * claim screen does its own polling.
  */
 
-export const metadata: Metadata = { title: 'Cover' };
+export const metadata: Metadata = {
+  title: 'Cover',
+  description:
+    'Your cover, what has happened on it, and the way back in with World ID or your cover key.',
+  alternates: { canonical: '/home' },
+};
 
 export const dynamic = 'force-dynamic';
 

@@ -11,14 +11,34 @@ import { Providers } from './providers';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
+/**
+ * The one site description, on every page that does not write its own.
+ *
+ * The Open Graph and Twitter blocks below carry no title, description or
+ * image of their own: the framework fills og:title and og:description from
+ * whichever page is being rendered, and og:image comes from
+ * ./opengraph-image.tsx, which is the metal card. So a page that exports a
+ * title and a description has said everything a link preview needs, and
+ * nothing here has to be repeated per route (T53).
+ */
+const SITE_DESCRIPTION =
+  'Monthly cover against your occupation being displaced, with a public index that decides when claims open.';
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
     default: 'Creance',
     template: '%s | Creance',
   },
-  description:
-    'Monthly cover against your occupation being displaced, with a public index that decides when claims open.',
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    type: 'website',
+    siteName: 'Creance',
+    locale: 'en_GB',
+  },
+  twitter: {
+    card: 'summary_large_image',
+  },
   icons: {
     icon: [
       { url: '/icon-32.png', sizes: '32x32', type: 'image/png' },

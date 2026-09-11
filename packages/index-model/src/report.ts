@@ -103,29 +103,65 @@ function sourceMonthMoved(dataset: Dataset, seriesId: string, period: Period): b
   return SOURCE_CORRECTIONS.some((c) => c.seriesId === seriesId && c.period === period);
 }
 
+export interface MovedSourceSummary {
+  /** Series in the archive, bindable or not. */
+  archivedSeries: number;
+  /** Series carrying the C footnote anywhere. */
+  correctedSeries: number;
+  /** The span of months carrying the C footnote. */
+  correctedFrom: Period;
+  correctedTo: Period;
+  /** Open group months in the frozen backtest. */
+  open: number;
+  /** Of those, the ones computed from at least one later corrected or revised input month. */
+  openOnMoved: number;
+}
+
 /**
- * How many open group months were computed from at least one input month BLS
- * later corrected or revised, on the group's own series or on the aggregate.
- * Computed from the archive's footnotes plus the errata constant, so the
- * number moves with the archive rather than going stale in prose.
+ * What the archive itself says about corrections, plus how many open group
+ * months were computed from at least one input month BLS later corrected or
+ * revised, on the group's own series or on the aggregate. Computed from the
+ * footnotes and the errata constant so the numbers move with the archive
+ * rather than going stale in prose.
  */
-export function countOpenMonthsOnMovedSource(
+export function movedSourceSummary(
   dataset: Dataset,
   frozen: ReadonlyMap<string, readonly Observation[]>,
-): number {
+): MovedSourceSummary {
+  const corrected = new Set<string>();
+  const correctedPeriods: Period[] = [];
+  for (const [seriesId, rows] of dataset.allSeries) {
+    for (const row of rows) {
+      if (row.footnoteCodes.includes('C')) {
+        corrected.add(seriesId);
+        correctedPeriods.push(row.period);
+      }
+    }
+  }
+  correctedPeriods.sort(comparePeriods);
+
   const aggregateId = aggregateSeriesId(dataset.map);
-  let count = 0;
+  let open = 0;
+  let openOnMoved = 0;
   for (const rows of frozen.values()) {
     for (const row of rows) {
       if (!row.open) continue;
+      open += 1;
       const moved = INPUT_OFFSETS.some((offset) => {
         const input = addMonths(row.period, offset);
         return sourceMonthMoved(dataset, row.seriesId, input) || sourceMonthMoved(dataset, aggregateId, input);
       });
-      if (moved) count += 1;
+      if (moved) openOnMoved += 1;
     }
   }
-  return count;
+  return {
+    archivedSeries: dataset.allSeries.size,
+    correctedSeries: corrected.size,
+    correctedFrom: correctedPeriods[0] ?? 'none',
+    correctedTo: correctedPeriods[correctedPeriods.length - 1] ?? 'none',
+    open,
+    openOnMoved,
+  };
 }
 
 export interface LossWindow {
@@ -203,6 +239,7 @@ export function renderIndexReport(input: ReportInput): string {
     baseEffectGuard: false,
   });
   const hazard = hazardTable(dataset);
+  const moved = movedSourceSummary(dataset, frozen);
 
   const parts: string[] = [];
 
@@ -539,12 +576,30 @@ Every assumption in that formula is arguable and all of them are stated. The cha
   opens claims too, and the loss key does not try to tell the two apart.
 - The detailed occupation series carry more sampling noise than the majors. The
   per-series attachments price that in rather than hiding it.
-- First published values settle. Not seasonally adjusted household data is not
-  revised after first print, which is BLS policy, so the backtest above was
-  computed on the same numbers the product settles on. The exception is the
-  January population control update, which touched 2026-01; a replay whose window
-  crosses that month is recomputed on the pre revision values before the result
-  is shown.
+- First published values settle, and that rests on this pipeline rather than
+  on the source. Not seasonally adjusted household data has no scheduled
+  revision cycle, but the occupation series have been corrected three times
+  since 2020. On 2020-09-23 BLS corrected January to July 2020 for errors that
+  came in with the new occupation classification; ${moved.correctedSeries} of the ${moved.archivedSeries} archived
+  series carry the C footnote on ${moved.correctedFrom} to ${moved.correctedTo}. On 2025-06-06 it corrected
+  April 2025 after a sample redesign weighting error, five weeks after first
+  print; construction and extraction moved from 6.0 to 5.9 and arts, design,
+  entertainment, sports and media from 4.4 to 4.3. On 2026-03-06 it revised
+  every January 2026 value for updated population controls, footnote 12 on all
+  ${moved.archivedSeries} series. BLS corrects its database in place and in 2020 reissued the
+  archived release itself, so the archive here holds the corrected values and
+  no vintage of what a month read first. Determinism therefore comes from the
+  first-final rule: the first value published to the index topic settles, its
+  signed message commits to the sha256 of the six source rows it was computed
+  from, and a later change to those rows produces a revision record that
+  references the original, never a resettlement. ${moved.openOnMoved} of the ${moved.open} open group
+  months in the table above were computed from at least one input month BLS
+  later corrected or revised, counting the six months a period reads, t to t-2
+  and t-12 to t-14, on the group's series and on the aggregate. The three
+  notices:
+  https://www.bls.gov/bls/errata/revision-to-current-population-survey-estimates-for-January-through-July-2020.htm
+  https://www.bls.gov/bls/errata/cps-corrections-april-2025.htm
+  https://www.bls.gov/cps/methods/population-controls/experimental-series-accounting-for-january-2026-population-control-effects.htm
 - The index is a lagging measure by construction. Job postings and layoff
   announcement series turned twelve to twenty four months before this index did
   for computer and mathematical work. They are suitable for pricing and not for

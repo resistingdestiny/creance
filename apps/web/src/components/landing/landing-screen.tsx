@@ -16,7 +16,7 @@ import { ReplayBar } from '../replay-bar';
 import { CHROME_PAGE, SiteHeader } from '../site-chrome';
 import { Skeleton } from '../skeleton';
 import { HeroAmount } from './hero-amount';
-import { EventChip, EventRing, type EventDepth } from './hero-events';
+import { EventChip, EventField, type EventDepth } from './hero-events';
 import { IndexTicker } from './index-ticker';
 import { LandingExplorer } from './landing-explorer';
 import { QuoteButton } from './quote-button';
@@ -249,7 +249,7 @@ function IndexLivePill({ children, dot }: { children: ReactNode; dot: string }) 
  * docs/DECISIONS.md. Below the landing breakpoint nothing about the order
  * changes: the text, then the card, in one readable column.
  *
- * T54 rings the card with the events the page already reads and lays a band
+ * T54 surrounds the card with the events the page already reads and lays a band
  * of figures under the grid, in the shape of the pages Benedict pointed at:
  * a product shown working, surrounded by its own output. Every chip and every
  * figure is built from a record in src/lib/landing-model.ts; the band carries
@@ -278,8 +278,8 @@ function HeroBand({
       <div className="mx-auto grid w-full max-w-[1200px] items-center gap-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)] lg:gap-20">
         <Hero demo={demo} index={index} price={price} />
         {/* The card's own column, with the soft ground behind whichever of the
-            two is standing in it, and the ring of events around it. The column
-            is as tall as the card, so the ring's slots are measured from the
+            two is standing in it, and the field of events around it. The column
+            is as tall as the card, so the field's slots are measured from the
             card's own edges. */}
         <div className="relative flex flex-col items-center">
           <div
@@ -296,7 +296,7 @@ function HeroBand({
 }
 
 /**
- * The ring of events (T54): five slots around the card, each taken by one
+ * The field of events (T54): five slots around the card, each taken by one
  * kind of event from one of the page's reads, so a chip lands as its figure
  * arrives and never waits on another read.
  *
@@ -323,7 +323,7 @@ function Events({
   note: Streamed<LandingNoteView>;
 }) {
   return (
-    <EventRing>
+    <EventField>
       <Suspense fallback={<EventResting className={SLOT_NEAR_RIGHT} />}>
         <NoteEvent at={0} className={SLOT_NEAR_RIGHT} depth="near" note={note} />
       </Suspense>
@@ -339,7 +339,7 @@ function Events({
       <Suspense fallback={null}>
         <PublishedEvent className={SLOT_FAR_BELOW_RIGHT} index={index} />
       </Suspense>
-    </EventRing>
+    </EventField>
   );
 }
 

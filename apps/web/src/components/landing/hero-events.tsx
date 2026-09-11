@@ -6,12 +6,12 @@ import type { LandingEvent } from '../../lib/landing-model';
 import { useQuote } from './quote-state';
 
 /**
- * The ring of real events around the hero card (T54), and one chip in it.
+ * The field of real events around the hero card (T54), and one chip in it.
  *
  * Every chip is something that happened, built in src/lib/landing-model.ts
  * from a record the page already reads: a coupon that settled, an occupation's
  * newest reading, a month the oracle published. A chip with no event behind it
- * is not drawn dim or empty; it is not drawn. The page therefore rings the
+ * is not drawn dim or empty; it is not drawn. The page therefore surrounds the
  * card with as many true things as it has, and no more.
  *
  * Depth without a shadow. The addendum permits one elevation and the hero card
@@ -24,12 +24,12 @@ import { useQuote } from './quote-state';
  *
  * Where they stand is the caller's: from the landing breakpoint each chip is
  * placed absolutely around the card by a slot class, and below it they are in
- * flow under the card, because a 350px column has no room to ring anything and
+ * flow under the card, because a 350px column has no room to surround anything and
  * a chip over the card there would cover its own numbers. Far chips are not
  * drawn at all below the landing breakpoint, so the phone gets the two nearest
  * true things and a shorter page.
  *
- * The ring fades while a quote is open. The card turns to carry each step and
+ * The field fades while a quote is open. The card turns to carry each step and
  * the World widget opens beside it, and a chip over a search field or under a
  * dialog is noise; it is opacity and pointer-events, so the chips are still
  * in the markup and come back the moment the quote closes.
@@ -44,7 +44,7 @@ import { useQuote } from './quote-state';
  * already treats picking and reading as; a chip about a settlement points at
  * HashScan.
  */
-export function EventRing({ children }: { children: ReactNode }) {
+export function EventField({ children }: { children: ReactNode }) {
   const { step } = useQuote();
   const faded = step !== 'closed';
   return (

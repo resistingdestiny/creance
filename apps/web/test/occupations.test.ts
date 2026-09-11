@@ -81,6 +81,23 @@ describe('the occupation picker rows', () => {
     ]);
   });
 
+  it('marks the five occupations whose level line has never been reached since 2000', () => {
+    // T56. The five whose all time maximum smoothed excess sits under the
+    // frozen level line across the whole published history, 2000 to 2026.
+    // Legal is not one of them: its level column in the 2010 backtest is also
+    // zero, but it reached its line once in 2007.
+    const never = OCCUPATIONS.filter((row) => row.levelLineNeverReached);
+    expect(never.map((row) => row.key)).toEqual([
+      'office_admin_support',
+      'management_business_financial',
+      'professional_related',
+      'business_financial_ops',
+      'installation_maintenance_repair',
+    ]);
+    expect(findOccupation('legal')?.levelLineNeverReached).toBe(false);
+    expect(findOccupation('computer_math')?.levelLineNeverReached).toBe(false);
+  });
+
   it('spells two labels the addendum way, not the index model way', () => {
     expect(occupationLabel('management_business_financial')).toBe(
       'Management, business and financial',

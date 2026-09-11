@@ -3,7 +3,12 @@
  *
  * The two reads live in `apps/api/src/investor`: `GET /v1/series/:id` and
  * `GET /v1/series/:id/coupons`. Both are read only and both answer from Hedera
- * testnet, so the screens below them show chain state and nothing else.
+ * testnet, so the screens below them show chain state and nothing else. Both
+ * take up to two seconds, because the API reads the vault, the note and the
+ * CoverPool through the JSON-RPC relay, which serves off the mirror node.
+ * This module makes the calls and does not hold them; the investor page holds
+ * them in src/lib/investor-data.ts and the landing page in
+ * src/lib/landing-data.ts, each for a window chosen where it can be seen.
  *
  * The fetch happens on the server, in the route's own render, not in the
  * browser. That is why there is no CORS plugin on the API and no rewrite in
@@ -194,9 +199,11 @@ async function read<T>(path: string): Promise<T> {
   const url = `${apiBaseUrl()}${path}`;
   let response: Response;
   try {
-    // No cache. The principal, the reserve and the coupons are live chain
-    // state, and a page that shows yesterday's reserve is worse than a page
-    // that says it cannot reach the API.
+    // Not the framework's cache. The principal, the reserve and the coupons
+    // are chain state and they are held, but the hold is
+    // src/lib/investor-data.ts's, with windows every caller can see. A fetch
+    // cache here would be a second hold behind that one, with a window nobody
+    // chose, and it would sit under the landing page's own hold as well.
     response = await fetch(url, { cache: 'no-store', headers: { accept: 'application/json' } });
   } catch (cause) {
     throw new InvestorApiError(url, null, cause instanceof Error ? cause.message : 'no response');

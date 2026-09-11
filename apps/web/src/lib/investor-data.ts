@@ -104,6 +104,19 @@ export function forgetInvestorReads(): void {
   couponReads.forget();
 }
 
+/**
+ * Tests only: how many series ids each hold is keeping. The id comes from a
+ * query string, so the test that matters is that a run of ids the API does
+ * not serve leaves these at what they were.
+ */
+export function heldSeries(): number {
+  return seriesReads.size();
+}
+
+export function heldCoupons(): number {
+  return couponReads.size();
+}
+
 async function readSeries(id: string): Promise<SeriesView | null> {
   try {
     return await seriesReads.read(id);

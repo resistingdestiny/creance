@@ -26,6 +26,8 @@ const {
   SERIES_STALE_MS,
   SERIES_TTL_MS,
   forgetInvestorReads,
+  heldCoupons,
+  heldSeries,
   readInvestor,
 } = await import('../src/lib/investor-data.js');
 
@@ -192,5 +194,60 @@ describe('a call that fails costs the page its figure and never the page', () =>
     expect(failed.series).toBeNull();
     expect(next.series).toStrictEqual({ ...SERIES, series_id: ID });
     expect(fetchSeries).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('a series id the API does not serve', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  /** The API answers 404 for anything it does not list. */
+  function serveOnly(ids: readonly string[]) {
+    const known = new Set(ids);
+    fetchSeries.mockImplementation((id: string) =>
+      known.has(id)
+        ? Promise.resolve({ ...SERIES, series_id: id })
+        : Promise.reject(new Error('the API answered 404')),
+    );
+    fetchCoupons.mockImplementation((id: string) =>
+      known.has(id)
+        ? Promise.resolve({ ...COUPONS, series_id: id })
+        : Promise.reject(new Error('the API answered 404')),
+    );
+  }
+
+  it('leaves no hold behind, however many distinct ids arrive', async () => {
+    serveOnly([ID]);
+
+    await pageView();
+    for (let n = 0; n < 100; n += 1) {
+      const { series, coupons } = await pageView(`ODI-UNKNOWN-${n}`);
+      expect(series).toBeNull();
+      expect(coupons).toBeNull();
+    }
+
+    // The one series the API serves is the one hold, and nothing else is.
+    // Nothing was forgotten to get here: this is the map as a hundred bad
+    // ids left it, which is what a public route needs to be true.
+    expect(heldSeries()).toBe(1);
+    expect(heldCoupons()).toBe(1);
+    expect(fetchSeries).toHaveBeenCalledTimes(101);
+  });
+
+  it('is bought exactly once when the API starts serving it', async () => {
+    serveOnly([]);
+    await pageView(OTHER);
+    await pageView(OTHER);
+    expect(fetchSeries).toHaveBeenCalledTimes(2);
+
+    serveOnly([OTHER]);
+    const first = await pageView(OTHER);
+    const second = await pageView(OTHER);
+
+    expect(first.series?.series_id).toBe(OTHER);
+    expect(second.series).toStrictEqual(first.series);
+    expect(fetchSeries).toHaveBeenCalledTimes(3);
+    expect(fetchCoupons).toHaveBeenCalledTimes(3);
   });
 });

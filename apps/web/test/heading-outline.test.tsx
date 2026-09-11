@@ -57,7 +57,7 @@ function noSkips(levels: number[]): boolean {
 
 const pages = {
   '/': () => renderToStaticMarkup(<LandingScreen data={LIVE} />),
-  '/index': () => renderToStaticMarkup(<ExplorerScreen attribution={null} data={explorerData()} />),
+  '/index': () => renderToStaticMarkup(<ExplorerScreen data={explorerData()} />),
   '/occupation': () => renderToStaticMarkup(<OccupationPicker chosen={null} rows={OCCUPATIONS} />),
   '/home': () => renderToStaticMarkup(<SignInScreen world />),
 };

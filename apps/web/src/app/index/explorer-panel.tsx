@@ -15,7 +15,6 @@ import {
   headlineFor,
   latestMonth,
   latestMonthIndex,
-  marginCaption,
   meterFraction,
   methodSteps,
   positionSentence,
@@ -33,8 +32,9 @@ import { filterOccupations } from '../../lib/occupations';
 
 /**
  * The substance of the public index explorer: the picker, the verdict for the
- * occupation and month in hand, the five year chart, the four steps that build
- * the number and the provenance under them.
+ * occupation and month in hand, the five year chart, the price for that month
+ * across the full width under them both, the four steps that build the number
+ * and the provenance under those.
  *
  * It is a component rather than part of `/index` because two pages render it.
  * `/index` is the page of record and the landing page carries the same explorer
@@ -68,11 +68,18 @@ const CAPACITY_STEP = 5;
 const CAPACITY_DEFAULT = 45;
 
 /**
- * The occupation the panel opens on when nobody has said otherwise. It is the
- * one group with a series behind it, which is the same group the landing page
- * speaks for.
+ * The occupation the panel opens on when nobody has said otherwise.
+ *
+ * It has capacity behind it, so the price under it is a premium somebody can
+ * pay rather than a guide price, and its claims have opened before, so a reader
+ * who has never seen the index meets a series with something to watch.
+ *
+ * This is the explorer's own opening only. The occupation a quote starts on is
+ * LANDING_GROUP in src/lib/landing-model.ts, which the hero card, the from
+ * price and the quote all read: the two are deliberately separate, because the
+ * panel may be pointed at any of the fifteen and the quote may not (T35).
  */
-const OPENS_ON = 'computer_math';
+const OPENS_ON = 'arts_design_ent_media';
 
 const DOT: Record<ExplorerState, string> = {
   covered: 'bg-covered',
@@ -188,15 +195,11 @@ export function ExplorerPanel({
         query={query}
       />
 
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:gap-14">
-        <Verdict
-          capacity={capacity}
-          month={month}
-          occupation={occupation}
-          onCapacity={setCapacity}
-          price={price}
-          state={state}
-        />
+      <div
+        className="grid gap-10 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:gap-14"
+        data-testid="explorer-columns"
+      >
+        <Verdict month={month} occupation={occupation} state={state} />
 
         <div className="flex flex-col gap-3">
           <ExplorerChart
@@ -213,29 +216,28 @@ export function ExplorerPanel({
             threshold={occupation.line}
             tweenKey={occupation.key}
           />
+          {/* One line under the chart, and one fact where there is one to
+              state. Everything else that stood here said again what the
+              verdict beside it, the band caption on the chart and the four
+              steps behind the number already say. */}
           <p className="text-secondary text-ink-2">
-            The line rises when unemployment in a job rises faster than everyone else&apos;s. Up is
-            towards a payout, and the red band is where claims open.
+            Up is towards a payout, and the red band is where claims open.
           </p>
-          {occupation.form === 'level' && occupation.line < 0 ? (
-            <p className="text-secondary text-ink-2">
-              People in this occupation are usually unemployed less than average. The trigger is
-              about getting worse than their own normal, not about being above zero.
-            </p>
-          ) : null}
           {occupation.everOpened ? null : (
             <p className="text-secondary text-ink-2">
               This cover has never paid for this occupation since 2010.
             </p>
           )}
-          {/* How close the call was for the newest month (T56), in the same
-              element and voice as the caption above it. The scrubber may be
-              on another month, so the sentence names its own. */}
-          {marginCaption(occupation).length === 0 ? null : (
-            <p className="text-secondary text-ink-2">{marginCaption(occupation).join(' ')}</p>
-          )}
         </div>
       </div>
+
+      <Price
+        buyable={occupation.buyable}
+        capacity={capacity}
+        onCapacity={setCapacity}
+        price={price}
+        seriesId={occupation.seriesId}
+      />
 
       <Disclosure summary="How this number is built">
         <ol className="flex flex-col gap-8">
@@ -502,20 +504,14 @@ function Picker({
   );
 }
 
-/** The verdict for the chosen occupation and month, and what it costs. */
+/** The verdict for the chosen occupation and month: where it stands, in words. */
 function Verdict({
-  capacity,
   month,
   occupation,
-  onCapacity,
-  price,
   state,
 }: {
-  capacity: number;
   month: ExplorerMonth | null;
   occupation: ExplorerOccupation;
-  onCapacity: (value: number) => void;
-  price: ReturnType<typeof priceFor>;
   state: ExplorerState;
 }) {
   const fraction = meterFraction(occupation, month);
@@ -557,14 +553,6 @@ function Verdict({
           <span>Far from a payout</span>
         </div>
       </div>
-
-      <Price
-        capacity={capacity}
-        buyable={occupation.buyable}
-        onCapacity={onCapacity}
-        price={price}
-        seriesId={occupation.seriesId}
-      />
     </div>
   );
 }
@@ -576,6 +564,12 @@ function Verdict({
  * Capacity is committed per occupation (docs/DECISIONS.md), so an occupation
  * with no series behind it shows the guide price and says plainly that there is
  * nothing to buy, rather than quoting a premium nobody can pay.
+ *
+ * It stands the full width of the panel, under both columns, rather than in the
+ * narrow column beside the chart. It carries the premium, which is the thing a
+ * buyer came for, and at a third of the width under a five year chart it read
+ * as a footnote to the chart. The price and the capacity that moves it sit side
+ * by side at desktop width and stack at phone width.
  */
 function Price({
   buyable,
@@ -594,49 +588,52 @@ function Price({
   if (price === null) return null;
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-hairline bg-surface p-4">
-      <div className="flex items-baseline justify-between gap-4">
+    <div
+      className="flex flex-col gap-6 rounded-2xl border border-hairline bg-surface p-5 lg:flex-row lg:items-center lg:justify-between lg:gap-14 lg:p-6"
+      data-testid="explorer-price"
+    >
+      <div className="flex flex-col gap-1">
         <span className="text-secondary text-ink-2">
           {buyable ? 'Monthly premium' : 'Guide price'} for {formatAmount(price.cover)} of cover
         </span>
-        <span className="text-body-lg font-medium tabular-nums text-ink">
+        <span className="font-display text-title font-semibold tracking-title tabular-nums text-ink">
           {buyable ? price.monthly : price.guide}
         </span>
+        {buyable ? (
+          <span className="text-caption text-ink-2">
+            Guide price {price.guide} from the index. Capital adds {String(price.addOn)} percent.
+          </span>
+        ) : null}
       </div>
 
       {buyable ? (
-        <>
-          <p className="text-caption text-ink-2">
-            Guide price {price.guide} from the index. Capital adds {String(price.addOn)} percent.
-          </p>
-          <div className="flex flex-col gap-2">
-            <label className="text-secondary text-ink-2" htmlFor={capacityId}>
-              How much capital wants this risk
-            </label>
-            <input
-              aria-valuetext={`${String(capacity)} percent of this pool already used`}
-              className="amount-slider h-11"
-              id={capacityId}
-              max={CAPACITY_MAX}
-              min={0}
-              onChange={(event) => onCapacity(Number(event.target.value))}
-              step={CAPACITY_STEP}
-              style={{
-                ['--amount-slider-filled' as string]: `${String((capacity / CAPACITY_MAX) * 100)}%`,
-              }}
-              type="range"
-              value={capacity}
-            />
-            <span className="text-caption tabular-nums text-ink-2">
+        <div className="flex flex-col gap-2 lg:w-[380px] lg:shrink-0">
+          <label className="text-secondary text-ink-2" htmlFor={capacityId}>
+            How much capital wants this risk
+          </label>
+          <input
+            aria-valuetext={`${String(capacity)} percent of this pool already used`}
+            className="amount-slider h-11"
+            id={capacityId}
+            max={CAPACITY_MAX}
+            min={0}
+            onChange={(event) => onCapacity(Number(event.target.value))}
+            step={CAPACITY_STEP}
+            style={{
+              ['--amount-slider-filled' as string]: `${String((capacity / CAPACITY_MAX) * 100)}%`,
+            }}
+            type="range"
+            value={capacity}
+          />
+          <span className="flex items-baseline justify-between gap-4 text-caption text-ink-2">
+            <span className="tabular-nums">
               {String(capacity)} percent of this pool already used
             </span>
-          </div>
-          {seriesId === null ? null : (
-            <p className="text-caption text-ink-2">Capacity from {seriesId}.</p>
-          )}
-        </>
+            {seriesId === null ? null : <span>Capacity from {seriesId}.</span>}
+          </span>
+        </div>
       ) : (
-        <p className="text-caption text-ink-2">
+        <p className="text-caption text-ink-2 lg:max-w-[380px]">
           No cover is on sale for this occupation today. Capacity is committed one occupation at a
           time, and none has been committed to this one.
         </p>

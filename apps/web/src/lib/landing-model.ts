@@ -24,11 +24,16 @@ import type { IndexCatalogueView, IndexView } from './worker-api';
  * The one occupation the landing page speaks for: the hero card, the from
  * price and the index section are all this group.
  *
- * The design of record shows Office and administrative support. Only computer
- * and mathematical has a series behind it (ODI-COMP-2026-01), and capacity is
- * committed per occupation, so it is the only group with a price to quote and
- * the only one whose card can honestly read "Covered". Recorded in
- * docs/DECISIONS.md.
+ * The design of record shows Office and administrative support. Computer and
+ * mathematical was the only group with a series behind it when this was
+ * chosen, so it was the only one whose card could honestly read "Covered".
+ * T39 issued capacity for the other fourteen and all fifteen can be bought
+ * now, but the hero keeps this one: it is the group every recorded figure on
+ * the page was read against. Recorded in docs/DECISIONS.md.
+ *
+ * The index explorer under the hero opens somewhere else on purpose, on
+ * whichever occupation is nearest its line, because that is the one a reader
+ * has come to look at. See OPENS_ON in src/app/index/explorer-panel.tsx.
  */
 export const LANDING_GROUP = 'computer_math';
 

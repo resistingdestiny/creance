@@ -75,9 +75,6 @@ const {
   lineIsNegative,
   whatWouldHaveHappened,
 } = await import('../src/lib/worker-model.js');
-const { attributionPanel, attributionSnapshot } = await import(
-  '../src/lib/attribution-model.js'
-);
 const { INDEX, openIndex } = await import('./worker-fixtures.js');
 const { withWallet } = await import('./wallet-harness.js');
 
@@ -569,24 +566,17 @@ describe('the index tab', () => {
     ).toBeTruthy();
   });
 
-  // T31. The panel is its own section under the index, and the sentence that
-  // must survive every redesign is the one saying the panel decides nothing.
-  it('carries the attribution panel under the index when the route hands it one', () => {
-    renderIndex({
-      attribution: attributionPanel(attributionSnapshot(), { indexLatestPeriod: '2026-07' }),
-    });
+  // The index reads unemployment and cannot see a cause. That is the one thing
+  // a buyer worried about AI has to be told, and it belongs in the block that
+  // explains the trigger rather than in an essay further down.
+  it('says the index cannot see why the job went', () => {
+    renderIndex();
     expect(
-      screen.getByRole('heading', { level: 2, name: 'What employers say about AI' }),
+      screen.getByText('It cannot tell why anyone lost their job, and any cause counts.'),
     ).toBeTruthy();
-    expect(
-      screen.getByText(
-        'This does not affect settlement. Claims open on the occupation index alone, and nothing in this panel can open or close a claim.',
-      ),
-    ).toBeTruthy();
-    expect(screen.getByText('188,000')).toBeTruthy();
   });
 
-  it('shows the index on its own when there is no panel to show', () => {
+  it('carries no AI attribution essay under the index', () => {
     renderIndex();
     expect(screen.queryByText('What employers say about AI')).toBeNull();
   });

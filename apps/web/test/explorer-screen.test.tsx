@@ -4,7 +4,16 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { ExplorerPanel } from '../src/app/index/explorer-panel.js';
 import { ExplorerScreen } from '../src/app/index/explorer-screen.js';
-import { explorerOccupation, latestMonth, marginCaption, priceFor } from '../src/lib/explorer-model.js';
+import {
+  bandCaption,
+  explorerOccupation,
+  headlineFor,
+  latestMonth,
+  positionSentence,
+  priceFor,
+  stateOf,
+  stateWord,
+} from '../src/lib/explorer-model.js';
 import { formatPeriod } from '../src/lib/format.js';
 
 import { EXPLORER_READINGS, explorerData as data } from './explorer-fixtures.js';
@@ -19,6 +28,13 @@ import { EXPLORER_READINGS, explorerData as data } from './explorer-fixtures.js'
 
 const occupations = EXPLORER_READINGS.map(explorerOccupation);
 
+/// The occupation the panel opens on when no page names one, which is the one
+/// thing every default assertion below turns on. It is named once here so that
+/// moving the default is one edit rather than twenty.
+const DEFAULT_KEY = 'arts_design_ent_media';
+const DEFAULT_LABEL = 'Arts, design, entertainment and media';
+const opensOn = occupations.find((entry) => entry.key === DEFAULT_KEY)!;
+
 afterEach(() => {
   document.body.innerHTML = '';
 });
@@ -26,23 +42,20 @@ afterEach(() => {
 describe('the explorer opens on the newest published month', () => {
   it('names the occupation and the month, and never a signed index value', () => {
     render(<ExplorerScreen data={data()} />);
-    const computer = occupations.find((entry) => entry.key === 'computer_math');
-    const month = latestMonth(computer!);
+    const month = latestMonth(opensOn);
 
-    expect(screen.getByText(`Computer and mathematical, ${formatPeriod('2026-07')}`)).toBeDefined();
-    expect(screen.getByText('0.7 points from a payout')).toBeDefined();
-    expect(
-      screen.getByText(
-        'Unemployment in this job sits 1.4 points better than average. Claims open when it reaches 0.7 points better than average.',
-      ),
-    ).toBeDefined();
+    expect(screen.getByText(`${DEFAULT_LABEL}, ${formatPeriod('2026-07')}`)).toBeDefined();
+    expect(screen.getByText(headlineFor(month))).toBeDefined();
+    expect(screen.getByText(positionSentence(opensOn, month)!)).toBeDefined();
     // The distance on screen is the one the API served for the newest month.
-    expect(month?.distance).toBeCloseTo(0.69, 6);
+    expect(month?.distance).toBeCloseTo(0.02, 6);
   });
 
   it('carries a status pill and a meter for the month it opened on', () => {
     render(<ExplorerScreen data={data()} />);
-    expect(screen.getAllByText('Covered').length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(stateWord(stateOf(latestMonth(opensOn)))).length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText('Payout')).toBeDefined();
     expect(screen.getByText('Far from a payout')).toBeDefined();
     expect(document.querySelector('[data-testid="explorer-meter"]')).not.toBeNull();
@@ -86,7 +99,7 @@ describe('the picker', () => {
     // markup, hidden, so both pages still carry every one of them.
     render(<ExplorerScreen data={data()} />);
     const row = chooserRow();
-    expect(row.textContent).toContain('Computer and mathematical');
+    expect(row.textContent).toContain(DEFAULT_LABEL);
     expect(row.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryAllByRole('button').filter((b) => b.getAttribute('aria-pressed') !== null)).toHaveLength(0);
     expect(document.querySelectorAll('[aria-pressed]')).toHaveLength(15);
@@ -101,8 +114,12 @@ describe('the picker', () => {
     expect(options).toHaveLength(15);
     expect(options[0]?.textContent).toContain('Office and administrative support');
     expect(options[1]?.textContent).toContain('Computer and mathematical');
-    expect(options[1]?.getAttribute('aria-pressed')).toBe('true');
     expect(options.at(-1)?.textContent).toContain('Farming, fishing and forestry');
+    // The one pressed is the one on screen, wherever the default sits in the
+    // addendum order.
+    const pressed = options.filter((option) => option.getAttribute('aria-pressed') === 'true');
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0]?.textContent).toContain(DEFAULT_LABEL);
   });
 
   it('filters the options as the visitor types, and says when nothing matches', () => {
@@ -168,7 +185,7 @@ describe('the occupation another page names', () => {
 
   it('moves to it when the page names another one', () => {
     const { rerender } = render(<ExplorerPanel data={data()} follows={null} />);
-    expect(screen.getByText(/^Computer and mathematical, /)).toBeDefined();
+    expect(screen.getByText(`${DEFAULT_LABEL}, ${formatPeriod('2026-07')}`)).toBeDefined();
 
     rerender(<ExplorerPanel data={data()} follows="legal" />);
     expect(screen.getByText(`Legal, ${formatPeriod('2026-07')}`)).toBeDefined();
@@ -199,8 +216,7 @@ describe('the occupation another page names', () => {
 describe('the chart', () => {
   it('draws sixty months with a band and a mark on every month claims opened', () => {
     render(<ExplorerScreen data={data()} />);
-    const computer = occupations.find((entry) => entry.key === 'computer_math');
-    const opened = computer!.months.filter((month) => month.open).length;
+    const opened = opensOn.months.filter((month) => month.open).length;
 
     expect(opened).toBeGreaterThan(0);
     expect(document.querySelectorAll('[data-testid="explorer-chart-open-mark"]')).toHaveLength(
@@ -213,8 +229,8 @@ describe('the chart', () => {
   it('is an image with a name that says the reading in words', () => {
     render(<ExplorerScreen data={data()} />);
     const chart = screen.getAllByRole('img')[0];
-    expect(chart?.getAttribute('aria-label')).toContain('Computer and mathematical');
-    expect(chart?.getAttribute('aria-label')).toContain('0.7 points from a payout');
+    expect(chart?.getAttribute('aria-label')).toContain(DEFAULT_LABEL);
+    expect(chart?.getAttribute('aria-label')).toContain(headlineFor(latestMonth(opensOn)));
   });
 
   it('carries two axis labels and the band caption, and no third date', () => {
@@ -223,47 +239,21 @@ describe('the chart', () => {
     expect(caption?.children).toHaveLength(3);
     expect(caption?.textContent).toContain('May 2021');
     expect(caption?.textContent).toContain('Jul 2026');
-    expect(caption?.textContent).toContain('Pays out within 0.68 of average');
+    expect(caption?.textContent).toContain(bandCaption(opensOn));
   });
-});
 
-describe('how close the call was', () => {
-  // T56. The caption under the chart carries the feed's own margins for the
-  // newest month, worded by the model, with the settle sentence beside them.
-  it('says the margin to each line for the occupation on screen', () => {
+  it('carries one line of prose under it and nothing more', () => {
+    // The chart used to stand over four paragraphs: how the line is built, a
+    // caveat for an occupation that is usually better than average, the never
+    // paid note and the margin to each line with the settle sentence. All of
+    // it said again what the verdict, the band caption and the four steps say.
     render(<ExplorerScreen data={data()} />);
-    const computer = occupations.find((entry) => entry.key === 'computer_math');
-    expect(screen.getByText(marginCaption(computer!).join(' '))).toBeDefined();
-    expect(screen.getByText(/0\.69 points short of the line for staying worse/)).toBeDefined();
-    expect(screen.getByText(/The first value published for a month settles/)).toBeDefined();
-  });
-
-  it('follows the occupation picked, and names its own month', () => {
-    render(<ExplorerScreen data={data()} />);
-    fireEvent.click(chooserRow());
-    const legal = chips().find((button) => button.textContent?.startsWith('Legal') === true);
-    fireEvent.click(legal!);
-    const occupation = occupations.find((entry) => entry.key === 'legal');
-    const caption = screen.getByText(marginCaption(occupation!).join(' '));
-    expect(caption.textContent).toContain(`In ${formatPeriod(occupation!.margins.period)}`);
-    expect(caption.textContent).not.toContain('-');
-  });
-
-  it('prints nothing where no margin was published', () => {
-    const round = data();
-    const [first, ...rest] = round.occupations;
-    render(
-      <ExplorerScreen
-        data={{
-          ...round,
-          occupations: [{ ...first!, margins: { ...first!.margins, level: null, shock: null } }, ...rest],
-        }}
-      />,
-    );
-    fireEvent.click(chooserRow());
-    const office = chips().find((button) => button.textContent?.startsWith('Office') === true);
-    fireEvent.click(office!);
-    expect(screen.queryByText(/the index was/)).toBeNull();
+    expect(
+      screen.getByText('Up is towards a payout, and the red band is where claims open.'),
+    ).toBeDefined();
+    expect(screen.queryByText(/The line rises when unemployment/)).toBeNull();
+    expect(screen.queryByText(/usually unemployed less than average/)).toBeNull();
+    expect(screen.queryByText(/points short of the line/)).toBeNull();
     expect(screen.queryByText(/The first value published for a month settles/)).toBeNull();
   });
 });
@@ -271,26 +261,40 @@ describe('how close the call was', () => {
 describe('the month scrubber', () => {
   it('moves the headline, the sentence and the price to the month it lands on', () => {
     render(<ExplorerScreen data={data()} />);
-    const scrub = screen.getByRole('slider', { name: 'Month, Computer and mathematical' });
+    const scrub = screen.getByRole('slider', { name: `Month, ${DEFAULT_LABEL}` });
     expect(scrub.getAttribute('max')).toBe('59');
     expect(scrub.getAttribute('value')).toBe('59');
 
-    // April 2026, which the feed says opened claims on the level form.
-    const computer = occupations.find((entry) => entry.key === 'computer_math');
-    const april = computer!.months.findIndex((month) => month.period === '2026-04');
-    fireEvent.change(scrub, { target: { value: String(april) } });
+    // The first month the feed says claims were open for this occupation.
+    const at = opensOn.months.findIndex((month) => month.open);
+    const open = opensOn.months[at]!;
+    fireEvent.change(scrub, { target: { value: String(at) } });
 
-    expect(screen.getByText(`Computer and mathematical, ${formatPeriod('2026-04')}`)).toBeDefined();
+    expect(screen.getByText(`${DEFAULT_LABEL}, ${formatPeriod(open.period)}`)).toBeDefined();
     expect(screen.getByText('Claims are open')).toBeDefined();
     expect(screen.getAllByText('Claims open').length).toBeGreaterThan(0);
   });
 });
 
 describe('the price block', () => {
+  it('stands the full width of the panel, under both columns', () => {
+    // It carries the premium, which is what a buyer came for. In the narrow
+    // column beside a five year chart it read as a footnote to the chart.
+    render(<ExplorerScreen data={data()} />);
+    const columns = document.querySelector('[data-testid="explorer-columns"]');
+    const price = document.querySelector('[data-testid="explorer-price"]');
+    const meter = document.querySelector('[data-testid="explorer-meter"]');
+
+    expect(columns).not.toBeNull();
+    expect(price).not.toBeNull();
+    expect(columns!.contains(meter)).toBe(true);
+    expect(columns!.contains(price)).toBe(false);
+    expect(price!.parentElement).toBe(columns!.parentElement);
+  });
+
   it('is the model price for the month and the capacity on the slider', () => {
     render(<ExplorerScreen data={data()} />);
-    const computer = occupations.find((entry) => entry.key === 'computer_math');
-    const distance = latestMonth(computer!)?.distance ?? 0;
+    const distance = latestMonth(opensOn)?.distance ?? 0;
     const price = priceFor(distance, 0.45);
 
     expect(screen.getByText('Monthly premium for 5,000 of cover')).toBeDefined();
@@ -366,11 +370,14 @@ describe('the two disclosures', () => {
   it('selects an occupation in the explorer above when a cell is chosen', () => {
     render(<ExplorerScreen data={data()} />);
     const grid = document.querySelectorAll('details')[1] as HTMLElement;
-    fireEvent.click(within(grid).getAllByRole('button')[0] as HTMLElement);
-    expect(
-      screen.getByText(`Arts, design, entertainment and media, ${formatPeriod('2026-07')}`),
-    ).toBeDefined();
-    expect(screen.getByText('Right on the line')).toBeDefined();
+    const cell = within(grid)
+      .getAllByRole('button')
+      .find((button) => button.textContent?.startsWith('Legal') === true);
+    fireEvent.click(cell as HTMLElement);
+
+    const occupation = occupations.find((entry) => entry.key === 'legal')!;
+    expect(screen.getByText(`Legal, ${formatPeriod('2026-07')}`)).toBeDefined();
+    expect(screen.getByText(headlineFor(latestMonth(occupation)))).toBeDefined();
   });
 });
 

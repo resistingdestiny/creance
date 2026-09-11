@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 
 import { DesktopFrame } from '../../components/desktop-frame';
 import { ReplayBar } from '../../components/replay-bar';
@@ -13,10 +12,9 @@ import { ExplorerPanel, NO_READINGS } from './explorer-panel';
  * A visitor picks one of the fifteen occupations, drags through five years of
  * published months and watches the position and the price move with them.
  *
- * This file is the page: the replay bar, the header, the heading and the
- * attribution panel under it. The explorer itself is ExplorerPanel, which the
- * landing page renders too (T34), so the behaviour is written once and the two
- * pages cannot drift apart.
+ * This file is the page: the replay bar, the header and the heading. The
+ * explorer itself is ExplorerPanel, which the landing page renders too (T34),
+ * so the behaviour is written once and the two pages cannot drift apart.
  *
  * It is the light ground with hairline depth of docs/DESIGN-TOKENS.md. The
  * marketing surface tokens belong to the landing page and are not used here.
@@ -27,18 +25,7 @@ import { ExplorerPanel, NO_READINGS } from './explorer-panel';
  * with T52, when the header's action became "Get a quote" on every route.
  */
 
-export function ExplorerScreen({
-  data,
-  attribution = null,
-}: {
-  data: ExplorerData;
-  /**
-   * The attribution panel, fetched on its own path. It arrives null when that
-   * read failed, and the explorer is unaffected: the index is what this page is
-   * for, and the caveats beside it are never the reason a reader cannot see it.
-   */
-  attribution?: ReactNode;
-}) {
+export function ExplorerScreen({ data }: { data: ExplorerData }) {
   const empty = data.occupations.length === 0;
 
   return (
@@ -57,9 +44,8 @@ export function ExplorerScreen({
               <p className="text-body text-ink-2">{NO_READINGS.line}</p>
             ) : (
               <p className="max-w-[720px] text-body-lg text-ink-2">
-                One number decides whether claims open for an occupation. Pick yours, then drag
-                through the last five years and watch it move. Every figure here is the real public
-                number.
+                Pick your occupation and drag through the last five years to see how close it has
+                come to paying out.
               </p>
             )}
           </div>
@@ -67,8 +53,6 @@ export function ExplorerScreen({
           {/* Straight under the h1, so the method steps are this page's h2s. */}
           {empty ? null : <ExplorerPanel data={data} stepHeading="h2" />}
         </main>
-
-        {attribution === null ? null : <section className="pt-10">{attribution}</section>}
       </DesktopFrame>
     </div>
   );

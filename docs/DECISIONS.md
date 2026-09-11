@@ -6037,3 +6037,45 @@ record date. The line about the record dates and the name of the maturity
 demonstration are new. All four are in
 docs/DESIGN-TOKENS-ADDENDUM.md under "Copy deck additions, T47", the way T43
 recorded its own.
+
+## T48, the seed skips a coupon that is not due, 11 September 2026
+
+### A coupon that is not due is a skip in the unattended run, an error when named
+
+`pnpm coupons:pay` with no argument picks the period that is owed and, when
+every declared period is paid, falls back to the last one declared. After T47
+that is coupon 4, whose record date is 4 January 2027, and the note answers
+`getCouponFor` for it with a zero fraction and `recordDateReached false`. The
+seed step handed that fraction to `settlementAmount`, which refuses a zero
+denominator, and `pnpm demo:seed` died inside `pnpm coupons:pay` with the
+coupons entirely up to date.
+
+The run now decides once, before any step, whether the chosen coupon is due:
+its execution date has passed and the note confirms the record date was
+reached. The decision is `couponDue` in `contracts/coupons/plan.ts`, pure and
+under `pnpm test` with coupon 4's dates, and the runner asks the note for
+`recordDateReached` on every holder rather than inferring it from the dates,
+because it is the note's own answer and the entitlement is empty without it.
+When the coupon is not due and no coupon was named, the run prints one line,
+`coupon 4 is not due: payable at 1799180183, 5 January 2027, skipping seed and
+pay`, runs fund, probe, subscribe, publish and verify, which do not need an
+entitlement, and exits 0. `settlementAmount` is untouched: its guard is right
+for a real settlement, and the caller is what should not have been asking.
+
+When a coupon is named, `pnpm coupons:pay pay 4` or `COUPON_ID=4`, the same
+verdict is an error with the same reason. The operator asked for that coupon
+and a quiet skip would hide a mistake in the argument, which is the opposite
+of what the unattended run needs. The guards inside `pay` stay as a second
+line, the way the guard in `settlementAmount` does.
+
+### A run that settles nothing writes nothing
+
+Every step reached its settlement entry through a helper that created it on
+first touch, and `main` saves the record after each step, so a run that skipped
+seed and pay would have left `couponSettlements["4"]` with an empty holder list
+in the tracked deployment record. The investor endpoint only lists a coupon
+with a settled holder, so it would not have shown as paid, but a tracked file
+changing on a run that did nothing is noise in the history. The steps that only
+read, probe's already measured check, publish and verify, now look the entry
+up without creating it and say `coupon 4 has no settlement` when there is none.
+The record is byte for byte the same after a skipped run.

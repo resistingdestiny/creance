@@ -222,6 +222,22 @@ function amountClasses(hero: boolean, weight: 'font-medium' | 'font-semibold'): 
   ].join(' ');
 }
 
+/**
+ * The occupation and the "Cover" label, at the sheet's secondary size on a
+ * card in the app and a step up at landing size (T52). The hero card is 720
+ * wide, and a 14px label wrapping over two lines in its corner left the face
+ * reading as empty; at body-lg the label sits on one line at the width the
+ * longest of the fifteen names takes, and the "Cover" label steps up with it
+ * so the figure has a caption in proportion.
+ */
+function labelClasses(hero: boolean, width: string): string {
+  return hero ? 'max-w-[420px] text-body-lg' : `${width} text-secondary`;
+}
+
+function captionClasses(hero: boolean): string {
+  return hero ? 'text-body text-ink' : 'text-secondary text-ink';
+}
+
 function Wallet({ occupation, amount, state, statusLabel, hero, depth }: FaceProps) {
   return (
     <div
@@ -231,11 +247,11 @@ function Wallet({ occupation, amount, state, statusLabel, hero, depth }: FacePro
       )}
     >
       <div className={cx('flex items-start justify-between gap-4', lift(depth, 24))}>
-        <p className="max-w-[190px] text-secondary font-medium text-ink">{occupation}</p>
+        <p className={`${labelClasses(hero, 'max-w-[190px]')} font-medium text-ink`}>{occupation}</p>
         <StatusPill state={state}>{statusLabel}</StatusPill>
       </div>
       <div className={cx('flex flex-col gap-1', planes(depth), lift(depth, 16))}>
-        <p className="text-secondary text-ink">Cover</p>
+        <p className={captionClasses(hero)}>Cover</p>
         <p className={cx(amountClasses(hero, 'font-semibold'), lift(depth, 24))}>{amount}</p>
       </div>
     </div>
@@ -255,7 +271,9 @@ function Certificate({ occupation, amount, state, statusLabel, hero, depth }: Fa
         planes(depth),
       )}
     >
-      <p className={cx('max-w-[250px] text-secondary text-ink', lift(depth, 16))}>{occupation}</p>
+      <p className={cx(labelClasses(hero, 'max-w-[250px]'), 'text-ink', lift(depth, 16))}>
+        {occupation}
+      </p>
       <p className="sr-only">Cover</p>
       <p className={cx(amountClasses(hero, 'font-medium'), lift(depth, 40))}>{amount}</p>
       <StatusPill state={state}>{statusLabel}</StatusPill>
@@ -275,7 +293,7 @@ function Certificate({ occupation, amount, state, statusLabel, hero, depth }: Fa
 function Ingot({ occupation, amount, state, statusLabel, hero, depth }: FaceProps) {
   return (
     <div className={cx('cover-card__content flex h-full flex-col gap-10', planes(depth))}>
-      <p className={cx('max-w-[220px] text-secondary font-medium text-ink', lift(depth, 24))}>
+      <p className={cx(labelClasses(hero, 'max-w-[220px]'), 'font-medium text-ink', lift(depth, 24))}>
         {occupation}
       </p>
       <div
@@ -286,7 +304,7 @@ function Ingot({ occupation, amount, state, statusLabel, hero, depth }: FaceProp
         )}
       >
         <div className={cx('flex flex-col gap-1', planes(depth))}>
-          <p className="text-secondary text-ink">Cover</p>
+          <p className={captionClasses(hero)}>Cover</p>
           <p className={cx(amountClasses(hero, 'font-semibold'), lift(depth, 24))}>{amount}</p>
         </div>
         <div className="mb-1 shrink-0">

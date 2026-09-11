@@ -302,7 +302,7 @@ function Position({
 function PositionResting() {
   return (
     <div data-testid="investor-resting">
-      <Skeleton className="mb-6 h-[321px] w-full max-w-[720px] rounded-card lg:h-[293px]" />
+      <Skeleton className="mb-6 h-[303px] w-full max-w-[720px] rounded-card lg:h-[293px]" />
     </div>
   );
 }
@@ -432,14 +432,11 @@ function Terms({
   );
 }
 
-/**
- * Seven rows of 52px with six hairlines between them, at the group radius.
- * At 390 the coupon row wraps to two lines and the group is 21px taller.
- */
+/** Seven rows of 52px with six hairlines between them, at the group radius. */
 function TermsResting() {
   return (
     <div data-testid="investor-resting">
-      <Skeleton className="h-[385px] w-full rounded-group lg:h-[364px]" />
+      <Skeleton className="h-[364px] w-full rounded-group" />
     </div>
   );
 }
@@ -533,15 +530,12 @@ function HashScanSection({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * The links at the link's own 44px minimum height: one row at 1440, two with
- * the gap between them at 390.
- */
+/** One row of links at the link's own 44px minimum height, at both widths. */
 function HashScanResting() {
   return (
     <div data-testid="investor-resting">
       <HashScanSection>
-        <Skeleton className="h-[112px] w-80 max-w-full lg:h-11" />
+        <Skeleton className="h-11 w-80 max-w-full" />
       </HashScanSection>
     </div>
   );

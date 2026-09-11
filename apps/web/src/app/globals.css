@@ -173,8 +173,7 @@
      the night ground on every route now, so a black outline there would leave
      a keyboard user with no focus state on the first four things every page
      offers. The width and the offset are the rule above; only the colour is
-     read off the ground, from the attribute the chrome and the landing's night
-     bands carry. */
+     read off the ground, from the attribute the chrome carries. */
   [data-tone="night"] :focus-visible {
     outline-color: #fff;
   }

@@ -243,9 +243,12 @@ landing's alone.
 
 The focus outline reads its colour off the ground (T52). The sheet's outline
 is 2px solid black with a 2px offset everywhere; inside an element carrying
-`data-tone="night"`, which the header and the landing's night bands carry, the
-same outline is white, because black is invisible there and the header is now
-on every route. Width and offset do not change; only the colour does.
+`data-tone="night"`, which the header carries, the same outline is white,
+because black is invisible there and the header is now on every route. Width
+and offset do not change; only the colour does. The landing's own night bands
+do not carry it: their controls are the night pills, whose white fill is
+visible against the ground, and the quote's steps stand on the card's light
+face, where black is right.
 
 The height is a token, `--spacing-chrome`, 72px: the 56px pill with 8px either
 side, which is the height the landing's navigation already stood at. The worker

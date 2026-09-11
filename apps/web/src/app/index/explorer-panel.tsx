@@ -600,9 +600,20 @@ function Price({
           {buyable ? price.monthly : price.guide}
         </span>
         {buyable ? (
-          <span className="text-caption text-ink-2">
-            Guide price {price.guide} from the index. Capital adds {String(price.addOn)} percent.
-          </span>
+          <>
+            <span className="text-caption text-ink-2">
+              Guide price {price.guide} from the index. Capital adds {String(price.addOn)} percent.
+            </span>
+            {/* Why a price this close to the line is not closer to the limit.
+                The premium looks small beside the cover until you know that
+                two things have to happen, not one. This is the sentence that
+                answers it, and it sits with the number rather than in a note
+                further down the page, because it is the number it explains. */}
+            <span className="text-caption text-ink-2">
+              A payout needs two things: the index opens for your occupation, and you lose the
+              job involuntarily while it is open.
+            </span>
+          </>
         ) : null}
       </div>
 

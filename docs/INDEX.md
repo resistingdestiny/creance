@@ -330,18 +330,32 @@ Pooling all 29 occupation series in the source, taking each month from 2010-01 t
 | 2 to 4 points | 4.6 percent | 1524 |
 | more than 4 points | 4.1 percent | 684 |
 
-The curve is steep inside half a point and flat beyond it, which is the shock form
-setting a floor of about five percent a year everywhere. The fitted hazard, so
-that the price has no cliff at a bucket edge:
+The first row is not a hazard and must not be read as one. The level form opens
+when the smoothed excess reaches the line, and distance is the points still to
+travel to reach it, so every month at or past the line is a month in which claims
+are already open. All 32 of them see an open month inside the following year, by
+construction. What the row measures is persistence, which is whether an episode
+that is already running has at least one more open month within twelve; the
+months that do not are the last month of an episode. Cover cannot be bought in
+that state, so the row is here for completeness and no price is quoted from it.
+
+The rows below it are the insurable ones. The curve is steep inside half a point
+and flat beyond it, which is the shock form setting a floor of about five percent
+a year everywhere. The fitted hazard, so that the price has no cliff at a bucket
+edge:
 
     h(d) = 0.047 + 0.613 * exp(-d / 0.22)
 
     guide rate  = max(0.005, h(d) * 0.167 * 0.6 * 1.3)
     market rate = guide * (1 + utilisation), capped at 3 times guide
 
+The table starts at 0.05 points rather than at 0, because equality opens the
+level form and there is no cover to price at 0. The curve's value there is the
+limit it approaches, not a quotable rate.
+
 | distance to the line | fitted hazard | guide rate | monthly premium on a 5,000 limit |
 | --- | --- | --- | --- |
-| 0.00 points | 66.0 percent | 8.60 percent | 35.82 |
+| 0.05 points | 53.5 percent | 6.97 percent | 29.06 |
 | 0.25 points | 24.4 percent | 3.18 percent | 13.23 |
 | 0.50 points | 11.0 percent | 1.43 percent | 5.98 |
 | 1.00 points | 5.4 percent | 0.70 percent | 2.90 |

@@ -549,18 +549,34 @@ ${table(
   ]),
 )}
 
-The curve is steep inside half a point and flat beyond it, which is the shock form
-setting a floor of about five percent a year everywhere. The fitted hazard, so
-that the price has no cliff at a bucket edge:
+The first row is not a hazard and must not be read as one. The level form opens
+when the smoothed excess reaches the line, and distance is the points still to
+travel to reach it, so every month at or past the line is a month in which claims
+are already open. All ${
+    hazard.buckets[0]?.sample ?? 0
+  } of them see an open month inside the following year, by
+construction. What the row measures is persistence, which is whether an episode
+that is already running has at least one more open month within twelve; the
+months that do not are the last month of an episode. Cover cannot be bought in
+that state, so the row is here for completeness and no price is quoted from it.
+
+The rows below it are the insurable ones. The curve is steep inside half a point
+and flat beyond it, which is the shock form setting a floor of about five percent
+a year everywhere. The fitted hazard, so that the price has no cliff at a bucket
+edge:
 
     h(d) = ${HAZARD_FIT.floor} + ${HAZARD_FIT.amplitude} * exp(-d / ${HAZARD_FIT.scale})
 
     guide rate  = max(${PRICING.floorRate}, h(d) * ${PRICING.separationGivenOpen} * ${PRICING.expectedShareOfLimit} * ${PRICING.load})
     market rate = guide * (1 + utilisation), capped at ${PRICING.marketCapMultiple} times guide
 
+The table starts at 0.05 points rather than at 0, because equality opens the
+level form and there is no cover to price at 0. The curve's value there is the
+limit it approaches, not a quotable rate.
+
 ${table(
   ['distance to the line', 'fitted hazard', 'guide rate', 'monthly premium on a 5,000 limit'],
-  [0, 0.25, 0.5, 1, 2, 4].map((d) => [
+  [0.05, 0.25, 0.5, 1, 2, 4].map((d) => [
     `${d.toFixed(2)} points`,
     `${(fittedHazard(d) * 100).toFixed(1)} percent`,
     `${(guideRate(d) * 100).toFixed(2)} percent`,

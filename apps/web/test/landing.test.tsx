@@ -8,8 +8,10 @@ import {
   latestMonth,
   rankByDistance,
 } from '../src/lib/explorer-model.js';
+import { AMOUNT_MIN } from '../src/lib/cover-amount.js';
 import {
   LANDING_GROUP,
+  fromPriceBuys,
   fromPriceLine,
   investorLine,
   landingIndexSection,
@@ -153,6 +155,37 @@ describe('the figures come from the feed and never from the page', () => {
     const text = visibleText(live);
     expect(text.indexOf('From 4.25 a month')).toBeGreaterThan(-1);
     expect(text.indexOf('From 4.25 a month')).toBe(text.lastIndexOf('From 4.25 a month'));
+  });
+
+  it('says what the from price buys, from the cover the quote was for', () => {
+    // T52. The second line is a figure, not copy: it names the cover the
+    // quote was asked for, in the explorer's own wording, and it is built by
+    // the model from that amount rather than typed anywhere.
+    expect(fromPriceBuys(1000)).toBe('for 1,000 of cover');
+    expect(visibleText(live)).toContain('From 4.25 a month for 1,000 of cover');
+    expect(LIVE.price.buysLine).toBe(fromPriceBuys(AMOUNT_MIN));
+  });
+
+  it('gives the price the weight of a figure, before the action it argues for', () => {
+    // The headline scale in white, not body type at the secondary opacity
+    // under the buttons, and read before "Get a quote" rather than after it.
+    const figure = /<p class="[^"]*"><span class="([^"]*)">From 4\.25 a month<\/span>/.exec(live);
+    expect(figure?.[1]).toContain('text-headline');
+    expect(figure?.[1]).toContain('text-white');
+    expect(figure?.[1]).not.toContain('text-white/66');
+    const hero = /<h1[\s\S]*?<\/section>/.exec(live)?.[0] ?? '';
+    expect(hero.indexOf('From 4.25 a month')).toBeLessThan(hero.indexOf('Get a quote'));
+  });
+
+  it('leaves both lines out, and no space for them, when nothing was quoted', () => {
+    const unpriced = renderToStaticMarkup(
+      <LandingScreen data={{ ...LIVE, price: { priceLine: null, buysLine: null } }} />,
+    );
+    const hero = /<h1[\s\S]*?<\/section>/.exec(unpriced)?.[0] ?? '';
+    const text = visibleText(hero);
+    expect(text).not.toContain('From ');
+    expect(text).not.toContain('of cover');
+    expect(hero).not.toContain('data-testid="landing-resting"');
   });
 
   it('falls back to the first landing wording rather than naming a rate it did not read', () => {
@@ -482,9 +515,12 @@ describe('the way in to the example (T50)', () => {
     expect(live).not.toContain('href="/home/demo"');
     const link = /<a[^>]*href="\/home\/demo"[^>]*>([\s\S]*?)<\/a>/.exec(demo);
     expect(visibleText(link?.[1] ?? '')).toBe('See an example of cover');
-    // In the hero, after the primary and before the price line.
-    const hero = /<h1[\s\S]*?From 4\.25 a month/.exec(demo)?.[0] ?? '';
+    // In the hero, after the price and the primary. The price stood after the
+    // pills until T52 gave it weight and moved it above them, so the order in
+    // the hero is now the figure, then the primary, then the example.
+    const hero = /<h1[\s\S]*?<\/section>/.exec(demo)?.[0] ?? '';
     expect(hero).toContain('href="/home/demo"');
+    expect(hero.indexOf('From 4.25 a month')).toBeLessThan(hero.indexOf('Get a quote'));
     expect(hero.indexOf('Get a quote')).toBeLessThan(hero.indexOf('href="/home/demo"'));
     expect(demo.match(/href="\/home\/demo"/g)).toHaveLength(1);
   });

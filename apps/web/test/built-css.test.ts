@@ -328,6 +328,12 @@ describe('the metal finish and its rainbow shimmer', () => {
    * ingot. The shimmer is a modifier over whichever one is drawn, so the worst
    * case for a label on the card is the worst of these under the strongest
    * stop of the shimmer.
+   *
+   * T49 put the material on Home, the investor note and the approved claim,
+   * all of them one of these three treatments and all of them written in ink,
+   * which `.cover-card__content .text-ink-2` guarantees for the rows that
+   * share the card. A new metal surface with a darker stop is added here; a
+   * colour other than ink on the metal is composited below as well.
    */
   const DARKEST = ['#dfe2e7', '#eff1f4', '#d9dce2'];
 
@@ -365,6 +371,27 @@ describe('the metal finish and its rainbow shimmer', () => {
     expect(css).toMatch(
       /prefers-reduced-motion[\s\S]*?\.cover-card__shimmer::before[^}]*\{[^}]*animation:\s*none/,
     );
+  });
+
+  it('travels on transform alone, so the loop never repaints the card', () => {
+    // T49 put the material on data dense screens, and an infinite animation
+    // there has to be one the compositor runs on its own: transform and
+    // opacity, never layout or paint. The keyframes may name nothing else.
+    const frames = /@keyframes cover-card-shimmer\s*\{([\s\S]*?)\}\s*\}/.exec(css)?.[1] ?? '';
+    expect(frames.length).toBeGreaterThan(0);
+    const properties = [...frames.matchAll(/([a-z-]+)\s*:/g)].map((match) => match[1]);
+    expect(new Set(properties)).toStrictEqual(new Set(['transform']));
+  });
+
+  it('pauses, rather than stops, while nobody can see it', () => {
+    // CardShimmer sets `is-paused` when the card leaves the viewport or the
+    // tab is hidden, and the landing turn hides the face turned away. Both
+    // are animation-play-state, so the band resumes where it was.
+    const paused = blocksMatching(/\.cover-card__shimmer\.is-paused::before/);
+    expect(paused).toHaveLength(1);
+    const [selector, body] = paused[0]!;
+    expect(body).toMatch(/animation-play-state:\s*paused/);
+    expect(selector).toContain('.cover-card-face[data-facing="away"] .cover-card__shimmer::before');
   });
 
   it('leaves a label on the card far above the contrast floor wherever it lands', () => {

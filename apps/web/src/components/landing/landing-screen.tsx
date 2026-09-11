@@ -285,13 +285,18 @@ function Hero({
       <p className="mt-6 max-w-[500px] text-balance text-body-lg text-white/66 lg:mt-8 lg:text-landing-lead">
         A monthly payment now. A payout if your occupation is displaced.
       </p>
-      <div className="mt-8 flex flex-col items-center gap-4 lg:mt-11 lg:flex-row lg:gap-6">
-        <QuoteButton variant="night" />
+      {/* The row wraps at the landing breakpoint rather than squeezing: two
+          pills and the price do not fit the text column beside the card, so
+          with the example on the row the price line steps under the pills,
+          and without it the row is the one line it always was. Nothing in it
+          may break inside itself, which is what the nowrap is for. */}
+      <div className="mt-8 flex flex-col items-center gap-4 lg:mt-11 lg:flex-row lg:flex-wrap lg:gap-x-6 lg:gap-y-4">
+        <QuoteButton className="whitespace-nowrap" variant="night" />
         {/* The way in to the example, secondary on this ground so that "Get a
             quote" stays the one primary action. Only where there is an example
             to show: demonstrationOn() decides that on the server. */}
         {demo ? (
-          <PillLink href="/home/demo" variant="night-secondary">
+          <PillLink className="whitespace-nowrap" href="/home/demo" variant="night-secondary">
             {DEMO_EXAMPLE}
           </PillLink>
         ) : null}
@@ -320,7 +325,9 @@ const DEMO_EXAMPLE = 'See an example of cover';
  */
 function PriceLine({ price }: { price: Streamed<LandingPriceView> }) {
   const { priceLine } = figureOf(price);
-  return priceLine === null ? null : <p className="text-body text-white/66">{priceLine}</p>;
+  return priceLine === null ? null : (
+    <p className="whitespace-nowrap text-body text-white/66">{priceLine}</p>
+  );
 }
 
 /**

@@ -56,7 +56,9 @@ vi.mock('../src/app/verify/world-check.js', () => ({
 const { AmountScreen } = await import('../src/app/amount/amount-screen.js');
 const { IndexScreen } = await import('../src/app/cover/index/index-screen.js');
 const { HomeScreen } = await import('../src/app/home/home-screen.js');
-const { OccupationPicker } = await import('../src/app/occupation/occupation-picker.js');
+const { LEVEL_LINE_NEVER_REACHED, OccupationPicker } = await import(
+  '../src/app/occupation/occupation-picker.js'
+);
 const { PayScreen } = await import('../src/app/pay/pay-screen.js');
 const { VerifyScreen } = await import('../src/app/verify/verify-screen.js');
 const { completeWorldCheck, startWorldCheck } = await import('../src/app/purchase-actions.js');
@@ -117,6 +119,21 @@ describe('the occupation picker', () => {
     expect(
       screen.getAllByText(/Claims have never opened for this occupation since 2010\./),
     ).toHaveLength(2);
+  });
+
+  it('says where the level line has never been reached, beside the never-opened line', () => {
+    render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
+    const rows = screen.getAllByText(/Its level line has never been reached/);
+    expect(rows).toHaveLength(5);
+    // Office and administrative support carries both facts in one caption,
+    // the backtest's first and the whole history's second.
+    const office = rows.find((node) => node.textContent?.startsWith('Claims have never opened'));
+    expect(office?.textContent).toBe(
+      `Claims have never opened for this occupation since 2010. ${LEVEL_LINE_NEVER_REACHED}`,
+    );
+    // Legal reached its line once, in 2007, and must not carry the sentence.
+    const legal = screen.getByText('Legal').closest('button');
+    expect(legal?.textContent).toBe('Legal');
   });
 
   it('disables Continue until a row is chosen', () => {

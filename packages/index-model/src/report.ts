@@ -13,6 +13,7 @@ import { fmt2 } from './rounding.js';
 import { hazardTable } from './hazard.js';
 import { fittedHazard, guideRate, HAZARD_FIT, PRICING } from './pricing.js';
 import { BACKTEST_FROM } from './calibration.js';
+import { aggregateSeriesId } from './series.js';
 
 /**
  * docs/INDEX.md is generated from a backfill run and never edited by hand. Two
@@ -25,6 +26,107 @@ export const GAP_CAPTION =
   'No reading for October 2025. The source survey was not collected that month, ' +
   'so there is no value to publish and none was invented. November and December ' +
   '2025 have no three-month average for the same reason.';
+
+/**
+ * A source month BLS corrected after first print in a way the archive cannot
+ * show, because the archive was pulled after the correction and the corrected
+ * value carries no footnote. Each entry is one row of the published errata
+ * list, restricted to the series the archive carries:
+ * https://www.bls.gov/bls/errata/cps-corrections-list-april-2025.xlsx
+ * (the April 2025 CPS sample redesign correction, first print 2025-05-02,
+ * corrected 2025-06-06, notice at
+ * https://www.bls.gov/bls/errata/cps-corrections-april-2025.htm).
+ */
+export interface SourceCorrection {
+  seriesId: string;
+  period: Period;
+  firstPrint: string;
+  corrected: string;
+  correctedOn: string;
+  url: string;
+}
+
+export const SOURCE_CORRECTIONS: readonly SourceCorrection[] = [
+  {
+    seriesId: 'LNU04032224',
+    period: '2025-04',
+    firstPrint: '6.0',
+    corrected: '5.9',
+    correctedOn: '2025-06-06',
+    url: 'https://www.bls.gov/bls/errata/cps-corrections-list-april-2025.xlsx',
+  },
+  {
+    seriesId: 'LNU04034023',
+    period: '2025-04',
+    firstPrint: '3.1',
+    corrected: '3.0',
+    correctedOn: '2025-06-06',
+    url: 'https://www.bls.gov/bls/errata/cps-corrections-list-april-2025.xlsx',
+  },
+  {
+    seriesId: 'LNU04034027',
+    period: '2025-04',
+    firstPrint: '4.4',
+    corrected: '4.3',
+    correctedOn: '2025-06-06',
+    url: 'https://www.bls.gov/bls/errata/cps-corrections-list-april-2025.xlsx',
+  },
+  {
+    seriesId: 'LNU04034032',
+    period: '2025-04',
+    firstPrint: '4.3',
+    corrected: '4.4',
+    correctedOn: '2025-06-06',
+    url: 'https://www.bls.gov/bls/errata/cps-corrections-list-april-2025.xlsx',
+  },
+];
+
+/**
+ * The footnote codes under which the archive itself says a month moved after
+ * first print: C is "Corrected" (the 2020 occupation coding errors, corrected
+ * 2020-09-23) and 12 is the January 2026 population control revision applied
+ * 2026-03-06.
+ */
+const MOVED_FOOTNOTE_CODES = new Set(['C', '12']);
+
+/**
+ * The six calendar months a period's computation reads, t to t-2 for the
+ * smoothed excess and t-12 to t-14 for its base. They are the rows the
+ * published source hash commits to.
+ */
+const INPUT_OFFSETS = [0, -1, -2, -12, -13, -14] as const;
+
+/** Whether the source month, on this series, was corrected or revised after first print. */
+function sourceMonthMoved(dataset: Dataset, seriesId: string, period: Period): boolean {
+  const row = dataset.allSeries.get(seriesId)?.find((entry) => entry.period === period);
+  if (row?.footnoteCodes.some((code) => MOVED_FOOTNOTE_CODES.has(code))) return true;
+  return SOURCE_CORRECTIONS.some((c) => c.seriesId === seriesId && c.period === period);
+}
+
+/**
+ * How many open group months were computed from at least one input month BLS
+ * later corrected or revised, on the group's own series or on the aggregate.
+ * Computed from the archive's footnotes plus the errata constant, so the
+ * number moves with the archive rather than going stale in prose.
+ */
+export function countOpenMonthsOnMovedSource(
+  dataset: Dataset,
+  frozen: ReadonlyMap<string, readonly Observation[]>,
+): number {
+  const aggregateId = aggregateSeriesId(dataset.map);
+  let count = 0;
+  for (const rows of frozen.values()) {
+    for (const row of rows) {
+      if (!row.open) continue;
+      const moved = INPUT_OFFSETS.some((offset) => {
+        const input = addMonths(row.period, offset);
+        return sourceMonthMoved(dataset, row.seriesId, input) || sourceMonthMoved(dataset, aggregateId, input);
+      });
+      if (moved) count += 1;
+    }
+  }
+  return count;
+}
 
 export interface LossWindow {
   from: Period;

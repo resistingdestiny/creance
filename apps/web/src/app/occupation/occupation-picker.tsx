@@ -184,7 +184,13 @@ export const LEVEL_LINE_NEVER_REACHED = 'Only a sudden jump would open claims he
 export function captionFor(row: Occupation): string | undefined {
   const lines: string[] = [];
   if (!hasCover(row)) lines.push(NO_COVER_YET);
-  if (row.lastOpenPeriod === null) lines.push('Claims have never opened here.');
-  if (row.levelLineNeverReached) lines.push(LEVEL_LINE_NEVER_REACHED);
+  const neverOpened = row.lastOpenPeriod === null;
+  if (neverOpened) lines.push('Claims have never opened here.');
+  // Both lines together said "claims" twice and "here" twice in one breath.
+  // After the first sentence the subject is already claims and the place is
+  // already here, so the second says only what it adds.
+  if (row.levelLineNeverReached) {
+    lines.push(neverOpened ? 'Only a sudden jump would.' : LEVEL_LINE_NEVER_REACHED);
+  }
   return lines.length === 0 ? undefined : lines.join(' ');
 }

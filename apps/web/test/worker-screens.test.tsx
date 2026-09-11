@@ -121,14 +121,15 @@ describe('the occupation picker', () => {
 
   it('says where the level line has never been reached, beside the never-opened line', () => {
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
-    const rows = screen.getAllByText(new RegExp(LEVEL_LINE_NEVER_REACHED));
+    const rows = screen.getAllByText(/sudden jump would/);
     expect(rows).toHaveLength(5);
-    // Office and administrative support carries both facts in one caption,
-    // the backtest's first and the whole history's second.
+    // Three carry the sentence on its own.
+    expect(screen.getAllByText(LEVEL_LINE_NEVER_REACHED)).toHaveLength(3);
+    // Office and administrative support carries both facts in one caption, the
+    // backtest's first and the whole history's second, and the second is cut
+    // to what it adds rather than repeating the subject of the first.
     const office = rows.find((node) => node.textContent?.startsWith('Claims have never opened'));
-    expect(office?.textContent).toBe(
-      `Claims have never opened here. ${LEVEL_LINE_NEVER_REACHED}`,
-    );
+    expect(office?.textContent).toBe('Claims have never opened here. Only a sudden jump would.');
     // Legal reached its line once, in 2007, and must not carry the sentence.
     const legal = screen.getByText('Legal').closest('button');
     expect(legal?.textContent).toBe('Legal');

@@ -335,7 +335,9 @@ The third sentence a picker row can carry, after the capacity line and the
 never-opened line, for the five occupations whose level line the smoothed
 excess has never reached across the whole published history, 2000 to 2026.
 It is true of legal's row too in form and is not drawn there, because legal
-reached its line once in 2007.
+reached its line once in 2007. Where the never-opened line stands above it the
+sentence is "Only a sudden jump would.", because after that first sentence the
+subject is already claims and the place is already here.
 
 It was written as "Its level line has never been reached in the published
 history since 2000. Only a sudden jump would open claims.", which named the

@@ -567,3 +567,61 @@ describe('the investor overview screen', () => {
     expect(markup).not.toContain('max-w-[390px]');
   });
 });
+
+describe('the note on the metal (T49)', () => {
+  const markup = renderToStaticMarkup(
+    <InvestorOverview coupons={COUPONS} investor={DEMO_ACCOUNTS['investor-1']} series={SERIES} />,
+  );
+
+  /** The one card on the page, from its opening tag to the end of its content. */
+  function certificate(from: string): string {
+    return /<div class="cover-card cover-card--certificate[^"]*"[\s\S]*?<\/div><\/div>/.exec(from)?.[0] ?? '';
+  }
+
+  it('draws the position as a certificate in the metal, with the shimmer', () => {
+    const card = certificate(markup);
+    expect(card).toContain('cover-card--metal');
+    expect(card).toContain('cover-card__shimmer');
+    expect(card).toContain('Earned to date');
+    expect(card).toContain('Next payment');
+  });
+
+  it('spends this screen one shimmer and no more', () => {
+    // docs/DESIGN-TOKENS-ADDENDUM.md, "The metal": at most one shimmering
+    // element in view. The certificate is it, so nothing else on the page may
+    // carry the class.
+    expect(markup.match(/cover-card__shimmer/g)).toHaveLength(1);
+    expect(markup.match(/cover-card--metal/g)).toHaveLength(1);
+  });
+
+  it('keeps the light under the words, like every other card', () => {
+    const card = certificate(markup);
+    expect(card.indexOf('cover-card__shimmer')).toBeLessThan(card.indexOf('cover-card__content'));
+    expect(card.indexOf('cover-card__content')).toBeLessThan(card.indexOf('Earned to date'));
+  });
+
+  it('leaves the table and the terms on canvas and surface', () => {
+    // The material carries identity and value, never ordinary content: the
+    // coupon history is still a table and the series terms are still rows in
+    // a surface group.
+    const afterCard = markup.slice(markup.indexOf('<table'));
+    expect(afterCard).toContain('Period');
+    expect(afterCard).not.toContain('cover-card');
+    expect(afterCard).toContain('bg-surface');
+  });
+
+  it('spends no shimmer on a series that has paid this account nothing', () => {
+    // No headline figure, no certificate. The next payment stays a row in a
+    // surface group, as it was, and the screen has no moving light at all.
+    const empty = renderToStaticMarkup(
+      <InvestorOverview
+        coupons={{ ...COUPONS, coupons: [] }}
+        investor={DEMO_ACCOUNTS['investor-1']}
+        series={SERIES}
+      />,
+    );
+    expect(empty).not.toContain('cover-card');
+    expect(empty).not.toContain('cover-card__shimmer');
+    expect(visibleText(empty)).toContain('Next payment Coupon 4, accruing');
+  });
+});

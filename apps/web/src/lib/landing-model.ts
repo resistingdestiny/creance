@@ -13,9 +13,8 @@
  * interpolated into the places the design shows them.
  */
 
-import { hashscanTopicUrl, rankByDistance, type ExplorerOccupation } from './explorer-model';
-import { formatAmount, formatDayWithYear, formatMoney, formatPeriod, formatWholeMoney } from './format';
-import { isoDay } from './investor-model';
+import { rankByDistance, type ExplorerOccupation } from './explorer-model';
+import { formatAmount, formatMoney, formatPeriod, formatWholeMoney } from './format';
 import { OCCUPATIONS } from './occupations';
 import { exhaustionFor, headlineReading, pointsInProse } from './worker-model';
 import type { CouponsView, SeriesView } from './investor-api';
@@ -208,116 +207,6 @@ export function seriesFor(
   if (index?.series_id != null) return index.series_id;
   const row = catalogue?.groups.find((candidate) => candidate.group === group) ?? null;
   return row?.series_id ?? null;
-}
-
-/**
- * One event around the hero card (T54): something that actually happened,
- * with where it can be read without trusting this page.
- *
- * Every chip on the hero is one of these, and each is built here from a record
- * the page already reads. Nothing in this file invents one: a reading with no
- * month, a coupon nobody was paid and a month the oracle has not published are
- * each a chip that does not exist, which is what the two builders below return
- * for them.
- */
-export interface LandingEvent {
-  readonly key: string;
-  /** What happened, in white. */
-  readonly title: string;
-  /** When, or how far, in the secondary opacity. */
-  readonly detail: string;
-  /** Where the same event can be read: HashScan, or the explorer on this page. */
-  readonly href: string;
-  /** The occupation to open the explorer on, for a chip that points at it. */
-  readonly group: string | null;
-}
-
-/**
- * The readings worth a chip: the occupation nearest its line, and the one this
- * page speaks for.
- *
- * Both are the explorer's own round and the explorer's own words through
- * `rankByDistance`, the same rule the ticker follows, so the chip, the strip
- * and the panel cannot say one distance three ways. When the page's own
- * occupation is the nearest, the second chip is the next nearest, so there
- * are two readings and not one said twice. An occupation with no reading is
- * skipped rather than shown saying "no reading", because a chip is an event
- * and that is the absence of one.
- */
-export function readingEvents(
-  occupations: readonly ExplorerOccupation[],
-  group: string = LANDING_GROUP,
-): readonly LandingEvent[] {
-  const read = rankByDistance(occupations).flatMap((entry) =>
-    entry.month === null ? [] : [{ ...entry, month: entry.month }],
-  );
-  const nearest = read[0] ?? null;
-  const own = read.find((entry) => entry.occupation.key === group) ?? null;
-  const second = own !== null && own !== nearest ? own : (read[1] ?? null);
-  return [nearest, second]
-    .flatMap((entry) => (entry === null ? [] : [entry]))
-    .map((entry) => ({
-      key: `reading-${entry.occupation.key}`,
-      title: entry.occupation.label,
-      detail: `${entry.gap}, ${formatPeriod(entry.month.period)}`,
-      href: '#the-index',
-      group: entry.occupation.key,
-    }));
-}
-
-/**
- * The month the oracle settled on the index topic, as a chip, or null.
- *
- * The receipt is the reading's own `publication`: the topic and the sequence
- * number the API read back from the chain. Null there is a month that was
- * computed and not yet published, which is not an event and gets no chip.
- */
-export function publishedEvent(index: IndexView | null): LandingEvent | null {
-  if (index === null || index.publication.topic_id === null) return null;
-  const { topic_id: topic, sequence_number: sequence } = index.publication;
-  return {
-    key: `published-${index.group}-${index.as_of}`,
-    title: `Index published, ${formatPeriod(index.as_of)}`,
-    detail: sequence === null ? `Topic ${topic}` : `Topic ${topic}, message ${String(sequence)}`,
-    href: hashscanTopicUrl(topic),
-    group: null,
-  };
-}
-
-/** How many coupon chips the hero carries: the newest, and the one before it. */
-export const COUPON_EVENTS = 2;
-
-/**
- * The coupons that were actually paid, newest first, each linking the
- * settlement that paid it.
- *
- * "Paid" is the settlement's own `settled` flag and not the presence of a
- * transaction, the rule src/lib/investor-model.ts already follows: a
- * Scheduled Transaction executes whether or not the transfer inside it
- * succeeded. The amount is what moved to the holders that were paid, and the
- * link is the first of those transfers on HashScan. A coupon declared and not
- * yet payable has no settled holder and no chip.
- */
-export function couponEvents(coupons: CouponsView): readonly LandingEvent[] {
-  return coupons.coupons
-    .flatMap((coupon): LandingEvent[] => {
-      const paid = coupon.holders.filter((holder) => holder.settlement.settled);
-      const first = paid[0];
-      if (first === undefined || first.settlement.hashscan.transaction === null) return [];
-      const moved = paid.reduce((sum, holder) => sum + BigInt(holder.amount.amount), 0n);
-      const day = isoDay(first.settlement.paid_at ?? coupon.execution_date);
-      return [
-        {
-          key: `coupon-${coupon.coupon_id}`,
-          title: `Coupon ${coupon.coupon_id} paid`,
-          detail: `${formatMoney(moved, first.amount.decimals)} on ${formatDayWithYear(day)}`,
-          href: first.settlement.hashscan.transaction,
-          group: null,
-        },
-      ];
-    })
-    .reverse()
-    .slice(0, COUPON_EVENTS);
 }
 
 /** One large figure in the band under the hero, with its label. */

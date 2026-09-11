@@ -247,27 +247,23 @@ describe('a call that fails costs the page its figure and never the page', () =>
 
     expect(index.note).toBe('The live feed is not answering, so there is no reading to show.');
     expect(index.payLine).toContain('The live feed is not answering');
-    expect(index.published).toBeNull();
     expect(index.history).toBeNull();
     expect(price.priceLine).toBeNull();
     expect(explorer.round).toBeNull();
     expect(explorer.ticker).toEqual([]);
     expect(explorer.replayBadge).toBeNull();
-    expect(explorer.events).toEqual([]);
     expect(note.investorLine).toBe('Investors fund the cover and earn the premiums monthly.');
-    expect(note.events).toEqual([]);
     expect(note.figures).toEqual([]);
   });
 
-  it('loses the chips and the figures with the coupons, and keeps the rate', async () => {
+  it('loses the figures with the coupons, and keeps the rate', async () => {
     // The rate is on the series and the receipts are on the coupons route.
     // One hold reads both, so a coupons route that fails takes the whole note
-    // with it: the page never prints a rate it read beside chips it could not.
+    // with it: the page never prints a rate it read beside figures it could not.
     fetchCoupons.mockRejectedValue(new Error('no answer'));
 
     const { note } = await pageView();
 
-    expect(note.events).toEqual([]);
     expect(note.figures).toEqual([]);
     expect(note.investorLine).toBe('Investors fund the cover and earn the premiums monthly.');
   });
@@ -285,19 +281,12 @@ describe('the replay badge', () => {
   });
 });
 
-describe('the events around the card (T54)', () => {
+describe('the figures under the hero', () => {
   it('come from the same reads the page already makes, and from no new one', async () => {
     const { index, note } = await pageView();
 
-    expect(note.events.map((event) => event.title)).toStrictEqual([
-      'Coupon 3 paid',
-      'Coupon 2 paid',
-    ]);
     expect(note.figures.map((figure) => figure.value)).toStrictEqual(['3', '1,994.52', '100,000']);
     expect(index.history).toStrictEqual({ value: '16', label: 'years of index history' });
-    // The recorded reading was computed and not published, so no chip claims
-    // it was.
-    expect(index.published).toBeNull();
     expect(fetchIndex).toHaveBeenCalledTimes(1);
     expect(fetchCoupons).toHaveBeenCalledTimes(1);
   });

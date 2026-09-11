@@ -56,7 +56,6 @@ import { couponLine } from './investor-model';
 import {
   LANDING_GROUP,
   attachmentFor,
-  couponEvents,
   fromPriceBuys,
   fromPriceLine,
   historyFigure,
@@ -64,11 +63,8 @@ import {
   landingIndexSection,
   noteFigures,
   payAnswer,
-  publishedEvent,
-  readingEvents,
   seriesFor,
   tickerReadings,
-  type LandingEvent,
   type LandingFigure,
   type TickerReading,
 } from './landing-model';
@@ -139,8 +135,6 @@ export interface LandingIndexView {
   readonly payLine: string;
   /** Null while the feed answers, the honest note when it does not. */
   readonly note: string | null;
-  /** The month the oracle settled on the index topic, or null when none was. */
-  readonly published: LandingEvent | null;
   /** "16 years of index history", counted to the month served, or null with none. */
   readonly history: LandingFigure | null;
 }
@@ -159,8 +153,6 @@ export interface LandingExplorerView {
   readonly round: ExplorerData | null;
   /** "Replay: Jul 2026" while the demo clock is walking. */
   readonly replayBadge: string | null;
-  /** The readings worth a chip around the card (T54), or empty with no round. */
-  readonly events: readonly LandingEvent[];
 }
 
 /**
@@ -171,8 +163,6 @@ export interface LandingExplorerView {
 export interface LandingNoteView {
   /** "Investors fund the cover and earn 8 percent a year, paid monthly." */
   readonly investorLine: string;
-  /** The coupons that were paid, newest first, or empty when none was. */
-  readonly events: readonly LandingEvent[];
   /** The band's figures from the note, or empty when it could not be read. */
   readonly figures: readonly LandingFigure[];
 }
@@ -333,7 +323,6 @@ async function readIndexSection(group: string): Promise<LandingIndexView> {
       seriesFor(group, index, catalogue),
     ),
     ...landingIndexSection(index, live),
-    published: publishedEvent(index),
     history: historyFigure(index?.as_of ?? null),
   };
 }
@@ -374,7 +363,6 @@ async function readNote(): Promise<LandingNoteView> {
   }
   return {
     investorLine: investorLine(note === null ? null : couponLine(note.series)),
-    events: note === null ? [] : couponEvents(note.coupons),
     figures: note === null ? [] : noteFigures(note.series, note.coupons),
   };
 }
@@ -411,7 +399,6 @@ async function readExplorerSection(group: string): Promise<LandingExplorerView> 
     ticker: explorer === null ? [] : tickerReadings(explorer.occupations, group),
     round: explorer,
     replayBadge: explorer?.replayBadge ?? replayBadgeLabel(await fetchReplay()),
-    events: explorer === null ? [] : readingEvents(explorer.occupations, group),
   };
 }
 

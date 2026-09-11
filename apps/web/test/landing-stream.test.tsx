@@ -105,21 +105,18 @@ describe('the shell', () => {
     expect(shell).toContain('A monthly payment now. A payout if your occupation is displaced.');
     expect(shell).toContain('Get a quote');
     expect(shell).toContain('When does it pay.');
-    expect(shell).toContain('The quiet kind of ready.');
-    expect(shell).toContain('One number decides. You can watch it.');
+    expect(shell).toContain('Be ready for whatever the future holds');
+    expect(shell).toContain('Track if you are eligible to get paid');
 
     // And not one figure, because not one of them has been read: no price,
-    // no badge, no ticker, and (T54) no chip around the card and no figure in
-    // the band under it.
+    // no badge, no ticker and no figure in the band under the hero.
     expect(shell).not.toContain('From 4.25 a month');
     expect(shell).not.toContain(LIVE.index.badge);
     expect(shell).not.toContain('landing-ticker__item');
-    expect(shell).not.toContain('data-testid="landing-event"');
     expect(shell).not.toContain('years of index history');
-    expect(shell).not.toContain('Coupon 3 paid');
     expect(restingStates(shell)).toBeGreaterThan(0);
-    // The two near chips and the four figures rest at their size, in place.
-    expect(shell).toContain('data-testid="landing-events"');
+    // The four figures rest at their size, in place, so a figure landing
+    // changes what is in a space and never how much space there is.
     expect(shell).toContain('data-testid="landing-figures"');
 
     index.resolve(LIVE.index);
@@ -135,9 +132,8 @@ describe('the shell', () => {
     expect(whole).toContain('landing-ticker__item');
     expect(whole).toContain(LIVE.index.payLine);
     expect(whole).toContain(LIVE.note.investorLine);
-    expect(whole).toContain('Coupon 3 paid');
     expect(whole).toContain('years of index history');
-    expect(whole.match(/data-testid="landing-event"/g)).toHaveLength(4);
+    expect(whole).toContain('coupons settled on Hedera');
   });
 
   it('rests nowhere at all when the figures are already in hand', async () => {

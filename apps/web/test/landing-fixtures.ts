@@ -3,7 +3,6 @@ import { AMOUNT_MIN } from '../src/lib/cover-amount.js';
 import { occupationLabel } from '../src/lib/occupations.js';
 import {
   LANDING_GROUP,
-  couponEvents,
   fromPriceBuys,
   fromPriceLine,
   historyFigure,
@@ -11,8 +10,6 @@ import {
   landingIndexSection,
   noteFigures,
   payAnswer,
-  publishedEvent,
-  readingEvents,
   tickerReadings,
 } from '../src/lib/landing-model.js';
 import type { ExplorerData } from '../src/lib/explorer-data.js';
@@ -66,23 +63,20 @@ const EXPLORER = explorerData();
 
 const OCCUPATIONS = EXPLORER_READINGS.map(explorerOccupation);
 const TICKER = tickerReadings(OCCUPATIONS, LANDING_GROUP);
-const EVENTS = readingEvents(OCCUPATIONS, LANDING_GROUP);
 
 /**
  * The note as the same recorded series the investor screens are tested
- * against, so the coupon chips and the band figures are built from receipts
- * that were actually read, and a chip whose wording changes changes here.
+ * against, so the band figures are built from receipts that were actually
+ * read, and a figure whose wording changes changes here.
  */
 const NOTE: LandingNoteView = {
   investorLine: investorLine('8 percent a year, paid monthly'),
-  events: couponEvents(COUPONS),
   figures: noteFigures(SERIES, COUPONS),
 };
 
 /** The same page with nothing read from the note at all. */
 const NO_NOTE: LandingNoteView = {
   investorLine: investorLine(null),
-  events: [],
   figures: [],
 };
 
@@ -101,7 +95,6 @@ function landing(
         index === null ? null : index.trigger.attachment_shock,
         index === null ? null : index.series_id,
       ),
-      published: publishedEvent(index),
       history: historyFigure(index?.as_of ?? null),
     },
     price: {
@@ -112,7 +105,6 @@ function landing(
       ticker: explorer === null ? [] : TICKER,
       round: explorer,
       replayBadge: null,
-      events: explorer === null ? [] : EVENTS,
     },
     note: explorer === null ? NO_NOTE : NOTE,
   };

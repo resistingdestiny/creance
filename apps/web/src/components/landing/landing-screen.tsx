@@ -9,14 +9,13 @@ import type {
   LandingPriceView,
   Streamed,
 } from '../../lib/landing-data';
-import type { LandingEvent, LandingFigure } from '../../lib/landing-model';
+import type { LandingFigure } from '../../lib/landing-model';
 import { CoverCard } from '../cover-card';
 import { PillLink } from '../pill-button';
 import { ReplayBar } from '../replay-bar';
 import { CHROME_PAGE, SiteHeader } from '../site-chrome';
 import { Skeleton } from '../skeleton';
 import { HeroAmount } from './hero-amount';
-import { EventChip, EventField, type EventDepth } from './hero-events';
 import { IndexTicker } from './index-ticker';
 import { LandingExplorer } from './landing-explorer';
 import { QuoteButton } from './quote-button';
@@ -126,7 +125,6 @@ export function LandingScreen({
           <section data-tone="night">
             <HeroBand
               demo={demo}
-              explorer={data.explorer}
               index={data.index}
               interim={interim}
               note={data.note}
@@ -254,16 +252,17 @@ function IndexLivePill({ children, dot }: { children: ReactNode; dot: string }) 
  * docs/DECISIONS.md. Below the landing breakpoint nothing about the order
  * changes: the text, then the card, in one readable column.
  *
- * T54 surrounds the card with the events the page already reads and lays a band
- * of figures under the grid, in the shape of the pages Benedict pointed at:
- * a product shown working, surrounded by its own output. Every chip and every
- * figure is built from a record in src/lib/landing-model.ts; the band carries
- * no hairline above it, because the hero, the card, the chips and the figures
- * are one composition and a rule across it would make them two sections.
+ * The band of figures under the grid stays, because each one is a fact about
+ * the product read from a record. What stood around the card does not. T54
+ * ringed it with chips carrying the same events, and Root struck every one of
+ * them: the card is the signature object on this page, and five labels orbiting
+ * it made it a picture of a dashboard rather than the thing itself. The space
+ * beside it is the point. The band carries no hairline above it, because the
+ * hero, the card and the figures are one composition and a rule across it would
+ * make them two sections.
  */
 function HeroBand({
   demo,
-  explorer,
   index,
   interim,
   note,
@@ -271,7 +270,6 @@ function HeroBand({
   price,
 }: {
   demo: boolean;
-  explorer: Streamed<LandingExplorerView>;
   index: Streamed<LandingIndexView>;
   interim: boolean;
   note: Streamed<LandingNoteView>;
@@ -283,151 +281,17 @@ function HeroBand({
       <div className="mx-auto grid w-full max-w-[1200px] items-center gap-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)] lg:gap-20">
         <Hero demo={demo} index={index} price={price} />
         {/* The card's own column, with the soft ground behind whichever of the
-            two is standing in it, and the field of events around it. The column
-            is as tall as the card, so the field's slots are measured from the
-            card's own edges. */}
-        <div className="relative flex flex-col items-center">
+            two is standing in it. */}
+        <div className="relative flex justify-center">
           <div
             aria-hidden="true"
             className="landing-glow pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-full max-w-[1100px] -translate-x-1/2 -translate-y-1/2 rounded-full"
           />
           <QuoteSlot card={<HeroCard occupation={occupation} />} interim={interim} />
-          <Events explorer={explorer} index={index} note={note} />
         </div>
       </div>
       <FiguresBand index={index} note={note} />
     </div>
-  );
-}
-
-/**
- * The field of events (T54): five slots around the card, each taken by one
- * kind of event from one of the page's reads, so a chip lands as its figure
- * arrives and never waits on another read.
- *
- * Near, at full opacity: the newest coupon paid, over the card's lower right
- * edge where the face is empty, and the occupation nearest its line, above
- * the card's top left. Far, faded: the occupation this page speaks for below
- * the card, the coupon before the newest above its right edge, and the month
- * the oracle published below the card's right edge. The slots are chosen so
- * that no chip reaches the occupation, the status pill or the amount on the
- * card's face, and at 390 the near two stand in flow under the card instead.
- *
- * A slot whose event does not exist is empty. The published month is empty
- * on any deployment whose newest reading was computed and not yet settled on
- * the topic, which is the honest state of the index between a run and its
- * publication.
- */
-function Events({
-  explorer,
-  index,
-  note,
-}: {
-  explorer: Streamed<LandingExplorerView>;
-  index: Streamed<LandingIndexView>;
-  note: Streamed<LandingNoteView>;
-}) {
-  return (
-    <EventField>
-      <Suspense fallback={<EventResting className={SLOT_NEAR_RIGHT} />}>
-        <NoteEvent at={0} className={SLOT_NEAR_RIGHT} depth="near" note={note} />
-      </Suspense>
-      <Suspense fallback={<EventResting className={SLOT_NEAR_ABOVE} />}>
-        <ReadingEvent at={0} className={SLOT_NEAR_ABOVE} depth="near" explorer={explorer} />
-      </Suspense>
-      <Suspense fallback={null}>
-        <ReadingEvent at={1} className={SLOT_FAR_BELOW} depth="far" explorer={explorer} />
-      </Suspense>
-      <Suspense fallback={null}>
-        <NoteEvent at={1} className={SLOT_FAR_ABOVE} depth="far" note={note} />
-      </Suspense>
-      <Suspense fallback={null}>
-        <PublishedEvent className={SLOT_FAR_BELOW_RIGHT} index={index} />
-      </Suspense>
-    </EventField>
-  );
-}
-
-// The slots, measured from the card's edges at the landing breakpoint. The
-// overhang past the column is kept inside the chrome's own 40px margin, so a
-// chip never widens the page (T34 measured what a percentage wider than its
-// parent does), and it grows only where the display has the room for it.
-const SLOT_NEAR_RIGHT = 'lg:right-[-24px] lg:top-[calc(50%+52px)] xl:right-[-40px]';
-const SLOT_NEAR_ABOVE = 'lg:bottom-[calc(100%+20px)] lg:left-[-24px] xl:left-[-40px]';
-const SLOT_FAR_BELOW = 'lg:left-[-16px] lg:top-[calc(100%+24px)]';
-const SLOT_FAR_ABOVE = 'lg:bottom-[calc(100%+28px)] lg:right-[8px]';
-const SLOT_FAR_BELOW_RIGHT = 'lg:right-[-16px] lg:top-[calc(100%+32px)]';
-
-function NoteEvent({
-  at,
-  className,
-  depth,
-  note,
-}: {
-  at: number;
-  className: string;
-  depth: EventDepth;
-  note: Streamed<LandingNoteView>;
-}) {
-  return <Chip className={className} depth={depth} event={figureOf(note).events[at] ?? null} />;
-}
-
-function ReadingEvent({
-  at,
-  className,
-  depth,
-  explorer,
-}: {
-  at: number;
-  className: string;
-  depth: EventDepth;
-  explorer: Streamed<LandingExplorerView>;
-}) {
-  return (
-    <Chip className={className} depth={depth} event={figureOf(explorer).events[at] ?? null} />
-  );
-}
-
-function PublishedEvent({
-  className,
-  index,
-}: {
-  className: string;
-  index: Streamed<LandingIndexView>;
-}) {
-  return <Chip className={className} depth="far" event={figureOf(index).published} />;
-}
-
-/** No event, no chip. Not a dim one and not an empty one. */
-function Chip({
-  className,
-  depth,
-  event,
-}: {
-  className: string;
-  depth: EventDepth;
-  event: LandingEvent | null;
-}) {
-  return event === null ? null : <EventChip className={className} depth={depth} event={event} />;
-}
-
-/**
- * A near chip before its event has been read: a box at the width a chip of
- * two short lines takes and its two lines of height, in the resting tone, in
- * the same slot. A chip sizes to its words up to a cap, so the box is the
- * usual width and not always the exact one; it is absolute from the landing
- * breakpoint, so the difference moves nothing.
- * Only the two near slots rest. The far slots are absolute from the landing
- * breakpoint and not drawn below it, so a far chip landing moves nothing,
- * and one of them is empty by design on most days.
- */
-function EventResting({ className }: { className: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`inline-block h-[62px] w-[256px] max-w-full rounded-group bg-white/12 lg:absolute ${className}`}
-      data-testid="landing-resting"
-    />
   );
 }
 
@@ -554,37 +418,7 @@ function Hero({
           </PillLink>
         ) : null}
       </div>
-      <Credibility />
     </div>
-  );
-}
-
-/**
- * docs/DESIGN-TOKENS-ADDENDUM.md, "Copy deck additions, T54", verbatim: the
- * three facts a judge checks first, in place of the awards row the reference
- * pages carry. Plain, small, at the secondary opacity, and not a heading: the
- * hero has the page's one h1 and this is a list under its actions.
- */
-const CREDIBILITY = [
-  'Settles on public BLS data',
-  'Runs on Hedera testnet',
-  'One person, one cover, with World ID',
-] as const;
-
-function Credibility() {
-  return (
-    <ul className="mt-8 flex flex-col items-center gap-y-1.5 text-secondary text-white/66 lg:mt-10 lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-5">
-      {/* Every item carries its own mark from the landing breakpoint, where
-          the row wraps at the column's width and a mark between items would
-          open a line on its own. At 390 the three stand centred, one under
-          the other, and need no mark. */}
-      {CREDIBILITY.map((fact) => (
-        <li className="flex items-center gap-2.5" key={fact}>
-          <span aria-hidden="true" className="hidden size-1 shrink-0 rounded-full bg-white/24 lg:inline-block" />
-          {fact}
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -810,7 +644,7 @@ function IndexSection({
       <div className={`flex flex-col gap-10 ${CONTENT}`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
           <h2 className="max-w-[520px] text-balance font-display text-title font-semibold tracking-title text-ink lg:text-landing-head lg:tracking-display">
-            One number decides. You can watch it.
+            Track if you are eligible to get paid
           </h2>
           <Suspense fallback={null}>
             <ReplayBadge explorer={explorer} />
@@ -878,7 +712,7 @@ function Closing({ note }: { note: Streamed<LandingNoteView> }) {
     <section className={`py-16 lg:py-28 ${PAGE}`} data-tone="night">
       <div className="mx-auto flex max-w-[800px] flex-col items-center text-center">
         <h2 className="text-balance font-display text-headline font-semibold tracking-headline text-white lg:text-display-xl lg:tracking-landing-tight">
-          The quiet kind of ready.
+          Be ready for whatever the future holds
         </h2>
         <div className="mt-8 flex w-full flex-col items-center gap-4 lg:mt-10 lg:w-auto lg:flex-row lg:gap-6">
           <QuoteButton className="w-full lg:w-auto" variant="night" />

@@ -11,12 +11,9 @@ import {
   rankByDistance,
 } from '../src/lib/explorer-model.js';
 import { AMOUNT_MIN } from '../src/lib/cover-amount.js';
-import { formatPeriod } from '../src/lib/format.js';
 import {
-  COUPON_EVENTS,
   INDEX_HISTORY_FROM,
   LANDING_GROUP,
-  couponEvents,
   fromPriceBuys,
   fromPriceLine,
   historyFigure,
@@ -26,8 +23,6 @@ import {
   landingIndexSection,
   noteFigures,
   payAnswer,
-  publishedEvent,
-  readingEvents,
   staleNote,
   tickerReadings,
 } from '../src/lib/landing-model.js';
@@ -76,11 +71,11 @@ describe('the sections, in the order of the design of record', () => {
       // the one question left in the ledger (T44)
       'When does it pay.',
       // the index section, which is the public explorer itself
-      'One number decides. You can watch it.',
+      'Track if you are eligible to get paid',
       'Search occupations',
       'How this number is built',
       // the closing line, then the investor line
-      'The quiet kind of ready.',
+      'Be ready for whatever the future holds',
       'I want to invest',
       'Investors fund the cover and earn 8 percent a year, paid monthly.',
       // The footer bar is no longer this page's: since T50 the root layout
@@ -90,13 +85,16 @@ describe('the sections, in the order of the design of record', () => {
     expect(found).toStrictEqual([...found].sort((a, b) => a - b));
   });
 
-  it('opens the explorer on the occupation the page speaks for', () => {
+  it('opens the explorer on the occupation nearest its line, and names the page\'s own', () => {
+    // The hero card speaks for LANDING_GROUP, and the explorer under it opens
+    // on the occupation closest to a payout, which is the one a reader has
+    // come to look at. Both are named on the page; only the second is the
+    // panel's opening round.
     const text = visibleText(live);
-    const computer = EXPLORER_READINGS.map(explorerOccupation).find(
-      (entry) => entry.key === LANDING_GROUP,
-    );
-    expect(text).toContain('Computer and mathematical');
-    expect(text).toContain(headlineFor(latestMonth(computer!)));
+    const opened = rankByDistance(EXPLORER_READINGS.map(explorerOccupation))[0];
+    expect(text).toContain(occupationLabel(LANDING_GROUP));
+    expect(text).toContain(opened?.occupation.label);
+    expect(text).toContain(headlineFor(latestMonth(opened!.occupation)));
   });
 });
 
@@ -135,8 +133,8 @@ describe('the words this page cut', () => {
     // Copy is cut, never rewritten. What is left is the deck's own sentences.
     expect(text).toContain('Cover for the day your job is automated.');
     expect(text).toContain('A monthly payment now. A payout if your occupation is displaced.');
-    expect(text).toContain('One number decides. You can watch it.');
-    expect(text).toContain('The quiet kind of ready.');
+    expect(text).toContain('Track if you are eligible to get paid');
+    expect(text).toContain('Be ready for whatever the future holds');
   });
 });
 
@@ -283,14 +281,10 @@ describe('the dark marketing ground', () => {
     expect(live).toContain('flex flex-col bg-canvas');
   });
 
-  it('raises the chips on night-2, and raises nothing else', () => {
-    // The addendum's raised ground had no use until T54: the chips around the
-    // card are the one thing on the page that stands off the night, and each
-    // of them carries it. Nothing outside the chips does.
-    const chips = [...live.matchAll(/<a class="([^"]*)"[^>]*data-testid="landing-event"/g)];
-    expect(chips.length).toBeGreaterThan(0);
-    for (const chip of chips) expect(chip[1]).toMatch(/bg-night-2/);
-    expect(live.match(/bg-night-2/g)).toHaveLength(chips.length);
+  it('raises nothing off the night ground', () => {
+    // The addendum's raised ground was drawn for the chips T54 stood around
+    // the card. They are gone, and nothing else on this page asks for it.
+    expect(live).not.toContain('bg-night-2');
   });
 
   it('turns the focus outline white on both night bands', () => {
@@ -311,13 +305,13 @@ describe('the dark marketing ground', () => {
     const sheet = /<div class="rounded-\[20px\] bg-canvas lg:rounded-hero">[\s\S]*?<\/div><section/.exec(live)?.[0] ?? '';
     expect(sheet).toContain('When does it pay.');
     expect(sheet).toContain('id="the-index"');
-    expect(sheet).not.toContain('The quiet kind of ready.');
+    expect(sheet).not.toContain('Be ready for whatever the future holds');
     expect(live.indexOf('landing-ticker')).toBeLessThan(live.indexOf('rounded-[20px] bg-canvas'));
     expect(live.match(/rounded-\[20px\] bg-canvas lg:rounded-hero/g)).toHaveLength(1);
   });
 
   it('writes headings in white and everything else at the addendum opacity', () => {
-    const closing = /<section class="py-16 lg:py-28[^"]*"[^>]*>(?:(?!<\/section>)[\s\S])*The quiet kind of ready[\s\S]*?<\/section>/.exec(live)?.[0] ?? '';
+    const closing = /<section class="py-16 lg:py-28[^"]*"[^>]*>(?:(?!<\/section>)[\s\S])*Be ready for whatever the future holds[\s\S]*?<\/section>/.exec(live)?.[0] ?? '';
     expect(closing).toContain('text-white lg:text-display-xl');
     expect(closing).toContain('text-secondary text-white/66');
     expect(closing).not.toContain('text-ink-2');
@@ -514,89 +508,6 @@ describe('the index live state', () => {
   });
 });
 
-describe('the events around the card (T54)', () => {
-  const chips = [...live.matchAll(/<a class="([^"]*)"([^>]*)>([\s\S]*?)<\/a>/g)]
-    .filter((match) => (match[2] ?? '').includes('data-testid="landing-event"'))
-    .map((match) => ({
-      classes: match[1] ?? '',
-      attributes: match[2] ?? '',
-      text: visibleText(match[3] ?? ''),
-    }));
-
-  it('are the four true things the recorded reads hold, and no fifth', () => {
-    // Two coupons that settled, two readings, and no published month: the
-    // recorded reading was computed and not settled on the topic, so the
-    // fifth slot is empty rather than filled.
-    expect(chips.map((chip) => chip.text)).toStrictEqual([
-      'Coupon 3 paid 657.53 on 10 September 2026',
-      'Arts, design, entertainment and media on the line, July 2026',
-      'Computer and mathematical 0.7 points away, July 2026',
-      'Coupon 2 paid 679.45 on 10 September 2026',
-    ]);
-    expect(LIVE.index.published).toBeNull();
-    expect(live).not.toContain('Index published');
-  });
-
-  it('link every settlement to HashScan and every reading to the explorer below', () => {
-    const [newest, nearest, own, previous] = chips;
-    expect(newest?.attributes).toContain(
-      'href="https://hashscan.io/testnet/transaction/0.0.10366450-1789080523-877923930"',
-    );
-    expect(newest?.attributes).toContain('target="_blank"');
-    expect(newest?.attributes).toContain('rel="noreferrer"');
-    expect(previous?.attributes).toContain('href="https://hashscan.io/testnet/transaction/');
-    for (const reading of [nearest, own]) {
-      expect(reading?.attributes).toContain('href="#the-index"');
-      expect(reading?.attributes).not.toContain('target=');
-    }
-    expect(live).toContain('id="the-index"');
-  });
-
-  it('have depth: the two near at full opacity on the raised ground, the far faded', () => {
-    expect(chips.map((chip) => /data-depth="(\w+)"/.exec(chip.attributes)?.[1])).toStrictEqual([
-      'near',
-      'near',
-      'far',
-      'far',
-    ]);
-    for (const chip of chips.slice(0, 2)) {
-      expect(chip.classes).toContain('border-white/16');
-      expect(chip.classes).not.toContain('opacity-60');
-      expect(chip.classes).not.toContain('hidden');
-    }
-    for (const chip of chips.slice(2)) {
-      expect(chip.classes).toContain('border-white/8');
-      expect(chip.classes).toContain('lg:opacity-60');
-      // Not drawn at 390, where the column has room for the near two only.
-      expect(chip.classes).toContain('hidden');
-    }
-  });
-
-  it('carry no shadow, no metal and no moving light', () => {
-    // The one elevation is the card's and the shimmer budget is one. Depth on
-    // the chips is surface, border and opacity, so nothing here can be either.
-    for (const chip of chips) {
-      expect(chip.classes).not.toMatch(/shadow/);
-      expect(chip.classes).not.toMatch(/cover-card/);
-      expect(chip.classes).not.toMatch(/animate-(?!none)/);
-    }
-    expect(live.match(/cover-card__shimmer/g)).toHaveLength(1);
-  });
-
-  it('stand in the card column, after the card and before the figures', () => {
-    const column = /<div class="relative flex flex-col items-center">[\s\S]*?data-testid="landing-figures"/.exec(live)?.[0] ?? '';
-    expect(column).toContain('cover-card-stack');
-    expect(column.indexOf('cover-card-stack')).toBeLessThan(column.indexOf('data-testid="landing-events"'));
-    expect(column.match(/data-testid="landing-event"/g)).toHaveLength(4);
-  });
-
-  it('are gone, every one, when the reads behind them are', () => {
-    expect(renderToStaticMarkup(<LandingScreen data={COLD} />)).not.toContain(
-      'data-testid="landing-event"',
-    );
-  });
-});
-
 describe('the figures band (T54)', () => {
   const band = /<div class="[^"]*" data-testid="landing-figures">[\s\S]*?<\/div>/.exec(live)?.[0] ?? '';
 
@@ -620,19 +531,6 @@ describe('the figures band (T54)', () => {
     const empty = /<div class="[^"]*" data-testid="landing-figures">([\s\S]*?)<\/div>/.exec(cold)?.[1] ?? '';
     expect(visibleText(empty)).toBe('');
     expect(empty).not.toContain('landing-resting');
-  });
-});
-
-describe('the credibility row (T54)', () => {
-  it('names the three facts under the actions, as a list and not a heading', () => {
-    const hero = /<h1[\s\S]*?<\/section>/.exec(live)?.[0] ?? '';
-    const row = /<ul class="mt-8 flex flex-col[^"]*">[\s\S]*?<\/ul>/.exec(hero)?.[0] ?? '';
-    expect(visibleText(row)).toBe(
-      'Settles on public BLS data Runs on Hedera testnet One person, one cover, with World ID',
-    );
-    expect(row).toContain('text-secondary text-white/66');
-    expect(row).not.toMatch(/<h\d/);
-    expect(hero.indexOf('Get a quote')).toBeLessThan(hero.indexOf('Settles on public BLS data'));
   });
 });
 
@@ -720,83 +618,7 @@ describe('the way in to the example (T50)', () => {
   });
 });
 
-describe('the events around the card are built from records, never typed (T54)', () => {
-  const occupations = EXPLORER_READINGS.map(explorerOccupation);
-
-  it('names the occupation nearest its line and the one the page speaks for', () => {
-    const events = readingEvents(occupations, LANDING_GROUP);
-    const ranked = rankByDistance(occupations);
-    expect(events).toHaveLength(2);
-    expect(events[0]?.title).toBe(ranked[0]?.occupation.label);
-    expect(events[1]?.title).toBe(occupationLabel(LANDING_GROUP));
-    // The explorer's own gap phrase, then the month, and nothing else.
-    for (const event of events) {
-      const entry = ranked.find((row) => row.occupation.label === event.title);
-      expect(event.detail).toBe(`${entry?.gap}, ${headlineMonth(entry?.month?.period)}`);
-      expect(event.href).toBe('#the-index');
-      expect(event.group).toBe(entry?.occupation.key);
-    }
-  });
-
-  it('says the next nearest rather than the same occupation twice', () => {
-    const ranked = rankByDistance(occupations);
-    const nearest = ranked[0]?.occupation.key ?? '';
-    const events = readingEvents(occupations, nearest);
-    expect(events.map((event) => event.title)).toStrictEqual([
-      ranked[0]?.occupation.label,
-      ranked[1]?.occupation.label,
-    ]);
-  });
-
-  it('skips an occupation with no reading, because that is the absence of an event', () => {
-    const unread = occupations.map((occupation) =>
-      occupation.key === LANDING_GROUP ? { ...occupation, months: [] } : occupation,
-    );
-    const events = readingEvents(unread, LANDING_GROUP);
-    expect(events).toHaveLength(2);
-    expect(events.map((event) => event.title)).not.toContain(occupationLabel(LANDING_GROUP));
-    expect(events.map((event) => event.detail).join(' ')).not.toContain('no reading');
-  });
-
-  it('gives the published month a chip only when the chain says it was published', () => {
-    expect(publishedEvent(null)).toBeNull();
-    expect(publishedEvent(INDEX)).toBeNull();
-    expect(INDEX.publication.topic_id).toBeNull();
-    const published = publishedEvent({
-      ...INDEX,
-      publication: { topic_id: '0.0.10366470', sequence_number: 33, submit_transaction: null },
-    });
-    expect(published?.title).toBe('Index published, July 2026');
-    expect(published?.detail).toBe('Topic 0.0.10366470, message 33');
-    expect(published?.href).toBe('https://hashscan.io/testnet/topic/0.0.10366470');
-  });
-
-  it('lists the coupons that were paid, newest first, each linking its settlement', () => {
-    const events = couponEvents(COUPONS);
-    expect(events).toHaveLength(COUPON_EVENTS);
-    expect(events[0]?.title).toBe('Coupon 3 paid');
-    expect(events[0]?.detail).toBe('657.53 on 10 September 2026');
-    expect(events[0]?.href).toBe(
-      'https://hashscan.io/testnet/transaction/0.0.10366450-1789080523-877923930',
-    );
-    expect(events[1]?.title).toBe('Coupon 2 paid');
-    expect(events[1]?.detail).toBe('679.45 on 10 September 2026');
-  });
-
-  it('gives a coupon that nobody was paid no chip at all', () => {
-    const unpaid = {
-      ...COUPONS,
-      coupons: COUPONS.coupons.map((coupon) => ({
-        ...coupon,
-        holders: coupon.holders.map((holder) => ({
-          ...holder,
-          settlement: { ...holder.settlement, settled: false },
-        })),
-      })),
-    };
-    expect(couponEvents(unpaid)).toStrictEqual([]);
-  });
-
+describe('the figures under the hero are built from records, never typed', () => {
   it('counts the years of history from the month docs/INDEX.md starts the backtest', () => {
     const doc = readFileSync(new URL('../../../docs/INDEX.md', import.meta.url), 'utf8');
     expect(doc).toContain(`The backtest window on this page runs from ${INDEX_HISTORY_FROM}.`);
@@ -831,7 +653,3 @@ describe('the events around the card are built from records, never typed (T54)',
     expect(indexBadge(false)).not.toMatch(/\d/);
   });
 });
-
-function headlineMonth(period: string | undefined): string {
-  return period === undefined ? '' : formatPeriod(period);
-}

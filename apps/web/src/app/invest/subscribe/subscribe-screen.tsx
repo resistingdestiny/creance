@@ -97,7 +97,7 @@ export function SubscribeScreen({
   const name = seriesName(series);
 
   return (
-    <DesktopFrame>
+    <DesktopFrame current="invest">
       <header className="border-b border-hairline pb-6">
         <h1 className="text-title font-display font-semibold tracking-title text-ink">Subscribe</h1>
         <p className="mt-1 text-body text-ink-2 tabular-nums">{series.series_id}</p>
@@ -200,7 +200,7 @@ function Subscribed({
 
   if (subscription <= 0n) {
     return (
-      <DesktopFrame>
+      <DesktopFrame current="invest">
         <main className="flex max-w-[640px] flex-col items-start gap-4">
           <h1 className="text-title font-display font-semibold tracking-title text-ink">
             Nothing was sent.
@@ -219,7 +219,7 @@ function Subscribed({
   }
 
   return (
-    <DesktopFrame>
+    <DesktopFrame current="invest">
       <main className="flex max-w-[640px] flex-col items-start gap-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-title font-display font-semibold tracking-title text-ink">

@@ -16,7 +16,7 @@ import { PillLink } from '../../components/pill-button';
 
 export function InvestorUnavailable({ retryHref }: { retryHref: string }) {
   return (
-    <DesktopFrame>
+    <DesktopFrame current="invest">
       <main className="flex flex-col items-start gap-4">
         <h1 className="text-title font-display font-semibold tracking-title text-ink">
           We can&apos;t load the series right now.

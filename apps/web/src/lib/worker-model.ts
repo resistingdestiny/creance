@@ -15,7 +15,7 @@
  */
 
 import { ApiError } from './api';
-import { formatIndexValue, formatMoney, formatWholeMoney } from './format';
+import { formatIndexValue, formatMoney, formatPeriod, formatWholeMoney } from './format';
 import { occupationLabel } from './occupations';
 import type { Surface } from './surface';
 import type { IndexPoint } from '../components/index-chart';
@@ -202,6 +202,63 @@ export function chartDescription(index: IndexView): string {
   if (reading === null) return `${label}. No reading yet.`;
   if (reading.open) return `${label}. Claims are open.`;
   return `${label}. ${reading.distance} points from opening claims, ${reading.trend}.`;
+}
+
+/**
+ * The one sentence that has to sit under any margin, because the margin is the
+ * whole reason a reader would wonder what a later correction does. The source
+ * has been corrected before; what it cannot do is move a month that has
+ * settled. docs/INDEX-SPEC.md section 6.
+ */
+export const FIRST_VALUE_SETTLES =
+  'The first value published for a month settles, regardless of any later correction.';
+
+/**
+ * How close the call was, for one published month (T56).
+ *
+ * `level` and `shock` are the API's own `level_margin` and `shock_margin`: the
+ * reading less its line, to two decimals, negative while the form is closed
+ * and zero or positive once it has opened. They are rendered and never
+ * re-derived, so this stays read-only against the published observation. The
+ * shock margin is null where the shock form cannot be evaluated (no reading a
+ * year earlier), and then nothing is said about it: an absent margin is not a
+ * margin of zero.
+ *
+ * The sign never reaches the screen. docs/DECISIONS.md: a consumer is never
+ * shown a signed index value, so a margin is points past the line or points
+ * short of it, at the two decimals the feed publishes, because 0.08 is the
+ * demonstration month and 0.1 would be a different fact. The two forms are
+ * named the way the Index tab's own explanation names them, staying worse and
+ * a sudden jump, so the sentence and the explanation above it use one
+ * vocabulary.
+ */
+export function marginSentences(
+  period: string,
+  level: string | null,
+  shock: string | null,
+): readonly string[] {
+  const parts: string[] = [];
+  if (level !== null) parts.push(`${marginPhrase(level)} the line for staying worse`);
+  if (shock !== null) parts.push(`${marginPhrase(shock)} the line for a sudden jump`);
+  if (parts.length === 0) return [];
+  return [`In ${formatPeriod(period)} the index was ${parts.join(', and ')}.`, FIRST_VALUE_SETTLES];
+}
+
+/** "0.08 points past", "0.69 points short of", or "on" for a margin of exactly zero. */
+function marginPhrase(margin: string): string {
+  const value = Number(margin);
+  if (value === 0) return 'on';
+  const points = formatIndexValue(Math.abs(value));
+  return value > 0 ? `${points} points past` : `${points} points short of`;
+}
+
+/** The margin sentences for the newest published month of a reading. */
+export function indexMargins(index: IndexView): readonly string[] {
+  return marginSentences(
+    index.reading.period,
+    index.trigger.level_margin,
+    index.trigger.shock_margin,
+  );
 }
 
 /** True when the level line is below zero, which changes what the chart means. */

@@ -8,8 +8,11 @@ import {
   chartThreshold,
   coverAmount,
   exhaustionFor,
+  FIRST_VALUE_SETTLES,
   headlineReading,
+  indexMargins,
   lineIsNegative,
+  marginSentences,
   nextPaymentLine,
   paysOutSentence,
   pointsInProse,
@@ -183,6 +186,68 @@ describe('what would have happened', () => {
       '2026-04',
       '2026-05',
     ]);
+  });
+});
+
+describe('how close the call was', () => {
+  // T56. The margins are the feed's own level_margin and shock_margin, never
+  // re-derived: the reading less its line, negative while closed and zero or
+  // positive once open, the opposite sign to headline.distance.
+  it('says the open month cleared its level line by 0.08, at two decimals', () => {
+    // docs/INDEX.md: computer_math 2026-04 has ebar -0.60 against a level
+    // line of -0.68. The page must read 0.08, not 0.8 and not the wrong side.
+    const lines = indexMargins({
+      ...openIndex(),
+      reading: { ...openIndex().reading, period: '2026-04' },
+      trigger: { ...openIndex().trigger, shock_margin: '-1.70' },
+    });
+    expect(lines).toEqual([
+      'In April 2026 the index was 0.08 points past the line for staying worse, and 1.70 points short of the line for a sudden jump.',
+      FIRST_VALUE_SETTLES,
+    ]);
+  });
+
+  it('says how far short a closed month sat, on both forms', () => {
+    expect(indexMargins(INDEX)).toEqual([
+      'In July 2026 the index was 0.69 points short of the line for staying worse, and 2.07 points short of the line for a sudden jump.',
+      FIRST_VALUE_SETTLES,
+    ]);
+  });
+
+  it('says nothing about the shock form where it cannot be evaluated', () => {
+    const lines = marginSentences('2026-04', '0.08', null);
+    expect(lines).toEqual([
+      'In April 2026 the index was 0.08 points past the line for staying worse.',
+      FIRST_VALUE_SETTLES,
+    ]);
+    expect(lines.join(' ')).not.toContain('sudden jump');
+    expect(lines.join(' ')).not.toContain('0.00');
+  });
+
+  it('says nothing at all where no margin was published', () => {
+    expect(marginSentences('2025-10', null, null)).toEqual([]);
+  });
+
+  it('reads a margin of exactly zero as on the line', () => {
+    expect(marginSentences('2026-05', '0.00', '-1.50')[0]).toBe(
+      'In May 2026 the index was on the line for staying worse, and 1.50 points short of the line for a sudden jump.',
+    );
+  });
+
+  it('never prints a sign or rounds to one decimal', () => {
+    for (const lines of [indexMargins(INDEX), indexMargins(openIndex())]) {
+      const said = lines.join(' ');
+      expect(said).not.toMatch(/[-+]\d/);
+      expect(said).not.toContain('0.8 ');
+      expect(said).not.toContain('0.7 ');
+    }
+  });
+
+  it('says that the first published value settles, in the same breath', () => {
+    expect(FIRST_VALUE_SETTLES).toBe(
+      'The first value published for a month settles, regardless of any later correction.',
+    );
+    expect(indexMargins(INDEX).at(-1)).toBe(FIRST_VALUE_SETTLES);
   });
 });
 

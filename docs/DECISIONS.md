@@ -6079,3 +6079,94 @@ changing on a run that did nothing is noise in the history. The steps that only
 read, probe's already measured check, publish and verify, now look the entry
 up without creating it and say `coupon 4 has no settlement` when there is none.
 The record is byte for byte the same after a skipped run.
+
+## T49, the metal becomes the product material, 11 September 2026
+
+Root likes the metal card with the rainbow sheen and asked for it across the
+product, so the whole thing reads as one object rather than a landing page
+with an app behind it, with the investor page named in particular. Three
+earlier decisions fenced that material off, and this section says which half
+of each is reversed and which half stands. The material is the gradient, the
+sheen, the brushing and the shimmer, and only that. The night grounds and the
+elevation are not promoted by this ticket, and no screen took one.
+
+### "The marketing surface may use a dark ground, the product may not" stands, and the fence around the card comes down
+
+The decision under "Before kick-off" carried two things. The dark ground half
+stands: every worker and investor screen is still light mode on canvas and
+surface, `night` and `night-2` are still marketing only, and no product screen
+took a dark ground in this ticket. What is reversed is the sentence the
+addendum attached to it, that the card's gradient, sheen and brushing "are not
+available to any worker or investor screen". They are now, as the material
+docs/DESIGN-TOKENS-ADDENDUM.md names under "The metal", with the rules that
+section states. Root's reason: the card is the one thing in the product that
+looks expensive, and keeping it on the front door alone made the front door a
+promise the product did not keep.
+
+### "One elevation token exists, and only the landing hero card may use it" stands in full
+
+Nothing here spends `--elevation-hero` anywhere new. The `depth` prop, its
+thickness, planes and glare are still the landing hero's alone, and the test
+that allows the elevation on `.cover-card--depth` and no other selector is
+unchanged. Depth is hairline and grouping everywhere else, as the sheet says.
+T10's restatement of this stands with it.
+
+### T34's "the landing hero is the only caller to pass" the metal prop is reversed, and its argument stands
+
+T34 recorded the finish as a modifier, `.cover-card--metal`, never an edit to
+the shared card rule, with the contrast argument that every label on the card
+is ink and the shimmer's six stops are pale hues at 16 percent, so the worst
+composite is above 12:1. All of that stands and the test that computes it is
+untouched. What is reversed is the last clause: the `metal` prop is opt in for
+any screen now, and four callers pass it. The landing hero and its quote face,
+as before; the card on Home; the note certificate on the investor screen; and
+the payout on the approved claim screen.
+
+### The shimmer has a budget of one, and the prop is what enforces it
+
+A page where every surface is brushed metal with a moving rainbow across it
+looks cheap, and worse in a recording. So the addendum states a budget, at
+most one shimmering element in view at a time, and the finish is shaped so the
+budget can be kept rather than promised. `metal` is no longer a boolean but
+`'shimmer' | 'still'`: the shimmer variant adds the moving band and a screen
+passes it to exactly one component; the still variant is the same edge and
+sheen with no band, for any second metal object. Tests count the band in the
+rendered markup of every screen that carries it and fail on two. The two
+landing callers were renamed from the boolean to `'shimmer'`; nothing about
+the landing's behaviour changed.
+
+### The investor note is a certificate whichever treatment the cover card follows
+
+`activeCardTreatment` ties the cover card's treatment to the font option so
+that the two move together. The note on the investor screen names the
+certificate treatment directly instead of following that switch, because a
+note is a certificate whatever the cover card is, and an investor's object
+should not change shape when a typeface does. It carries "Earned to date" as
+the headline figure at display-l, the caption naming the account, and the
+"Next payment" row, in the order they had as rows, so the screen says what
+T47 made it say and nothing more. The coupon history is still a table, the
+terms are still rows, and the principal bar is still a bar: the material
+carries identity and value, not content.
+
+### The approved claim gets the material, the other claim states do not
+
+The payout on the approved screen is drawn on a certificate in the metal with
+that screen's one shimmer, because a payout is the value the cover existed for.
+Received, under review and declined stay on canvas: a screen still waiting for
+an answer has nothing to celebrate, and a failure state is not the place for a
+moving light. The certificate carries the figure alone, under the heading and
+line that already say what it is, so no copy was added.
+
+### An infinite animation pauses when nobody can see it
+
+The shimmer was a span the shell added with a nine second loop that never
+ended, which was fine for a hero at the top of one page and is not fine for a
+material on data dense screens. It is now a small client component,
+`CardShimmer`, that watches the card with an IntersectionObserver and the
+document with `visibilitychange` and sets `is-paused`, which the stylesheet
+turns into `animation-play-state: paused`; the face of the landing card that is
+turned away is paused by the same property. Paused rather than stopped, so the
+band resumes where it was. The loop animates transform only and
+built-css.test.ts holds it to that, because a repaint every frame is the cost
+the ticket said not to pay. Server markup is unchanged, so the landing's time
+to first byte is where T40 left it; the numbers are in the pull request.

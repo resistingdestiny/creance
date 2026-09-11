@@ -14,7 +14,7 @@
  */
 
 import { rankByDistance, type ExplorerOccupation } from './explorer-model';
-import { formatPeriod } from './format';
+import { formatAmount, formatPeriod } from './format';
 import { exhaustionFor, headlineReading, pointsInProse } from './worker-model';
 import type { IndexCatalogueView, IndexView } from './worker-api';
 
@@ -31,7 +31,7 @@ import type { IndexCatalogueView, IndexView } from './worker-api';
 export const LANDING_GROUP = 'computer_math';
 
 /**
- * "From 28.00 a month", beside the hero button.
+ * "From 28.00 a month", the hero's figure.
  *
  * The figure is a quote for the smallest cover on offer, taken live. There is
  * no price to fall back on, so the line disappears rather than naming an
@@ -39,6 +39,20 @@ export const LANDING_GROUP = 'computer_math';
  */
 export function fromPriceLine(premium: string | null): string | null {
   return premium === null ? null : `From ${premium} a month`;
+}
+
+/**
+ * "for 1,000 of cover", under the figure: what the from price buys (T52).
+ *
+ * A price with nothing beside it reads as too small to be real, so the line
+ * says the cover it was quoted for. The amount is the one the quote was asked
+ * for and is handed in by the reader that asked, never typed here, so the
+ * sentence cannot name a cover the price is not for. The wording is the
+ * explorer's own, "Monthly premium for 5,000 of cover", with the figure the
+ * hero's; docs/DESIGN-TOKENS-ADDENDUM.md carries it under T52.
+ */
+export function fromPriceBuys(limit: number): string {
+  return `for ${formatAmount(limit)} of cover`;
 }
 
 /**

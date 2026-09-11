@@ -98,8 +98,17 @@ export const NO_READINGS = {
 export function ExplorerPanel({
   data,
   follows = null,
+  stepHeading = 'h3',
 }: {
   data: ExplorerData;
+  /**
+   * The heading level of the four method steps, which is the level under the
+   * heading this panel sits beneath. The landing page puts the panel under an
+   * h2, so its steps are h3s; `/index` puts it straight under its h1, so the
+   * steps there are h2s (T53). The panel itself has no heading of its own, so
+   * the caller says where in the outline it stands.
+   */
+  stepHeading?: 'h2' | 'h3';
   /**
    * An occupation the panel follows, for a page that has a second reason to
    * name one. The landing page passes the occupation its inline quote is for,
@@ -225,6 +234,7 @@ export function ExplorerPanel({
         <ol className="flex flex-col gap-8">
           {methodSteps(occupation, month).map((step, position) => (
             <Step
+              heading={stepHeading}
               key={step.title}
               month={month}
               numeral={position + 1}
@@ -630,11 +640,13 @@ function Price({
 
 /** One of the four steps, with its own chart. */
 function Step({
+  heading: Heading,
   month,
   numeral,
   occupation,
   step,
 }: {
+  heading: 'h2' | 'h3';
   month: ExplorerMonth | null;
   numeral: number;
   occupation: ExplorerOccupation;
@@ -659,7 +671,7 @@ function Step({
     <li className="grid gap-4 lg:grid-cols-2 lg:items-center">
       <div className="flex flex-col gap-2">
         <p className="text-caption text-ink-3">Step {String(numeral)}</p>
-        <h3 className="text-body-lg font-medium text-ink">{step.title}</h3>
+        <Heading className="text-body-lg font-medium text-ink">{step.title}</Heading>
         <p className="text-body text-ink-2">{step.body}</p>
         {month === null ? null : (
           <p className="text-caption text-ink-3">

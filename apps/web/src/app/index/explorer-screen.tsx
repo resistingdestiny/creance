@@ -64,7 +64,8 @@ export function ExplorerScreen({
             )}
           </div>
 
-          {empty ? null : <ExplorerPanel data={data} />}
+          {/* Straight under the h1, so the method steps are this page's h2s. */}
+          {empty ? null : <ExplorerPanel data={data} stepHeading="h2" />}
         </main>
 
         {attribution === null ? null : <section className="pt-10">{attribution}</section>}

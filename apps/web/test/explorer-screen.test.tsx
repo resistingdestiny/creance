@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { ExplorerPanel } from '../src/app/index/explorer-panel.js';
 import { ExplorerScreen } from '../src/app/index/explorer-screen.js';
-import { explorerOccupation, latestMonth, priceFor } from '../src/lib/explorer-model.js';
+import { explorerOccupation, latestMonth, marginCaption, priceFor } from '../src/lib/explorer-model.js';
 import { formatPeriod } from '../src/lib/format.js';
 
 import { EXPLORER_READINGS, explorerData as data } from './explorer-fixtures.js';
@@ -224,6 +224,47 @@ describe('the chart', () => {
     expect(caption?.textContent).toContain('May 2021');
     expect(caption?.textContent).toContain('Jul 2026');
     expect(caption?.textContent).toContain('Pays out within 0.68 of average');
+  });
+});
+
+describe('how close the call was', () => {
+  // T56. The caption under the chart carries the feed's own margins for the
+  // newest month, worded by the model, with the settle sentence beside them.
+  it('says the margin to each line for the occupation on screen', () => {
+    render(<ExplorerScreen data={data()} />);
+    const computer = occupations.find((entry) => entry.key === 'computer_math');
+    expect(screen.getByText(marginCaption(computer!).join(' '))).toBeDefined();
+    expect(screen.getByText(/0\.69 points short of the line for staying worse/)).toBeDefined();
+    expect(screen.getByText(/The first value published for a month settles/)).toBeDefined();
+  });
+
+  it('follows the occupation picked, and names its own month', () => {
+    render(<ExplorerScreen data={data()} />);
+    fireEvent.click(chooserRow());
+    const legal = chips().find((button) => button.textContent?.startsWith('Legal') === true);
+    fireEvent.click(legal!);
+    const occupation = occupations.find((entry) => entry.key === 'legal');
+    const caption = screen.getByText(marginCaption(occupation!).join(' '));
+    expect(caption.textContent).toContain(`In ${formatPeriod(occupation!.margins.period)}`);
+    expect(caption.textContent).not.toContain('-');
+  });
+
+  it('prints nothing where no margin was published', () => {
+    const round = data();
+    const [first, ...rest] = round.occupations;
+    render(
+      <ExplorerScreen
+        data={{
+          ...round,
+          occupations: [{ ...first!, margins: { ...first!.margins, level: null, shock: null } }, ...rest],
+        }}
+      />,
+    );
+    fireEvent.click(chooserRow());
+    const office = chips().find((button) => button.textContent?.startsWith('Office') === true);
+    fireEvent.click(office!);
+    expect(screen.queryByText(/the index was/)).toBeNull();
+    expect(screen.queryByText(/The first value published for a month settles/)).toBeNull();
   });
 });
 

@@ -309,6 +309,13 @@ and the fifteen occupations as buttons, hidden until the row is opened. The
 series chooser on the investor screens is the same shape as a native
 disclosure with the series as links. Neither page opens with a wall of pills.
 
+The investor overview leads with what the series covers and carries the
+identifier under it in tabular figures. From the landing breakpoint the
+certificate and the series terms share the first row, the coupon table takes
+the full width under them, and the principal at risk closes the page with its
+bar across the whole measure. "Series terms" is a visible heading beside
+"Coupon history".
+
 ## Copy deck additions, T52 (verbatim)
 
 "for 1,000 of cover"

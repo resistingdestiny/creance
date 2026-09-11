@@ -6625,14 +6625,27 @@ white alpha border, which is the addendum's own line on the night ground and
 which the frame's header now carries; the gallery snapshot follows the header
 and the hero labels. series-chooser.test.tsx is new.
 
-### Left for T51's investor page
+### The investor page leads with the occupation, on T51's version
 
-The ticket's investor layout, the occupation leading the identifier and the
-certificate and terms using the width at 1440, lives in
-apps/web/src/app/invest/investor-overview.tsx, which PR #58 (T51) rewrites by
-some six hundred lines with Suspense resting states measured at both widths.
-That pull request was open and in review while this one was built, so this
-ticket did not reach into that file: the bordered box is gone through the
-frame, the series chooser is done in its own file, and the heading and the
-grid wait for T51 to land so they can be laid out on its version and its
-resting heights re-measured once rather than twice.
+PR #58 (T51) merged while this ticket was being built, so the branch was
+rebased onto it and the layout was done on T51's `investor-overview.tsx`
+rather than on the version this ticket started from. The heading is now the
+occupation, "Computer and mathematical", at the explorer's heading scale,
+with the identifier under it in tabular figures as reference information; a
+series the bundle cannot name keeps the identifier as its heading. From the
+landing breakpoint the certificate and the series terms stand side by side
+on the first row, the coupon table takes the full width under them, and the
+principal at risk closes the page with its bar across the whole measure. At
+390 the same order stands in one column. "Series terms" was a screen reader
+only heading and is visible now, because a column beside "Coupon history"
+needs a heading of the same weight.
+
+T51's acceptance was zero layout shift, with every Suspense resting state
+measured at 390 and 1440. The new grid was measured the same way on the
+production build against the live API: the certificate is 303 and 293, the
+terms 364, the brought forward line 80 and 40, the table 466.5 and 358.5,
+the principal bar 12 with its caption 40 and 20 and two lines of 24, and the
+HashScan row 44, at 390 and 1440 respectively. Every one of them is the
+figure T51 recorded, so no resting state changed: the certificate's caption
+still fits the narrower column at 1440, and the table and the principal bar
+are as wide as they were.

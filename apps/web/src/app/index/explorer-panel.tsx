@@ -15,6 +15,7 @@ import {
   headlineFor,
   latestMonth,
   latestMonthIndex,
+  marginCaption,
   meterFraction,
   methodSteps,
   positionSentence,
@@ -226,6 +227,12 @@ export function ExplorerPanel({
             <p className="text-secondary text-ink-2">
               This cover has never paid for this occupation since 2010.
             </p>
+          )}
+          {/* How close the call was for the newest month (T56), in the same
+              element and voice as the caption above it. The scrubber may be
+              on another month, so the sentence names its own. */}
+          {marginCaption(occupation).length === 0 ? null : (
+            <p className="text-secondary text-ink-2">{marginCaption(occupation).join(' ')}</p>
           )}
         </div>
       </div>

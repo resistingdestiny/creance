@@ -19,7 +19,7 @@
 
 import { formatIndexValue, formatMoney, formatPeriod } from './format';
 import { findOccupation, occupationLabel } from './occupations';
-import { bandLabel } from './worker-model';
+import { bandLabel, marginSentences } from './worker-model';
 import type { IndexView } from './worker-api';
 
 import { guideRate, marketRate, monthlyPremium } from '@creance/index-model/src/pricing';
@@ -70,6 +70,18 @@ export interface ExplorerOccupation {
   readonly buyable: boolean;
   /** Whether the backtest has ever opened claims for the occupation since 2010. */
   readonly everOpened: boolean;
+  /**
+   * How close the call was for the newest published month (T56): the feed's
+   * own `level_margin` and `shock_margin`, the reading less its line to two
+   * decimals, and the period they belong to. Strings as published, so the
+   * round in src/lib/held-read.ts stays serialisable; the sign is stripped
+   * only when they are worded.
+   */
+  readonly margins: {
+    readonly period: string;
+    readonly level: string | null;
+    readonly shock: string | null;
+  };
 }
 
 /**
@@ -108,7 +120,23 @@ export function explorerOccupation(index: IndexView): ExplorerOccupation {
     seriesId: index.series_id,
     buyable: occupation !== null && occupation.series !== null,
     everOpened: occupation?.lastOpenPeriod !== null,
+    margins: {
+      period: index.reading.period,
+      level: index.trigger.level_margin,
+      shock: index.trigger.shock_margin,
+    },
   };
+}
+
+/**
+ * The margin caption for the newest published month, in the words the Index
+ * tab uses, and the sentence that the first published value settles. Empty
+ * where no margin was published. It names its month, because the scrubber can
+ * be on another one.
+ */
+export function marginCaption(occupation: ExplorerOccupation): readonly string[] {
+  const { period, level, shock } = occupation.margins;
+  return marginSentences(period, level, shock);
 }
 
 /** The newest month with a reading behind it, which is the default month. */

@@ -12,6 +12,7 @@ import {
   headlineFor,
   latestMonth,
   latestMonthIndex,
+  marginCaption,
   meterFraction,
   methodSteps,
   positionSentence,
@@ -92,6 +93,120 @@ describe('a reading turned into what the explorer draws', () => {
     expect(
       explorerOccupation({ ...reading('legal'), group: 'armed_forces' }).buyable,
     ).toBe(false);
+  });
+});
+
+describe('how close the call was', () => {
+  // T56. The margins are carried from the feed as published and worded
+  // without a sign. One snapshot per occupation, so a change to any of the
+  // fifteen sentences is a diff a reviewer reads, including the two whose
+  // level line has never been reached and which have never been triggerable.
+  it('carries the published margins and their month, never re-derived', () => {
+    for (const index of EXPLORER_READINGS) {
+      const occupation = explorerOccupation(index);
+      expect(occupation.margins).toEqual({
+        period: index.reading.period,
+        level: index.trigger.level_margin,
+        shock: index.trigger.shock_margin,
+      });
+    }
+  });
+
+  it('words the margin for each of the fifteen', () => {
+    const said = Object.fromEntries(all.map((row) => [row.key, marginCaption(row)]));
+    expect(said).toMatchInlineSnapshot(`
+      {
+        "arts_design_ent_media": [
+          "In July 2026 the index was 0.02 points short of the line for staying worse, and 2.50 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "business_financial_ops": [
+          "In July 2026 the index was 1.02 points short of the line for staying worse, and 1.27 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "computer_math": [
+          "In July 2026 the index was 0.69 points short of the line for staying worse, and 2.07 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "construction_extraction": [
+          "In July 2026 the index was 11.81 points short of the line for staying worse, and 2.30 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "education_training_library": [
+          "In July 2026 the index was 1.35 points short of the line for staying worse, and 1.90 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "farming_fishing_forestry": [
+          "In July 2026 the index was 11.68 points short of the line for staying worse, and 5.86 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "installation_maintenance_repair": [
+          "In July 2026 the index was 2.48 points short of the line for staying worse, and 2.33 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "legal": [
+          "In July 2026 the index was 1.78 points short of the line for staying worse, and 3.00 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "management_business_financial": [
+          "In July 2026 the index was 0.89 points short of the line for staying worse, and 1.40 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "office_admin_support": [
+          "In July 2026 the index was 1.22 points short of the line for staying worse, and 1.24 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "production": [
+          "In July 2026 the index was 4.42 points short of the line for staying worse, and 3.13 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "professional_related": [
+          "In July 2026 the index was 0.71 points short of the line for staying worse, and 1.50 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "sales_related": [
+          "In July 2026 the index was 1.55 points short of the line for staying worse, and 2.00 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "service": [
+          "In July 2026 the index was 1.55 points short of the line for staying worse, and 1.37 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+        "transportation_material_moving": [
+          "In July 2026 the index was 3.12 points short of the line for staying worse, and 1.94 points short of the line for a sudden jump.",
+          "The first value published for a month settles, regardless of any later correction.",
+        ],
+      }
+    `);
+  });
+
+  it('agrees with the reading less its line for every occupation', () => {
+    for (const index of EXPLORER_READINGS) {
+      const ebar = Number(index.reading.ebar);
+      const level = Number(index.trigger.level_line);
+      expect(Number(index.trigger.level_margin)).toBeCloseTo(ebar - level, 2);
+      const [first] = marginCaption(explorerOccupation(index));
+      expect(first, index.group).toContain(Math.abs(ebar - level).toFixed(2));
+    }
+  });
+
+  it('says nothing about the shock form where odi is null', () => {
+    const index = reading('computer_math');
+    const words = marginCaption(
+      explorerOccupation({
+        ...index,
+        reading: { ...index.reading, odi: null },
+        trigger: { ...index.trigger, shock_margin: null },
+      }),
+    );
+    expect(words.join(' ')).not.toContain('sudden jump');
+    expect(words.join(' ')).toContain('0.69 points short of the line for staying worse');
+  });
+
+  it('prints no minus sign in any margin caption', () => {
+    for (const occupation of all) {
+      expect(marginCaption(occupation).join(' '), occupation.key).not.toContain('-');
+    }
   });
 });
 

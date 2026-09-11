@@ -6809,3 +6809,131 @@ Five files were added and none changed: `sitemap.test.ts` (nine),
 `heading-outline.test.tsx` (eleven) and `og-image.test.ts` (five). None runs
 against a network; the image route is not rendered in the suite because its
 fonts are fetched.
+
+## T56, show the buyer how close the call was, 11 September 2026
+
+Ten of the 99 open months in the backtest sit within 0.10 points of their
+threshold and the demonstration months are among them: computer and
+mathematical clears its level line by 0.08 in April 2026 and by 0.05 in May.
+The largest correction observed in the source is 0.1 points. A buyer saw
+"open" with no sense of how close that call was, and five occupations were
+quoted off a distance to a line that twenty six years of history has never
+crossed. This section records what was said, from where, and what was not.
+
+### The margin is rendered from the published observation, never re-derived
+
+`GET /v1/index/{group}` already carries `trigger.level_margin` and
+`trigger.shock_margin`: the reading less its line, to two decimals, negative
+while the form is closed and zero or positive once it has opened, the opposite
+sign to `headline.distance`. The web app never read them. It now does, and
+computes nothing: `marginSentences` in `src/lib/worker-model.ts` words the two
+strings and `explorerOccupation` carries them as published, so the ticket is
+read-only against the observation and nothing in `packages/index-model`,
+`apps/api`, `apps/oracle` or `contracts` is touched. The settlement reference
+vectors pass unchanged.
+
+The sign never reaches the screen, under the standing rule that a consumer is
+never shown a signed index value: a margin is "0.08 points past" or "0.69
+points short of" its line, at the two decimals the feed publishes, because
+0.08 is the demonstration month and 0.1 would be a different fact. A margin of
+exactly zero reads as "on the line". The shock half of the sentence is absent
+where `shock_margin` is null, not printed as zero, because the shock form
+cannot be evaluated without a reading a year earlier and an absent margin is
+not a margin of nothing. Where neither margin is published the caption is
+absent altogether.
+
+The two forms are named the way the Index tab's own explanation names them,
+"staying worse" and "a sudden jump", rather than "level" and "shock", so the
+caption and the sentence above it share one vocabulary. On the explorer the
+caption names its month, because the scrubber can be on another one, and it
+is the newest published month's margin and not the scrubbed month's: the
+scrubbed month has a distance for the headline form only, and the ticket asks
+for the current month.
+
+The headline reads "Right on the line" under 0.05 points and the margin sits
+under it at two decimals, so arts, design, entertainment and media reads
+"Right on the line" over "0.02 points short of the line for staying worse".
+That is precision beneath a rounded headline, not a contradiction, and it is
+the point of the caption.
+
+The settle sentence, "The first value published for a month settles,
+regardless of any later correction", is docs/INDEX-SPEC.md section 6 in one
+line. It says only that. It does not say the source is never revised, because
+it has been corrected three times since 2020; T55 documents that.
+
+### Five level lines have never been reached, and the picker says so
+
+Every bindable series was checked against its all time maximum smoothed
+excess across the full published history, 2000 to 2026. Five have a level
+line above anything the series has ever reached, with the headroom in points:
+
+| Occupation | Level line | All time max ebar | Never reached by |
+| --- | --- | --- | --- |
+| Office and administrative support | 0.85 | 0.33 | 0.52 |
+| Management, business and financial | -0.98 | -1.40 | 0.42 |
+| Business and financial operations | -0.38 | -0.77 | 0.39 |
+| Professional and related | -0.62 | -1.00 | 0.38 |
+| Installation, maintenance and repair | 0.65 | 0.40 | 0.25 |
+
+The source is the research table behind the ticket, not any file in this
+repository. It is not the level column of docs/INDEX.md, which is also zero
+for legal: legal reached its line once, in 2007, before the 2010 backtest
+window, and is not one of the five. That is why the flag is a constant,
+`levelLineNeverReached` on the `Occupation` interface in
+`src/lib/occupations.ts`, in the same idiom as `lastOpenPeriod`, rather than
+something derived: the picker is static and never waits on the API, the
+explorer loads sixty months and the API caps history well short of twenty six
+years, so a fact about the whole published history cannot be derived from
+loaded readings. And it is why the copy says "in the published history since
+2000" rather than since 2010, so that it is true for the five and false for
+legal.
+
+The sentence is the third a picker row can carry, beside the never-opened
+caption, which is the right register already: "Its level line has never been
+reached in the published history since 2000. Only a sudden jump would open
+claims." The cover can still pay on those series, because the shock form is
+independent and does open, and the sentence says so. `captionFor` is also
+rendered by the landing quote's chooser, so the sentence appears there too;
+that is expected and quote-panel.tsx is untouched.
+
+No threshold, calibration, price or trigger changed. docs/INDEX.md is
+generated and is left to catch up: it says "never" for two of the five and
+nothing for the other three, and hand editing a byte reproducible document is
+worse than a generated one being a ticket behind.
+
+### The two disclosures sit under the limits, in the attribution panel
+
+There is no methodology screen. The existing limits copy is
+`ATTRIBUTION_LIMITS` in `src/lib/attribution-model.ts`, rendered by the
+attribution panel under "What this number does not tell you" on both `/index`
+and `/cover/index`, so the two blocks are `ATTRIBUTION_DISCLOSURES` beside it,
+each a bold lead and its paragraphs, verbatim. The alternative was beside
+`methodSteps` in `explorer-model.ts`, under "How this number is built", but
+that disclosure is about how the index is computed and these are about what
+it cannot see, which is the limits' own subject; and putting them beside the
+method steps would have shown them on the explorer only and not on the
+worker's own Index tab.
+
+The last sentence of the second block, that no exposure score touches the
+price here and none of it touches the payout, is a standing constraint on the
+rating path and is noted as such in the constant's comment. If an exposure
+score ever enters the price, that copy becomes a lie and changes in the same
+commit.
+
+The attribution test that guards against the strip naming any month before
+the category existed now takes the disclosures out of the text first: the
+second block quotes a different survey's window, 2022 to early 2025,
+verbatim, and the guard is about the strip.
+
+### Test counts that changed, with the reason
+
+`occupations.test.ts` gained one (the five, and legal not among them).
+`worker-model.test.ts` gained seven (the margin wording, including 0.08 for
+the open month, a null shock margin, a zero margin, and no sign anywhere).
+`worker-screens.test.tsx` gained four (the picker's third caption, the Index
+tab's margin caption, the null shock case, and no caption where nothing was
+published). `explorer-model.test.ts` gained five, one of them an inline
+snapshot of the margin caption for each of the fifteen occupations including
+the two that have never been triggerable. `explorer-screen.test.tsx` gained
+three. `attribution.test.tsx` gained two and one existing test was scoped as
+above. None runs against a network.

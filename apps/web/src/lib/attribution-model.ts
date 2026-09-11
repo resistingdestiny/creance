@@ -70,6 +70,46 @@ export const ATTRIBUTION_LIMITS = [
   'Several monthly figures are worked back from published year to date totals rather than published month by month, and the series says nothing about which.',
 ] as const;
 
+/**
+ * A disclosure with a lead sentence and the paragraphs under it, rendered
+ * under the limits with the lead in bold, as the source text sets it.
+ */
+export interface AttributionDisclosure {
+  readonly lead: string;
+  readonly paragraphs: readonly string[];
+}
+
+/**
+ * Two more things this number does not tell you (T56). Both are true, both
+ * are uncomfortable, and both are better coming from us. The text is verbatim
+ * from the ticket that asked for it and is not to be paraphrased.
+ *
+ * The first says who the clearest evidence is actually about, and that the
+ * survey this cover settles on could not see that effect even where it
+ * reaches. The second says why no exposure score touches the price or the
+ * payout. Its last sentence is a standing constraint on the rating path: if
+ * an exposure score ever enters the price, that sentence becomes a lie and
+ * has to change in the same commit.
+ */
+export const ATTRIBUTION_DISCLOSURES: readonly AttributionDisclosure[] = [
+  {
+    lead: 'The clearest evidence that AI is costing anyone work is about people in their early twenties.',
+    paragraphs: [
+      'Payroll records covering millions of workers show employment for twenty two to twenty five year olds in AI exposed jobs running about nineteen percent below where it would otherwise be, and the gap is still widening. Workers with more experience show no comparable gap. The effect comes from companies hiring fewer people, not from companies letting people go.',
+      'Two things follow, and both matter if you are deciding whether to buy this.',
+      'If you are mid career, the best evidence available says your age group is not currently showing this effect.',
+      'And the government data this cover settles on counts unemployment by occupation with no breakdown by age. So it could not detect that effect even if it did reach you.',
+    ],
+  },
+  {
+    lead: 'Exposure scores do predict who ends up unemployed, but only when you can look at individual occupations one by one.',
+    paragraphs: [
+      'This cover settles on fifteen broad occupation groups. At that width the relationship runs the wrong way. On the same government survey this cover settles on, unemployment between 2022 and early 2025 rose by 0.30 points in the most AI exposed fifth of jobs and by 0.94 points in the least exposed fifth. Three times as much in the jobs supposedly least at risk.',
+      'That is why no exposure score touches the price here, and none of it touches the payout.',
+    ],
+  },
+];
+
 export const ATTRIBUTION_CORRELATION = [
   'Measured against our own index over these months, the correlation with the computer and mathematical margin is about minus 0.44 in levels and about minus 0.21 differenced. For construction and for farming, fishing and forestry it is about zero.',
   'Most of that level relationship is a shared trend, and nothing shows at three or six month leads. It is context, not a predictor.',

@@ -326,3 +326,39 @@ premium for 5,000 of cover"). It is a figure, not copy, and it is counted with
 the price and not against the landing's word budget: it is built the same way
 on every render of the page.
 
+
+## Copy deck additions, T56 (verbatim)
+
+"Its level line has never been reached in the published history since 2000. Only a sudden jump would open claims."
+
+The third sentence a picker row can carry, after the capacity line and the
+never-opened line, for the five occupations whose level line the smoothed
+excess has never reached across the whole published history, 2000 to 2026.
+It says the published history and not 2010, because it has to be false for
+legal, which reached its line once in 2007. The landing quote's chooser
+renders the same caption. See `LEVEL_LINE_NEVER_REACHED` in
+`occupation-picker.tsx`.
+
+"In July 2026 the index was 0.69 points short of the line for staying worse, and 2.07 points short of the line for a sudden jump."
+
+"In April 2026 the index was 0.08 points past the line for staying worse."
+
+"The first value published for a month settles, regardless of any later correction."
+
+How close the call was, under the never-paid caption on the Index tab and
+under the chart on the explorer, in the same element and voice. Every figure
+is the feed's own margin for the newest published month, at the two decimals
+it publishes: a margin is points past the line or points short of it, never a
+signed number, and exactly zero reads as "on the line". The two forms are
+named the way the Index tab's own explanation names them, staying worse and a
+sudden jump. The sudden jump half is absent, not zero, where the shock form
+cannot be evaluated, and the whole caption is absent where no margin was
+published. The settle sentence always follows a margin and says only that the
+first published value settles; it does not claim the source is never revised.
+
+The two disclosures under "What this number does not tell you", each a bold
+lead sentence and its paragraphs, are quoted in full in
+`ATTRIBUTION_DISCLOSURES` in `src/lib/attribution-model.ts` and ship verbatim
+on both pages the attribution panel appears on. The last sentence of the
+second, that no exposure score touches the price or the payout, is a standing
+constraint on the rating path.

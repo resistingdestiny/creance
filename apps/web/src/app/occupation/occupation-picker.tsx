@@ -31,7 +31,9 @@ import { chooseOccupation } from '../purchase-actions';
  * rather than quoting a price nobody can buy. Where the backtest shows claims
  * have never opened for an occupation since 2010 the row says that too: it is
  * the one fact a buyer most needs and it is on the first screen that offers
- * them anything.
+ * them anything. Where the whole published history shows the level line has
+ * never been reached, the row says that beside it (T56), so a distance to that
+ * line is never read as a countdown.
  *
  * T38 puts the list in that shape: the one occupation that can be bought comes
  * first under its own heading, and the fourteen sink to the bottom under
@@ -143,8 +145,21 @@ export function occupationGroupHeading(part: 'open' | 'noCover', count: number):
 }
 
 /**
- * What a row says under its name. Both lines are facts, not marketing: the
- * first is capacity, the second is the backtest in docs/INDEX.md.
+ * What a row says when its level line has never been reached in the published
+ * history, 2000 to 2026 (T56). The occupation can still open claims, because
+ * the shock form is independent of the level form and does open; what the
+ * sentence stops is a buyer reading a distance to that line as a countdown.
+ * The span is the whole published history and not the backtest's 2010 start,
+ * because the sentence has to be false for legal, which reached its line in
+ * 2007. Exported so the test and the copy deck can hold it to one string.
+ */
+export const LEVEL_LINE_NEVER_REACHED =
+  'Its level line has never been reached in the published history since 2000. Only a sudden jump would open claims.';
+
+/**
+ * What a row says under its name. Every line is a fact, not marketing: the
+ * first is capacity, the second is the backtest in docs/INDEX.md, the third
+ * is the whole published history since 2000.
  */
 export function captionFor(row: Occupation): string | undefined {
   const lines: string[] = [];
@@ -152,5 +167,6 @@ export function captionFor(row: Occupation): string | undefined {
   if (row.lastOpenPeriod === null) {
     lines.push('Claims have never opened for this occupation since 2010.');
   }
+  if (row.levelLineNeverReached) lines.push(LEVEL_LINE_NEVER_REACHED);
   return lines.length === 0 ? undefined : lines.join(' ');
 }

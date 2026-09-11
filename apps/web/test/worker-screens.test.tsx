@@ -56,7 +56,9 @@ vi.mock('../src/app/verify/world-check.js', () => ({
 const { AmountScreen } = await import('../src/app/amount/amount-screen.js');
 const { IndexScreen } = await import('../src/app/cover/index/index-screen.js');
 const { HomeScreen } = await import('../src/app/home/home-screen.js');
-const { OccupationPicker } = await import('../src/app/occupation/occupation-picker.js');
+const { LEVEL_LINE_NEVER_REACHED, OccupationPicker } = await import(
+  '../src/app/occupation/occupation-picker.js'
+);
 const { PayScreen } = await import('../src/app/pay/pay-screen.js');
 const { VerifyScreen } = await import('../src/app/verify/verify-screen.js');
 const { completeWorldCheck, startWorldCheck } = await import('../src/app/purchase-actions.js');
@@ -67,14 +69,16 @@ const {
   chartDescription,
   chartPoints,
   chartThreshold,
+  FIRST_VALUE_SETTLES,
   headlineReading,
+  indexMargins,
   lineIsNegative,
   whatWouldHaveHappened,
 } = await import('../src/lib/worker-model.js');
 const { attributionPanel, attributionSnapshot } = await import(
   '../src/lib/attribution-model.js'
 );
-const { INDEX } = await import('./worker-fixtures.js');
+const { INDEX, openIndex } = await import('./worker-fixtures.js');
 const { withWallet } = await import('./wallet-harness.js');
 
 afterEach(() => {
@@ -117,6 +121,21 @@ describe('the occupation picker', () => {
     expect(
       screen.getAllByText(/Claims have never opened for this occupation since 2010\./),
     ).toHaveLength(2);
+  });
+
+  it('says where the level line has never been reached, beside the never-opened line', () => {
+    render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
+    const rows = screen.getAllByText(/Its level line has never been reached/);
+    expect(rows).toHaveLength(5);
+    // Office and administrative support carries both facts in one caption,
+    // the backtest's first and the whole history's second.
+    const office = rows.find((node) => node.textContent?.startsWith('Claims have never opened'));
+    expect(office?.textContent).toBe(
+      `Claims have never opened for this occupation since 2010. ${LEVEL_LINE_NEVER_REACHED}`,
+    );
+    // Legal reached its line once, in 2007, and must not carry the sentence.
+    const legal = screen.getByText('Legal').closest('button');
+    expect(legal?.textContent).toBe('Legal');
   });
 
   it('disables Continue until a row is chosen', () => {
@@ -607,11 +626,49 @@ describe('the index tab', () => {
     ).toBeTruthy();
   });
 
+  // T56. The margins are the feed's own, and the screen only joins the
+  // sentences the model wrote; what is asserted is that they reach the page,
+  // that an absent shock margin prints nothing, and that the settle sentence
+  // is beside them.
+  it('says how close the call was, with the first published value settling', () => {
+    renderIndex({ margins: indexMargins(INDEX) });
+    expect(
+      screen.getByText(
+        `In July 2026 the index was 0.69 points short of the line for staying worse, and 2.07 points short of the line for a sudden jump. ${FIRST_VALUE_SETTLES}`,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('reads 0.08 past the line for the open month, and no shock sentence when odi is null', () => {
+    const april = openIndex();
+    renderIndex({
+      margins: indexMargins({
+        ...april,
+        reading: { ...april.reading, period: '2026-04', odi: null },
+        trigger: { ...april.trigger, shock_margin: null },
+      }),
+    });
+    const caption = screen.getByText(/the index was 0\.08 points past/);
+    expect(caption.textContent).toBe(
+      `In April 2026 the index was 0.08 points past the line for staying worse. ${FIRST_VALUE_SETTLES}`,
+    );
+    expect(caption.textContent).not.toContain('sudden jump');
+    expect(caption.textContent).not.toContain('0.8 ');
+  });
+
+  it('shows no margin caption where none was published', () => {
+    renderIndex({ margins: [] });
+    expect(screen.queryByText(/the index was/)).toBeNull();
+    expect(screen.queryByText(FIRST_VALUE_SETTLES)).toBeNull();
+  });
+
   it('never puts a signed index value on the screen', () => {
-    const { container } = renderIndex();
+    const { container } = renderIndex({ margins: indexMargins(INDEX) });
     const shown = container.textContent ?? '';
     expect(shown).not.toContain('-0.68');
     expect(shown).not.toContain('-1.37');
+    expect(shown).not.toContain('-0.69');
+    expect(shown).not.toContain('-2.07');
     expect(shown).toContain('Pays out within 0.68 of average');
   });
 });

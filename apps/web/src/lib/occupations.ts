@@ -36,6 +36,17 @@
  * 2010-01 to 2026-07 at the frozen per-series calibration. Null means claims
  * have never opened for the occupation since 2010, which is true of two of the
  * fifteen and is the one fact a buyer most needs on the first screen.
+ *
+ * `levelLineNeverReached` is the second such fact (T56). Five of the fifteen
+ * have a level line that the smoothed excess has never reached in the whole
+ * published history, 2000 to 2026: the all time maximum sits 0.25 to 0.52
+ * points under the line. A distance to that line is not a countdown and the
+ * row says so. The five come from a check of every series against its all time
+ * maximum, recorded in docs/DECISIONS.md under T56; they are not the level
+ * column of docs/INDEX.md, which is also zero for legal, and legal reached its
+ * line once in 2007, before the backtest window. It is a constant for the same
+ * reason `lastOpenPeriod` is: the picker never waits on the API, and the API
+ * caps the history it serves well short of twenty six years.
  */
 
 export interface Occupation {
@@ -45,6 +56,8 @@ export interface Occupation {
   readonly series: string | null;
   /** The last month the index opened claims, or null for never since 2010. */
   readonly lastOpenPeriod: string | null;
+  /** True when the level line has never been reached in the published history since 2000. */
+  readonly levelLineNeverReached: boolean;
 }
 
 export const OCCUPATIONS: readonly Occupation[] = [
@@ -53,70 +66,105 @@ export const OCCUPATIONS: readonly Occupation[] = [
     label: 'Office and administrative support',
     series: 'ODI-OFFC-2026-01',
     lastOpenPeriod: null,
+    levelLineNeverReached: true,
   },
   {
     key: 'computer_math',
     label: 'Computer and mathematical',
     series: 'ODI-COMP-2026-01',
     lastOpenPeriod: '2026-05',
+    levelLineNeverReached: false,
   },
   {
     key: 'management_business_financial',
     label: 'Management, business and financial',
     series: 'ODI-MGMT-2026-01',
     lastOpenPeriod: '2021-08',
+    levelLineNeverReached: true,
   },
   {
     key: 'professional_related',
     label: 'Professional and related',
     series: 'ODI-PROF-2026-01',
     lastOpenPeriod: '2021-07',
+    levelLineNeverReached: true,
   },
   {
     key: 'business_financial_ops',
     label: 'Business and financial operations',
     series: 'ODI-BUSF-2026-01',
     lastOpenPeriod: '2021-09',
+    levelLineNeverReached: true,
   },
-  { key: 'legal', label: 'Legal', series: 'ODI-LEGL-2026-01', lastOpenPeriod: '2021-09' },
+  {
+    key: 'legal',
+    label: 'Legal',
+    series: 'ODI-LEGL-2026-01',
+    lastOpenPeriod: '2021-09',
+    levelLineNeverReached: false,
+  },
   {
     key: 'arts_design_ent_media',
     label: 'Arts, design, entertainment and media',
     series: 'ODI-ARTS-2026-01',
     lastOpenPeriod: '2026-02',
+    levelLineNeverReached: false,
   },
   {
     key: 'education_training_library',
     label: 'Education, training and library',
     series: 'ODI-EDUC-2026-01',
     lastOpenPeriod: '2022-08',
+    levelLineNeverReached: false,
   },
-  { key: 'sales_related', label: 'Sales and related', series: 'ODI-SALE-2026-01', lastOpenPeriod: '2020-07' },
-  { key: 'service', label: 'Service', series: 'ODI-SERV-2026-01', lastOpenPeriod: '2021-05' },
-  { key: 'production', label: 'Production', series: 'ODI-PROD-2026-01', lastOpenPeriod: '2010-05' },
+  {
+    key: 'sales_related',
+    label: 'Sales and related',
+    series: 'ODI-SALE-2026-01',
+    lastOpenPeriod: '2020-07',
+    levelLineNeverReached: false,
+  },
+  {
+    key: 'service',
+    label: 'Service',
+    series: 'ODI-SERV-2026-01',
+    lastOpenPeriod: '2021-05',
+    levelLineNeverReached: false,
+  },
+  {
+    key: 'production',
+    label: 'Production',
+    series: 'ODI-PROD-2026-01',
+    lastOpenPeriod: '2010-05',
+    levelLineNeverReached: false,
+  },
   {
     key: 'transportation_material_moving',
     label: 'Transportation and material moving',
     series: 'ODI-TRAN-2026-01',
     lastOpenPeriod: '2021-01',
+    levelLineNeverReached: false,
   },
   {
     key: 'installation_maintenance_repair',
     label: 'Installation, maintenance and repair',
     series: 'ODI-INMR-2026-01',
     lastOpenPeriod: null,
+    levelLineNeverReached: true,
   },
   {
     key: 'construction_extraction',
     label: 'Construction and extraction',
     series: 'ODI-CNST-2026-01',
     lastOpenPeriod: '2010-04',
+    levelLineNeverReached: false,
   },
   {
     key: 'farming_fishing_forestry',
     label: 'Farming, fishing and forestry',
     series: 'ODI-FARM-2026-01',
     lastOpenPeriod: '2021-07',
+    levelLineNeverReached: false,
   },
 ];
 

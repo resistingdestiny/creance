@@ -6180,3 +6180,124 @@ render of the card it sits on. The loop animates transform only and
 built-css.test.ts holds it to that, because a repaint every frame is the cost
 the ticket said not to pay. Server markup is unchanged, so the landing's time
 to first byte is where T40 left it; the numbers are in the pull request.
+
+## T50, one product, 11 September 2026
+
+Root's complaint was that leaving the landing for a cover meant "going off to
+random pages": a page not in the layout or the theme of the site. The cause was
+structural. The landing, the public explorer, the worker screens and the
+investor screens were four visual worlds with nothing shared between them: two
+headers of their own, two with none, no mark and no way back on any worker
+screen, and a 390 column centred on bare white. This section records what now
+holds them together, which earlier decision it revises, and what it leaves
+alone.
+
+### The chrome is one component with two tones, and the night ground did not travel
+
+`SiteHeader` and `SiteFooter` in `src/components/site-chrome.tsx` are the
+product's header and footer. Every frame renders the header: the landing in
+its night tone with "Get a quote" as the action, the explorer and the investor
+screens through `DesktopFrame` in the day tone, every worker screen through
+`AppFrame` in the day tone with no action. The footer is the root layout's,
+once, under every route: the mark, "How the index works", "Investors" and the
+disclosure line, which was the only shared thing on every page before.
+
+The safer reading of the ticket won. "The marketing surface may use a dark
+ground, the product may not" (before kick-off, restated by T49) stands in
+full: no worker or investor screen took `night`, and the landing's header is
+the same component in a second tone rather than a second header. What the
+screens share is the mark, the height, the links, the margins and the type,
+which is enough for a change of page to read as a change of place inside one
+product rather than a page load into somewhere else.
+
+The chrome is static server markup with no data dependency and no client
+component, so the landing's shell is still on the first byte where T40 put it.
+The header is rendered by each frame rather than the layout because on the
+landing its action is the quote button, which needs the quote's provider, and
+the layout must stay a server component with no knowledge of which route it
+is wrapping.
+
+### "The worker flow at 1280 is the 390 frame centred on canvas" is revised: the column stays, the canvas goes
+
+The decision under T10 stands in its first half: the 390 column is still a 390
+column, and a separate desktop worker layout is still a day of design the
+event does not have. What is revised is "centred on canvas". The column now
+stands on `surface`, as a canvas sheet with the hairline sides it had, under
+the product's header and above the product's footer. That is what the ticket
+asked for: a real ground, a frame that looks deliberate, the same chrome as
+everything else, so it reads as a focused column rather than an unfinished
+page. The investor screens and the explorer stand in the same construction at
+1280, `DesktopFrame`, so the two sheets are one design at two widths. Depth is
+ground colour and hairline, not shadow: built-css.test.ts still allows the one
+elevation on `.cover-card--depth` alone.
+
+The worker screens measured their height with `min-h-dvh`, which put the tab
+bar and every bottom pinned action 72px past the viewport once a header stood
+above them. `min-h-frame` in globals.css is the same measurement with the
+header's token height taken off, and every worker screen uses it. Eighteen
+files changed one class name each for this; they are listed in the pull
+request.
+
+### The explorer is the seed of the shared header, and now stands in the desktop frame
+
+The public explorer had the closest thing to a product header, a light bar
+with the wordmark and "Get cover", and the shared header is that bar with the
+two navigation links added and the height, margins and tones fixed. "Get
+cover" keeps its words and becomes the header's action as a primary pill, the
+day tone counterpart of the landing's "Get a quote". The explorer's own 1180
+column and 64px margins went with it: the page renders inside `DesktopFrame`
+so that the two light desktop pages, the index and the investor side, are one
+construction and not two.
+
+### One set of margins, and the landing gives up its 64
+
+docs/DESIGN-TOKENS.md section 3 gives three side margins: 20 on mobile, 64 for
+the web page and 40 for desktop app frames. The chrome uses two of them: 20 at
+390 and 40 from the landing breakpoint, inside a centred 1280 frame. The
+landing's hero band, the explorer, the investor sheet, the header and the
+footer all start on that line, so the wordmark and the first heading under it
+are flush at every width. The landing's 64 is retired: it was the margin of a
+standalone marketing page, and the landing is now a page of the product. Its
+1080 reading column is unchanged and still centred inside the same frame. The
+investor sheet's 40 was applied at every width before; at 390 it is now the
+sheet's 20, like every other screen.
+
+### The hero carries the way in to the example, and the footer bar goes
+
+"See an example of cover" is a night secondary pill beside "Get a quote" in
+the hero, rendered only when `demonstrationOn()` is true. It is the secondary
+treatment of the addendum's night pair, so it cannot outrank the primary; the
+string is Root's and is in the addendum's copy deck under T50. The row wraps
+at the landing breakpoint rather than squeezing: with the example on it the
+price line steps under the pills, and without it the row is the one line it
+was.
+
+The landing's footer bar, which held that link as "See a live cover" and was
+the least likely place a visitor would look, is gone: the shared footer
+replaces it under every route. The demo link does not travel to the shared
+footer, because a person inside a cover has no use for a link to a
+demonstration and `/home/demo` refuses to open a demonstration over a held
+cover in any case. The sign in screen keeps its "See a live cover".
+
+### Test counts that changed, with the reason
+
+landing.test.tsx counted two `href="/index"` on the landing, the navigation's
+and the footer bar's; it counts one now, because the footer is the layout's.
+Its section order ends at the investor line rather than the footer bar, and
+"How the index works" is no longer among the page's own interactive elements,
+for the same reason. landing-stream.test.tsx read the shell out to the footer
+bar's link; it reads to the closing band's "I want to invest" now. The
+shimmer budget test sliced Home's markup from its first `bg-surface`, which is
+now the frame's ground before the card; it slices from the first surface after
+the card's content. The gallery snapshot follows the frame. site-chrome.test.tsx
+is new and holds the rest: one header on every frame, the same markup in both
+tones, the same ground under the column and the sheet, no footer of any page's
+own.
+
+### Left as it was
+
+The focus outline is 2px solid black everywhere, including on the night
+header, where it is invisible against the ground. That was true of the
+landing's own navigation before this ticket, built-css.test.ts holds the
+outline to that one rule, and changing it is a token decision and not a
+continuity one, so it is noted here and not changed.

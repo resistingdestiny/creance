@@ -1,6 +1,6 @@
 /**
- * The two glyphs the sheet names, both black with a 2px stroke, both
- * decorative. Every one is aria-hidden: the row's label carries the meaning.
+ * The glyphs the sheet names, all black with a 2px stroke, all decorative.
+ * Every one is aria-hidden: the row's label carries the meaning.
  */
 
 export function ChevronRight({ className }: { className?: string }) {
@@ -69,6 +69,32 @@ export function CopyGlyph({ className }: { className?: string }) {
         stroke="currentColor"
         strokeLinecap="round"
         strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+/**
+ * The upload glyph: a tray with an arrow rising out of it. It stands in the
+ * drop area, which is the one place in the product where a control has to say
+ * what it is before it says what it does.
+ */
+export function UploadGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      height="24"
+      viewBox="0 0 24 24"
+      width="24"
+    >
+      <path
+        d="M12 15V4m0 0L8 8m4-4l4 4M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
       />
     </svg>
   );

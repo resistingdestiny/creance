@@ -2,13 +2,23 @@
 
 import { useState } from 'react';
 
-import { Check } from './icons';
+import { Check, UploadGlyph } from './icons';
 
 /**
  * The addendum's C3 upload. The whole area is a label wrapping a visually
  * hidden file input, so the keyboard and the screen reader get it for free and
  * there is no drag-and-drop-only path: the phone is the primary device and it
  * has no drag.
+ *
+ * It reads as a drop target rather than as an empty box. A hairline rectangle
+ * saying "Add a file" is indistinguishable from a disabled field, and this is
+ * the one control on the proof step, so it carries a dashed edge, the surface
+ * tint, a glyph and a second line naming the formats it takes, which is a fact
+ * about the control and belongs on it. Which document to send is a different
+ * question and stays with the screen, which lists the four that count. The
+ * drag state fills the plate rather than only thickening the border, because
+ * on a laptop the pointer is over the area and a one pixel change under it is
+ * not feedback.
  *
  * Long file names truncate in the middle so the extension stays visible, and a
  * size is shown once a file is over a megabyte, because someone photographing
@@ -38,6 +48,7 @@ export function UploadArea({
   name,
   onSelect,
   busy = false,
+  className,
 }: {
   files?: readonly UploadedFile[];
   /** The field name, when the area sits inside a form that submits the files. */
@@ -46,15 +57,16 @@ export function UploadArea({
   onSelect?: (chosen: FileList) => void;
   /** A file is on its way up. The label says so and the input is closed. */
   busy?: boolean;
+  className?: string;
 }) {
   const [over, setOver] = useState(false);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className={`flex flex-col gap-3 ${className ?? ''}`}>
       <label
         className={[
-          'flex min-h-[120px] w-full cursor-pointer items-center justify-center rounded-field border text-body text-ink transition-opacity duration-200 ease-out active:opacity-70 motion-reduce:transition-none',
-          over ? 'border-2 border-ink' : 'border-hairline',
+          'flex min-h-[148px] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-field border-2 border-dashed px-5 text-center transition-colors duration-200 ease-out motion-reduce:transition-none',
+          over ? 'border-ink bg-surface' : 'border-hairline bg-surface/60 hover:border-ink-3',
         ].join(' ')}
         onDragLeave={() => setOver(false)}
         onDragOver={(event) => {
@@ -77,7 +89,11 @@ export function UploadArea({
           }}
           type="file"
         />
-        Add a file
+        <UploadGlyph className="text-ink-2" />
+        <span className="text-body font-medium text-ink">
+          {busy ? 'Adding your file' : 'Add a file, or drop it here'}
+        </span>
+        <span className="text-secondary text-ink-2">A photo or a PDF</span>
       </label>
       {files.length > 0 ? (
         <ul className="divide-y divide-hairline">

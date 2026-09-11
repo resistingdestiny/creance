@@ -8,10 +8,20 @@ import { PillButton } from '../../../components/pill-button';
 import { TextLink } from '../../../components/text-link';
 import { UploadArea, type UploadedFile } from '../../../components/upload-area';
 import { addEvidence, continueToConfirm } from '../../claim-actions';
+import { ClaimSteps } from '../claim-steps';
 
 /**
  * C3, Add proof. The four documents, the upload area and the footer line,
  * verbatim from docs/DESIGN-TOKENS-ADDENDUM.md.
+ *
+ * The second of the four steps, and the step bar above the heading is what
+ * says so. See src/app/claim/claim-steps.tsx.
+ *
+ * The list of what counts is set at the secondary scale under one line of
+ * instruction, so the upload area is the heaviest thing on the screen rather
+ * than the fifth thing read. Four documents at the body scale above it made the
+ * screen look like a page of rules with a box at the bottom, which is the
+ * opposite of what a person is here to do.
  *
  * The file goes to the web server the moment it is chosen rather than at
  * submit: the caps are the API's own and refusing a file on the screen it was
@@ -21,7 +31,8 @@ import { addEvidence, continueToConfirm } from '../../claim-actions';
  *
  * The footer line is the truth about what happens to the document, and it is
  * the one line on this screen that has to stay exactly as written: only the
- * SHA-256 of each file goes to the claims topic (DESIGN.md 3.9).
+ * SHA-256 of each file goes to the claims topic (DESIGN.md 3.9). It is drawn by
+ * the upload area itself, under the files.
  */
 
 const DOCUMENTS = [
@@ -58,15 +69,18 @@ export function ProofScreen({ files }: { files: readonly UploadedFile[] }) {
     <AppFrame>
       <main className="flex min-h-frame flex-col justify-between gap-8 px-5 py-10">
         <div className="flex flex-col gap-6">
-          <h1 className="text-title font-display font-semibold tracking-title text-ink">
-            Add proof
-          </h1>
+          <header className="flex flex-col gap-4">
+            <ClaimSteps current={2} />
+            <h1 className="text-title font-display font-semibold tracking-title text-ink">
+              Add proof
+            </h1>
+          </header>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
             <p className="text-body text-ink">One of these is enough:</p>
-            <ul className="flex flex-col gap-1">
+            <ul className="flex flex-col">
               {DOCUMENTS.map((document) => (
-                <li className="text-body text-ink-2" key={document}>
+                <li className="text-secondary text-ink-2" key={document}>
                   {document}
                 </li>
               ))}

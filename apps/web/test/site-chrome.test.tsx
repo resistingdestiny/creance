@@ -157,13 +157,15 @@ describe('the frames', () => {
     expect(/<a[^>]*aria-current="page"[^>]*>Earn yield<\/a>/.test(header(investor))).toBe(true);
   });
 
-  it('stands the worker column on its sheet and the desktop page on continuous canvas', () => {
-    // The 390 column is a canvas sheet on surface with hairline sides, because
-    // beside it the ground is most of the screen. The desktop page has no
-    // sheet since T52: canvas from the header to the footer, and the 1280
-    // frame is a measure for the content, as it is for the header.
-    expect(worker).toContain('flex flex-1 justify-center bg-surface');
-    expect(worker).toContain('max-w-[390px] bg-canvas sm:border-x sm:border-hairline');
+  it('stands both frames on continuous canvas, at their own measures', () => {
+    // Neither frame has a sheet now. The worker column was a bordered white
+    // strip on grey, which at 1440 is the shape of a phone emulator rather
+    // than of an application, so it gave the grey up and the two frames are
+    // one construction: canvas from the header to the footer, with the
+    // measure the only thing that differs, 480 for the worker column and the
+    // sheet's 1280 for a desktop page.
+    expect(worker).toContain('flex flex-1 justify-center bg-canvas');
+    expect(worker).toContain('w-full max-w-[480px]');
     for (const markup of [investor, explorer]) {
       expect(markup).toContain('flex flex-1 flex-col bg-canvas');
       expect(markup).toContain('min-h-frame py-12 mx-auto w-full max-w-[1280px] px-5 lg:px-10');

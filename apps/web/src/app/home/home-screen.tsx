@@ -113,27 +113,39 @@ export function HomeScreen({
             </p>
           ) : null}
 
-          <div
-            className={bound ? 'cover-card-enter motion-reduce:animate-none' : undefined}
-            data-testid="home-card"
-          >
-            {/* The metal, with this screen's one shimmer. The card is the only
-                metal object on Home; docs/DESIGN-TOKENS-ADDENDUM.md, "The
-                metal", allows one moving band in view and this is it. */}
-            <CoverCard
-              amount={<DisplayNumber countUp={bound} size="display-l" value={view.cover} />}
-              metal="shimmer"
-              occupation={view.occupation}
-              state={view.status.pill}
-              statusLabel={view.status.label}
-            />
+          {/* The card and what it means, as one block. Whether you are covered,
+              by when a payment is due and what a claim would be worth are three
+              readings of the same object, so they sit with it rather than as
+              three more entries in a column of equally spaced paragraphs. */}
+          <div className="flex flex-col gap-4">
+            <div
+              className={bound ? 'cover-card-enter motion-reduce:animate-none' : undefined}
+              data-testid="home-card"
+            >
+              {/* The metal, with this screen's one shimmer. The card is the only
+                  metal object on Home; docs/DESIGN-TOKENS-ADDENDUM.md, "The
+                  metal", allows one moving band in view and this is it. */}
+              <CoverCard
+                amount={<DisplayNumber countUp={bound} size="display-l" value={view.cover} />}
+                metal="shimmer"
+                occupation={view.occupation}
+                state={view.status.pill}
+                statusLabel={view.status.label}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <p className="text-body-lg text-ink">{statusSentence(state)}</p>
+              {view.claimsOpen === null ? null : (
+                <p className="text-body text-ink-2">{view.claimsOpen}</p>
+              )}
+              {/* The status pill already carries "Payment due", so the state adds
+                  the one line that says by when, and the button says what to do. */}
+              {view.lapsed === null ? null : (
+                <p className="text-body text-ink-2">{view.lapsed.line}</p>
+              )}
+            </div>
           </div>
-
-          <p className="text-body-lg text-ink">{statusSentence(state)}</p>
-
-          {view.claimsOpen === null ? null : (
-            <p className="text-body text-ink-2">{view.claimsOpen}</p>
-          )}
 
           <SurfaceGroup>
             {view.paid === null ? (
@@ -169,12 +181,6 @@ export function HomeScreen({
             )}
           </SurfaceGroup>
 
-          {/* The status pill already carries "Payment due", so the state adds
-              the one line that says by when, and the button says what to do. */}
-          {view.lapsed === null ? null : (
-            <p className="text-body text-ink-2">{view.lapsed.line}</p>
-          )}
-
           <section className="flex flex-col gap-3">
             <h2 className="text-secondary text-ink-2">{HISTORY_HEADING}</h2>
             {history.length === 0 ? (
@@ -206,7 +212,9 @@ export function HomeScreen({
 
           <OfflineNotice />
 
-          <div className="flex flex-col items-start gap-5">
+          {/* The one thing to do, then the two quiet ways off this screen side
+              by side rather than stacked under it. */}
+          <div className="mt-auto flex flex-col gap-5 pt-2">
             {state === 'claims_open' ? (
               <PillButton
                 className="w-full"
@@ -235,17 +243,19 @@ export function HomeScreen({
                 {view.lapsed.action}
               </PillLink>
             )}
-            <TextLink href="/cover/index">See the index</TextLink>
-            {demo ? null : (
-              <form action={signOutOfCover}>
-                <button
-                  className="min-h-11 text-secondary text-ink-2 underline underline-offset-[3px]"
-                  type="submit"
-                >
-                  {SIGN_OUT}
-                </button>
-              </form>
-            )}
+            <div className="flex flex-wrap items-center justify-between gap-x-4">
+              <TextLink href="/cover/index">See the index</TextLink>
+              {demo ? null : (
+                <form action={signOutOfCover}>
+                  <button
+                    className="min-h-11 text-secondary text-ink-2 underline underline-offset-[3px]"
+                    type="submit"
+                  >
+                    {SIGN_OUT}
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
         </main>
         <CoverTabs active="cover" />

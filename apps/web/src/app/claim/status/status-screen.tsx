@@ -65,17 +65,47 @@ export function ClaimStatusScreen({
   if (screen === 'declined') {
     return <Declined claim={claim} reasonLines={reasonLines} why={why} />;
   }
-  return <Received />;
+  return <Received claim={claim} />;
 }
 
-/** C6. Mostly empty, on purpose: there is nothing for the person to do. */
-function Received() {
+/**
+ * The two facts a submitted claim has whatever happens to it next: the day it
+ * went in and the reference to quote. Read from the claim record, never
+ * composed here.
+ */
+function ClaimFacts({ claim }: { claim: ClaimStatusView }) {
+  return (
+    <SurfaceGroup>
+      <ListRow
+        label="Submitted"
+        value={
+          <span className="tabular-nums">
+            {claim.submitted_at === null ? '' : claimDay(claim.submitted_at)}
+          </span>
+        }
+      />
+      <ListRow
+        label="Reference"
+        value={<span className="tabular-nums">{claimReference(claim.claim_id)}</span>}
+      />
+    </SurfaceGroup>
+  );
+}
+
+/**
+ * C6. There is nothing for the person to do, so the screen asks nothing of
+ * them. What it does carry is the reference, because a person who has just
+ * handed over their documents and been told to wait has otherwise been given
+ * nothing to hold.
+ */
+function Received({ claim }: { claim: ClaimStatusView }) {
   return (
     <Screen
+      actions={<TextLink href="/home">Back to cover</TextLink>}
       heading="Claim received."
       line="Most claims are decided in minutes. You'll see the answer here."
     >
-      <TextLink href="/home">Back to cover</TextLink>
+      <ClaimFacts claim={claim} />
     </Screen>
   );
 }
@@ -91,10 +121,18 @@ function Received() {
  * heading and the line above it say what the figure is, so the card carries
  * the figure alone and no new words; the light is a layer under the content,
  * so the number never sits on it.
+ *
+ * T57 moved it up under the heading. It used to sit in the bottom group with
+ * the button, which at any height above a phone left the one number this whole
+ * flow exists to produce stranded below a screen of empty canvas.
  */
 function Approved({ claim }: { claim: ClaimStatusView }) {
   return (
-    <Screen heading="Approved." line="On its way to your wallet.">
+    <Screen
+      actions={<PillLink className="w-full" href="/home">Back to cover</PillLink>}
+      heading="Approved."
+      line="On its way to your wallet."
+    >
       {claim.amount === null ? null : (
         <CoverCardShell className="w-full" metal="shimmer" treatment="certificate">
           <div className="cover-card__content flex flex-col items-center py-8">
@@ -102,7 +140,6 @@ function Approved({ claim }: { claim: ClaimStatusView }) {
           </div>
         </CoverCardShell>
       )}
-      <PillLink href="/home">Back to cover</PillLink>
     </Screen>
   );
 }
@@ -111,24 +148,11 @@ function Approved({ claim }: { claim: ClaimStatusView }) {
 function UnderReview({ claim }: { claim: ClaimStatusView }) {
   return (
     <Screen
+      actions={<TextLink href="/home">Back to cover</TextLink>}
       heading="A person is checking your claim."
       line="Usually within one working day. There's nothing you need to do."
     >
-      <SurfaceGroup className="w-full">
-        <ListRow
-          label="Submitted"
-          value={
-            <span className="tabular-nums">
-              {claim.submitted_at === null ? '' : claimDay(claim.submitted_at)}
-            </span>
-          }
-        />
-        <ListRow
-          label="Reference"
-          value={<span className="tabular-nums">{claimReference(claim.claim_id)}</span>}
-        />
-      </SurfaceGroup>
-      <TextLink href="/home">Back to cover</TextLink>
+      <ClaimFacts claim={claim} />
     </Screen>
   );
 }
@@ -140,6 +164,10 @@ function UnderReview({ claim }: { claim: ClaimStatusView }) {
  * "Submit again" is offered only where the decision says a corrected packet
  * would be worth submitting. A resignation is not a document problem, so
  * offering to resubmit one would be an invitation to be declined twice.
+ *
+ * The reference is under it because a decline is the one answer somebody comes
+ * back about, and being asked for a reference they were never shown is the
+ * worst end to this flow there is.
  */
 function Declined({
   claim,
@@ -154,8 +182,25 @@ function Declined({
   const allowed = claim.resubmit?.allowed === true;
 
   return (
-    <Screen heading="We can't pay this claim." lines={reasonLines}>
-      <section className="flex w-full flex-col gap-2">
+    <Screen
+      actions={
+        <>
+          {allowed ? (
+            <PillButton
+              className="w-full"
+              loading={pending}
+              onClick={() => startTransition(() => submitAgain())}
+            >
+              Submit again
+            </PillButton>
+          ) : null}
+          <TextLink href="/home">Back to cover</TextLink>
+        </>
+      }
+      heading="We can't pay this claim."
+      lines={reasonLines}
+    >
+      <section className="flex flex-col gap-2 rounded-group bg-surface p-4">
         <h2 className="text-body-lg font-medium text-ink">What you can do</h2>
         <p className="text-body text-ink-2">
           {why ??
@@ -164,35 +209,37 @@ function Declined({
               : 'There is nothing to change on this claim.')}
         </p>
       </section>
-      {allowed ? (
-        <PillButton
-          className="w-full"
-          loading={pending}
-          onClick={() => startTransition(() => submitAgain())}
-        >
-          Submit again
-        </PillButton>
-      ) : null}
-      <TextLink href="/home">Back to cover</TextLink>
+      <ClaimFacts claim={claim} />
     </Screen>
   );
 }
 
-/** The shape all four share: a heading, what it means, then one way onward. */
+/**
+ * The shape all four share: what happened, then what it means, then what the
+ * screen has to show about it, and the way onward at the foot.
+ *
+ * The content is its own slot rather than part of the bottom group, so what a
+ * screen has to say sits under the sentence that introduced it. Before T57
+ * everything below the heading was in the group pinned to the bottom of the
+ * frame, so an approved payout and a decline's reasons both appeared at the end
+ * of a column of empty canvas.
+ */
 function Screen({
+  actions,
   heading,
   line,
   lines,
-  children,
+  children = null,
 }: {
+  actions: React.ReactNode;
   heading: string;
   line?: string;
   lines?: readonly string[];
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
     <AppFrame>
-      <main className="flex min-h-frame flex-col justify-between gap-8 px-5 py-10">
+      <main className="flex min-h-frame flex-col gap-8 px-5 py-10">
         <div className="flex flex-col gap-4">
           <h1 className="text-title font-display font-semibold tracking-title text-ink">
             {heading}
@@ -204,7 +251,8 @@ function Screen({
             </p>
           ))}
         </div>
-        <div className="flex flex-col items-center gap-5">{children}</div>
+        {children}
+        <div className="mt-auto flex flex-col items-center gap-5">{actions}</div>
       </main>
     </AppFrame>
   );

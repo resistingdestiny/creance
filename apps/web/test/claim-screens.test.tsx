@@ -191,7 +191,10 @@ describe('C3, add proof', () => {
         'We keep your documents private. Only a fingerprint of each file goes on the public record.',
       ),
     ).toBeTruthy();
-    expect(screen.getByText('Add a file')).toBeTruthy();
+    // The area says what it is and what it takes, so it reads as a drop
+    // target rather than as an empty field.
+    expect(screen.getByText('Add a file, or drop it here')).toBeTruthy();
+    expect(screen.getByText('A photo or a PDF')).toBeTruthy();
   });
 
   it('shows a row per file once one is added', () => {
@@ -394,6 +397,56 @@ describe('C6 to C9', () => {
         'If you have a document that shows a different end date, add it and submit again.',
       ),
     ).toBeTruthy();
+  });
+});
+
+/**
+ * The one thing the flow had nothing of: where you are in it. Four screens,
+ * counted the same way on every one of them, and nowhere else.
+ */
+describe('where you are in the claim', () => {
+  it('counts the four steps in order, on the four screens that are steps', () => {
+    const steps = [
+      [
+        1,
+        <JobForm
+          employer={null}
+          fullName={null}
+          jobTitle={null}
+          key="job"
+          lastDayOfWork={null}
+          separationType={null}
+        />,
+      ],
+      [2, <ProofScreen files={[]} key="proof" />],
+      [3, <ConfirmScreen alreadyVerified={false} demo={false} key="confirm" />],
+      [
+        4,
+        <ReviewScreen
+          employer="Northgate Systems Ltd"
+          files={1}
+          jobTitle="Software Engineer"
+          key="review"
+          lastDayOfWork="13 March 2026"
+          payout="1,000"
+          separation="Laid off or made redundant"
+        />,
+      ],
+    ] as const;
+
+    for (const [step, element] of steps) {
+      render(element);
+      expect(screen.getByText(`Step ${step} of 4`)).toBeTruthy();
+      cleanup();
+    }
+  });
+
+  it('counts nothing on the gate before the flow or the screens after it', () => {
+    render(<BeforeYouStart policy={fixtures.OPEN_POLICY} />);
+    expect(screen.queryByTestId('claim-steps')).toBeNull();
+    cleanup();
+    render(<ClaimStatusScreen claim={fixtures.SUBMITTED_CLAIM} reasonLines={[]} why={null} />);
+    expect(screen.queryByTestId('claim-steps')).toBeNull();
   });
 });
 

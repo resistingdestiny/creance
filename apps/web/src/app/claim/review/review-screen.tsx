@@ -9,10 +9,14 @@ import { PillButton } from '../../../components/pill-button';
 import { SurfaceGroup } from '../../../components/surface-group';
 import { TextLink } from '../../../components/text-link';
 import { submitPacket } from '../../claim-actions';
+import { ClaimSteps } from '../claim-steps';
 
 /**
  * C5, Review and submit. The surface group, the checkbox row and the primary,
  * from docs/DESIGN-TOKENS-ADDENDUM.md.
+ *
+ * The last of the four steps, and the step bar above the heading is what says
+ * so. See src/app/claim/claim-steps.tsx.
  *
  * The sentence beside the checkbox is the last line of the message the wallet
  * signs, byte for byte (packages/client/src/claim.ts). Ticking the box and
@@ -56,9 +60,12 @@ export function ReviewScreen({
     <AppFrame>
       <main className="flex min-h-frame flex-col justify-between gap-8 px-5 py-10">
         <div className="flex flex-col gap-6">
-          <h1 className="text-title font-display font-semibold tracking-title text-ink">
-            Review your claim
-          </h1>
+          <header className="flex flex-col gap-4">
+            <ClaimSteps current={4} />
+            <h1 className="text-title font-display font-semibold tracking-title text-ink">
+              Review your claim
+            </h1>
+          </header>
 
           <SurfaceGroup>
             <ListRow label="Employer" value={employer} />

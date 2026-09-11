@@ -16,10 +16,16 @@ import {
   startClaimCheck,
   useDemoPresence,
 } from '../../claim-actions';
+import { ClaimSteps } from '../claim-steps';
 
 /**
  * C4, Confirm it's you. The same layout and the same four states as the
  * purchase Verify screen, with the addendum's copy.
+ *
+ * The third of the four steps, and the step bar above the heading is what says
+ * so. See src/app/claim/claim-steps.tsx. It is the one screen in the flow that
+ * leaves the product for another application, so saying that there are two
+ * steps left matters more here than anywhere else in it.
  *
  * The check is the second key of DESIGN.md 3.9: a live person bought the cover
  * and the same live person has to show the loss. It runs with
@@ -131,12 +137,15 @@ export function ConfirmScreen({
 
   return (
     <AppFrame>
-      <main className="flex min-h-frame flex-col justify-between px-5 py-10">
-        <div className="flex flex-col gap-4">
-          <h1 className="text-title font-display font-semibold tracking-title text-ink">
-            {copy.heading}
-          </h1>
-          <p className="text-body-lg text-ink-2">{copy.line}</p>
+      <main className="flex min-h-frame flex-col justify-between gap-8 px-5 py-10">
+        <div className="flex flex-col gap-6">
+          <header className="flex flex-col gap-4">
+            <ClaimSteps current={3} />
+            <h1 className="text-title font-display font-semibold tracking-title text-ink">
+              {copy.heading}
+            </h1>
+            <p className="text-body-lg text-ink-2">{copy.line}</p>
+          </header>
           {state === 'verified' ? (
             <p className="text-body-lg text-ink" data-testid="claim-check-state" role="status">
               You&apos;re verified
@@ -147,15 +156,17 @@ export function ConfirmScreen({
               {waitingLine(surface)}
             </p>
           ) : null}
+        </div>
+
+        <div className="flex flex-col items-center gap-5">
+          {/* The honesty line about the demo path belongs beside the control it
+              is about, not four blocks above it under the heading. */}
           {demo || refusedCheck ? (
             <p className="text-secondary text-ink-2">
               Demo check. Testnet only. This records a live person check without running a World
               Selfie Check, because a camera cannot be automated.
             </p>
           ) : null}
-        </div>
-
-        <div className="flex flex-col items-center gap-5">
           {state === 'verified' ? (
             <form action={continueToReview} className="w-full">
               <PillButton className="w-full" type="submit">

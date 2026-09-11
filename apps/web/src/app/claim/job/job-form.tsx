@@ -12,10 +12,14 @@ import {
   SEPARATION_OPTIONS,
 } from '../../../lib/claim-model';
 import { saveJob } from '../../claim-actions';
+import { ClaimSteps } from '../claim-steps';
 
 /**
  * C2, Your job. The four fields and the select, copy verbatim from
  * docs/DESIGN-TOKENS-ADDENDUM.md.
+ *
+ * The first of the four steps, and the step bar above the heading is what says
+ * so. See src/app/claim/claim-steps.tsx.
  *
  * Choosing an excluded reason shows the inline line in `triggered` under the
  * field and changes nothing else. It is a warning, not a block: DESIGN.md 3.9
@@ -59,9 +63,12 @@ export function JobForm({
     <AppFrame>
       <form action={submit} className="flex min-h-frame flex-col justify-between gap-8 px-5 py-10">
         <div className="flex flex-col gap-6">
-          <h1 className="text-title font-display font-semibold tracking-title text-ink">
-            Your job
-          </h1>
+          <header className="flex flex-col gap-4">
+            <ClaimSteps current={1} />
+            <h1 className="text-title font-display font-semibold tracking-title text-ink">
+              Your job
+            </h1>
+          </header>
 
           <FormField
             autoComplete="name"

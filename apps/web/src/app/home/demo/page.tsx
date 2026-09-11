@@ -2,10 +2,9 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { AppFrame } from '../../../components/app-frame';
-import { ListRow } from '../../../components/list-row';
+import { CopyButton } from '../../../components/copy-button';
+import { ChevronRight } from '../../../components/icons';
 import { PillButton } from '../../../components/pill-button';
-import { SurfaceGroup } from '../../../components/surface-group';
-import { TextLink } from '../../../components/text-link';
 import { readCoverSession } from '../../../lib/current-cover';
 import {
   DEMO_STATES,
@@ -59,6 +58,13 @@ import {
  * bar, so it is not in the history, not in a screenshot of the address bar and
  * not in the referrer of the next request.
  *
+ * T57 redrew it. It was a heading, three paragraphs and six underlined links
+ * in a vertical stack, which is a directory listing and not a way into a
+ * product, and it is the first screen of this thing most readers will ever
+ * open. The six states are peers, so they are a grid of six equal tiles; the
+ * prose under every heading is gone; and the key is a row with a copy control
+ * beside it rather than a figure to be transcribed by eye.
+ *
  * A deployment that has published nothing has no page here at all.
  */
 
@@ -84,12 +90,12 @@ export default async function DemoPage({
 
   return (
     <AppFrame>
-      <main className="flex min-h-frame flex-col gap-8 px-5 py-10">
+      <main className="flex min-h-frame flex-col gap-10 px-5 py-10">
         <header className="flex flex-col gap-2">
           <h1 className="text-title font-display font-semibold tracking-title text-ink">
             {DEMO_HEADING}
           </h1>
-          {covers.length === 0 ? null : <p className="text-body-lg text-ink-2">{DEMO_LINE}</p>}
+          {covers.length === 0 ? null : <p className="text-body text-ink-2">{DEMO_LINE}</p>}
         </header>
 
         {refused === undefined ? null : (
@@ -103,21 +109,27 @@ export default async function DemoPage({
         ))}
 
         {states ? (
-          <section className="flex flex-col gap-3" data-testid="demo-states">
-            <h2 className="text-body-lg text-ink">{DEMO_STATES_HEADING}</h2>
-            <p className="text-body text-ink-2">{DEMO_STATES_LINE}</p>
-            <ul className="flex flex-col">
+          <section className="flex flex-col gap-4" data-testid="demo-states">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-body-lg font-medium text-ink">{DEMO_STATES_HEADING}</h2>
+              <p className="text-secondary text-ink-2">{DEMO_STATES_LINE}</p>
+            </div>
+            <ul className="grid grid-cols-2 gap-3">
               {DEMO_STATES.map((state) => (
-                <li key={state}>
-                  <TextLink href={`/home?demo=${state}`}>
+                <li className="flex" key={state}>
+                  <a
+                    className="flex min-h-[64px] w-full items-center justify-between gap-2 rounded-field border border-hairline px-4 text-body text-ink no-underline"
+                    href={`/home?demo=${state}`}
+                  >
                     {DEMO_STATE_LABELS[state] ?? state}
-                  </TextLink>
+                    <ChevronRight className="shrink-0 text-ink-2" />
+                  </a>
                 </li>
               ))}
             </ul>
             {held ? (
-              <div className="flex flex-col items-start gap-2">
-                <p className="text-body text-ink-2">{DEMO_STATES_HELD}</p>
+              <div className="flex flex-col items-start gap-1">
+                <p className="text-secondary text-ink-2">{DEMO_STATES_HELD}</p>
                 <form action={signOutOfCover}>
                   <button
                     className="min-h-11 text-secondary text-ink-2 underline underline-offset-[3px]"
@@ -142,21 +154,25 @@ export default async function DemoPage({
  * so that the claim the page makes is checkable. A reader can type it into the
  * cover key field on /home and reach the same dashboard, which is the whole
  * point: there is no second way in here that an ordinary person does not have.
+ * The copy control beside it is there because that is what a reader who wants
+ * to check the claim actually does with it.
  */
 function PublishedCover({ cover }: { cover: DemoCover }) {
   const copy = DEMO_COVER_COPY[cover.slot];
   return (
-    <section className="flex flex-col gap-4" data-testid={`demo-cover-${cover.slot}`}>
-      <div className="flex flex-col gap-2">
-        <h2 className="text-body-lg text-ink">{copy.title}</h2>
-        <p className="text-body text-ink-2">{copy.line}</p>
+    <section className="flex flex-col gap-3" data-testid={`demo-cover-${cover.slot}`}>
+      <h2 className="text-body-lg font-medium text-ink">{copy.title}</h2>
+      {/* The key on its own line under its label rather than in a list row.
+          Twenty characters in groups of four and a label beside them both wrap
+          at the narrowest width, and a key that wraps is a key nobody can
+          read back. */}
+      <div className="flex flex-col gap-1 rounded-group bg-surface px-4 py-3">
+        <span className="text-secondary text-ink-2">{DEMO_KEY_LABEL}</span>
+        <span className="flex items-center gap-4">
+          <span className="text-body-lg tabular-nums text-ink">{grouped(cover.key)}</span>
+          <CopyButton value={cover.key} what="cover key" />
+        </span>
       </div>
-      <SurfaceGroup>
-        <ListRow
-          label={DEMO_KEY_LABEL}
-          value={<span className="tabular-nums">{grouped(cover.key)}</span>}
-        />
-      </SurfaceGroup>
       <form action={openPublishedCover}>
         <input name="cover_key" type="hidden" value={cover.key} />
         <PillButton className="w-full" type="submit">

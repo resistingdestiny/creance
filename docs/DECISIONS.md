@@ -7128,3 +7128,28 @@ that both are on the whole. landing-data.test.ts counts one coupons read per
 window and asserts that a failed coupons read empties the note. The rest is
 new: the events, the band, the credibility row and the headline are each
 pinned in landing.test.tsx.
+
+### The worker sheet goes too, and both frames stand on continuous canvas
+
+The entry above kept `AppFrame`'s canvas sheet on a surface ground, reasoning
+that beside a 390 column the ground is most of the screen and is what makes the
+column read as deliberate. On the page it does the opposite. A bordered white
+strip on grey, under a header that spans the viewport, is the shape of a phone
+emulator, and Root read `/home` and `/home/demo` at 1440 as a phone screenshot
+pasted onto a desktop page rather than as an application.
+
+So the worker frame gives up its sheet and its hairline sides, canvas runs from
+the header to the footer as it does on every other route, and the column grows
+from 390 to a 480 measure. Widening alone would not have fixed it: 480 still
+leaves most of the screen empty, and the emulator read comes from the grey
+field around a bordered strip rather than from the width of the strip. At 390
+nothing changes, because there was never a visible ground or border there.
+
+The sheet is not floated with ground above and below it, which was the other
+candidate. Every screen in this frame sizes itself with `min-h-frame`, which is
+`100dvh` less the header, so any vertical inset pushes a bottom anchored
+primary below the fold by exactly that much, on `/amount`, `/pay`, `/verify`,
+`/occupation` and `/receipt` alike.
+
+The two frames are one construction again. What differs between them is the
+measure, 480 for a worker column and the sheet's 1280 for a desktop page.

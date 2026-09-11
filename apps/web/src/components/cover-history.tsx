@@ -51,8 +51,17 @@ function EntryRow({ entry }: { entry: AuditEntry }) {
           {entry.amount === null
             ? null
             : formatMoney(BigInt(entry.amount.amount), entry.amount.decimals)}
+          {/* The link is four words and never breaks across two lines: at the
+              column's narrowest it used to wrap to "View on / HashScan" beside
+              a wrapped caption, which made one row look like two. The label
+              beside it has the room to wrap instead. */}
           {link === null ? null : (
-            <TextLink href={link} rel="noreferrer" target="_blank">
+            <TextLink
+              className="shrink-0 whitespace-nowrap"
+              href={link}
+              rel="noreferrer"
+              target="_blank"
+            >
               View on HashScan
             </TextLink>
           )}

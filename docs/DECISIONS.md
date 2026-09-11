@@ -6430,3 +6430,35 @@ sentence saying it could not be read.
 The subscribe route still makes both reads itself and still needs both, so it
 is left as it was; it is not measured by this ticket and moving it onto the
 hold is more than a two line change.
+
+### An id the list does not carry holds nothing, at both ends
+
+The review found that the hold was keyed on the raw `?series=` value and
+`heldReadPerKey` never evicted, so every distinct unknown id a visitor or a
+crawler sent left a permanent entry in both maps, about 1.7 KB each, on a
+public route that held nothing before this ticket. Two fixes were offered and
+both are taken, because they answer different questions.
+
+The route no longer asks for an id the series list does not carry. The list
+is already in hand, the API would answer 404 twice, and a read per unknown
+string is a hold per unknown string. The screen is handed null for both
+figures and renders its two cannot-load blocks with the Retry link, which is
+what it rendered when the reads were made and failed, so nothing a visitor
+sees changed. The earlier comment in `page.tsx`, that an unserved series "is
+asked for anyway, so the endpoint answers the 404", is replaced with this.
+
+And `heldReadPerKey` now drops a key whose read rejected. `read` rejects only
+when the hold has no value it can stand behind, cold or past both windows, so
+nothing servable is lost by forgetting it, and the map only ever grows by keys
+that were read successfully. The next read of a dropped key makes a new hold
+and buys again, exactly as a cold one does. This is in the hold rather than in
+the investor module so that no future caller of `heldReadPerKey` can grow a
+map by failing, whatever it keys on; the landing page's holds get it too, and
+for them it changes nothing, because the group is a constant. A hold that was
+forgotten and remade while a failure was in flight is kept, which is what the
+identity check in the catch is for.
+
+Measured in the tests rather than asserted in prose: a hundred views with a
+hundred distinct unknown ids leave the two holds at one entry each, the one
+series the API serves, with nothing forgotten to get there, and an id the API
+starts serving later is bought exactly once.

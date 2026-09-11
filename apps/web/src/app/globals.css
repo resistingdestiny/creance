@@ -95,6 +95,11 @@
      not the fixed leading the product scale above uses. */
   --text-landing-hero: 104px;
   --text-landing-hero--line-height: 1.02;
+  /* T54: the hero headline beside the card, from 1280. The 104 above is the
+     centred hero's and does not fit a 500px column; display-xl fitted but read
+     as a heading rather than a headline. */
+  --text-landing-headline: 80px;
+  --text-landing-headline--line-height: 0.98;
   --text-landing-amount: 108px;
   --text-landing-amount--line-height: 0.95;
   --text-landing-reading: 96px;

@@ -440,7 +440,11 @@ describe('the investor overview screen', () => {
       'Matures',
       '4 September 2027',
       'Capacity used',
-      'Subscribe',
+      // The deck says "Subscribe", which stays on the screen this opens,
+      // where an amount is being subscribed for. On the way in the page says
+      // what it is offering in words a person who does not work in finance
+      // reads without stopping.
+      'Invest now',
       'Principal at risk',
       'Currently 100,000, 100 percent intact',
       'Coupon history',
@@ -448,6 +452,40 @@ describe('the investor overview screen', () => {
     ]) {
       expect(text).toContain(string);
     }
+  });
+
+  it('opens with the call to action instead of burying it under the page', () => {
+    // The only way to invest used to be a pill below the coupon table and the
+    // principal bar, which put the reason the page exists below the fold on
+    // every display. The primary is on the heading's line now, and it is
+    // drawn before the first section heading in the markup.
+    const first = markup.indexOf('Invest now');
+    expect(first).toBeGreaterThan(-1);
+    expect(first).toBeLessThan(markup.indexOf('Coupon history'));
+    // And it needs no read to draw, so it is there whether or not the chain
+    // answered: the series id came off the list.
+    const cold = renderToStaticMarkup(
+      <InvestorOverview
+        coupons={null}
+        investor={DEMO_ACCOUNTS['investor-1']}
+        series={null}
+        seriesId={SERIES.series_id}
+      />,
+    );
+    expect(cold).toContain('href="/invest/subscribe?series=ODI-COMP-2026-01"');
+  });
+
+  it('repeats the same door at the end of the read, one rank down', () => {
+    // Two calls to action, the same words, two levels: a screen has one
+    // primary, and the second is a repeat for somebody who has just read what
+    // their principal is exposed to and should not have to scroll back up.
+    const actions = [...markup.matchAll(/<a class="([^"]*)"[^>]*>Invest now<\/a>/g)].map(
+      (match) => match[1] ?? '',
+    );
+    expect(actions).toHaveLength(2);
+    expect(actions[0]).toContain('bg-ink');
+    expect(actions[1]).toContain('bg-transparent');
+    expect(actions[1]).not.toContain('bg-ink');
   });
 
   it('shows the reserved and paid figures the vault holds', () => {

@@ -6,7 +6,7 @@ import type { CardTreatment } from '../src/lib/font-option.js';
 
 import { Gallery } from '../src/app/gallery/gallery.js';
 import { LandingScreen } from '../src/components/landing/landing-screen.js';
-import { PillButton } from '../src/components/pill-button.js';
+import { PillButton, PillLink, type PillButtonVariant } from '../src/components/pill-button.js';
 import { StatusPill } from '../src/components/status-pill.js';
 import { TabBar } from '../src/components/tab-bar.js';
 
@@ -52,6 +52,155 @@ describe('the pill button keeps its width while loading', () => {
   it('shows the loading state to a screen reader without changing the label', () => {
     expect(busy).toContain('aria-busy="true"');
     expect(busy).toContain('Working');
+  });
+});
+
+/**
+ * Three levels and no more, on both grounds.
+ *
+ * What is asserted here is the shape of the system rather than the hex of any
+ * one button: that there are exactly six skins, that they are three ranks
+ * twice, that a rank is told apart by its fill and its edge and never by its
+ * size, and that the states the stylesheet owns are still the stylesheet's.
+ * The point of the ticket was that the product had five unrelated button
+ * treatments, so the thing worth holding is the count and the ladder.
+ */
+describe('the three button levels', () => {
+  const LEVELS = ['primary', 'secondary', 'tertiary'] as const;
+  const VARIANTS: PillButtonVariant[] = [
+    'primary',
+    'secondary',
+    'tertiary',
+    'night',
+    'night-secondary',
+    'night-tertiary',
+  ];
+
+  function classesOf(variant: PillButtonVariant, props: { disabled?: boolean } = {}): string[] {
+    const markup = renderToStaticMarkup(
+      <PillButton variant={variant} {...props}>
+        Pay 28.00
+      </PillButton>,
+    );
+    return (/<button class="([^"]*)"/.exec(markup)?.[1] ?? '').split(/\s+/);
+  }
+
+  /** Every class that is not shared by all six, which is the skin. */
+  function skinOf(variant: PillButtonVariant): string[] {
+    const all = VARIANTS.map((name) => new Set(classesOf(name)));
+    return classesOf(variant).filter((name) => !all.every((set) => set.has(name)));
+  }
+
+  it('draws six skins, which is three ranks on the light ground and three on the night', () => {
+    const skins = VARIANTS.map((variant) => skinOf(variant).sort().join(' '));
+    expect(new Set(skins).size).toBe(6);
+    for (const level of LEVELS) {
+      const day = level;
+      const night = level === 'primary' ? 'night' : `night-${level}`;
+      expect(skinOf(day as PillButtonVariant)).not.toStrictEqual(
+        skinOf(night as PillButtonVariant),
+      );
+    }
+  });
+
+  it('separates the ranks by fill and edge, never by size', () => {
+    // A screen has to be able to swap a level for another without the row
+    // moving, which is why the transparent ones still carry `border`.
+    const geometry = ['min-h-14', 'rounded-full', 'px-6', 'text-button', 'font-medium', 'border'];
+    for (const variant of VARIANTS) {
+      const classes = classesOf(variant);
+      for (const name of geometry) expect(classes, variant).toContain(name);
+    }
+    // Primary is the only plate in the palette's own ink or canvas; tertiary
+    // is the only one with neither a fill nor an edge.
+    expect(skinOf('primary')).toContain('bg-ink');
+    expect(skinOf('night')).toContain('bg-canvas');
+    expect(skinOf('secondary')).toContain('bg-surface');
+    expect(skinOf('secondary')).toContain('border-hairline');
+    for (const tertiary of ['tertiary', 'night-tertiary'] as const) {
+      expect(skinOf(tertiary), tertiary).toContain('bg-transparent');
+      expect(skinOf(tertiary), tertiary).toContain('border-transparent');
+    }
+  });
+
+  it('never paints a button in the colour of the ground it stands on', () => {
+    // The failure this guards is a night button drawn in the light set: black
+    // on #0A0D12 is 1.1:1 and reads as nothing at all.
+    for (const night of ['night', 'night-secondary', 'night-tertiary'] as const) {
+      expect(skinOf(night).join(' '), night).not.toContain('bg-ink');
+      expect(skinOf(night).join(' '), night).not.toContain('text-ink-2');
+    }
+    for (const day of LEVELS) {
+      expect(skinOf(day).join(' '), day).not.toContain('text-white');
+    }
+  });
+
+  it('keeps every label above the text floor, disabled excepted', () => {
+    // Ink on canvas, ink on surface and white on night are all above 15:1.
+    // The one text colour anywhere near the floor is the disabled ink-3, and
+    // WCAG 1.4.3 exempts a disabled control.
+    expect(skinOf('primary')).toContain('text-canvas');
+    expect(skinOf('secondary')).toContain('text-ink');
+    expect(skinOf('tertiary')).toContain('text-ink');
+    for (const night of ['night-secondary', 'night-tertiary'] as const) {
+      expect(skinOf(night), night).toContain('text-white');
+    }
+    expect(classesOf('secondary', { disabled: true })).toContain('text-ink-3');
+  });
+
+  it('gives a disabled button no rank, no hover and no press', () => {
+    // One disabled skin per ground, whatever level was asked for: a disabled
+    // control is not offering anything, so it has nothing to rank.
+    for (const variant of VARIANTS) {
+      const off = classesOf(variant, { disabled: true });
+      expect(off.join(' '), variant).not.toContain('hover:');
+      expect(off.join(' '), variant).not.toContain('active:');
+      expect(off, variant).toContain('border-transparent');
+      expect(off, variant).toContain(
+        variant.startsWith('night') ? 'text-white/40' : 'text-ink-3',
+      );
+    }
+    expect(classesOf('primary', { disabled: true }).join(' ')).not.toContain('bg-ink');
+  });
+
+  it('carries the hover and the press as utilities, so the press survives the pointer', () => {
+    // globals.css puts the 0.7 press on every button in the base layer, and a
+    // utility outranks a base rule: without `active:` here the press would
+    // disappear under the hover that caused it. Tailwind emits `active:`
+    // after `hover:`, so the press wins while both apply.
+    for (const variant of VARIANTS) {
+      const classes = classesOf(variant);
+      expect(classes, variant).toContain('hover:opacity-80');
+      expect(classes, variant).toContain('active:opacity-70');
+    }
+  });
+
+  it('leaves the focus state to the stylesheet, where there is one of them', () => {
+    for (const variant of VARIANTS) {
+      expect(classesOf(variant).join(' '), variant).not.toContain('focus');
+    }
+  });
+
+  it('draws the link exactly as it draws the button, so the two cannot drift', () => {
+    for (const variant of VARIANTS) {
+      const link = renderToStaticMarkup(
+        <PillLink href="/invest" variant={variant}>
+          Invest now
+        </PillLink>,
+      );
+      const classes = (/<a class="([^"]*)"/.exec(link)?.[1] ?? '').split(/\s+/);
+      for (const name of classesOf(variant)) expect(classes, variant).toContain(name);
+      expect(classes, variant).toContain('no-underline');
+    }
+  });
+
+  it('passes an anchor its own attributes, so a link in a navigation can say where it is', () => {
+    const link = renderToStaticMarkup(
+      <PillLink aria-current="page" href="/invest" variant="night-secondary">
+        Earn yield
+      </PillLink>,
+    );
+    expect(link).toContain('aria-current="page"');
   });
 });
 

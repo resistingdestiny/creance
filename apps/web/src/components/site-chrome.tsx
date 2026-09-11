@@ -47,14 +47,19 @@ export const CHROME_PAGE = 'px-5 lg:px-10';
  */
 export const CHROME_FRAME = `mx-auto w-full max-w-[1280px] ${CHROME_PAGE}`;
 
-export type ChromeTone = 'day' | 'night';
-
 /**
- * The header's one action, docs/DESIGN-TOKENS.md section 8. It is one string
- * here so that the landing's button and every other route's link cannot come
- * to say two things.
+ * The header's primary action, docs/DESIGN-TOKENS.md section 8. It is one
+ * string here so that the landing's button and every other route's link cannot
+ * come to say two things.
  */
 export const CHROME_ACTION = 'Get a quote';
+
+/**
+ * The header's secondary action, which is the door to the other half of the
+ * product. "Investors" named an audience; this names what they came for, and
+ * it is the words Root drew on the marked up page.
+ */
+export const CHROME_SECOND_ACTION = 'Earn yield';
 
 /**
  * DESIGN.md's closing line, the product's own disclaimer. The footer prints it
@@ -65,36 +70,29 @@ export const DISCLAIMER =
   'This is a testnet prototype built for a hackathon. It is not an offer of insurance or securities in any jurisdiction and no real funds are involved.';
 
 /**
- * A navigation link. The design draws these without an underline, which is
- * why they are not the sheet's TextLink: that component is the underlined 16px
+ * A footer link. The design draws these without an underline, which is why
+ * they are not the sheet's TextLink: that component is the underlined 16px
  * link inside the app. The 44px minimum tap target is the sheet's rule and
  * applies to both.
+ *
+ * The header used to draw its two places with this as well, in a night tone of
+ * its own. It draws them as buttons now, so the tone went with them: the
+ * footer is the only caller left and it stands on canvas.
  */
 export function NavLink({
   children,
   className,
-  current = false,
   href,
-  tone = 'day',
 }: {
   children: ReactNode;
   className?: string;
-  current?: boolean;
   href: string;
-  tone?: ChromeTone;
 }) {
   return (
     <a
-      aria-current={current ? 'page' : undefined}
       className={[
         'min-h-11 items-center text-body no-underline transition-opacity duration-200 ease-out motion-reduce:transition-none',
-        tone === 'night'
-          ? current
-            ? 'text-white'
-            : 'text-white/66 hover:text-white'
-          : current
-            ? 'text-ink'
-            : 'text-ink-2 hover:text-ink',
+        'text-ink-2 hover:text-ink',
         className ?? 'inline-flex',
       ].join(' ')}
       href={href}
@@ -105,38 +103,57 @@ export function NavLink({
 }
 
 /**
- * The header. The wordmark is the way back to the front door, the two links
- * are the two other places the product has, and the action slot is the one
- * control in the top right: "Get a quote", on every route. The landing passes
- * its own quote button, which opens the quote where the hero card stands; every
- * other route takes the default, a link to the front door with the same words,
- * because there is no query or hash that opens the quote from another route
- * and a relabel is not logic.
+ * The header. The wordmark is the way back to the front door, and the three
+ * controls beside it are the product's three destinations at the product's
+ * three button levels, in rank order: "The index" is tertiary, "Earn yield" is
+ * secondary, "Get a quote" is primary. The action slot is the primary, on
+ * every route. The landing passes its own quote button, which opens the quote
+ * where the hero card stands; every other route takes the default, a link to
+ * the front door with the same words, because there is no query or hash that
+ * opens the quote from another route and a relabel is not logic.
+ *
+ * "Earn yield" replaced a plain "Investors" text link that sat beside it. Two
+ * controls to the same route, adjacent, with one of them a button and one of
+ * them not, is the kind of thing that makes a product look like it was built
+ * by three people who never met. The button stayed because it is the investor
+ * side's only entrance from the chrome; the link went. The footer still names
+ * "Investors" for anyone reading the page rather than acting on it.
  *
  * "The index" opens the public explorer, which is the page of record for the
  * index (T32), and not the worker's Index tab: that tab is one occupation
  * inside a cover, and a visitor is better served by the page with all fifteen.
+ * It is a tertiary and not a link because it stands in a row with two buttons,
+ * and one text link among them was the last of the header's mixed vocabulary.
+ *
+ * Which place you are on is `aria-current` and nothing else. There are two
+ * destinations, both permanently on screen, and the page under the header is
+ * titled: a tint on the secondary would say "here" at the cost of blurring
+ * the one distinction the row exists to draw.
  *
  * The wordmark is Creance, where the design file reads Displacement Bond.
  * Displacement Bond Note is the instrument and Creance is the product, which is
  * Root's decision and predates the design file. docs/DECISIONS.md.
  *
- * One line at every width. The two secondary links are hidden below the medium
- * breakpoint rather than wrapped, because a navigation that grows a second row
- * pushes the hero down the screen at 390 and the wordmark and the one action
- * are what has to survive. Both are still in the markup and both are reachable
- * from the footer under every route.
+ * One line at every width. The two subordinate controls are hidden below the
+ * medium breakpoint rather than wrapped, because a navigation that grows a
+ * second row pushes the hero down the screen at 390 and the wordmark and the
+ * one primary are what has to survive. Both are still in the markup and both
+ * are reachable from the footer under every route. The hiding is `max-md:` and
+ * not `hidden md:inline-flex` because the pill already declares a display of
+ * its own and two display utilities on one element are settled by whichever
+ * the framework happened to emit last.
  *
  * `data-tone` is what the stylesheet's focus rule reads: the sheet's outline
  * is black, which is invisible on this ground, so inside a night tone the
  * outline is white. It is an attribute rather than the ground's class so that
- * a utility renamed later cannot silently take the focus state with it.
+ * a utility renamed later cannot silently take the focus state with it, and it
+ * is what gives all three controls here a focus outline that can be seen.
  */
 export function SiteHeader({
   action,
   current = null,
 }: {
-  /** The one control in the top right. Defaults to the front door link. */
+  /** The primary control in the top right. Defaults to the front door link. */
   action?: ReactNode;
   /** Which of the two places this screen is, for aria-current. */
   current?: 'index' | 'invest' | null;
@@ -150,23 +167,23 @@ export function SiteHeader({
         >
           Creance
         </a>
-        <nav aria-label="Main" className="flex items-center gap-x-6 lg:gap-x-8">
-          <NavLink
-            className="hidden md:inline-flex"
-            current={current === 'index'}
+        <nav aria-label="Main" className="flex items-center gap-x-2 lg:gap-x-3">
+          <PillLink
+            aria-current={current === 'index' ? 'page' : undefined}
+            className="max-md:hidden"
             href="/index"
-            tone="night"
+            variant="night-tertiary"
           >
             The index
-          </NavLink>
-          <NavLink
-            className="hidden md:inline-flex"
-            current={current === 'invest'}
+          </PillLink>
+          <PillLink
+            aria-current={current === 'invest' ? 'page' : undefined}
+            className="max-md:hidden"
             href="/invest"
-            tone="night"
+            variant="night-secondary"
           >
-            Investors
-          </NavLink>
+            {CHROME_SECOND_ACTION}
+          </PillLink>
           {action === undefined ? (
             <PillLink href="/" variant="night">
               {CHROME_ACTION}

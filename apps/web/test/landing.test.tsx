@@ -60,7 +60,7 @@ describe('the sections, in the order of the design of record', () => {
       // nav
       'Creance',
       'The index',
-      'Investors',
+      'Earn yield',
       // hero
       'Cover for the day your job is automated.',
       'A monthly payment now. A payout if your occupation is displaced.',
@@ -337,9 +337,9 @@ describe('the navigation on the dark ground', () => {
   });
 
   it('hides the secondary links below the medium breakpoint rather than wrapping', () => {
-    for (const label of ['The index', 'Investors']) {
+    for (const label of ['The index', 'Earn yield']) {
       const link = new RegExp(`<a[^>]*>${label}</a>`).exec(nav)?.[0] ?? '';
-      expect(link, label).toContain('hidden md:inline-flex');
+      expect(link, label).toContain('max-md:hidden');
     }
   });
 });
@@ -601,12 +601,14 @@ describe('the way in to the example (T50)', () => {
   });
 
   it('does not outrank the primary', () => {
-    // The secondary pill on the night ground: a border and no fill, where the
-    // primary is the filled canvas pill. Neither is bg-ink, which is invisible
-    // on this ground.
+    // The secondary pill on the night ground: a faint plate and a visible
+    // edge, where the primary is the filled canvas pill. Neither is bg-ink,
+    // which is invisible on this ground. The edge is white at 40 percent
+    // rather than 24: over the night ground 24 composites to about 2.0:1,
+    // which is not an edge a person can rely on finding.
     const link = /<a[^>]*href="\/home\/demo"[^>]*>/.exec(demo)?.[0] ?? '';
-    expect(link).toContain('border-white/24');
-    expect(link).toContain('bg-transparent');
+    expect(link).toContain('border-white/40');
+    expect(link).toContain('bg-white/12');
     expect(link).not.toContain('bg-canvas');
   });
 

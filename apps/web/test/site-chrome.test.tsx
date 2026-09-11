@@ -45,7 +45,7 @@ describe('the header', () => {
     expect(mark).toContain('font-semibold');
     expect(day.match(/href="\/index"/g)).toHaveLength(1);
     expect(day.match(/href="\/invest"/g)).toHaveLength(1);
-    expect(visibleText(day)).toBe('Creance The index Investors Get a quote');
+    expect(visibleText(day)).toBe('Creance The index Earn yield Get a quote');
   });
 
   it('is the night ground, with the text rules for that ground', () => {
@@ -74,9 +74,9 @@ describe('the header', () => {
   });
 
   it('hides the two links below the medium breakpoint rather than wrapping', () => {
-    for (const label of ['The index', 'Investors']) {
+    for (const label of ['The index', 'Earn yield']) {
       const link = new RegExp(`<a[^>]*>${label}</a>`).exec(day)?.[0] ?? '';
-      expect(link, label).toContain('hidden md:inline-flex');
+      expect(link, label).toContain('max-md:hidden');
     }
     expect(day).not.toContain('flex-wrap');
   });
@@ -154,7 +154,7 @@ describe('the frames', () => {
     expect(button).toContain('bg-canvas');
     expect(button).not.toContain('bg-ink');
     expect(/<a[^>]*aria-current="page"[^>]*>The index<\/a>/.test(header(explorer))).toBe(true);
-    expect(/<a[^>]*aria-current="page"[^>]*>Investors<\/a>/.test(header(investor))).toBe(true);
+    expect(/<a[^>]*aria-current="page"[^>]*>Earn yield<\/a>/.test(header(investor))).toBe(true);
   });
 
   it('stands the worker column on its sheet and the desktop page on continuous canvas', () => {

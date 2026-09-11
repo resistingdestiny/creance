@@ -50,7 +50,8 @@ import { SeriesChooser } from './series-chooser';
  * payment falls due. The series terms stand beside the position from the
  * landing breakpoint (T52), the table takes the full width under them, and
  * the principal at risk closes the page. The heading leads with what the
- * series covers and carries the identifier under it.
+ * series covers, carries the identifier under it, and carries the page's one
+ * primary action on its own line.
  *
  * T49 drew the position on the metal. The note is a certificate, so the
  * "Earned to date" figure and the "Next payment" row sit on a certificate card
@@ -62,8 +63,8 @@ import { SeriesChooser } from './series-chooser';
  * Since T51 the screen is drawn before its figures arrive. The two reads
  * behind them go through the JSON-RPC relay to the mirror node and take up to
  * two seconds each, so the route hands them to this component as promises
- * rather than awaiting them: the heading, the chooser, the copy and the
- * subscribe action are on the first byte, and each figure is behind a
+ * rather than awaiting them: the heading, the chooser, the copy and both
+ * calls to action are on the first byte, and each figure is behind a
  * Suspense boundary of its own so that a slow coupon history cannot hold up
  * the terms and neither can hold up the page. Each boundary rests at the
  * height its figure takes on the demo series, measured in a browser at 390
@@ -94,6 +95,16 @@ const EXPLAINER =
  */
 const BROUGHT_FORWARD =
   'The record dates on these coupons were brought forward so several months could be paid inside the demonstration. Every payment below settled on Hedera testnet.';
+
+/**
+ * What the two calls to action on this page say. One string, because they are
+ * the same door and a page that calls one door two things has two doors as far
+ * as a reader is concerned. "Subscribe" is the copy deck's word and it stays
+ * on the screen the door opens, where an amount is being subscribed for; on
+ * the way in, this is what Root wrote on the marked up page and it is the one
+ * a person who does not work in finance reads without stopping.
+ */
+const INVEST_ACTION = 'Invest now';
 
 export interface InvestorOverviewProps {
   /** The series on screen. Known from the list before anything is read. */
@@ -140,9 +151,18 @@ export function InvestorOverview({
           </h1>
           {name === null ? null : <p className="text-body tabular-nums text-ink-2">{seriesId}</p>}
         </div>
-        <Suspense fallback={<KycResting />}>
-          <KycPill investor={investor} series={series} />
-        </Suspense>
+        {/* The page's one primary, on the title's line. It was the last thing
+            on the page until now, under the coupon table and the principal
+            bar, which put the only reason the page exists below the fold on
+            every display. It needs no read to draw: the series is known from
+            the list before either chain read starts, so the call to action is
+            on the first byte with the heading. */}
+        <div className="flex flex-wrap items-center gap-4">
+          <Suspense fallback={<KycResting />}>
+            <KycPill investor={investor} series={series} />
+          </Suspense>
+          <PillLink href={subscribeHref}>{INVEST_ACTION}</PillLink>
+        </div>
       </header>
 
       <SeriesChooser base="/invest" choices={choices} current={seriesId} />
@@ -180,9 +200,17 @@ export function InvestorOverview({
           <Principal series={series} />
         </Suspense>
         <p className="max-w-[720px] text-secondary text-ink-2">{EXPLAINER}</p>
+        {/* The same door, at the end of the read, in the same words. It stays
+            because the page is two and a half screens at 1440 and somebody who
+            has just read what their principal is exposed to should not have to
+            scroll back to the heading to act on it. It is the tertiary and not
+            a second primary: a screen has one primary, and this is a repeat
+            rather than a second offer. The negative margin sets the label
+            against the column edge, because the pill's own padding would
+            otherwise indent it from the paragraph above. */}
         <div className="mt-2 flex flex-col gap-3">
-          <PillLink className="self-start" href={subscribeHref}>
-            Subscribe
+          <PillLink className="-ml-6 self-start" href={subscribeHref} variant="tertiary">
+            {INVEST_ACTION}
           </PillLink>
           <WalletLine account={investor} />
         </div>

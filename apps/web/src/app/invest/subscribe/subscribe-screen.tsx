@@ -210,9 +210,10 @@ function Subscribed({
             This account holds no subscription on the series today.
           </p>
           <WalletLine account={investor} />
-          <PillLink href={seriesHref} variant="secondary">
-            View the series
-          </PillLink>
+          {/* The only control on the screen, so it is the primary. It was a
+              secondary, which left a dead end with nothing on it ranked as
+              the thing to do next. */}
+          <PillLink href={seriesHref}>View the series</PillLink>
         </main>
       </DesktopFrame>
     );
@@ -254,9 +255,8 @@ function Subscribed({
         )}
 
         <WalletLine account={investor} />
-        <PillLink href={seriesHref} variant="secondary">
-          View the series
-        </PillLink>
+        {/* As above: the one way on from a screen that has finished. */}
+        <PillLink href={seriesHref}>View the series</PillLink>
       </main>
     </DesktopFrame>
   );

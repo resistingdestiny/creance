@@ -159,7 +159,7 @@ describe('the quote starts in place', () => {
     // The hero, the questions and the index section are all still on the page:
     // the quote is a section of it and not a screen that replaced it.
     expect(screen.getByText('Cover for the day your job is automated.')).toBeDefined();
-    expect(screen.getByText('One number decides. You can watch it.')).toBeDefined();
+    expect(screen.getByText('Track if you are eligible to get paid')).toBeDefined();
   });
 
   it('opens from any of the three places the deck puts the button', async () => {
@@ -259,8 +259,11 @@ describe('every occupation has capacity behind it', () => {
 
 describe('the occupation and the index are one act', () => {
   it('moves the explorer to the occupation the quote is for', async () => {
+    // The panel opens on its own occupation, which is the one nearest its
+    // line rather than the one the hero card speaks for, so what this asserts
+    // is the move: whatever it was showing, it is showing Legal afterwards.
     page();
-    expect(screen.getByText(/^Computer and mathematical, /)).toBeDefined();
+    expect(screen.queryByText(/^Legal, /)).toBeNull();
 
     await getAQuote();
     fireEvent.click(row('Legal'));

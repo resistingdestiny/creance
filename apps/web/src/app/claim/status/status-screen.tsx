@@ -4,6 +4,7 @@ import { useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { AppFrame } from '../../../components/app-frame';
+import { CoverCardShell } from '../../../components/cover-card';
 import { DisplayNumber } from '../../../components/display-number';
 import { ListRow } from '../../../components/list-row';
 import { PillButton, PillLink } from '../../../components/pill-button';
@@ -79,12 +80,27 @@ function Received() {
   );
 }
 
-/** C7. The amount, then the way to the cover the payout lands on. */
+/**
+ * C7. The amount, then the way to the cover the payout lands on.
+ *
+ * The amount is drawn on a certificate in the metal (T49), because a payout
+ * is the value the cover existed for and the certificate is the object the
+ * product gives to value. It is this screen's one shimmer, and it is the only
+ * decided state that gets the material: under review and declined stay on
+ * canvas, since a failure state is not the place for a moving light. The
+ * heading and the line above it say what the figure is, so the card carries
+ * the figure alone and no new words; the light is a layer under the content,
+ * so the number never sits on it.
+ */
 function Approved({ claim }: { claim: ClaimStatusView }) {
   return (
     <Screen heading="Approved." line="On its way to your wallet.">
       {claim.amount === null ? null : (
-        <DisplayNumber size="display-l" value={wholeUnits(claim.amount)} />
+        <CoverCardShell className="w-full" metal="shimmer" treatment="certificate">
+          <div className="cover-card__content flex flex-col items-center py-8">
+            <DisplayNumber size="display-l" value={wholeUnits(claim.amount)} />
+          </div>
+        </CoverCardShell>
       )}
       <PillLink href="/home">Back to cover</PillLink>
     </Screen>

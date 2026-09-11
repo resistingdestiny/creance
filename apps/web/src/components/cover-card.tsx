@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { activeCardTreatment, type CardTreatment } from '../lib/font-option';
+import { CardShimmer } from './card-shimmer';
 import { StatusPill, type StatusState } from './status-pill';
 
 /**
@@ -38,16 +39,25 @@ import { StatusPill, type StatusState } from './status-pill';
  * overlays, so nothing on this card ever paints light across the occupation
  * or the amount, in any treatment.
  *
- * `metal` is T34's finish: a cooler edge and a rainbow shimmer travelling
- * across the metal, the way light moves on a brushed surface that is not quite
- * flat. It is a modifier over whichever treatment is drawn and it changes
- * neither the gradient nor the sheen nor the brushing under it. Like `depth`
- * it is opt in and the landing hero is the only caller. The shimmer is its own
- * layer at z-index 2, over the glare at 1 and under the content at 10, so it
- * is light on the card and never light over the numbers, and it stops dead
- * under prefers-reduced-motion. docs/DECISIONS.md carries the departure from
- * docs/DESIGN-TOKENS-ADDENDUM.md and the contrast argument for it.
+ * `metal` is the finish T34 drew for the landing hero and T49 made the
+ * product's material: a cooler edge, and with `'shimmer'` a rainbow band
+ * travelling across the metal, the way light moves on a brushed surface that
+ * is not quite flat. It is a modifier over whichever treatment is drawn and it
+ * changes neither the gradient nor the sheen nor the brushing under it.
+ *
+ * It comes in two variants because the shimmer has a budget. The addendum's
+ * "The metal" section allows one shimmering element in view at a time, so a
+ * screen passes `'shimmer'` to exactly one card and `'still'` to any other
+ * metal object on it; `'still'` is the same edge and the same sheen with no
+ * moving band. The shimmer is its own layer at z-index 2, over the glare at 1
+ * and under the content at 10, so it is light on the card and never light over
+ * the numbers. It stops dead under prefers-reduced-motion and pauses while the
+ * card is off screen or the tab is hidden (see CardShimmer). docs/DECISIONS.md
+ * carries the contrast argument and the T49 reversal of the landing only rule.
  */
+
+/** See the `metal` prop. */
+export type MetalFinish = 'shimmer' | 'still';
 
 export interface CoverCardProps {
   occupation: string;
@@ -58,8 +68,11 @@ export interface CoverCardProps {
   hero?: boolean;
   /** The landing hero only: thickness, depth planes and the pointer glare. */
   depth?: boolean;
-  /** The landing hero only: the metal edge and the rainbow shimmer over it. */
-  metal?: boolean;
+  /**
+   * The metal finish. `'shimmer'` carries the one moving band a screen may
+   * spend; `'still'` is the same metal with its light standing.
+   */
+  metal?: MetalFinish;
   /** Defaults to the treatment the active font option selects. */
   treatment?: CardTreatment;
   className?: string;
@@ -81,7 +94,7 @@ export interface CoverCardProps {
 export function CoverCardShell({
   hero = false,
   depth = false,
-  metal = false,
+  metal,
   padded = true,
   treatment = activeCardTreatment,
   className,
@@ -111,7 +124,7 @@ export function CoverCardShell({
           <span aria-hidden="true" className="cover-card__glare" />
         </>
       ) : null}
-      {metal ? <span aria-hidden="true" className="cover-card__shimmer" /> : null}
+      {metal === 'shimmer' ? <CardShimmer /> : null}
       {children}
     </div>
   );
@@ -124,7 +137,7 @@ export function CoverCard({
   statusLabel,
   hero = false,
   depth = false,
-  metal = false,
+  metal,
   treatment = activeCardTreatment,
   className,
 }: CoverCardProps) {

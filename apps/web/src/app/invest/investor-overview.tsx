@@ -1,4 +1,5 @@
 import { DataTable, type TableRowData } from '../../components/table';
+import { CoverCardShell } from '../../components/cover-card';
 import { DesktopFrame } from '../../components/desktop-frame';
 import { ListRow } from '../../components/list-row';
 import { PillLink } from '../../components/pill-button';
@@ -9,6 +10,7 @@ import { TextLink } from '../../components/text-link';
 import { formatDayWithYear, formatWholeMoney, shortenAddress } from '../../lib/format';
 import type { CouponsView, SeriesListEntry, SeriesView } from '../../lib/investor-api';
 import {
+  type NextPayment,
   capacityLine,
   couponHistory,
   couponLine,
@@ -42,6 +44,13 @@ import { SeriesChooser } from './series-chooser';
  * investor came to see, and it opens with the position rather than with the
  * transactions: what this account has earned to date, and when the next
  * payment falls due. The series terms and the principal at risk follow.
+ *
+ * T49 drew the position on the metal. The note is a certificate, so the
+ * "Earned to date" figure and the "Next payment" row sit on a certificate card
+ * in the same material as the cover card, with this screen's one shimmer
+ * (docs/DESIGN-TOKENS-ADDENDUM.md, "The metal"). Everything else on the page
+ * is ordinary content and stays on canvas and surface: the coupon history is a
+ * table, the terms are rows, and the material carries neither.
  *
  * The component is pure and synchronous. The fetch is the route's, which keeps
  * this testable with renderToStaticMarkup like the rest of the app.
@@ -115,23 +124,18 @@ export function InvestorOverview({
       <section className="mt-10">
         <h2 className="mb-4 text-body-lg font-medium text-ink">Coupon history</h2>
 
-        {earned === null && next === null ? null : (
-          <SurfaceGroup className="mb-6 max-w-[520px]">
-            {earned === null ? null : (
-              <ListRow
-                caption={`${earned.coupons} coupon${earned.coupons === 1 ? '' : 's'} paid to ${investor.accountId}`}
-                label="Earned to date"
-                value={<span className="tabular-nums whitespace-nowrap">{earned.amount}</span>}
-              />
-            )}
-            {next === null ? null : (
-              <ListRow
-                caption={`Coupon ${next.couponId}, accruing ${next.period}`}
-                label="Next payment"
-                value={<span className="tabular-nums whitespace-nowrap">{next.day}</span>}
-              />
-            )}
-          </SurfaceGroup>
+        {earned === null ? (
+          next === null ? null : (
+            <SurfaceGroup className="mb-6 max-w-[520px]">
+              <NextPaymentRow next={next} />
+            </SurfaceGroup>
+          )
+        ) : (
+          <NoteCertificate
+            caption={`${earned.coupons} coupon${earned.coupons === 1 ? '' : 's'} paid to ${investor.accountId}`}
+            earned={earned.amount}
+            next={next}
+          />
         )}
 
         {rows.length === 0 ? (
@@ -272,6 +276,61 @@ export function InvestorOverview({
         </div>
       </section>
     </DesktopFrame>
+  );
+}
+
+/**
+ * The note as an object: what it has paid this holder, and when it pays next.
+ *
+ * It is the certificate treatment of the cover card, because a note is a
+ * certificate whichever treatment the cover card itself follows, and it is the
+ * one shimmering element on this screen. The headline is "Earned to date" at
+ * display-l, the weight the addendum gives a headline figure; the row under it
+ * is the same ListRow the surface group used, on the metal now, where the
+ * card's own rule turns its ink-2 to ink. The label, the caption and then the
+ * figure are in that order in the markup, so the screen reads exactly as it
+ * did when they were a row.
+ *
+ * Nothing on it is a moving light under text: the shimmer is a layer under
+ * `.cover-card__content`, as on every card.
+ */
+function NoteCertificate({
+  earned,
+  caption,
+  next,
+}: {
+  earned: string;
+  caption: string;
+  next: NextPayment | null;
+}) {
+  return (
+    <CoverCardShell className="mb-6 max-w-[720px]" metal="shimmer" treatment="certificate">
+      <div className="cover-card__content flex flex-col gap-4">
+        <div className="flex flex-col items-center gap-1 py-6 text-center">
+          <p className="text-secondary font-medium text-ink">Earned to date</p>
+          <p className="text-caption text-ink">{caption}</p>
+          <p className="mt-2 font-display text-display-l font-medium tracking-display tabular-nums text-ink">
+            {earned}
+          </p>
+        </div>
+        {next === null ? null : (
+          <div className="border-t border-hairline">
+            <NextPaymentRow next={next} />
+          </div>
+        )}
+      </div>
+    </CoverCardShell>
+  );
+}
+
+/** "Next payment" as the addendum specifies it: the date, captioned with the period. */
+function NextPaymentRow({ next }: { next: NextPayment }) {
+  return (
+    <ListRow
+      caption={`Coupon ${next.couponId}, accruing ${next.period}`}
+      label="Next payment"
+      value={<span className="tabular-nums whitespace-nowrap">{next.day}</span>}
+    />
   );
 }
 

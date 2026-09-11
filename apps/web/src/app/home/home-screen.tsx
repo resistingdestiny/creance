@@ -117,8 +117,12 @@ export function HomeScreen({
             className={bound ? 'cover-card-enter motion-reduce:animate-none' : undefined}
             data-testid="home-card"
           >
+            {/* The metal, with this screen's one shimmer. The card is the only
+                metal object on Home; docs/DESIGN-TOKENS-ADDENDUM.md, "The
+                metal", allows one moving band in view and this is it. */}
             <CoverCard
               amount={<DisplayNumber countUp={bound} size="display-l" value={view.cover} />}
+              metal="shimmer"
               occupation={view.occupation}
               state={view.status.pill}
               statusLabel={view.status.label}

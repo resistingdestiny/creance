@@ -88,6 +88,8 @@ Paste this into the same Claude Design session, direction 1a: "Add nine mobile s
 
 Decided before kick-off. These two tokens exist for the landing page and the closing band on it. They are not available to any worker or investor screen, which stay light mode with hairline depth exactly as docs/DESIGN-TOKENS.md specifies.
 
+T49 reversed the "landing page only" scope for the card's gradient, sheen, brushing and shimmer, which are now the product's material: see "The metal" below and docs/DECISIONS.md under T49. The night grounds and the one elevation are not part of that reversal and stay as written here.
+
 ```js
 night:   '#0A0D12',  // marketing ground
 night-2: '#11151C',  // marketing raised ground
@@ -133,3 +135,64 @@ columns: Period, Noteholder, State, Amount, Receipt
 8, reused here. Its value on this screen is a date alone, not "28.00 on 4
 October": the note reports no entitlement for a coupon whose record date has not
 been reached, so an amount there would have to be invented.
+
+## The metal (T49)
+
+The metal is the card's material, promoted from the landing page to the whole
+product: the four stop gradient of docs/DESIGN-TOKENS.md section 4, its
+diagonal sheen, the hero brushing, and the rainbow shimmer T34 added. In the
+code it is `.cover-card` with the `metal` finish of `CoverCard` and
+`CoverCardShell`. There is one implementation and every surface below is a
+caller of it.
+
+The card looks expensive because it is rare, so this is a promotion with
+rules, not a licence.
+
+What it may carry: identity and value. The cover card, the note or certificate
+an investor holds, and a headline figure. Today that is the landing hero, the
+card on Home, the note certificate on the investor screen, which carries
+"Earned to date" and the "Next payment" row, and the payout on the approved
+claim screen.
+
+What it may not carry: ordinary content. List rows, form fields, tables,
+navigation, body copy, and any error, declined, under review or waiting state.
+A failure state is not the place for a moving light. The coupon history stays a
+table and the series terms stay rows in a surface group.
+
+The budget: at most one shimmering element in view at a time. The shimmer is
+the accent and the accent is singular. The finish has two variants so that the
+budget can be kept: `metal="shimmer"` carries the moving band, and a screen
+passes it to exactly one component; `metal="still"` is the same edge and the
+same sheen with no moving band, for any second metal object. Tests count the
+band on every screen that carries it: apps/web/test/shimmer-budget.test.tsx for
+Home and the claim, investor.test.tsx for the note, landing.test.tsx for the
+hero.
+
+Text never sits on a moving light. Every light layer on the card, the sheen,
+the brushing, the glare and the shimmer, stays under `.cover-card__content`,
+which is where every word and figure on the card goes. Nothing on the card is
+ever coloured ink-2: the card's own rule turns it to ink, because the darkest
+stop of any treatment fails the 4.5:1 floor for ink-2 and passes it for ink by
+three times over.
+
+The contrast floor, 4.5:1, holds across the whole shimmer cycle and not only at
+rest. Every stop of the shimmer is a pale hue at 16 percent, so the composite
+over the darkest stop of any treatment is lighter than the metal beneath it.
+built-css.test.ts computes the worst case from the compiled stylesheet, above
+12:1 for ink, and fails the build if a stop is darkened. A new metal surface
+with a darker stop is added to that test; a colour other than ink on the metal
+is composited there too.
+
+Reduced motion: under `prefers-reduced-motion: reduce` the shimmer stops dead
+and the card keeps its colour with the light standing still, the glare and the
+turn stop, and the page is complete and legible, which is also how it looks in
+a still screenshot. The shimmer also pauses, with `animation-play-state`, while
+the card is out of the viewport, while the tab is hidden, and on the face of
+the landing card that is turned away, so a nine second loop is never running
+where nobody can see it. It animates transform only.
+
+No scroll triggered reveals, anywhere, for the reason above: they read as
+flicker on data dense pages and as rendering glitches in a screen recording.
+
+The night grounds and the one elevation are not part of the metal and stay
+marketing only. Light mode remains the product's mode.

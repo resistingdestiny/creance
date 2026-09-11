@@ -482,14 +482,14 @@
     background-image: none;
   }
 
-  /* T34, the landing hero only: the metal finish.
-     Benedict asked for a metal card with a rainbow shimmer.
-     docs/DESIGN-TOKENS-ADDENDUM.md says the card gradient, its sheen and its
-     brushing are unchanged, so this is a departure and docs/DECISIONS.md
-     carries it with its contrast argument. It is a modifier over whichever
-     treatment is drawn, the way T30's two were, and never an edit to the
-     `.cover-card` rule above: the gradient, the sheen and the brushing under it
-     are untouched and only the edge colour and one new light layer are added.
+  /* The metal finish. T34 drew it for the landing hero and T49 made it the
+     product's material: docs/DESIGN-TOKENS-ADDENDUM.md, "The metal", names the
+     surface, where it may be used and the budget of one shimmering element in
+     view. docs/DECISIONS.md carries the contrast argument and the reversal of
+     the landing only rule. It is a modifier over whichever treatment is drawn,
+     the way T30's two were, and never an edit to the `.cover-card` rule above:
+     the gradient, the sheen and the brushing under it are untouched and only
+     the edge colour and one new light layer are added.
 
      The edge is the cooler grey a milled metal edge catches. It is a border
      colour on the modifier, so the base rule's one pixel hairline is what
@@ -551,6 +551,16 @@
     to {
       transform: translateX(calc(30% + var(--card-shimmer-shift, 0px)));
     }
+  }
+
+  /* Paused, not stopped, while nobody can see it. CardShimmer sets the class
+     when the card leaves the viewport or the tab is hidden, and the turn sets
+     the face that is turned away to visibility hidden, which an intersection
+     observer does not see. Both are animation-play-state, so the band resumes
+     from where it was rather than restarting, and neither repaints the card. */
+  .cover-card__shimmer.is-paused::before,
+  .cover-card-face[data-facing="away"] .cover-card__shimmer::before {
+    animation-play-state: paused;
   }
 
   /* Reduced motion is the finished state, and for a finish that means the

@@ -399,7 +399,7 @@ function HeroCard({ occupation }: { occupation: string }) {
       className="aspect-[720/432] w-full"
       depth
       hero
-      metal
+      metal="shimmer"
       occupation={occupation}
       state="covered"
       statusLabel="Covered"

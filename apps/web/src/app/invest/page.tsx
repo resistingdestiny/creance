@@ -23,7 +23,12 @@ import { InvestorUnavailable } from './unavailable';
  * the first byte and each figure lands in its own place as it arrives (T51).
  */
 
-export const metadata: Metadata = { title: 'Invest' };
+export const metadata: Metadata = {
+  title: 'Invest',
+  description:
+    'Displacement Bond Notes fund the payouts. Noteholders earn the premiums as coupons and carry the principal at risk while the index for an occupation is open.',
+  alternates: { canonical: '/invest' },
+};
 
 // The principal, the reserve and the coupons are live chain state. There is
 // nothing here to prerender.

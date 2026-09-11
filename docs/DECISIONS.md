@@ -6649,3 +6649,163 @@ HashScan row 44, at 390 and 1440 respectively. Every one of them is the
 figure T51 recorded, so no resting state changed: the certificate's caption
 still fits the narrower column at 1440, and the table and the principal bar
 are as wide as they were.
+
+## T53, the site is findable, by search engines and by models, 11 September 2026
+
+Root asked for SEO and for the site to be readable by models. Audited against
+the live host on 11 September, `https://creance.co/` carried no Open Graph or
+Twitter tag, `/sitemap.xml` was 404 while `robots.ts` promised it, no page had
+a canonical or any structured data, and the front door inherited the bare
+default title. This section records what is in the sitemap and what is not,
+which schema types were used and which were refused, why the preview image is
+static and carries no price, and what stays out of reach of this repository.
+
+### The sitemap lists five routes, and why the others are not in it
+
+`apps/web/src/app/sitemap.ts` lists `/`, `/index`, `/invest`, `/occupation`
+and `/home`: every route that answers a request with no session and no cover
+with a page about the product. Everything else is left out for one of five
+reasons, and `test/sitemap.test.ts` holds the list to them:
+
+- `/gallery` and `/home/demo` say noindex themselves, the one because it is a
+  component sheet and the other because it prints cover keys in its markup.
+  The sitemap must not name a page the same app tells crawlers to ignore.
+- `/amount`, `/verify` and `/pay` redirect to `/occupation` without a purchase
+  session, `/claim` and everything under it redirects without a cover, and
+  `/cover/index` redirects to the front door. A crawler holds no session, so
+  at each of them it would be sent somewhere the sitemap already names.
+- `/receipt/[policyId]` and `/admin/claims` belong to one person.
+- `/invest/subscribe` is a step inside the investor flow, reached from the
+  overview. It keeps a title, a description and a canonical of its own for a
+  reader who arrives there, but a search should land on the overview.
+- `/invest?series=<id>` is not listed because the series come from
+  `GET /v1/series` at request time and an id baked into a build artefact
+  could name a series the list no longer carries.
+- `/llms.txt`, `/skill.md`, `/openapi/*`, `/v1/*`, `/health`, `/healthz` and
+  `/.well-known/jwks.json` are the API's paths, proxied by `api-proxy.ts`
+  since T46. They are documents for agents, not pages, and `llms.txt` is
+  already their index.
+
+Each entry is an address and nothing else. `lastModified` would be a build
+time stamp pretending to be an edit date and `changeFrequency` a guess, so
+neither is written. The origin is the setting `robots.ts` reads with the same
+default, so the two files cannot name different hosts; the test asserts it.
+The root layout's `metadataBase` still falls back to `http://localhost:3000`
+when the variable is unset, as before, so a local build without it prints
+local canonicals and a public sitemap, which is what it did for the robots
+file already and is harmless off the public host.
+
+### Titles and descriptions are per page, the cards are site wide
+
+The root layout carries the Open Graph and Twitter blocks (`type: website`,
+the site name, the locale, `summary_large_image`) and no title, description
+or image inside them. The framework fills `og:title` and `og:description`
+from whichever page is rendered and `og:image` from the image route, so each
+public page says what it is once, in its own `metadata`, and the preview is
+built from that. `test/page-metadata.test.ts` holds each of the five listed
+pages to a title of its own, a description in a sentence, a canonical that
+names the route, no price and no dash, and holds the layout to carrying none
+of the three in its blocks.
+
+The front door's title is absolute, "Creance: cover for the day your job is
+automated", because the site template would have put "| Creance" after a
+sentence that ends in a full stop. Its description carries the three things
+worth being quotable in the hero's voice: what it is, that a public index of
+fifteen groups decides when claims open, and that a payout needs proof of
+job loss. It names no price: the from price is a live quote and a description
+is what a preview shows for as long as it is cached.
+
+### The structured data uses four plain types and refuses the specific ones
+
+One JSON-LD graph, rendered by the root layout on the server so it is in the
+HTML a crawler fetches: `Organization` (Creance, the public origin, the
+repository as `sameAs`), `WebSite`, `WebApplication` for the product and
+`Dataset` for the Occupation Displacement Index, with one `DataDownload` for
+the free catalogue at `/v1/index`.
+
+Refused, as overclaiming: `FinancialProduct`, `InsuranceAgency`,
+`FinancialService`, `InvestmentOrDeposit`, `Offer`, `AggregateOffer` and any
+`offers`, `price` or `priceCurrency` key. The footer says this is a testnet
+prototype and not an offer of insurance or securities in any jurisdiction,
+and structured data that said otherwise would be the page contradicting
+itself to a machine. `Product` and `Service` were refused too, because a
+product without an offer invites a validator to ask for one. The application
+is a `WebApplication` with a plain description that ends in the footer's
+disclaimer word for word; the string is one constant, `DISCLAIMER` in
+`site-chrome.tsx`, printed by the footer and repeated by the graph, so they
+cannot drift. `test/structured-data.test.tsx` parses every block the layout
+emits, holds the set of `@type` values to the allow list exported beside the
+component, forbids the types and keys above anywhere in the graph, and asserts
+the disclaimer is in it.
+
+The `Dataset` is the honest and quotable thing. Its description spells out
+the definition in DESIGN.md 3.3 (the group's rate less the all-occupation
+rate, smoothed over three months, less its own value twelve months earlier),
+the two trigger forms, the source (BLS Current Population Survey) and the
+publication (a Hedera Consensus Service topic), and says it is testnet only,
+not a forecast and not an unemployment rate. `variableMeasured` names the
+four series a reading carries. `disclaimer` is not a schema.org property, so
+the disclaimer goes in `description` rather than in a key a validator would
+flag.
+
+### The preview image is the card, redrawn, static, and without a price
+
+`apps/web/src/app/opengraph-image.tsx` draws the landing hero at 1200 by 630:
+the headline and the lead from the copy deck on the night ground, and the
+metal card beside them wearing "Computer and mathematical", the Covered pill,
+and "Cover" over "5,000", which is the cover the hero card shows at rest. It
+is generated rather than exported so it cannot drift from the sheet, but it
+is a redrawing and not a render of `CoverCard`: `next/og` draws through
+Satori, which has flexbox, gradients and shadows and none of the custom
+properties, pseudo elements, blend modes or animation `.cover-card` uses.
+Every stop is the sheet's own and the shimmer stands at the centre of the
+face, on a box the stylesheet's size, which is how a still frame and a
+reduced motion reader see it on the page.
+
+It is static and reads nothing. An unfurl is a page view a bot makes many
+times, and the landing's figures come from paid x402 reads behind a hold
+(T40, T51), so an image that read the feed would spend a paid read per
+preview and could be cached showing a month that has since moved. The from
+price stays on the page for the same reason: it is a binding quote and a
+preview is a picture. The 5,000 on the card is a cover amount, the same
+figure the hero card carries before a quote, and not a price;
+`test/og-image.test.ts` holds the route to no data module, no request time
+API, no environment and no price.
+
+Fonts: Satori needs font bytes, the next/font cache holds woff2, which Satori
+cannot read, and bundling two TrueType families would put the route over the
+renderer's bundle limit. So the two families of option A are fetched from
+Google Fonts as TrueType when the route is built, subset to the characters
+drawn, over the same network the build already needs for `next/font/google`.
+If a fetch fails the image is produced in the renderer's own face rather than
+failing the build, so a preview is never a broken image.
+
+### The explorer's step headings take the level of the page they are on
+
+`/index` had its h1 followed by four h3s. `ExplorerPanel` was written for the
+landing page, where it sits under an h2 and its steps are rightly h3s, and it
+carried that level to a page where nothing stands between it and the h1. The
+step heading is a prop, `stepHeading`, defaulting to h3 so the landing's
+outline is unchanged and set to h2 by `/index`. `test/heading-outline.test.tsx`
+renders the four public screens and holds each to one h1 and no level skip,
+and pins the step level on both pages.
+
+### What this repository cannot fix
+
+Cloudflare serves a managed `robots.txt` at the edge, prepended to ours, with
+`Disallow: /` for ClaudeBot, GPTBot, CCBot, Google-Extended and five others,
+measured and recorded in docs/harness-notes.md. Our `robots.ts` allows every
+crawler and disallows only `/gallery`, and the protocol reads the most
+specific group alone, so for those nine crawlers the managed block is the
+whole answer. Turning it off is a setting of the Cloudflare zone and is
+Root's to do. The head tags, the sitemap and the structured data go live
+with the next deploy and a cache purge; until then the live host answers
+from its cache with none of them.
+
+### Test counts that changed, with the reason
+
+Five files were added and none changed: `sitemap.test.ts` (nine),
+`page-metadata.test.ts` (twenty-four), `structured-data.test.tsx` (eight),
+`heading-outline.test.tsx` (eleven) and `og-image.test.ts` (five). None runs
+against a network; the image route is not rendered in the suite because its
+fonts are fetched.

@@ -2953,3 +2953,39 @@ Two reads do not behave the way our own earlier note said:
 
 One more thing worth knowing before enumerating: `getCouponCount` counts every
 coupon ever declared, cancelled ones included, and coupon ids are one based.
+
+## Cloudflare prepends a managed robots.txt that disallows the model crawlers ours allows
+
+Measured 11 September 2026 at 16:49 UTC from this machine, with curl.
+`https://creance.co/robots.txt` answers 200, `text/plain`, 1,944 bytes, with
+`server: cloudflare`, `cf-cache-status: EXPIRED` and `x-nextjs-cache: HIT`. The
+body is two files in one. The first, between `# BEGIN Cloudflare Managed
+content` and `# END Cloudflare Managed Content`, is not in this repository:
+
+    User-agent: *
+    Content-Signal: search=yes,ai-train=no,use=reference
+    Allow: /
+
+followed by `Disallow: /` for each of Amazonbot, Applebot-Extended,
+Bytespider, CCBot, ClaudeBot, CloudflareBrowserRenderingCrawler,
+Google-Extended, GPTBot and meta-externalagent. The second, under it, is what
+`apps/web/src/app/robots.ts` builds: `Allow: /`, `Disallow: /gallery`, the
+`Host` line and the `Sitemap` line.
+
+The robots protocol matches a crawler to the most specific `User-agent` group
+and reads that group alone, so for the nine named crawlers the managed block's
+`Disallow: /` is the whole answer and our `Allow: /` under `*` is never read.
+The web app's file says every crawler may read every page but the gallery;
+the file a model crawler is served says it may read nothing. Nothing in this
+repository can change that. The managed file is a setting of the Cloudflare
+zone (Security, Bots, "Manage AI bots" and its managed robots.txt), and only
+Root can turn it off. Until then the site is findable by search engines and
+not by the crawlers that feed models, whatever this app serves.
+
+Two more things measured at the same time, both of which this ticket fixes in
+the app and which stay wrong on the live host until it is redeployed and the
+Cloudflare cache is purged: `https://creance.co/sitemap.xml` answers 404
+while the robots file above promises it, and `https://creance.co/` carries no
+`og:` or `twitter:` meta tag at all, so the link unfurls without a title card.
+The live pages answer with `x-nextjs-cache: HIT` behind Cloudflare, so a
+redeploy alone will keep serving the old head until the cache is purged.

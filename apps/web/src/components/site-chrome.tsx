@@ -57,6 +57,14 @@ export type ChromeTone = 'day' | 'night';
 export const CHROME_ACTION = 'Get a quote';
 
 /**
+ * DESIGN.md's closing line, the product's own disclaimer. The footer prints it
+ * and the structured data repeats it word for word (T53), so a crawler is told
+ * the same thing a reader is.
+ */
+export const DISCLAIMER =
+  'This is a testnet prototype built for a hackathon. It is not an offer of insurance or securities in any jurisdiction and no real funds are involved.';
+
+/**
  * A navigation link. The design draws these without an underline, which is
  * why they are not the sheet's TextLink: that component is the underlined 16px
  * link inside the app. The 44px minimum tap target is the sheet's rule and
@@ -192,10 +200,7 @@ export function SiteFooter() {
             <NavLink href="/invest">Investors</NavLink>
           </nav>
         </div>
-        <p className="text-caption text-ink-2">
-          This is a testnet prototype built for a hackathon. It is not an offer of insurance or
-          securities in any jurisdiction and no real funds are involved.
-        </p>
+        <p className="text-caption text-ink-2">{DISCLAIMER}</p>
       </div>
     </footer>
   );

@@ -12,7 +12,12 @@ import { OccupationPicker } from './occupation-picker';
  * The rows are static, so this route only reads which one is already chosen.
  */
 
-export const metadata: Metadata = { title: 'What do you do?' };
+export const metadata: Metadata = {
+  title: 'What do you do?',
+  description:
+    'Pick your occupation from the fifteen groups the index follows. The quote comes from that group and nothing else.',
+  alternates: { canonical: '/occupation' },
+};
 
 export const dynamic = 'force-dynamic';
 

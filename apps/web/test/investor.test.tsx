@@ -479,12 +479,16 @@ describe('the investor overview screen', () => {
     // Two calls to action, the same words, two levels: a screen has one
     // primary, and the second is a repeat for somebody who has just read what
     // their principal is exposed to and should not have to scroll back up.
+    // The repeat is the secondary and not the tertiary: it stands on its own
+    // line under a paragraph, and a control with no edge and no plate there
+    // reads as a heading rather than as something to press.
     const actions = [...markup.matchAll(/<a class="([^"]*)"[^>]*>Invest now<\/a>/g)].map(
       (match) => match[1] ?? '',
     );
     expect(actions).toHaveLength(2);
     expect(actions[0]).toContain('bg-ink');
-    expect(actions[1]).toContain('bg-transparent');
+    expect(actions[1]).toContain('bg-surface');
+    expect(actions[1]).toContain('border-hairline');
     expect(actions[1]).not.toContain('bg-ink');
   });
 

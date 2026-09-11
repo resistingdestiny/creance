@@ -550,18 +550,26 @@
     overflow: hidden;
   }
 
-  /* The reflection: five pale hues at 16 percent across a third of a band two
-     and a bit cards wide, which is the finish T34 drew.
+  /* The reflection: five pale hues at a low alpha, and no white anywhere in
+     the band.
 
-     T52 narrowed it to a fifth of that width around a white core at 55
-     percent, reasoning that real metal has a narrow specular highlight and a
-     face that is neutral wherever the reflection is not falling. On the page
-     that read as a hard white streak laid across the card rather than as a
-     surface catching light, and Root asked for the original card back. So the
-     band is wide and soft again, every stop a pale hue at a low alpha and no
-     white core in it at all: the colour is in the metal rather than on it.
+     There were two wrong answers before this one and they were wrong in
+     opposite directions. T34 drew the hues across a band whose fade spans
+     about seventy percent of the face; T52 pulled that to a fifth of the width
+     around a white core at 55 percent, reasoning that real metal has a narrow
+     specular highlight. T52's reads as a hard white streak laid over the card,
+     and Root asked for the original card back.
 
-     Every hue being a pale colour at a low alpha is also what keeps the
+     The original turned out to be the same band caught at a different moment.
+     The band travels, and the frame Root liked is one phase of it: colour
+     gathered at an edge with the rest of the face clean silver. At mid travel
+     the same band is a pastel wash over most of the card, because it is wide
+     enough to be. So this is the T34 band, T34's softness and none of T52's
+     white, narrowed until the phase Root liked is the only phase there is.
+     Colour crosses about a quarter of the face and the fade about two fifths,
+     so most of the metal is neutral at every moment of the loop.
+
+     Every stop being a pale colour at a low alpha is also what keeps the
      darkest composite over the darkest gradient stop of any treatment far
      above the 4.5:1 floor for black text. built-css.test.ts computes that from
      this rule rather than taking it on trust. With the animation off the band
@@ -573,13 +581,13 @@
     inset: -25% -60%;
     background: linear-gradient(
       118deg,
-      transparent 34%,
-      rgba(255, 122, 182, 0.16) 40%,
-      rgba(255, 209, 122, 0.16) 45%,
-      rgba(138, 230, 172, 0.16) 50%,
-      rgba(122, 186, 255, 0.16) 55%,
-      rgba(186, 148, 255, 0.16) 60%,
-      transparent 66%
+      transparent 41%,
+      rgba(255, 122, 182, 0.18) 44%,
+      rgba(255, 209, 122, 0.18) 47%,
+      rgba(138, 230, 172, 0.18) 50%,
+      rgba(122, 186, 255, 0.18) 53%,
+      rgba(186, 148, 255, 0.18) 56%,
+      transparent 59%
     );
     animation: cover-card-shimmer 9s linear infinite;
   }

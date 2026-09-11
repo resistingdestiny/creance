@@ -203,13 +203,17 @@ export function InvestorOverview({
         {/* The same door, at the end of the read, in the same words. It stays
             because the page is two and a half screens at 1440 and somebody who
             has just read what their principal is exposed to should not have to
-            scroll back to the heading to act on it. It is the tertiary and not
-            a second primary: a screen has one primary, and this is a repeat
-            rather than a second offer. The negative margin sets the label
-            against the column edge, because the pill's own padding would
-            otherwise indent it from the paragraph above. */}
-        <div className="mt-2 flex flex-col gap-3">
-          <PillLink className="-ml-6 self-start" href={subscribeHref} variant="tertiary">
+            scroll back to the heading to act on it. It is not a second primary:
+            a screen has one primary, and this is a repeat rather than a second
+            offer.
+
+            It is the secondary rather than the tertiary, which is what it was
+            first. The tertiary draws no edge and no plate, and on its own line
+            under a paragraph "Invest now" in medium weight is a heading, not a
+            control. A tertiary needs something beside it to be read against,
+            which is what it has in the header; here it has nothing. */}
+        <div className="mt-2 flex flex-col items-start gap-3">
+          <PillLink href={subscribeHref} variant="secondary">
             {INVEST_ACTION}
           </PillLink>
           <WalletLine account={investor} />

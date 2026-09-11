@@ -526,10 +526,16 @@ function HeroCard({ occupation }: { occupation: string }) {
  * above it went with T52: the section is the top of the sheet on the night
  * ground now, and a hairline over a change of ground is a second separator
  * doing the same job.
+ *
+ * The padding is no longer symmetrical. Below this row it met the index
+ * section's own 112px, and 192px of nothing between one line of type and the
+ * next heading read as a section that had failed to load, which is the same
+ * fault the band was cut for in the first place. The space above stays: it is
+ * the top of the sheet and the corner needs it.
  */
 function Questions({ index }: { index: Streamed<LandingIndexView> }) {
   return (
-    <section className="mx-5 py-16 lg:mx-10 lg:py-20">
+    <section className="mx-5 pb-8 pt-16 lg:mx-10 lg:pb-10 lg:pt-20">
       <dl className={`flex flex-col ${CONTENT}`}>
         <Question
           answer={
@@ -640,7 +646,7 @@ function IndexSection({
   index: Streamed<LandingIndexView>;
 }) {
   return (
-    <section className={`py-16 lg:py-28 ${PAGE}`} id="the-index">
+    <section className={`pb-16 pt-8 lg:pb-28 lg:pt-16 ${PAGE}`} id="the-index">
       <div className={`flex flex-col gap-10 ${CONTENT}`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
           <h2 className="max-w-[520px] text-balance font-display text-title font-semibold tracking-title text-ink lg:text-landing-head lg:tracking-display">

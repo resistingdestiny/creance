@@ -410,12 +410,14 @@ describe('the metal finish and its rainbow shimmer', () => {
     expect(selector).toContain('.cover-card-face[data-facing="away"] .cover-card__shimmer::before');
   });
 
-  it('is a wide soft reflection with no white core in it', () => {
-    // T52 narrowed the band around a white core, and on the page that read as
-    // a hard streak laid over the card; Root asked for the original finish
-    // back. So the colour spans a broad part of an element 220 percent of the
-    // card wide, and every stop in it is a pale hue: a white core is what
-    // turns a reflection in the metal into a highlight drawn on top of it.
+  it('is a soft reflection crossing the face, with no white core in it', () => {
+    // Two things are asserted, because the finish has been wrong in both
+    // directions. No white stop: a white core is what turns a reflection in
+    // the metal into a highlight drawn on top of it, which is how T52 read.
+    // And the colour crosses the face rather than filling it: the band is on
+    // an element 220 percent of the card wide, so a coloured span much past a
+    // sixth of it is a wash over most of the card at mid travel, which is how
+    // T34 read at every moment except the one it was screenshotted in.
     const rule = blocksMatching(/^\.cover-card__shimmer::before$/)[0]?.[1] ?? '';
     const stops = [...rule.matchAll(/(transparent|rgba\([^)]*\))\s*([\d.]+)%/g)].map((stop) => ({
       colour: stop[1] ?? '',
@@ -424,7 +426,8 @@ describe('the metal finish and its rainbow shimmer', () => {
     const coloured = stops.filter((stop) => stop.colour !== 'transparent');
     expect(coloured.length).toBeGreaterThan(4);
     const span = Math.max(...coloured.map((s) => s.at)) - Math.min(...coloured.map((s) => s.at));
-    expect(span).toBeGreaterThanOrEqual(16);
+    expect(span).toBeGreaterThanOrEqual(8);
+    expect(span).toBeLessThanOrEqual(18);
     expect(coloured.filter((stop) => /^rgba\(255,\s*255,\s*255/.test(stop.colour))).toStrictEqual(
       [],
     );

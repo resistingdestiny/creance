@@ -371,6 +371,7 @@ describe('the series a screen offers a choice from', () => {
         coupons={COUPONS}
         investor={DEMO_ACCOUNTS['investor-1']}
         series={SERIES}
+        seriesId={SERIES.series_id}
       />,
     );
     expect(markup).toContain('href="/invest?series=ODI-OFFC-2026-01"');
@@ -384,6 +385,7 @@ describe('the series a screen offers a choice from', () => {
         coupons={COUPONS}
         investor={DEMO_ACCOUNTS['investor-1']}
         series={SERIES}
+        seriesId={SERIES.series_id}
       />,
     );
     expect(visibleText(markup)).toContain('Office and administrative support');
@@ -398,6 +400,7 @@ describe('the series a screen offers a choice from', () => {
         coupons={COUPONS}
         investor={DEMO_ACCOUNTS['investor-1']}
         series={SERIES}
+        seriesId={SERIES.series_id}
       />,
     );
     expect(markup).toContain('href="/invest/subscribe"');
@@ -410,6 +413,7 @@ describe('the series a screen offers a choice from', () => {
         coupons={COUPONS}
         investor={DEMO_ACCOUNTS['investor-1']}
         series={SERIES}
+        seriesId={SERIES.series_id}
       />,
     );
     expect(markup).not.toContain('aria-label="Series"');
@@ -418,7 +422,7 @@ describe('the series a screen offers a choice from', () => {
 
 describe('the investor overview screen', () => {
   const markup = renderToStaticMarkup(
-    <InvestorOverview coupons={COUPONS} investor={DEMO_ACCOUNTS['investor-1']} series={SERIES} />,
+    <InvestorOverview coupons={COUPONS} investor={DEMO_ACCOUNTS['investor-1']} series={SERIES} seriesId={SERIES.series_id} />,
   );
   const text = visibleText(markup);
 
@@ -453,7 +457,8 @@ describe('the investor overview screen', () => {
           coupons={COUPONS}
           investor={DEMO_ACCOUNTS['investor-1']}
           series={claimsOpenSeries()}
-        />,
+        seriesId={SERIES.series_id}
+      />,
       ),
     );
     expect(open).toContain('Reserved for claims 15,000');
@@ -468,7 +473,8 @@ describe('the investor overview screen', () => {
           coupons={COUPONS}
           investor={DEMO_ACCOUNTS['policyholder-1']}
           series={SERIES}
-        />,
+        seriesId={SERIES.series_id}
+      />,
       ),
     );
     expect(stranger).toContain('Verification needed');
@@ -542,8 +548,21 @@ describe('the investor overview screen', () => {
   });
 
   it('names the occupation beside the series identifier', () => {
-    expect(text).toContain('ODI-COMP-2026-01');
-    expect(text).toContain('Computer and mathematical');
+    // The name comes from the group the API lists the series under, which is
+    // in hand before either chain read is, so the heading never waits on one.
+    const named = visibleText(
+      renderToStaticMarkup(
+        <InvestorOverview
+          choices={CHOICES}
+          coupons={COUPONS}
+          investor={DEMO_ACCOUNTS['investor-1']}
+          series={SERIES}
+          seriesId={SERIES.series_id}
+        />,
+      ),
+    );
+    expect(named).toContain('ODI-COMP-2026-01');
+    expect(named).toContain('Computer and mathematical');
   });
 
   it('says so plainly when a series has no coupons yet', () => {
@@ -553,7 +572,8 @@ describe('the investor overview screen', () => {
           coupons={{ ...COUPONS, coupons: [] }}
           investor={DEMO_ACCOUNTS['investor-1']}
           series={SERIES}
-        />,
+        seriesId={SERIES.series_id}
+      />,
       ),
     );
     expect(empty).toContain('No coupons yet.');
@@ -570,7 +590,7 @@ describe('the investor overview screen', () => {
 
 describe('the note on the metal (T49)', () => {
   const markup = renderToStaticMarkup(
-    <InvestorOverview coupons={COUPONS} investor={DEMO_ACCOUNTS['investor-1']} series={SERIES} />,
+    <InvestorOverview coupons={COUPONS} investor={DEMO_ACCOUNTS['investor-1']} series={SERIES} seriesId={SERIES.series_id} />,
   );
 
   /** The one card on the page, from its opening tag to the end of its content. */
@@ -618,6 +638,7 @@ describe('the note on the metal (T49)', () => {
         coupons={{ ...COUPONS, coupons: [] }}
         investor={DEMO_ACCOUNTS['investor-1']}
         series={SERIES}
+        seriesId={SERIES.series_id}
       />,
     );
     expect(empty).not.toContain('cover-card');

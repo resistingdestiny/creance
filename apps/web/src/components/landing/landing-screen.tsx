@@ -5,6 +5,7 @@ import type {
   LandingData,
   LandingExplorerView,
   LandingIndexView,
+  LandingNoteView,
   LandingPriceView,
   Streamed,
 } from '../../lib/landing-data';
@@ -138,7 +139,7 @@ export function LandingScreen({
             <Questions index={data.index} />
             <IndexSection explorer={data.explorer} index={data.index} />
           </div>
-          <Closing investorLine={data.investorLine} />
+          <Closing note={data.note} />
         </main>
       </div>
     </QuoteProvider>
@@ -607,7 +608,7 @@ function IndexNote({ index }: { index: Streamed<LandingIndexView> }) {
  * section above is gone: the ground changes, and a hairline over a change of
  * ground is a second separator doing the same job.
  */
-function Closing({ investorLine }: { investorLine: Streamed<string> }) {
+function Closing({ note }: { note: Streamed<LandingNoteView> }) {
   return (
     <section className={`py-16 lg:py-28 ${PAGE}`}>
       <div className="mx-auto flex max-w-[800px] flex-col items-center text-center">
@@ -622,7 +623,7 @@ function Closing({ investorLine }: { investorLine: Streamed<string> }) {
         </div>
         <p className="mt-6 text-secondary text-white/66">
           <Suspense fallback={<InvestorLineResting />}>
-            <InvestorLine line={investorLine} />
+            <InvestorLine note={note} />
           </Suspense>
         </p>
       </div>
@@ -630,8 +631,8 @@ function Closing({ investorLine }: { investorLine: Streamed<string> }) {
   );
 }
 
-function InvestorLine({ line }: { line: Streamed<string> }) {
-  return <>{figureOf(line)}</>;
+function InvestorLine({ note }: { note: Streamed<LandingNoteView> }) {
+  return <>{figureOf(note).investorLine}</>;
 }
 
 /**

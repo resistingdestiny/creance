@@ -19,6 +19,7 @@ const fetchIndexCatalogue = vi.fn();
 const requestQuote = vi.fn();
 const fetchSeries = vi.fn();
 const fetchSeriesList = vi.fn();
+const fetchCoupons = vi.fn();
 const readExplorer = vi.fn();
 const fetchReplay = vi.fn();
 
@@ -33,6 +34,7 @@ vi.mock('../src/lib/investor-api.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/lib/investor-api.js')>()),
   fetchSeries: (...args: unknown[]) => fetchSeries(...args),
   fetchSeriesList: () => fetchSeriesList(),
+  fetchCoupons: (...args: unknown[]) => fetchCoupons(...args),
 }));
 
 vi.mock('../src/lib/explorer-data.js', () => ({
@@ -44,7 +46,7 @@ vi.mock('../src/lib/claim-api.js', () => ({
 }));
 
 const { INDEX, QUOTE } = await import('./worker-fixtures.js');
-const { SERIES } = await import('./investor-fixtures.js');
+const { COUPONS, SERIES } = await import('./investor-fixtures.js');
 const { LANDING_GROUP } = await import('../src/lib/landing-model.js');
 const { forgetReadings } = await import('../src/lib/last-reading.js');
 const {
@@ -62,13 +64,13 @@ const READING = { ...INDEX, group: LANDING_GROUP };
 /** Every figure on one page view, awaited as the page's own boundaries do. */
 async function pageView() {
   const data = readLanding();
-  const [index, price, explorer, investorLine] = await Promise.all([
+  const [index, price, explorer, note] = await Promise.all([
     data.index,
     data.price,
     data.explorer,
-    data.investorLine,
+    data.note,
   ]);
-  return { index, price, explorer, investorLine };
+  return { index, price, explorer, note };
 }
 
 beforeEach(() => {
@@ -83,9 +85,10 @@ beforeEach(() => {
     expires_at: new Date(QUOTE_LIFE_MS).toISOString(),
   });
   fetchSeries.mockReset().mockResolvedValue(SERIES);
+  fetchCoupons.mockReset().mockResolvedValue(COUPONS);
   // The coupon line names the head of GET /v1/series rather than a constant,
-  // and both calls sit inside the same hold, so a hundred views buy one of
-  // each.
+  // and all three calls sit inside the same hold, so a hundred views buy one
+  // of each.
   fetchSeriesList.mockReset().mockResolvedValue({
     network: 'testnet',
     count: 1,
@@ -126,6 +129,7 @@ describe('what a hundred page views cost', () => {
     expect(requestQuote).toHaveBeenCalledTimes(1);
     expect(fetchSeries).toHaveBeenCalledTimes(1);
     expect(fetchSeriesList).toHaveBeenCalledTimes(1);
+    expect(fetchCoupons).toHaveBeenCalledTimes(1);
   });
 
   it('is one reading and one quote when they arrive one after another', async () => {
@@ -239,15 +243,33 @@ describe('a call that fails costs the page its figure and never the page', () =>
     readExplorer.mockRejectedValue(new Error('no answer'));
     fetchReplay.mockResolvedValue(null);
 
-    const { index, price, explorer, investorLine } = await pageView();
+    const { index, price, explorer, note } = await pageView();
 
     expect(index.note).toBe('The live feed is not answering, so there is no reading to show.');
     expect(index.payLine).toContain('The live feed is not answering');
+    expect(index.published).toBeNull();
+    expect(index.history).toBeNull();
     expect(price.priceLine).toBeNull();
     expect(explorer.round).toBeNull();
     expect(explorer.ticker).toEqual([]);
     expect(explorer.replayBadge).toBeNull();
-    expect(investorLine).toBe('Investors fund the cover and earn the premiums monthly.');
+    expect(explorer.events).toEqual([]);
+    expect(note.investorLine).toBe('Investors fund the cover and earn the premiums monthly.');
+    expect(note.events).toEqual([]);
+    expect(note.figures).toEqual([]);
+  });
+
+  it('loses the chips and the figures with the coupons, and keeps the rate', async () => {
+    // The rate is on the series and the receipts are on the coupons route.
+    // One hold reads both, so a coupons route that fails takes the whole note
+    // with it: the page never prints a rate it read beside chips it could not.
+    fetchCoupons.mockRejectedValue(new Error('no answer'));
+
+    const { note } = await pageView();
+
+    expect(note.events).toEqual([]);
+    expect(note.figures).toEqual([]);
+    expect(note.investorLine).toBe('Investors fund the cover and earn the premiums monthly.');
   });
 });
 
@@ -260,5 +282,23 @@ describe('the replay badge', () => {
     await pageView();
 
     expect(fetchReplay).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('the events around the card (T54)', () => {
+  it('come from the same reads the page already makes, and from no new one', async () => {
+    const { index, note } = await pageView();
+
+    expect(note.events.map((event) => event.title)).toStrictEqual([
+      'Coupon 3 paid',
+      'Coupon 2 paid',
+    ]);
+    expect(note.figures.map((figure) => figure.value)).toStrictEqual(['3', '1,994.52', '100,000']);
+    expect(index.history).toStrictEqual({ value: '16', label: 'years of index history' });
+    // The recorded reading was computed and not published, so no chip claims
+    // it was.
+    expect(index.published).toBeNull();
+    expect(fetchIndex).toHaveBeenCalledTimes(1);
+    expect(fetchCoupons).toHaveBeenCalledTimes(1);
   });
 });

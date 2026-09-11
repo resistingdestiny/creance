@@ -8,6 +8,7 @@ import { LandingScreen } from '../src/components/landing/landing-screen.js';
 import type {
   LandingExplorerView,
   LandingIndexView,
+  LandingNoteView,
   LandingPriceView,
 } from '../src/lib/landing-data.js';
 
@@ -76,7 +77,7 @@ describe('the shell', () => {
     const index = deferred<LandingIndexView>();
     const price = deferred<LandingPriceView>();
     const explorer = deferred<LandingExplorerView>();
-    const investorLine = deferred<string>();
+    const note = deferred<LandingNoteView>();
 
     const stream = await renderToReadableStream(
       <LandingScreen
@@ -86,7 +87,7 @@ describe('the shell', () => {
           index: index.promise,
           price: price.promise,
           explorer: explorer.promise,
-          investorLine: investorLine.promise,
+          note: note.promise,
         }}
       />,
     );
@@ -116,7 +117,7 @@ describe('the shell', () => {
     index.resolve(LIVE.index);
     price.resolve(LIVE.price);
     explorer.resolve(LIVE.explorer);
-    investorLine.resolve(LIVE.investorLine);
+    note.resolve(LIVE.note);
 
     const rest = await drain(reader);
     const whole = shell + rest;
@@ -125,7 +126,7 @@ describe('the shell', () => {
     expect(whole).toContain('Index live, updated monthly from public data');
     expect(whole).toContain('landing-ticker__item');
     expect(whole).toContain(LIVE.index.payLine);
-    expect(whole).toContain(LIVE.investorLine);
+    expect(whole).toContain(LIVE.note.investorLine);
   });
 
   it('rests nowhere at all when the figures are already in hand', async () => {

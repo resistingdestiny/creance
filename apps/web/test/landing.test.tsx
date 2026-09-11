@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
@@ -9,19 +11,30 @@ import {
   rankByDistance,
 } from '../src/lib/explorer-model.js';
 import { AMOUNT_MIN } from '../src/lib/cover-amount.js';
+import { formatPeriod } from '../src/lib/format.js';
 import {
+  COUPON_EVENTS,
+  INDEX_HISTORY_FROM,
   LANDING_GROUP,
+  couponEvents,
   fromPriceBuys,
   fromPriceLine,
+  historyFigure,
+  historyYears,
+  indexBadge,
   investorLine,
   landingIndexSection,
+  noteFigures,
   payAnswer,
+  publishedEvent,
+  readingEvents,
   staleNote,
   tickerReadings,
 } from '../src/lib/landing-model.js';
-import { findOccupation, hasCover, occupationLabel } from '../src/lib/occupations.js';
+import { OCCUPATIONS, findOccupation, hasCover, occupationLabel } from '../src/lib/occupations.js';
 
 import { EXPLORER_READINGS } from './explorer-fixtures.js';
+import { COUPONS, SERIES } from './investor-fixtures.js';
 import { COLD, LIVE, REPLAYING, STALE } from './landing-fixtures.js';
 import { INDEX } from './worker-fixtures.js';
 
@@ -552,3 +565,119 @@ describe('the way in to the example (T50)', () => {
     expect(without).toBe(visibleText(live));
   });
 });
+
+describe('the events around the card are built from records, never typed (T54)', () => {
+  const occupations = EXPLORER_READINGS.map(explorerOccupation);
+
+  it('names the occupation nearest its line and the one the page speaks for', () => {
+    const events = readingEvents(occupations, LANDING_GROUP);
+    const ranked = rankByDistance(occupations);
+    expect(events).toHaveLength(2);
+    expect(events[0]?.title).toBe(ranked[0]?.occupation.label);
+    expect(events[1]?.title).toBe(occupationLabel(LANDING_GROUP));
+    // The explorer's own gap phrase, then the month, and nothing else.
+    for (const event of events) {
+      const entry = ranked.find((row) => row.occupation.label === event.title);
+      expect(event.detail).toBe(`${entry?.gap}, ${headlineMonth(entry?.month?.period)}`);
+      expect(event.href).toBe('#the-index');
+      expect(event.group).toBe(entry?.occupation.key);
+    }
+  });
+
+  it('says the next nearest rather than the same occupation twice', () => {
+    const ranked = rankByDistance(occupations);
+    const nearest = ranked[0]?.occupation.key ?? '';
+    const events = readingEvents(occupations, nearest);
+    expect(events.map((event) => event.title)).toStrictEqual([
+      ranked[0]?.occupation.label,
+      ranked[1]?.occupation.label,
+    ]);
+  });
+
+  it('skips an occupation with no reading, because that is the absence of an event', () => {
+    const unread = occupations.map((occupation) =>
+      occupation.key === LANDING_GROUP ? { ...occupation, months: [] } : occupation,
+    );
+    const events = readingEvents(unread, LANDING_GROUP);
+    expect(events).toHaveLength(2);
+    expect(events.map((event) => event.title)).not.toContain(occupationLabel(LANDING_GROUP));
+    expect(events.map((event) => event.detail).join(' ')).not.toContain('no reading');
+  });
+
+  it('gives the published month a chip only when the chain says it was published', () => {
+    expect(publishedEvent(null)).toBeNull();
+    expect(publishedEvent(INDEX)).toBeNull();
+    expect(INDEX.publication.topic_id).toBeNull();
+    const published = publishedEvent({
+      ...INDEX,
+      publication: { topic_id: '0.0.10366470', sequence_number: 33, submit_transaction: null },
+    });
+    expect(published?.title).toBe('Index published, July 2026');
+    expect(published?.detail).toBe('Topic 0.0.10366470, message 33');
+    expect(published?.href).toBe('https://hashscan.io/testnet/topic/0.0.10366470');
+  });
+
+  it('lists the coupons that were paid, newest first, each linking its settlement', () => {
+    const events = couponEvents(COUPONS);
+    expect(events).toHaveLength(COUPON_EVENTS);
+    expect(events[0]?.title).toBe('Coupon 3 paid');
+    expect(events[0]?.detail).toBe('657.53 on 10 September 2026');
+    expect(events[0]?.href).toBe(
+      'https://hashscan.io/testnet/transaction/0.0.10366450-1789080523-877923930',
+    );
+    expect(events[1]?.title).toBe('Coupon 2 paid');
+    expect(events[1]?.detail).toBe('679.45 on 10 September 2026');
+  });
+
+  it('gives a coupon that nobody was paid no chip at all', () => {
+    const unpaid = {
+      ...COUPONS,
+      coupons: COUPONS.coupons.map((coupon) => ({
+        ...coupon,
+        holders: coupon.holders.map((holder) => ({
+          ...holder,
+          settlement: { ...holder.settlement, settled: false },
+        })),
+      })),
+    };
+    expect(couponEvents(unpaid)).toStrictEqual([]);
+  });
+
+  it('counts the years of history from the month docs/INDEX.md starts the backtest', () => {
+    const doc = readFileSync(new URL('../../../docs/INDEX.md', import.meta.url), 'utf8');
+    expect(doc).toContain(`The backtest window on this page runs from ${INDEX_HISTORY_FROM}.`);
+    expect(historyYears('2026-07')).toBe(16);
+    expect(historyYears('2026-01')).toBe(16);
+    expect(historyYears('2025-12')).toBe(15);
+    expect(historyYears(null)).toBeNull();
+    expect(historyYears('2009-06')).toBeNull();
+    expect(historyFigure(INDEX.as_of)).toStrictEqual({ value: '16', label: 'years of index history' });
+  });
+
+  it('takes the band figures from the series and the coupons the API served', () => {
+    expect(noteFigures(SERIES, COUPONS)).toStrictEqual([
+      { value: '3', label: 'coupons settled on Hedera' },
+      { value: '1,994.52', label: 'paid to noteholders' },
+      { value: '100,000', label: 'funding the cover' },
+    ]);
+  });
+
+  it('prints no nought for a note that has settled nothing', () => {
+    const fresh = { ...SERIES, coupons: { ...SERIES.coupons, settled: 0 } };
+    const figures = noteFigures(fresh, { ...COUPONS, coupons: [] });
+    expect(figures).toStrictEqual([{ value: '100,000', label: 'funding the cover' }]);
+  });
+
+  it('gives the badge its number only while the feed is live', () => {
+    expect(OCCUPATIONS).toHaveLength(15);
+    expect(indexBadge(true)).toBe(
+      'Index live for 15 occupations, updated monthly from public data',
+    );
+    expect(indexBadge(false)).toBe('Showing the last reading we published');
+    expect(indexBadge(false)).not.toMatch(/\d/);
+  });
+});
+
+function headlineMonth(period: string | undefined): string {
+  return period === undefined ? '' : formatPeriod(period);
+}

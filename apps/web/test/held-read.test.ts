@@ -195,3 +195,80 @@ describe('one hold per key', () => {
     expect(calls).toEqual(['computer_math', 'legal']);
   });
 });
+
+describe('a key whose read failed', () => {
+  function failingUntilServed() {
+    const served = new Set<string>();
+    const calls: string[] = [];
+    const holds = heldReadPerKey((key) =>
+      heldRead({
+        what: `the test figure for ${key}`,
+        ttlMs: TTL,
+        staleMs: STALE,
+        read: () => {
+          calls.push(key);
+          return served.has(key)
+            ? Promise.resolve(`${key} figure`)
+            : Promise.reject(new Error(`${key} is not served`));
+        },
+      }),
+    );
+    return { holds, calls, serve: (key: string) => served.add(key) };
+  }
+
+  it('is dropped, so a hundred unknown keys leave nothing behind', async () => {
+    const { holds } = failingUntilServed();
+
+    for (let n = 0; n < 100; n += 1) {
+      await expect(holds.read(`unknown-${n}`, 0)).rejects.toThrow('is not served');
+    }
+
+    expect(holds.size()).toBe(0);
+  });
+
+  it('is bought once more when it is read again, exactly as a cold key is', async () => {
+    const { holds, calls, serve } = failingUntilServed();
+
+    await expect(holds.read('legal', 0)).rejects.toThrow();
+    serve('legal');
+    expect(await holds.read('legal', 1)).toBe('legal figure');
+    expect(await holds.read('legal', 2)).toBe('legal figure');
+
+    expect(calls).toEqual(['legal', 'legal']);
+    expect(holds.size()).toBe(1);
+  });
+
+  it('is dropped by every reader that shared the failure, and only once', async () => {
+    const { holds, calls } = failingUntilServed();
+
+    const readers = Array.from({ length: 10 }, () => holds.read('legal', 0));
+    await Promise.all(readers.map((reader) => expect(reader).rejects.toThrow()));
+
+    expect(calls).toEqual(['legal']);
+    expect(holds.size()).toBe(0);
+  });
+
+  it('keeps a key that was forgotten and remade while its failure was in flight', async () => {
+    let fail: (cause: Error) => void = () => {};
+    const holds = heldReadPerKey((key) =>
+      heldRead({
+        what: `the test figure for ${key}`,
+        ttlMs: TTL,
+        staleMs: STALE,
+        read: () =>
+          new Promise<string>((_resolve, reject) => {
+            fail = reject;
+          }),
+      }),
+    );
+
+    const first = holds.read('legal', 0);
+    const firstFail = fail;
+    holds.forget();
+    void holds.read('legal', 1);
+    firstFail(new Error('no answer'));
+    await expect(first).rejects.toThrow('no answer');
+
+    expect(holds.size()).toBe(1);
+  });
+});

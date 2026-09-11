@@ -6301,3 +6301,164 @@ header, where it is invisible against the ground. That was true of the
 landing's own navigation before this ticket, built-css.test.ts holds the
 outline to that one rule, and changing it is a token decision and not a
 continuity one, so it is noted here and not changed.
+
+## T51, the investor page holds its reads, 11 September 2026
+
+Every other page was fast and this one was not. Against the live site, `/`
+answered in 239 ms, `/home` in 188 ms and `/invest` in 593 to 2,011 ms. The
+cause is the one T40 found on the landing page: the route was `force-dynamic`
+and made two chain backed reads on every view, `GET /v1/series/:id` and
+`GET /v1/series/:id/coupons`, and awaited both before the first byte. The
+API's own log put the first at 359 to 1,675 ms and the second at 497 to
+1,834 ms, against under 2 ms for the series list.
+
+This ticket puts those two reads behind the hold T40 built and draws the page
+before either answers. Nothing about the figures changed: the same two calls
+are made, they still answer from Hedera testnet, and every number on the screen
+is still the API's. What changed is how many of them a hundred visitors cause,
+and how long any one of them is made to wait.
+
+### The reads go through the relay, and the relay serves off the mirror node
+
+The ticket describes the reads as mirror node reads. They are, one step
+removed: `apps/api/src/investor/chain.ts` reads the vault, the note and the
+CoverPool through the Hedera JSON-RPC relay with ethers, one `eth_call` per
+view and one `getCoupon` per coupon id, and the relay answers those off the
+mirror node. The cost is the same and so is the fix; the cause is recorded as
+it is so that nobody goes looking for a mirror node client in the API.
+
+### The hold is in the data module, not in the client
+
+`src/lib/investor-data.ts` is new and is the investor page's
+`src/lib/landing-data.ts`: it owns the two holds, exports a `Streamed<T>` per
+figure, a `forget` for tests and a `readInvestor(id)` that starts both calls
+and awaits neither. The hold is `heldReadPerKey` keyed on the series id,
+because there are sixteen series and a hold that served one series' principal
+under another's name would be the worst thing this page could do.
+
+The hold is deliberately not inside `fetchSeries` and `fetchCoupons` in
+`src/lib/investor-api.ts`. That client is also what the landing page reads the
+coupon rate through, inside a hold of its own, and what the subscribe route
+reads both figures through. A hold hidden in the client would put the
+landing's hold behind a second one and would give every caller a window it
+could not see. T40 placed the hold in the data module for the same reason and
+this follows it.
+
+The `read()` comment in `investor-api.ts` said "No cache. The principal, the
+reserve and the coupons are live chain state, and a page that shows
+yesterday's reserve is worse than a page that says it cannot reach the API."
+It is the sentence T40 struck from `landing-data.ts`: true of yesterday and
+false of ten minutes ago. It now says where the hold is and why the
+framework's fetch cache is still off, because a comment that has stopped being
+true is worse than none.
+
+### The windows: ten minutes, then ten, for both
+
+The nearest figure T40 already chose a window for is the coupon rate on the
+landing page, read from the same series endpoint: ten minutes served, then ten
+minutes served while the next read is bought behind the visitor, because "it
+is a rate written into the series at issuance, and the read is free; the
+window is about the second a visitor spends waiting". The same argument holds
+for everything on this page. A note's principal, reserve and coupon history
+change when a coupon is paid or a claim settles, which on this deployment is
+days apart, and the two reads are free, so the window is about the seconds a
+visitor spends waiting and not about money.
+
+The stale window is the "warm rather than making a visitor pay for the miss"
+the ticket asks for. The visitor who arrives first after the TTL is served the
+value the visitor before them was served, and the refresh runs behind them.
+There is no warm on boot and there was none in T40: the first view after a
+restart is the one cold view, and it gets the resting states rather than a
+blank screen. Past both windows the next read waits for a real answer, by
+design, because a figure this app can no longer stand behind is not a figure
+it should print.
+
+### The page is drawn before its figures, and each one rests at its measured height
+
+The series list is the one read still awaited before the shell. It answers in
+under two milliseconds, it decides which series the page is about, and it
+names the series: the chooser and the name under the heading both come from
+the group the API lists the series under, so neither waits on a chain read.
+The heading, the chooser, the section headings, the explainer, the subscribe
+action and the wallet line are on the first byte.
+
+Six things wait, each behind a Suspense boundary of its own: the KYC pill,
+the position (earned to date and the next payment), the coupon history, the
+series terms, the principal bar with its two lines, and the HashScan links.
+The position is the one boundary that needs both reads, because earned to date
+is the coupon history's and the next payment is the series'. Each boundary
+rests at the height its figure takes on the demo series, measured in a browser
+at 390 and 1440, using the sheet's own Skeleton: no animation and no copy. The
+KYC pill rests as the same pill with a bar where its words go and no dot,
+because neither colour may be shown before the register is read. The HashScan
+heading is in the resting state as well as in the filled one, so it is on the
+first byte and the section closes cleanly when there are no links.
+
+The resting heights are the demo series' because that is the page the route
+opens on and the one that was measured. A series with no coupons yet, or with
+a different number of rows, lands at a different height and the page moves
+once as it does. Measuring every series would mean a resting height per
+series, which the list does not carry, and a wrong exact height is not better
+than a right one for the default.
+
+The screen is still pure, and still synchronous when handed values.
+`Streamed<T>` is `T | Promise<T>`, exactly as on the landing: the tests hand
+values and render with `renderToStaticMarkup`, the route hands promises, and
+`use` resolves either.
+
+### A read that fails costs the page its figure and never the page
+
+Until now a failing series or coupons read cost the whole page: the route
+caught either and rendered `InvestorUnavailable`. That is still what a failing
+series list does, because without the list there is no series to be about. The
+two chain reads now fail on their own, each reported through
+`reportUnreachable` and each handed to the screen as null.
+
+A series that cannot be read takes the terms, the principal bar and the
+HashScan links with it, and the terms' place carries the two sentences
+`InvestorUnavailable` already says with a Retry link back to the same
+address. The KYC pill says nothing rather than "Verification needed", which
+would be a claim about an account the note was never asked about. The next
+payment renders as no row and never as "no further payments", which is the
+T47 rule. A coupon history that cannot be read takes the table and earned to
+date with it and leaves the same two sentences in the table's place; it is
+not "No coupons yet.", which is a fact about the note and not about the read.
+Earned to date stays null where nothing is known, exactly as it does where
+nothing settled. Nothing is ever put where a figure would have been except the
+sentence saying it could not be read.
+
+The subscribe route still makes both reads itself and still needs both, so it
+is left as it was; it is not measured by this ticket and moving it onto the
+hold is more than a two line change.
+
+### An id the list does not carry holds nothing, at both ends
+
+The review found that the hold was keyed on the raw `?series=` value and
+`heldReadPerKey` never evicted, so every distinct unknown id a visitor or a
+crawler sent left a permanent entry in both maps, about 1.7 KB each, on a
+public route that held nothing before this ticket. Two fixes were offered and
+both are taken, because they answer different questions.
+
+The route no longer asks for an id the series list does not carry. The list
+is already in hand, the API would answer 404 twice, and a read per unknown
+string is a hold per unknown string. The screen is handed null for both
+figures and renders its two cannot-load blocks with the Retry link, which is
+what it rendered when the reads were made and failed, so nothing a visitor
+sees changed. The earlier comment in `page.tsx`, that an unserved series "is
+asked for anyway, so the endpoint answers the 404", is replaced with this.
+
+And `heldReadPerKey` now drops a key whose read rejected. `read` rejects only
+when the hold has no value it can stand behind, cold or past both windows, so
+nothing servable is lost by forgetting it, and the map only ever grows by keys
+that were read successfully. The next read of a dropped key makes a new hold
+and buys again, exactly as a cold one does. This is in the hold rather than in
+the investor module so that no future caller of `heldReadPerKey` can grow a
+map by failing, whatever it keys on; the landing page's holds get it too, and
+for them it changes nothing, because the group is a constant. A hold that was
+forgotten and remade while a failure was in flight is kept, which is what the
+identity check in the catch is for.
+
+Measured in the tests rather than asserted in prose: a hundred views with a
+hundred distinct unknown ids leave the two holds at one entry each, the one
+series the API serves, with nothing forgotten to get there, and an id the API
+starts serving later is bought exactly once.

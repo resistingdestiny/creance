@@ -285,3 +285,65 @@ export function nextCouponPeriod(input: CouponPeriodInput): CouponPeriodPlan {
     : endDate + EXECUTION_AFTER_RECORD_SECONDS;
   return { recordDate, executionDate, startDate, endDate, fixingDate: recordDate, broughtForward };
 }
+
+/// What deciding whether a coupon is due needs: the note's own execution date,
+/// the clock, and the note's answer about its record date.
+export interface CouponDueInput {
+  couponId: string | bigint;
+  /// When the note says the coupon becomes payable.
+  executionTimestamp: number;
+  now: number;
+  /// What `getCouponFor` answered. Before the record date the note returns a
+  /// zero fraction, so the entitlement cannot be read and a settlement cannot
+  /// be built. See docs/harness-notes.md.
+  recordDateReached: boolean;
+}
+
+/// `due` means the settlement can go ahead. Otherwise `reason` is one plain
+/// clause an operator reads in a log line, with the date spelled out because a
+/// unix timestamp on its own says nothing about how far away it is.
+export type CouponDueVerdict = { due: true } | { due: false; reason: string };
+
+/** The day a unix timestamp falls on, in UTC, the way a log line names it. */
+export function dayOf(seconds: number): string {
+  return new Date(seconds * 1000).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/**
+ * Whether a declared coupon can be settled now.
+ *
+ * Decided once, before any step reads an entitlement, because the note answers
+ * a coupon whose record date has not passed with a zero fraction and
+ * `settlementAmount` rightly refuses a zero denominator. The caller is what
+ * should not be asking, so the caller decides here first. A coupon is due when
+ * its execution date has passed and the note confirms the record date was
+ * reached; either on its own is not enough, since the record date is what
+ * fixes the holders and the execution date is what fixes the payment.
+ */
+export function couponDue(input: CouponDueInput): CouponDueVerdict {
+  const { executionTimestamp, now, recordDateReached } = input;
+  if (!Number.isInteger(executionTimestamp) || executionTimestamp <= 0) {
+    throw new Error(`a coupon execution date is a unix timestamp, got ${executionTimestamp}`);
+  }
+  if (!Number.isInteger(now) || now <= 0) {
+    throw new Error(`now must be a unix timestamp, got ${now}`);
+  }
+  if (now < executionTimestamp) {
+    return {
+      due: false,
+      reason: `payable at ${executionTimestamp}, ${dayOf(executionTimestamp)}`,
+    };
+  }
+  if (!recordDateReached) {
+    return {
+      due: false,
+      reason: `the note has not reached its record date, although it is payable at ${executionTimestamp}, ${dayOf(executionTimestamp)}`,
+    };
+  }
+  return { due: true };
+}

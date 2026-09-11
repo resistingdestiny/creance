@@ -1,9 +1,9 @@
 'use client';
 
-import { useId, useMemo, useState, type ReactNode } from 'react';
+import { useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import { ExplorerChart } from '../../components/explorer-chart';
-import { ChevronRight } from '../../components/icons';
+import { Check, ChevronRight } from '../../components/icons';
 import { PlainChart } from '../../components/plain-chart';
 import { StatusPill } from '../../components/status-pill';
 import { TextLink } from '../../components/text-link';
@@ -170,12 +170,12 @@ export function ExplorerPanel({
   return (
     <div className="flex flex-col gap-10">
       <Picker
+        current={occupation}
         matches={matches}
         occupations={occupations}
         onPick={pick}
         onQuery={setQuery}
         query={query}
-        selected={occupation.key}
       />
 
       <div className="grid gap-10 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:gap-14">
@@ -278,73 +278,209 @@ export function ExplorerPanel({
 }
 
 /**
- * The search box and the fifteen chips, in the addendum's picker order.
+ * The occupation chooser: one row that says which occupation is on screen, and
+ * a panel under it with the search box and the fifteen occupations in the
+ * addendum's picker order.
  *
- * Every chip is a button, so the keyboard and the focus outline are the base
- * layer's, and each carries the state dot for the newest published month.
+ * It was the search box over a wall of fifteen pills wrapping four rows deep,
+ * which was the first thing on both pages and pushed the verdict below the
+ * fold (T52). A person picking one of fifteen things needs a control and a
+ * clear statement of what is picked, not every option at once, so the row is
+ * the statement and the panel is the control. The panel is in the markup at
+ * all times and hidden with the attribute, so both pages still carry every
+ * occupation and every one is still a button; opening the row shows them.
+ *
+ * Keyboard, in full. The row is a button with `aria-expanded`; Enter or Space
+ * opens the panel and puts the caret in the search box; typing filters; the
+ * arrow keys walk the options, Home and End jump to the ends, Enter in the
+ * box picks the first match, Escape closes and returns focus to the row; Tab
+ * walks the same options in order and leaving the whole control closes it.
+ * Pointer: press the row, press an option. Options keep the caret in the
+ * search box while they are pressed, because a browser that does not focus a
+ * button on press would otherwise close the panel under the pointer before
+ * the press lands.
+ *
+ * Every option is a button with `aria-pressed`, so the keyboard and the focus
+ * outline are the base layer's, and each carries the state dot for the newest
+ * published month. The panel floats under the row rather than pushing the page
+ * down, and it is a hairline border on canvas: no shadow, as the sheet says.
  *
  * The word for a focus outline is spelt out rather than abbreviated on purpose:
  * Tailwind scans this file for candidates and would compile the bare utility
  * out of a comment, which built-css.test.ts refuses because it sets a shadow.
  */
 function Picker({
+  current,
   matches,
   occupations,
   onPick,
   onQuery,
   query,
-  selected,
 }: {
   matches: readonly ExplorerOccupation[];
   occupations: readonly ExplorerOccupation[];
   onPick: (index: number) => void;
   onQuery: (query: string) => void;
   query: string;
-  selected: string;
+  /** The occupation on screen, which the row names. */
+  current: ExplorerOccupation;
 }) {
-  return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-hairline bg-surface p-4">
-      <label className="flex flex-col gap-2">
-        <span className="sr-only">Search occupations</span>
-        <input
-          autoComplete="off"
-          className="h-13 w-full rounded-xl border border-hairline bg-canvas px-4 text-body text-ink placeholder:text-ink-3"
-          onChange={(event) => onQuery(event.target.value)}
-          placeholder="Search occupations"
-          type="search"
-          value={query}
-        />
-      </label>
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const root = useRef<HTMLDivElement>(null);
+  const row = useRef<HTMLButtonElement>(null);
+  const search = useRef<HTMLInputElement>(null);
+  const list = useRef<HTMLUListElement>(null);
 
-      {matches.length === 0 ? (
-        <p className="text-body text-ink-2">No occupation matches that.</p>
-      ) : (
-        <ul className="flex flex-wrap gap-2">
-          {matches.map((occupation) => {
-            const state = stateOf(latestMonth(occupation));
-            return (
-              <li key={occupation.key}>
-                <button
-                  aria-pressed={occupation.key === selected}
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-secondary transition-colors duration-200 ease-out motion-reduce:transition-none ${
-                    occupation.key === selected
-                      ? 'border-ink bg-ink text-white'
-                      : 'border-hairline bg-canvas text-ink hover:bg-surface'
-                  }`}
-                  onClick={() =>
-                    onPick(occupations.findIndex((entry) => entry.key === occupation.key))
-                  }
-                  type="button"
-                >
-                  <span aria-hidden="true" className={`size-1.5 rounded-full ${DOT[state]}`} />
-                  {occupation.label}
-                  <span className="sr-only">, {stateWord(state).toLowerCase()}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+  const currentState = stateOf(latestMonth(current));
+  const selected = current.key;
+
+  function show() {
+    setOpen(true);
+    // The panel is hidden until the state lands, so the caret is placed once
+    // it has: a frame later is the earliest the box can take it.
+    requestAnimationFrame(() => search.current?.focus());
+  }
+
+  function hide(returnFocus: boolean) {
+    setOpen(false);
+    onQuery('');
+    if (returnFocus) row.current?.focus();
+  }
+
+  function choose(occupation: ExplorerOccupation) {
+    onPick(occupations.findIndex((entry) => entry.key === occupation.key));
+    hide(true);
+  }
+
+  /** The option buttons the panel is showing, in order. */
+  function options(): HTMLButtonElement[] {
+    return [...(list.current?.querySelectorAll('button') ?? [])];
+  }
+
+  function moveFocus(from: HTMLElement, step: 1 | -1 | 'first' | 'last') {
+    const all = options();
+    if (all.length === 0) return;
+    const at = all.indexOf(from as HTMLButtonElement);
+    const next =
+      step === 'first'
+        ? all[0]
+        : step === 'last'
+          ? all[all.length - 1]
+          : all[(at + step + all.length) % all.length];
+    next?.focus();
+  }
+
+  function onSearchKey(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      moveFocus(event.currentTarget, 'first');
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveFocus(event.currentTarget, 'last');
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const first = matches[0];
+      if (first !== undefined) choose(first);
+    }
+  }
+
+  function onOptionKey(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      moveFocus(event.currentTarget, 1);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveFocus(event.currentTarget, -1);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      moveFocus(event.currentTarget, 'first');
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      moveFocus(event.currentTarget, 'last');
+    }
+  }
+
+  return (
+    <div
+      className="relative"
+      onBlur={(event) => {
+        // Focus left the whole control, for anywhere but inside it.
+        if (open && !root.current?.contains(event.relatedTarget as Node | null)) hide(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && open) {
+          event.preventDefault();
+          hide(true);
+        }
+      }}
+      ref={root}
+    >
+      <button
+        aria-controls={panelId}
+        aria-expanded={open}
+        className="flex min-h-13 w-full items-center justify-between gap-3 rounded-xl border border-hairline bg-canvas px-4 text-left text-body text-ink transition-colors duration-200 ease-out hover:bg-surface motion-reduce:transition-none lg:w-auto lg:min-w-[400px]"
+        onClick={() => (open ? hide(true) : show())}
+        ref={row}
+        type="button"
+      >
+        <span className="flex items-center gap-2">
+          <span aria-hidden="true" className={`size-1.5 rounded-full ${DOT[currentState]}`} />
+          <span className="font-medium">{current.label}</span>
+          <span className="sr-only">, {stateWord(currentState).toLowerCase()}</span>
+        </span>
+        <ChevronRight className={`shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none ${open ? '-rotate-90' : 'rotate-90'}`} />
+      </button>
+
+      <div
+        className="absolute left-0 right-0 top-full z-20 mt-2 flex max-h-[420px] flex-col gap-2 overflow-y-auto rounded-2xl border border-hairline bg-canvas p-2 lg:right-auto lg:w-[400px]"
+        hidden={!open}
+        id={panelId}
+      >
+        <label className="flex flex-col gap-2">
+          <span className="sr-only">Search occupations</span>
+          <input
+            autoComplete="off"
+            className="h-13 w-full rounded-xl border border-hairline bg-surface px-4 text-body text-ink placeholder:text-ink-3"
+            onChange={(event) => onQuery(event.target.value)}
+            onKeyDown={onSearchKey}
+            placeholder="Search occupations"
+            ref={search}
+            type="search"
+            value={query}
+          />
+        </label>
+
+        {matches.length === 0 ? (
+          <p className="px-3 py-2 text-body text-ink-2">No occupation matches that.</p>
+        ) : (
+          <ul className="flex flex-col" ref={list}>
+            {matches.map((occupation) => {
+              const state = stateOf(latestMonth(occupation));
+              const chosen = occupation.key === selected;
+              return (
+                <li key={occupation.key}>
+                  <button
+                    aria-pressed={chosen}
+                    className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-body transition-colors duration-200 ease-out motion-reduce:transition-none ${
+                      chosen ? 'bg-surface font-medium text-ink' : 'text-ink hover:bg-surface'
+                    }`}
+                    onClick={() => choose(occupation)}
+                    onKeyDown={onOptionKey}
+                    onPointerDown={(event) => event.preventDefault()}
+                    type="button"
+                  >
+                    <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${DOT[state]}`} />
+                    <span className="flex-1">{occupation.label}</span>
+                    <span className="sr-only">, {stateWord(state).toLowerCase()}</span>
+                    {chosen ? <Check className="shrink-0" /> : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

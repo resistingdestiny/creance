@@ -1,7 +1,9 @@
 import { explorerOccupation } from '../src/lib/explorer-model.js';
+import { AMOUNT_MIN } from '../src/lib/cover-amount.js';
 import { occupationLabel } from '../src/lib/occupations.js';
 import {
   LANDING_GROUP,
+  fromPriceBuys,
   fromPriceLine,
   investorLine,
   landingIndexSection,
@@ -73,7 +75,10 @@ function landing(
         index === null ? null : index.series_id,
       ),
     },
-    price: { priceLine: fromPriceLine(premium) },
+    price: {
+      priceLine: fromPriceLine(premium),
+      buysLine: premium === null ? null : fromPriceBuys(AMOUNT_MIN),
+    },
     explorer: {
       ticker: explorer === null ? [] : TICKER,
       round: explorer,

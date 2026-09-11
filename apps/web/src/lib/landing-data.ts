@@ -49,6 +49,7 @@ import { couponLine } from './investor-model';
 import {
   LANDING_GROUP,
   attachmentFor,
+  fromPriceBuys,
   fromPriceLine,
   investorLine,
   landingIndexSection,
@@ -126,6 +127,8 @@ export interface LandingIndexView {
 export interface LandingPriceView {
   /** "From 28.00 a month", or null when no price could be quoted. */
   readonly priceLine: string | null;
+  /** "for 1,000 of cover": the cover the price was quoted for, or null with it. */
+  readonly buysLine: string | null;
 }
 
 export interface LandingExplorerView {
@@ -297,7 +300,12 @@ async function readPrice(group: string): Promise<LandingPriceView> {
     reportUnreachable('the landing from price', cause);
     premium = null;
   }
-  return { priceLine: fromPriceLine(premium) };
+  return {
+    priceLine: fromPriceLine(premium),
+    // The same limit the quote above was asked for, so the two lines are
+    // about one price.
+    buysLine: premium === null ? null : fromPriceBuys(AMOUNT_MIN),
+  };
 }
 
 async function readCoupon(): Promise<string | null> {

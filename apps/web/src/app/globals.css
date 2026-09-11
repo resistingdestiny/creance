@@ -169,6 +169,15 @@
     outline-offset: 2px;
   }
 
+  /* T52: the same outline in white where the ground is night. The header is
+     the night ground on every route now, so a black outline there would leave
+     a keyboard user with no focus state on the first four things every page
+     offers. The width and the offset are the rule above; only the colour is
+     read off the ground, from the attribute the chrome carries. */
+  [data-tone="night"] :focus-visible {
+    outline-color: #fff;
+  }
+
   /* T38: the pointer, the pressed state and the tap, as base rules rather
      than a patch across 38 onClick handlers.
 
@@ -322,7 +331,9 @@
     opacity: 0.8;
   }
 
-  /* The card's own thickness, behind its face, seen only as it turns. */
+  /* The card's own thickness, behind its face, seen only as it turns. Deeper
+     than the face by more than it was (T52), so the turn shows an edge and
+     not a second, paler face. */
   .cover-card__edge {
     position: absolute;
     inset: 0;
@@ -330,7 +341,7 @@
     border-radius: inherit;
     pointer-events: none;
     transform: translateZ(-14px);
-    background: linear-gradient(118deg, #c3c8d0, #9fa6b0);
+    background: linear-gradient(118deg, #aeb5bf, #7d858f);
   }
 
   /* The depth planes the contents sit on, so they move against each other as
@@ -507,11 +518,14 @@
      the gradient, the sheen and the brushing under it are untouched and only
      the edge colour and one new light layer are added.
 
-     The edge is the cooler grey a milled metal edge catches. It is a border
-     colour on the modifier, so the base rule's one pixel hairline is what
-     carries it and no second element is introduced. */
+     The edge is the cooler, deeper grey a milled metal edge catches. It is a
+     border colour on the modifier, so the base rule's one pixel hairline is
+     what carries it and no second element is introduced. T52 took it from
+     #cfd4dc to #b3bac4: against the night ground the lighter edge vanished
+     into the face and the card read as a pastel sheet, and a real edge is the
+     first thing that says an object has thickness. */
   .cover-card--metal {
-    border-color: #cfd4dc;
+    border-color: #b3bac4;
   }
 
   /* The shimmer. z-index 2 puts it over the pointer glare at 1 and under
@@ -531,23 +545,36 @@
     overflow: hidden;
   }
 
-  /* Every stop is a pale hue at 16 percent, so the darkest composite over the
-     darkest gradient stop of any treatment leaves black text far above the
-     4.5:1 floor. built-css.test.ts computes that from this rule rather than
-     taking it on trust. */
+  /* The reflection. T34 drew it as five pale hues at 16 percent across a third
+     of a band two and a bit cards wide, which put colour over some seventy
+     percent of the face at once, evenly, and Root read the result as
+     iridescent plastic. Real metal has a narrow specular highlight with the
+     colour sitting in it, and a face that is neutral wherever the reflection
+     is not falling. So the band is a fifth of the width it was (T52): a white
+     core at 55 percent, the five hues fringing it at 20 percent, and nothing
+     either side, so the base gradient's silver is what most of the card shows
+     and the rainbow is a reflection crossing it rather than a fill.
+
+     Every hue is still a pale colour at a low alpha and the core is white, so
+     the darkest composite over the darkest gradient stop of any treatment
+     leaves black text far above the 4.5:1 floor. built-css.test.ts computes
+     that from this rule rather than taking it on trust. With the animation off
+     the band stands at the centre of the card, which is where a still frame
+     and a reduced motion reader see it. */
   .cover-card__shimmer::before {
     content: "";
     position: absolute;
     inset: -25% -60%;
     background: linear-gradient(
       118deg,
-      transparent 34%,
-      rgba(255, 122, 182, 0.16) 40%,
-      rgba(255, 209, 122, 0.16) 45%,
-      rgba(138, 230, 172, 0.16) 50%,
-      rgba(122, 186, 255, 0.16) 55%,
-      rgba(186, 148, 255, 0.16) 60%,
-      transparent 66%
+      transparent 43%,
+      rgba(255, 122, 182, 0.2) 46%,
+      rgba(255, 209, 122, 0.2) 48%,
+      rgba(255, 255, 255, 0.55) 50%,
+      rgba(138, 230, 172, 0.2) 52%,
+      rgba(122, 186, 255, 0.2) 54%,
+      rgba(186, 148, 255, 0.2) 56%,
+      transparent 59%
     );
     animation: cover-card-shimmer 9s linear infinite;
   }

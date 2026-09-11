@@ -47,7 +47,10 @@ import { SeriesChooser } from './series-chooser';
  * The coupon history comes first, because what has been paid is what an
  * investor came to see, and it opens with the position rather than with the
  * transactions: what this account has earned to date, and when the next
- * payment falls due. The series terms and the principal at risk follow.
+ * payment falls due. The series terms stand beside the position from the
+ * landing breakpoint (T52), the table takes the full width under them, and
+ * the principal at risk closes the page. The heading leads with what the
+ * series covers and carries the identifier under it.
  *
  * T49 drew the position on the metal. The note is a certificate, so the
  * "Earned to date" figure and the "Next payment" row sit on a certificate card
@@ -126,12 +129,16 @@ export function InvestorOverview({
 
   return (
     <DesktopFrame current="invest">
+      {/* The occupation leads and the identifier is reference information
+          under it (T52). A person came for "Computer and mathematical";
+          `ODI-COMP-2026-01` is what they quote afterwards. A series this
+          bundle cannot name keeps the identifier as its heading. */}
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-hairline pb-6">
         <div className="flex flex-col gap-1">
-          <h1 className="text-title font-display font-semibold tracking-title tabular-nums text-ink">
-            {seriesId}
+          <h1 className="text-title font-display font-semibold tracking-title text-ink lg:text-landing-head lg:tracking-display">
+            {name ?? seriesId}
           </h1>
-          {name === null ? null : <p className="text-body text-ink-2">{name}</p>}
+          {name === null ? null : <p className="text-body tabular-nums text-ink-2">{seriesId}</p>}
         </div>
         <Suspense fallback={<KycResting />}>
           <KycPill investor={investor} series={series} />
@@ -140,38 +147,46 @@ export function InvestorOverview({
 
       <SeriesChooser base="/invest" choices={choices} current={seriesId} />
 
+      {/* The page uses its width at 1440 (T52). The certificate and the
+          series terms sit together on the first row; the coupon table takes
+          the full measure under them; the principal at risk closes the page
+          with its bar across the whole width. At 390 the same order stands in
+          one column. */}
+      <div className="mt-10 grid gap-10 lg:grid-cols-2 lg:gap-x-14">
+        <section>
+          <h2 className="mb-4 text-body-lg font-medium text-ink">Coupon history</h2>
+          <Suspense fallback={<PositionResting />}>
+            <Position coupons={coupons} investor={investor} series={series} />
+          </Suspense>
+        </section>
+
+        <section>
+          <h2 className="mb-4 text-body-lg font-medium text-ink">Series terms</h2>
+          <Suspense fallback={<TermsResting />}>
+            <Terms retryHref={retryHref} series={series} />
+          </Suspense>
+        </section>
+      </div>
+
       <section className="mt-10">
-        <h2 className="mb-4 text-body-lg font-medium text-ink">Coupon history</h2>
-
-        <Suspense fallback={<PositionResting />}>
-          <Position coupons={coupons} investor={investor} series={series} />
-        </Suspense>
-
         <Suspense fallback={<HistoryResting />}>
           <History coupons={coupons} retryHref={retryHref} seriesId={seriesId} />
         </Suspense>
       </section>
 
-      <div className="mt-12 grid gap-10 lg:grid-cols-2">
-        <section>
-          <h2 className="sr-only">Series terms</h2>
-          <Suspense fallback={<TermsResting />}>
-            <Terms retryHref={retryHref} series={series} />
-          </Suspense>
-        </section>
-
-        <section className="flex flex-col gap-4">
-          <h2 className="text-body-lg font-medium text-ink">Principal at risk</h2>
-          <Suspense fallback={<PrincipalResting />}>
-            <Principal series={series} />
-          </Suspense>
-          <p className="text-secondary text-ink-2">{EXPLAINER}</p>
-          <div className="mt-2 flex flex-col gap-3">
-            <PillLink href={subscribeHref}>Subscribe</PillLink>
-            <WalletLine account={investor} />
-          </div>
-        </section>
-      </div>
+      <section className="mt-12 flex flex-col gap-4">
+        <h2 className="text-body-lg font-medium text-ink">Principal at risk</h2>
+        <Suspense fallback={<PrincipalResting />}>
+          <Principal series={series} />
+        </Suspense>
+        <p className="max-w-[720px] text-secondary text-ink-2">{EXPLAINER}</p>
+        <div className="mt-2 flex flex-col gap-3">
+          <PillLink className="self-start" href={subscribeHref}>
+            Subscribe
+          </PillLink>
+          <WalletLine account={investor} />
+        </div>
+      </section>
 
       <Suspense fallback={<HashScanResting />}>
         <HashScanLinks series={series} />

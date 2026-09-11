@@ -50,10 +50,13 @@ import { QuoteProvider } from './quote-state';
  * page, the ticker's travel and the card's drift, are the surface being alive
  * rather than a reveal, and both stop dead under the same preference.
  *
- * The dark ground is two bands, the navigation with the hero and the ticker,
- * and the closing line. It is on those sections and never on the body, so the
- * marketing surface can be dark (docs/DESIGN-TOKENS-ADDENDUM.md) without the
- * document itself changing colour under any other route.
+ * The dark ground is the header and the main, and the light sections between
+ * the hero and the closing line are one canvas sheet laid on it with rounded
+ * corners (T52), so the night shows at the sheet's corners and the boundary
+ * between the two grounds is a drawn edge rather than a seam. The ground is
+ * on this page's own elements and never on the body, so the marketing surface
+ * can be dark (docs/DESIGN-TOKENS-ADDENDUM.md) without the document itself
+ * changing colour under any other route.
  *
  * Every interactive element is a button or an anchor, so the base layer's
  * outline is the focus state on all of them. The design draws them as divs and
@@ -112,9 +115,9 @@ export function LandingScreen({
   return (
     <QuoteProvider>
       <div className="flex flex-col bg-canvas">
-        <SiteHeader action={<QuoteButton variant="night" />} tone="night" />
-        <main>
-          <section className="bg-night">
+        <SiteHeader action={<QuoteButton variant="night" />} />
+        <main className="bg-night">
+          <section>
             <HeroBand
               demo={demo}
               index={data.index}
@@ -126,8 +129,15 @@ export function LandingScreen({
               <Ticker explorer={data.explorer} />
             </Suspense>
           </section>
-          <Questions index={data.index} />
-          <IndexSection explorer={data.explorer} index={data.index} />
+          {/* The light page is a sheet laid on the night ground (T52): the
+              sheet's own radius at 390 and the hero card's at the landing
+              breakpoint, so the night shows at its corners above and below
+              and the change of ground is an edge that was drawn rather than
+              a seam where one colour stopped. */}
+          <div className="rounded-[20px] bg-canvas lg:rounded-hero">
+            <Questions index={data.index} />
+            <IndexSection explorer={data.explorer} index={data.index} />
+          </div>
           <Closing investorLine={data.investorLine} />
         </main>
       </div>
@@ -246,7 +256,7 @@ function HeroBand({
   price: Streamed<LandingPriceView>;
 }) {
   return (
-    <div className={`pb-24 pt-16 lg:pb-32 lg:pt-24 ${PAGE}`}>
+    <div className={`pb-20 pt-14 lg:pb-24 lg:pt-20 ${PAGE}`}>
       <div className="mx-auto grid w-full max-w-[1200px] items-center gap-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)] lg:gap-20">
         <Hero demo={demo} index={index} price={price} />
         {/* The card's own column, with the soft ground behind whichever of the
@@ -285,12 +295,19 @@ function Hero({
       <p className="mt-6 max-w-[500px] text-balance text-body-lg text-white/66 lg:mt-8 lg:text-landing-lead">
         A monthly payment now. A payout if your occupation is displaced.
       </p>
+      {/* The price stands between the lead and the actions, as a figure (T52).
+          It was a line of body type at the addendum's secondary opacity under
+          the buttons, which is how a footnote is drawn, and it is the most
+          persuasive fact on the page: a live binding quote, not a marketing
+          number. So it is read before the action it argues for, at the
+          headline scale, in white. */}
+      <Suspense fallback={<PriceLineResting />}>
+        <PriceLine price={price} />
+      </Suspense>
       {/* The row wraps at the landing breakpoint rather than squeezing: two
-          pills and the price do not fit the text column beside the card, so
-          with the example on the row the price line steps under the pills,
-          and without it the row is the one line it always was. Nothing in it
-          may break inside itself, which is what the nowrap is for. */}
-      <div className="mt-8 flex flex-col items-center gap-4 lg:mt-11 lg:flex-row lg:flex-wrap lg:gap-x-6 lg:gap-y-4">
+          pills do not always fit the text column beside the card. Nothing in
+          it may break inside itself, which is what the nowrap is for. */}
+      <div className="mt-8 flex flex-col items-center gap-4 lg:mt-10 lg:flex-row lg:flex-wrap lg:gap-x-6 lg:gap-y-4">
         <QuoteButton className="whitespace-nowrap" variant="night" />
         {/* The way in to the example, secondary on this ground so that "Get a
             quote" stays the one primary action. Only where there is an example
@@ -300,9 +317,6 @@ function Hero({
             {DEMO_EXAMPLE}
           </PillLink>
         ) : null}
-        <Suspense fallback={<PriceLineResting />}>
-          <PriceLine price={price} />
-        </Suspense>
       </div>
     </div>
   );
@@ -316,26 +330,45 @@ function Hero({
 const DEMO_EXAMPLE = 'See an example of cover';
 
 /**
- * "From 4.25 a month", beside the hero button.
+ * "From 4.25 a month" at the headline scale, with "for 1,000 of cover" under
+ * it, between the lead and the hero actions.
+ *
+ * Two lines and one figure. The first is the deck's own string; the second
+ * says what that price buys, because 1.51 with nothing beside it reads as too
+ * small to be real. Both are built in src/lib/landing-model.ts from the quote
+ * that was actually taken, so the page still composes no copy and names no
+ * amount nobody quoted.
  *
  * No price, no line. The one thing this page may never do is name an amount
- * nobody quoted, so a quote that could not be taken leaves the line out
+ * nobody quoted, so a quote that could not be taken leaves both lines out
  * altogether. The space it was resting in goes with it: a line that is never
  * coming is not a space this page keeps open.
  */
 function PriceLine({ price }: { price: Streamed<LandingPriceView> }) {
-  const { priceLine } = figureOf(price);
+  const { priceLine, buysLine } = figureOf(price);
   return priceLine === null ? null : (
-    <p className="whitespace-nowrap text-body text-white/66">{priceLine}</p>
+    <p className="mt-8 flex flex-col gap-1 lg:mt-10">
+      <span className="whitespace-nowrap font-display text-headline font-semibold tracking-headline text-white">
+        {priceLine}
+      </span>
+      <span className="text-body-lg text-white/66">{buysLine}</span>
+    </p>
   );
 }
 
 /**
- * One line of body type at the width the sentence takes, so that the centred
- * column at 390 does not move sideways when the figure lands.
+ * The two lines at the heights they will take, one of headline type and one
+ * of body-lg, at the widths the sentences take, so that the centred column at
+ * 390 does not move when the figure lands. The margin above is the figure's
+ * own, so the space is the same whether the figure is there or resting.
  */
 function PriceLineResting() {
-  return <RestingBar className="h-6 w-36" />;
+  return (
+    <span className="mt-8 flex flex-col items-center gap-1 lg:mt-10 lg:items-start">
+      <RestingBar className="h-10 w-[19rem] max-w-full" />
+      <RestingBar className="h-6 w-40" />
+    </span>
+  );
 }
 
 /**
@@ -389,11 +422,14 @@ function HeroCard({ occupation }: { occupation: string }) {
  *
  * The band came down from 128px of padding to 80px at the landing breakpoint
  * with them. It was the height three rows stood in; one row left in it read as
- * a section that had failed to load rather than as one statement.
+ * a section that had failed to load rather than as one statement. The hairline
+ * above it went with T52: the section is the top of the sheet on the night
+ * ground now, and a hairline over a change of ground is a second separator
+ * doing the same job.
  */
 function Questions({ index }: { index: Streamed<LandingIndexView> }) {
   return (
-    <section className={`mx-5 border-t border-hairline py-16 lg:mx-10 lg:py-20`}>
+    <section className="mx-5 py-16 lg:mx-10 lg:py-20">
       <dl className={`flex flex-col ${CONTENT}`}>
         <Question
           answer={
@@ -566,14 +602,14 @@ function IndexNote({ index }: { index: Streamed<LandingIndexView> }) {
 
 
 /**
- * The closing line, on the same dark ground as the hero, which is the second
- * and last band of it on the page. The hairline that used to separate it from
- * the section above is gone: the ground changes, and a hairline over a change
- * of ground is a second separator doing the same job.
+ * The closing line, on the same dark ground as the hero: the main's own, seen
+ * again below the sheet. The hairline that used to separate it from the
+ * section above is gone: the ground changes, and a hairline over a change of
+ * ground is a second separator doing the same job.
  */
 function Closing({ investorLine }: { investorLine: Streamed<string> }) {
   return (
-    <section className={`bg-night py-16 lg:py-28 ${PAGE}`}>
+    <section className={`py-16 lg:py-28 ${PAGE}`}>
       <div className="mx-auto flex max-w-[800px] flex-col items-center text-center">
         <h2 className="text-balance font-display text-headline font-semibold tracking-headline text-white lg:text-display-xl lg:tracking-landing-tight">
           The quiet kind of ready.

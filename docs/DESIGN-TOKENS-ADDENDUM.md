@@ -88,7 +88,7 @@ Paste this into the same Claude Design session, direction 1a: "Add nine mobile s
 
 Decided before kick-off. These two tokens exist for the landing page and the closing band on it. They are not available to any worker or investor screen, which stay light mode with hairline depth exactly as docs/DESIGN-TOKENS.md specifies.
 
-T49 reversed the "landing page only" scope for the card's gradient, sheen, brushing and shimmer, which are now the product's material: see "The metal" below and docs/DECISIONS.md under T49. The night grounds and the one elevation are not part of that reversal and stay as written here.
+T49 reversed the "landing page only" scope for the card's gradient, sheen, brushing and shimmer, which are now the product's material: see "The metal" below and docs/DECISIONS.md under T49. T52 took `night` to the header band on every route, and to nothing else: see "The chrome" below and docs/DECISIONS.md under T52. `night-2` and the one elevation stay as written here, and every worker and investor screen stays light below the header.
 
 ```js
 night:   '#0A0D12',  // marketing ground
@@ -159,6 +159,21 @@ navigation, body copy, and any error, declined, under review or waiting state.
 A failure state is not the place for a moving light. The coupon history stays a
 table and the series terms stay rows in a surface group.
 
+How it reads (T52). Machined, not iridescent. The edge is a deeper, cooler
+grey (#b3bac4) and the card's thickness behind the face is darker still, so
+the object has an edge before it has a colour. The shimmer is a reflection
+and not a fill: a white core at 55 percent with the five pale hues fringing
+it at 20 percent, across a fifth of the width T34 gave it, so the base
+gradient's silver is what most of the face shows and the rainbow is the light
+crossing it. The base gradient, the sheen and the brushing are the sheet's own
+and are unchanged. With the animation off, the band stands at the centre of
+the card, which is how a still frame and a reduced motion reader see it.
+
+At landing size the occupation label and the "Cover" caption step up one
+size, to body-lg and body (T52): a 14px label wrapping over two lines in the
+corner of a 720px card left the face reading as empty. Every other card keeps
+the sheet's secondary size.
+
 The budget: at most one shimmering element in view at a time. The shimmer is
 the accent and the accent is singular. The finish has two variants so that the
 budget can be kept: `metal="shimmer"` carries the moving band, and a screen
@@ -207,18 +222,33 @@ nothing may draw a second wordmark.
 
 The header carries the wordmark as a link to the front door, "The index" to
 `/index` and "Investors" to `/invest`, hidden below the medium breakpoint as
-the landing's navigation already hid them, and one action slot: "Get a quote"
-on the landing, "Get cover" on the explorer, nothing on a screen that is
-already inside a cover. The footer carries the wordmark, "How the index works"
-and "Investors", and DESIGN.md's disclosure line. The footer is rendered by the
-root layout once; the header is rendered by each frame, because on the landing
-its action is the quote button and that button needs the quote's own provider.
+the landing's navigation already hid them, and one action: "Get a quote", on
+every route (T52). On the landing it is the quote button, which opens the
+quote where the hero card stands; everywhere else it is a link to the front
+door with the same words, in the same night primary pill. The explorer's
+"Get cover" and the empty slot on the worker and investor screens went with
+T52: one header means one label. The footer carries the wordmark, "How the
+index works" and "Investors", and DESIGN.md's disclosure line. The footer is
+rendered by the root layout once; the header is rendered by each frame,
+because on the landing its action is the quote button and that button needs
+the quote's own provider.
 
-Two tones, one component. The landing's header is the night tone, on `night`
-with the addendum's text rules for that ground; every other route's is the day
-tone, on canvas with a hairline. The marketing surface tokens above are
-unchanged by this: `night` and `night-2` are still the landing's alone, and no
-worker or investor screen took a dark ground.
+One tone (T52). The header band is `night` on every route, with the
+addendum's text rules for that ground, and it is the only thing outside the
+landing that is. T50 drew it in two tones, night on the landing and day on
+canvas everywhere else, and the built site still read as three headers. The
+content under the band is unchanged: every worker and investor screen is
+light, on canvas and surface, and `night-2` and the elevation are still the
+landing's alone.
+
+The focus outline reads its colour off the ground (T52). The sheet's outline
+is 2px solid black with a 2px offset everywhere; inside an element carrying
+`data-tone="night"`, which the header carries, the same outline is white,
+because black is invisible there and the header is now on every route. Width
+and offset do not change; only the colour does. The landing's own night bands
+do not carry it: their controls are the night pills, whose white fill is
+visible against the ground, and the quote's steps stand on the card's light
+face, where black is right.
 
 The height is a token, `--spacing-chrome`, 72px: the 56px pill with 8px either
 side, which is the height the landing's navigation already stood at. The worker
@@ -235,15 +265,22 @@ wordmark and the first heading under it are flush at every width. The landing's
 64px web page margin is retired with this: it was the margin of a standalone
 page, and the landing is a page of the product now.
 
-The ground is `surface`. Under the header, the worker column and the desktop
-sheet stand on `surface`, as canvas sheets with hairline sides where the ground
-shows: `sm:border-x` for the 390 column, `xl:border-x` for the 1280 sheet. It
-is the same construction at two widths, and it is what stops the 390 column
-reading as a bare column on white at 1440. Depth is ground colour and hairline,
-as section 1 of the sheet says; no shadow. At 390 either sheet is the viewport
-and the ground is not seen. The landing keeps its own grounds, the night bands
-and canvas between them; it shares the chrome, the type and the margins and is
-not a sheet.
+The ground under the header depends on the frame (T52). The worker column
+stands on `surface`, as a canvas sheet with hairline sides (`sm:border-x`),
+because beside a 390 column at 1440 the ground is most of the screen and is
+what stops the column reading as a bare column on white. The desktop pages,
+the explorer and the investor screens, stand on continuous canvas from the
+header to the footer with no sheet and no side hairlines: T50's 1280 sheet
+with `xl:border-x` on surface left 80px of grey either side of a bordered box
+at 1440, and read as a card floating in a browser rather than as an
+application. The 1280 frame is a measure for the content there, exactly as it
+is for the header. Depth is ground colour and hairline, as section 1 of the
+sheet says; no shadow. At 390 either frame is the viewport. The landing keeps
+its own grounds: the night ground of the header carried on through the main,
+with the light sections between the hero and the closing line laid on it as
+one canvas sheet with rounded corners, the sheet radius (20) at 390 and the
+hero card's (32) from the landing breakpoint, so the boundary between the two
+grounds is a drawn edge and never a seam.
 
 ## Copy deck additions, T50 (verbatim)
 
@@ -254,3 +291,38 @@ quote", rendered only when `demonstrationOn()` is true. The sign in screen's
 link to the same place reads "See a live cover" and keeps that string; the
 landing's footer bar, which carried that link too, went with the shared footer.
 The hero's says what it opens is an example, which is Root's wording.
+
+## The hero (T52)
+
+The from price is a figure, not a footnote. It stands between the lead and the
+hero actions, "From 1.51 a month" at the headline scale in white, with what it
+buys under it at body-lg in the addendum's secondary opacity: "for 1,000 of
+cover", the cover the quote was asked for, built by src/lib/landing-model.ts
+from that amount and never typed. The line was body type at the secondary
+opacity under the buttons, which is how a footnote is drawn, and it is the most
+persuasive fact on the page. When no quote could be taken both lines are absent
+and no space is kept for them, as before.
+
+The occupation picker on the explorer, which the landing carries too, is one
+row naming the occupation on screen with a chooser under it: the search box
+and the fifteen occupations as buttons, hidden until the row is opened. The
+series chooser on the investor screens is the same shape as a native
+disclosure with the series as links. Neither page opens with a wall of pills.
+
+The investor overview leads with what the series covers and carries the
+identifier under it in tabular figures. From the landing breakpoint the
+certificate and the series terms share the first row, the coupon table takes
+the full width under them, and the principal at risk closes the page with its
+bar across the whole measure. "Series terms" is a visible heading beside
+"Coupon history".
+
+## Copy deck additions, T52 (verbatim)
+
+"for 1,000 of cover"
+
+The second line of the hero's from price, with the figure interpolated from
+the cover the quote was taken for, in the explorer's own wording ("Monthly
+premium for 5,000 of cover"). It is a figure, not copy, and it is counted with
+the price and not against the landing's word budget: it is built the same way
+on every render of the page.
+

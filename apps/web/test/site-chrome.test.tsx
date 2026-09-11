@@ -13,13 +13,15 @@ import { explorerData } from './explorer-fixtures.js';
 import { LIVE } from './landing-fixtures.js';
 
 /**
- * One product, not a set of pages (T50).
+ * One product, not a set of pages (T50), and one header, not three (T52).
  *
- * Before this ticket the landing, the explorer, the worker screens and the
- * investor screens shared nothing: two headers of their own, two with none,
- * and a 390 column centred on bare canvas. What is asserted here is that every
- * frame renders the one header, that the header is the same markup in both of
- * its tones, that the worker and investor frames stand on the same ground, and
+ * Before T50 the landing, the explorer, the worker screens and the investor
+ * screens shared nothing: two headers of their own, two with none, and a 390
+ * column centred on bare canvas. T50 made the header one component in two
+ * tones, and Root still saw three headers: a dark one with "Get a quote", a
+ * light one with "Get cover", a light one with nothing. What is asserted here
+ * is that every frame renders the one header, that it is the night ground with
+ * the same action on every one of them, what ground each frame stands on, and
  * that the footer is the root layout's and no page's own.
  */
 
@@ -36,26 +38,34 @@ function header(markup: string): string {
 }
 
 const day = renderToStaticMarkup(<SiteHeader />);
-const night = renderToStaticMarkup(<SiteHeader tone="night" />);
 
 describe('the header', () => {
-  it('carries the mark as the way back, and the two other places', () => {
+  it('carries the mark as the way back, the two other places and the action', () => {
     const mark = /<a[^>]*href="\/"[^>]*>Creance<\/a>/.exec(day)?.[0] ?? '';
     expect(mark).toContain('font-semibold');
     expect(day.match(/href="\/index"/g)).toHaveLength(1);
     expect(day.match(/href="\/invest"/g)).toHaveLength(1);
-    expect(visibleText(day)).toBe('Creance The index Investors');
+    expect(visibleText(day)).toBe('Creance The index Investors Get a quote');
   });
 
-  it('is the same header in both tones, differing only in colour', () => {
-    const strip = (markup: string) =>
-      markup.replace(/\b(bg|border|text)-(night|canvas|hairline|ink-2|ink|white)(\/\d+)?\b/g, '');
-    expect(strip(day)).toBe(strip(night));
-    expect(day).toContain('bg-canvas');
-    expect(day).toContain('border-hairline');
-    expect(night).toContain('bg-night');
-    expect(night).toContain('text-white');
-    expect(night).not.toContain('text-ink');
+  it('is the night ground, with the text rules for that ground', () => {
+    // One tone. The day tone went with T52: the header band is night on every
+    // route, and the content under it is what stays light.
+    expect(day).toContain('bg-night');
+    expect(day).toContain('data-tone="night"');
+    expect(day).toContain('text-white');
+    expect(day).not.toContain('text-ink-2');
+    expect(day).not.toContain('bg-canvas"');
+  });
+
+  it('draws the action inverted for the ground, as a link to the front door', () => {
+    // A primary pill is bg-ink, which is black on #0A0D12 and invisible. The
+    // action is the night variant, and it is a link because from any route but
+    // the landing there is nothing to open in place.
+    const action = /<a[^>]*href="\/"[^>]*>Get a quote<\/a>/.exec(day)?.[0] ?? '';
+    expect(action).toContain('bg-canvas');
+    expect(action).toContain('text-ink');
+    expect(action).not.toContain('bg-ink');
   });
 
   it('stands at the token height with the chrome margins inside the 1280 frame', () => {
@@ -79,11 +89,9 @@ describe('the header', () => {
   });
 
   it('runs nothing on scroll and needs no script', () => {
-    for (const markup of [day, night]) {
-      expect(markup).not.toContain('IntersectionObserver');
-      expect(markup).not.toContain('onScroll');
-      expect(markup).not.toMatch(/animate-/);
-    }
+    expect(day).not.toContain('IntersectionObserver');
+    expect(day).not.toContain('onScroll');
+    expect(day).not.toMatch(/animate-/);
   });
 });
 
@@ -117,38 +125,51 @@ describe('the frames', () => {
     }
   });
 
-  it('is the night tone on the landing and the day tone everywhere else', () => {
-    expect(header(landing)).toContain('bg-night');
+  it('is the night ground on every one of them, and the content under it is not', () => {
+    for (const [name, markup] of [
+      ['worker', worker],
+      ['investor', investor],
+      ['explorer', explorer],
+      ['landing', landing],
+    ] as const) {
+      expect(header(markup), name).toContain('bg-night');
+    }
+    // The night ground travelled to the header band and to nothing else: the
+    // three product frames carry it once, in the header, and stay light below.
     for (const markup of [worker, investor, explorer]) {
-      expect(header(markup)).toContain('bg-canvas');
-      expect(markup).not.toContain('bg-night');
+      expect(markup.match(/bg-night/g)).toHaveLength(1);
+      expect(markup).not.toContain('bg-night-2');
     }
   });
 
-  it('stands the worker column and the investor sheet on the same ground', () => {
-    // No screen floats a bare column on white: the ground beside the column
-    // is surface, the column is a canvas sheet on it with hairline sides, and
-    // the investor frame is the same sheet at 1280.
+  it('carries the same action with the same words on every one of them', () => {
     for (const markup of [worker, investor, explorer]) {
-      expect(markup).toContain('flex flex-1 justify-center bg-surface');
+      const head = header(markup);
+      expect(/<a[^>]*href="\/"[^>]*>Get a quote<\/a>/.test(head)).toBe(true);
+      expect(head).not.toContain('Get cover');
     }
-    expect(worker).toContain('max-w-[390px] bg-canvas sm:border-x sm:border-hairline');
-    expect(investor).toContain('max-w-[1280px] bg-canvas');
-    expect(investor).toContain('xl:border-x xl:border-hairline');
-    expect(investor).toContain('min-h-frame');
-  });
-
-  it('gives the explorer "Get cover" as the header action and marks it current', () => {
-    const head = header(explorer);
-    expect(/<a[^>]*href="\/"[^>]*>Get cover<\/a>/.test(head)).toBe(true);
-    expect(/<a[^>]*aria-current="page"[^>]*>The index<\/a>/.test(head)).toBe(true);
+    // The landing's is a button, because there the quote opens in place; the
+    // words and the treatment are the same.
+    const button = /(<button[^>]*>)<span>Get a quote<\/span>/.exec(header(landing))?.[1] ?? '';
+    expect(button).toContain('bg-canvas');
+    expect(button).not.toContain('bg-ink');
+    expect(/<a[^>]*aria-current="page"[^>]*>The index<\/a>/.test(header(explorer))).toBe(true);
     expect(/<a[^>]*aria-current="page"[^>]*>Investors<\/a>/.test(header(investor))).toBe(true);
   });
 
-  it('gives the landing "Get a quote" as the header action, inverted for the ground', () => {
-    const button = /<header[\s\S]*?(<button[^>]*>)/.exec(landing)?.[1] ?? '';
-    expect(button).toContain('bg-canvas');
-    expect(button).not.toContain('bg-ink');
+  it('stands the worker column on its sheet and the desktop page on continuous canvas', () => {
+    // The 390 column is a canvas sheet on surface with hairline sides, because
+    // beside it the ground is most of the screen. The desktop page has no
+    // sheet since T52: canvas from the header to the footer, and the 1280
+    // frame is a measure for the content, as it is for the header.
+    expect(worker).toContain('flex flex-1 justify-center bg-surface');
+    expect(worker).toContain('max-w-[390px] bg-canvas sm:border-x sm:border-hairline');
+    for (const markup of [investor, explorer]) {
+      expect(markup).toContain('flex flex-1 flex-col bg-canvas');
+      expect(markup).toContain('min-h-frame py-12 mx-auto w-full max-w-[1280px] px-5 lg:px-10');
+      expect(markup).not.toContain('justify-center bg-surface');
+      expect(markup).not.toContain('border-x');
+    }
   });
 
   it('puts no footer of its own on any of them', () => {

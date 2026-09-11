@@ -139,13 +139,25 @@ describe('no drop shadows, and one elevation on the marketing surface', () => {
 });
 
 describe('one focus state', () => {
+  const isNight = (selector: string) => selector.includes('data-tone="night"');
+
   it('is 2px solid black with a 2px offset wherever focus-visible is styled', () => {
-    const blocks = blocksMatching(/focus-visible/);
+    const blocks = blocksMatching(/focus-visible/).filter(([selector]) => !isNight(selector));
     expect(blocks.length).toBeGreaterThan(0);
     for (const [, body] of blocks) {
       expect(body).toMatch(/outline:\s*2px solid #000/);
       expect(body).toMatch(/outline-offset:\s*2px/);
     }
+  });
+
+  it('turns only the colour white on the night ground, and nothing else', () => {
+    // T52: the header is night on every route, where a black outline is
+    // invisible. The one rule scoped to that ground changes the colour and
+    // leaves the width and the offset to the rule above, so there is still
+    // one focus state, read in the colour the ground needs.
+    const night = blocksMatching(/focus-visible/).filter(([selector]) => isNight(selector));
+    expect(night.map(([selector]) => selector)).toStrictEqual(['[data-tone="night"] :focus-visible']);
+    expect(night[0]?.[1]).toMatch(/^outline-color:\s*#fff;?$/);
   });
 
   it('overrides the browser default that the reset restores', () => {
@@ -351,7 +363,9 @@ describe('the metal finish and its rainbow shimmer', () => {
     // unchanged. The modifier adds an edge colour and one new layer, and it
     // reopens neither pseudo-element the base rule positions.
     const metal = blocksMatching(/^\.cover-card--metal$/)[0]?.[1] ?? '';
-    expect(metal).toMatch(/border-color:\s*#cfd4dc/);
+    // #b3bac4 since T52: the deeper, cooler edge of a machined object. It is
+    // still the one property the modifier sets.
+    expect(metal).toMatch(/border-color:\s*#b3bac4/);
     expect(metal).not.toContain('background');
     for (const [selector] of blocksMatching(/\.cover-card--metal/)) {
       expect(selector).toBe('.cover-card--metal');
@@ -392,6 +406,27 @@ describe('the metal finish and its rainbow shimmer', () => {
     const [selector, body] = paused[0]!;
     expect(body).toMatch(/animation-play-state:\s*paused/);
     expect(selector).toContain('.cover-card-face[data-facing="away"] .cover-card__shimmer::before');
+  });
+
+  it('is a narrow reflection with a white core, not a fill across the face', () => {
+    // T52. The band's colour spans sixteen percent of an element 220 percent
+    // of the card wide, which is about a third of the card, where T34's
+    // spanned seventy percent of it; the brightest stop is white and sits at
+    // its centre, with the hues fringing it. What is asserted is the shape,
+    // so a later hand cannot widen it back into a gradient fill.
+    const rule = blocksMatching(/^\.cover-card__shimmer::before$/)[0]?.[1] ?? '';
+    const stops = [...rule.matchAll(/(transparent|rgba\([^)]*\))\s*([\d.]+)%/g)].map((stop) => ({
+      colour: stop[1] ?? '',
+      at: Number(stop[2]),
+    }));
+    const coloured = stops.filter((stop) => stop.colour !== 'transparent');
+    expect(coloured.length).toBeGreaterThan(4);
+    const span = Math.max(...coloured.map((s) => s.at)) - Math.min(...coloured.map((s) => s.at));
+    expect(span).toBeLessThanOrEqual(16);
+    const core = coloured.filter((stop) => /^rgba\(255,\s*255,\s*255/.test(stop.colour));
+    expect(core.map((stop) => stop.at)).toStrictEqual([50]);
+    expect(coloured.filter((stop) => stop.at < 50).length).toBeGreaterThan(1);
+    expect(coloured.filter((stop) => stop.at > 50).length).toBeGreaterThan(1);
   });
 
   it('leaves a label on the card far above the contrast floor wherever it lands', () => {

@@ -47,10 +47,12 @@ function EntryRow({ entry }: { entry: AuditEntry }) {
       caption={entryCaption(entry)}
       label={entryTitle(entry)}
       value={
-        <span className="flex items-center gap-3">
-          {entry.amount === null
-            ? null
-            : formatMoney(BigInt(entry.amount.amount), entry.amount.decimals)}
+        <span className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
+          {entry.amount === null ? null : (
+            <span className="shrink-0 tabular-nums">
+              {formatMoney(BigInt(entry.amount.amount), entry.amount.decimals)}
+            </span>
+          )}
           {/* The link is four words and never breaks across two lines: at the
               column's narrowest it used to wrap to "View on / HashScan" beside
               a wrapped caption, which made one row look like two. The label
@@ -100,17 +102,26 @@ function endpointTitle(endpoint: string): string {
   return 'Payment';
 }
 
-/** The date, and whether Hedera has it. Dates are en-GB in UTC, per T10. */
+/**
+ * The date, and whether Hedera has it. Dates are en-GB in UTC, per T10.
+ *
+ * The settled state says nothing. "Recorded on Hedera" was printed under every
+ * row of a list where it is true of every row, beside a "View on HashScan"
+ * link that proves it, and the repetition was long enough to push the amount
+ * into the label at the column's width. The three states that are not settled
+ * are all worth a reader's attention and are all still said.
+ */
 export function entryCaption(entry: AuditEntry): string {
   const at = entry.hcs?.consensus_at ?? entry.at;
   const day = at === null ? null : formatDayWithYear(at.slice(0, 10));
   const state =
     entry.source === 'topic'
-      ? 'Recorded on Hedera'
+      ? null
       : entry.source === 'awaiting_mirror'
         ? 'Recording on Hedera'
         : entry.source === 'mirror_unavailable'
           ? 'Cannot reach Hedera'
           : 'Not recorded yet';
-  return day === null ? state : `${day} · ${state}`;
+  if (day === null) return state ?? '';
+  return state === null ? day : `${day} · ${state}`;
 }

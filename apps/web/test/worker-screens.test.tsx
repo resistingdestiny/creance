@@ -499,7 +499,10 @@ describe('home', () => {
     renderHome(false, { history: [ENTRY] });
     expect(screen.getByRole('heading', { level: 2, name: 'What has happened' })).toBeTruthy();
     expect(screen.getByText('Monthly payment')).toBeTruthy();
-    expect(screen.getByText(/Recorded on Hedera/)).toBeTruthy();
+    // The settled state is the ordinary one and says nothing; the link beside
+    // the row is what shows it reached the chain.
+    expect(screen.queryByText(/Recorded on Hedera/)).toBeNull();
+    expect(screen.getAllByText('View on HashScan').length).toBeGreaterThan(0);
   });
 
   it('says so plainly when nothing has happened yet', () => {

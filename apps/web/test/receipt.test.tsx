@@ -143,9 +143,12 @@ describe('the receipt screen', () => {
     expect(text).toContain('0.05');
   });
 
-  it('says when a payment has not reached Hedera yet', () => {
+  it('says when a payment has not reached Hedera yet, and stays quiet when it has', () => {
+    // Only the states worth a reader's attention are said. Settled is the
+    // ordinary one and every row on a healthy receipt is in it, so saying it
+    // on each was repetition rather than information.
     expect(text).toContain('Not recorded yet');
-    expect(text).toContain('Recorded on Hedera');
+    expect(text).not.toContain('Recorded on Hedera');
   });
 
   it('shows the reference and the cover state', () => {
@@ -164,7 +167,7 @@ describe('the entry labels', () => {
   });
 
   it('dates an entry in en-GB and in UTC, per the T10 decision', () => {
-    expect(caption(entry())).toBe('5 September 2026 · Recorded on Hedera');
+    expect(caption(entry())).toBe('5 September 2026');
     expect(caption(entry({ source: 'awaiting_mirror' }))).toContain('Recording on Hedera');
     expect(caption(entry({ at: null, hcs: null, source: 'mirror_unavailable' }))).toBe(
       'Cannot reach Hedera',

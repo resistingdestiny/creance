@@ -93,9 +93,11 @@ describe('the shell', () => {
 
     // renderToReadableStream resolves when the shell is ready, which is before
     // any of the four has answered. Nothing below is awaited to get here: the
-    // shell is read out to its last line, the footer, with all four still out.
+    // shell is read out to its last line, the closing band's "I want to
+    // invest", with all four still out. The footer bar that used to end the
+    // page is the root layout's since T50 and is not this component's.
     const reader = stream.getReader();
-    const shell = await readUntil(reader, 'How the index works');
+    const shell = await readUntil(reader, 'I want to invest');
 
     // The hero, the card, the question and the closing band, all of them.
     expect(shell).toContain('Cover for the day your job is automated.');

@@ -14,6 +14,7 @@ import {
   type Party,
 } from './context.js';
 import {
+  couponDue,
   couponMemo,
   couponRef,
   couponSettlementMessage,
@@ -21,6 +22,7 @@ import {
   settlementAmount,
   settlementRemainder,
   toBytes32,
+  type CouponDueVerdict,
 } from './plan.js';
 import type { CouponHolderSettlement, CouponSettlementRecord } from './record.js';
 import { subscribe } from './subscribe.js';
@@ -49,6 +51,12 @@ import { fundAccounts, tokenBalanceOf } from './vault.js';
 ///     pnpm coupons:pay              the period that is owed, every step
 ///     pnpm coupons:pay all 3        one named coupon
 ///     pnpm coupons:pay status       what the chain says, no transactions
+///
+/// When nothing is owed, because every declared period is paid and the next
+/// one's record date is months away, the run says so and skips the steps
+/// that read an entitlement rather than failing on the note's zero answer.
+/// A coupon named on the command line is different: the operator asked for
+/// that one, so a coupon that is not due is an error there.
 
 const STEPS = [
   'status',
@@ -64,6 +72,10 @@ const STEPS = [
 type Step = (typeof STEPS)[number];
 
 const RUN: Step[] = ['fund', 'probe', 'seed', 'subscribe', 'pay', 'publish', 'verify'];
+
+/// The steps that read a coupon entitlement off the note, which is the answer
+/// the note does not have before the record date.
+const NEEDS_DUE: ReadonlySet<Step> = new Set<Step>(['seed', 'pay']);
 
 function now(): number {
   return Math.floor(Date.now() / 1000);
@@ -126,6 +138,14 @@ function couponMeta(record: DeploymentRecord): AtsCouponRecord {
       (entry) => entry.executionTimestamp <= now() && !alreadySettled(record, entry.id),
     ) ?? declared[declared.length - 1];
   return chosen as AtsCouponRecord;
+}
+
+/// The settlement record for the declared coupon if a step has written one.
+/// The steps that only read use this, so a run that settles nothing leaves no
+/// empty entry behind in the tracked record.
+function recordedSettlement(context: CouponContext): CouponSettlementRecord | undefined {
+  const coupon = couponMeta(context.record);
+  return demoSeries(context.record).couponSettlements?.[coupon.id];
 }
 
 /// The settlement record for the declared coupon, created on first use so every
@@ -295,9 +315,9 @@ async function status(context: CouponContext): Promise<void> {
  * caller is the payer. An access control error means it did not.
  */
 async function probe(context: CouponContext): Promise<void> {
-  const settlement = settlementOf(context);
-  if (settlement.scheduledContractCall?.result !== undefined) {
-    console.log(`  already measured: ${settlement.scheduledContractCall.status}`);
+  const recorded = recordedSettlement(context);
+  if (recorded?.scheduledContractCall?.result !== undefined) {
+    console.log(`  already measured: ${recorded.scheduledContractCall.status}`);
     return;
   }
   // The answer is a property of the network and the vault, not of a coupon, so
@@ -313,6 +333,7 @@ async function probe(context: CouponContext): Promise<void> {
     );
     return;
   }
+  const settlement = settlementOf(context);
   const series = demoSeries(context.record);
   const vaultId = await vaultContractId(context);
   const data = context.vault.interface.encodeFunctionData('fundCoupon', [
@@ -399,7 +420,10 @@ async function seed(context: CouponContext): Promise<void> {
       couponAmount: { numerator: bigint; denominator: bigint; recordDateReached: boolean };
     };
     const { numerator, denominator } = detail.couponAmount;
-    total += settlementAmount(numerator, denominator, context.decimals);
+    // A zero denominator is the note saying the record date has not passed,
+    // which main() decides before this step runs; read it as nothing owed
+    // rather than as arithmetic to refuse.
+    total += denominator === 0n ? 0n : settlementAmount(numerator, denominator, context.decimals);
   }
   if (total === 0n) throw new Error('the coupon owes nothing: check the record date has passed');
 
@@ -586,8 +610,12 @@ async function pay(context: CouponContext): Promise<void> {
  * recompute anything or trust this script's arithmetic.
  */
 async function publish(context: CouponContext): Promise<void> {
-  const settlement = settlementOf(context);
+  const settlement = recordedSettlement(context);
   const series = demoSeries(context.record);
+  if (settlement === undefined) {
+    console.log(`  coupon ${couponMeta(context.record).id} has no settlement, nothing to publish`);
+    return;
+  }
 
   for (const entry of settlement.holders) {
     if (entry.settled !== true) {
@@ -634,7 +662,7 @@ async function publish(context: CouponContext): Promise<void> {
 // ---------------------------------------------------------------- verify
 
 async function verify(context: CouponContext): Promise<void> {
-  const settlement = settlementOf(context);
+  const settlement = recordedSettlement(context);
   const series = demoSeries(context.record);
   const premium = (await context.vault.getFunction('premiumBalanceOf')(series.id)) as bigint;
   const state = (await context.vault.getFunction('seriesOf')(series.id)) as {
@@ -644,6 +672,10 @@ async function verify(context: CouponContext): Promise<void> {
   };
   console.log(`  premiumBalanceOf ${premium}`);
   console.log(`  principalFunded  ${state.principalFunded}`);
+  if (settlement === undefined) {
+    console.log(`  coupon ${couponMeta(context.record).id} has no settlement, nothing paid`);
+    return;
+  }
   for (const entry of settlement.holders) {
     const balance = await tokenBalanceOf(context, entry.address);
     console.log(
@@ -665,6 +697,29 @@ const HANDLERS: Record<Exclude<Step, 'all'>, (context: CouponContext) => Promise
   verify,
 };
 
+/// Whether the chosen coupon can be settled today, asked of the note once.
+///
+/// `recordDateReached` is read for every holder rather than assumed from the
+/// dates, because it is the note's own answer and the entitlement is empty
+/// without it. See docs/harness-notes.md on why `snapshotId` is not the signal.
+async function dueVerdict(context: CouponContext): Promise<CouponDueVerdict> {
+  const coupon = couponMeta(context.record);
+  const note = noteContract(demoNoteAddress(context.record), context.provider);
+  let recordDateReached = context.investors.length > 0;
+  for (const investor of context.investors) {
+    const detail = (await note.getFunction('getCouponFor')(BigInt(coupon.id), investor.address)) as {
+      couponAmount: { recordDateReached: boolean };
+    };
+    recordDateReached = recordDateReached && detail.couponAmount.recordDateReached;
+  }
+  return couponDue({
+    couponId: coupon.id,
+    executionTimestamp: coupon.executionTimestamp,
+    now: now(),
+    recordDateReached,
+  });
+}
+
 async function main(): Promise<void> {
   const requested = (process.argv[2] ?? 'all') as Step;
   if (!STEPS.includes(requested)) {
@@ -673,10 +728,31 @@ async function main(): Promise<void> {
   const named = (process.argv[3] ?? '').trim();
   if (named !== '') target = named;
   const context = openCouponContext();
-  console.log(`coupon        ${couponMeta(context.record).id}`);
+  const coupon = couponMeta(context.record);
+  console.log(`coupon        ${coupon.id}`);
   const steps = requested === 'all' ? RUN : [requested];
+
+  // Decided once, up front, so a run whose coupons are up to date reports
+  // that in one line and still runs the steps that do not need an entitlement.
+  const skipped = new Set<Step>();
+  if (steps.some((step) => NEEDS_DUE.has(step))) {
+    const verdict = await dueVerdict(context);
+    if (!verdict.due) {
+      if (target !== '') {
+        throw new Error(`coupon ${coupon.id} is not due: ${verdict.reason}`);
+      }
+      const names = steps.filter((step) => NEEDS_DUE.has(step));
+      console.log(`coupon ${coupon.id} is not due: ${verdict.reason}, skipping ${names.join(' and ')}`);
+      for (const step of names) skipped.add(step);
+    }
+  }
+
   for (const name of steps) {
     console.log(name);
+    if (skipped.has(name)) {
+      console.log(`  skipped, coupon ${coupon.id} is not due`);
+      continue;
+    }
     try {
       await HANDLERS[name as Exclude<Step, 'all'>]!(context);
     } finally {

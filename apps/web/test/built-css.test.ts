@@ -410,12 +410,12 @@ describe('the metal finish and its rainbow shimmer', () => {
     expect(selector).toContain('.cover-card-face[data-facing="away"] .cover-card__shimmer::before');
   });
 
-  it('is a narrow reflection with a white core, not a fill across the face', () => {
-    // T52. The band's colour spans sixteen percent of an element 220 percent
-    // of the card wide, which is about a third of the card, where T34's
-    // spanned seventy percent of it; the brightest stop is white and sits at
-    // its centre, with the hues fringing it. What is asserted is the shape,
-    // so a later hand cannot widen it back into a gradient fill.
+  it('is a wide soft reflection with no white core in it', () => {
+    // T52 narrowed the band around a white core, and on the page that read as
+    // a hard streak laid over the card; Root asked for the original finish
+    // back. So the colour spans a broad part of an element 220 percent of the
+    // card wide, and every stop in it is a pale hue: a white core is what
+    // turns a reflection in the metal into a highlight drawn on top of it.
     const rule = blocksMatching(/^\.cover-card__shimmer::before$/)[0]?.[1] ?? '';
     const stops = [...rule.matchAll(/(transparent|rgba\([^)]*\))\s*([\d.]+)%/g)].map((stop) => ({
       colour: stop[1] ?? '',
@@ -424,11 +424,10 @@ describe('the metal finish and its rainbow shimmer', () => {
     const coloured = stops.filter((stop) => stop.colour !== 'transparent');
     expect(coloured.length).toBeGreaterThan(4);
     const span = Math.max(...coloured.map((s) => s.at)) - Math.min(...coloured.map((s) => s.at));
-    expect(span).toBeLessThanOrEqual(16);
-    const core = coloured.filter((stop) => /^rgba\(255,\s*255,\s*255/.test(stop.colour));
-    expect(core.map((stop) => stop.at)).toStrictEqual([50]);
-    expect(coloured.filter((stop) => stop.at < 50).length).toBeGreaterThan(1);
-    expect(coloured.filter((stop) => stop.at > 50).length).toBeGreaterThan(1);
+    expect(span).toBeGreaterThanOrEqual(16);
+    expect(coloured.filter((stop) => /^rgba\(255,\s*255,\s*255/.test(stop.colour))).toStrictEqual(
+      [],
+    );
   });
 
   it('leaves a label on the card far above the contrast floor wherever it lands', () => {

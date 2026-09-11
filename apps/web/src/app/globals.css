@@ -550,36 +550,36 @@
     overflow: hidden;
   }
 
-  /* The reflection. T34 drew it as five pale hues at 16 percent across a third
-     of a band two and a bit cards wide, which put colour over some seventy
-     percent of the face at once, evenly, and Root read the result as
-     iridescent plastic. Real metal has a narrow specular highlight with the
-     colour sitting in it, and a face that is neutral wherever the reflection
-     is not falling. So the band is a fifth of the width it was (T52): a white
-     core at 55 percent, the five hues fringing it at 20 percent, and nothing
-     either side, so the base gradient's silver is what most of the card shows
-     and the rainbow is a reflection crossing it rather than a fill.
+  /* The reflection: five pale hues at 16 percent across a third of a band two
+     and a bit cards wide, which is the finish T34 drew.
 
-     Every hue is still a pale colour at a low alpha and the core is white, so
-     the darkest composite over the darkest gradient stop of any treatment
-     leaves black text far above the 4.5:1 floor. built-css.test.ts computes
-     that from this rule rather than taking it on trust. With the animation off
-     the band stands at the centre of the card, which is where a still frame
-     and a reduced motion reader see it. */
+     T52 narrowed it to a fifth of that width around a white core at 55
+     percent, reasoning that real metal has a narrow specular highlight and a
+     face that is neutral wherever the reflection is not falling. On the page
+     that read as a hard white streak laid across the card rather than as a
+     surface catching light, and Root asked for the original card back. So the
+     band is wide and soft again, every stop a pale hue at a low alpha and no
+     white core in it at all: the colour is in the metal rather than on it.
+
+     Every hue being a pale colour at a low alpha is also what keeps the
+     darkest composite over the darkest gradient stop of any treatment far
+     above the 4.5:1 floor for black text. built-css.test.ts computes that from
+     this rule rather than taking it on trust. With the animation off the band
+     stands at the centre of the card, which is where a still frame and a
+     reduced motion reader see it. */
   .cover-card__shimmer::before {
     content: "";
     position: absolute;
     inset: -25% -60%;
     background: linear-gradient(
       118deg,
-      transparent 43%,
-      rgba(255, 122, 182, 0.2) 46%,
-      rgba(255, 209, 122, 0.2) 48%,
-      rgba(255, 255, 255, 0.55) 50%,
-      rgba(138, 230, 172, 0.2) 52%,
-      rgba(122, 186, 255, 0.2) 54%,
-      rgba(186, 148, 255, 0.2) 56%,
-      transparent 59%
+      transparent 34%,
+      rgba(255, 122, 182, 0.16) 40%,
+      rgba(255, 209, 122, 0.16) 45%,
+      rgba(138, 230, 172, 0.16) 50%,
+      rgba(122, 186, 255, 0.16) 55%,
+      rgba(186, 148, 255, 0.16) 60%,
+      transparent 66%
     );
     animation: cover-card-shimmer 9s linear infinite;
   }

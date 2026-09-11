@@ -84,6 +84,10 @@ export function NavLink({
  * the screen wants in the top right: "Get a quote" on the landing, "Get cover"
  * on the explorer, nothing on a screen that is already inside a cover.
  *
+ * "The index" opens the public explorer, which is the page of record for the
+ * index (T32), and not the worker's Index tab: that tab is one occupation
+ * inside a cover, and a visitor is better served by the page with all fifteen.
+ *
  * The wordmark is Creance, where the design file reads Displacement Bond.
  * Displacement Bond Note is the instrument and Creance is the product, which is
  * Root's decision and predates the design file. docs/DECISIONS.md.

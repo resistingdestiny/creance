@@ -1,6 +1,5 @@
 import { Suspense, use, type ReactNode } from 'react';
 
-import { DEMO_ENTRY } from '../../app/home/home-copy';
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
 import type {
   LandingData,
@@ -12,6 +11,7 @@ import type {
 import { CoverCard } from '../cover-card';
 import { PillLink } from '../pill-button';
 import { ReplayBar } from '../replay-bar';
+import { CHROME_PAGE, SiteHeader } from '../site-chrome';
 import { Skeleton } from '../skeleton';
 import { HeroAmount } from './hero-amount';
 import { IndexTicker } from './index-ticker';
@@ -23,10 +23,13 @@ import { QuoteProvider } from './quote-state';
 /**
  * The landing page, section for section from the design of record.
  *
- * Order, which is the acceptance: the navigation, the hero with the cover card
+ * Order, which is the acceptance: the header, the hero with the cover card
  * and the from price, the ledger, the index section, the closing line, the
- * investor line, the footer bar. The sections are local to this file so that
- * the order is one list a reader can check rather than eight imports.
+ * investor line. The sections are local to this file so that the order is one
+ * list a reader can check rather than eight imports. The header is the
+ * product's one header in its night tone (src/components/site-chrome.tsx) and
+ * the footer under it is the root layout's, the same on every route (T50), so
+ * neither is drawn here.
  *
  * The three steps went with T34 and two of the three ledger questions with T44,
  * both for the same reason: the page shows the thing, so it stops describing it
@@ -76,7 +79,11 @@ import { QuoteProvider } from './quote-state';
  * is in a space and never how much space there is.
  */
 
-const PAGE = 'px-5 lg:px-16';
+// The chrome's own margins (T50), so the hero text and the wordmark above it
+// start on the same line at every width. The sheet's 64px web page margin was
+// the margin of a standalone marketing page; this page is a page of the
+// product now and stands in the product's frame. docs/DECISIONS.md.
+const PAGE = CHROME_PAGE;
 const CONTENT = 'mx-auto w-full max-w-[1080px]';
 
 export function LandingScreen({
@@ -91,27 +98,13 @@ export function LandingScreen({
    * configured deployment does and what a caller with nothing to say means.
    */
   interim?: boolean;
-  /**
-   * This deployment publishes a demonstration, so the footer names it.
-   *
-   * One link in the footer bar and nothing above it. A reader who wants to buy
-   * cover is served by every section on this page; a reader who wants to see
-   * what a cover looks like without buying one is looking for a link, and the
-   * footer is where a link is looked for. Anything longer would put back the
-   * words T44 took out.
-   */
+  /** This deployment publishes a demonstration. Read by the hero in the next commit. */
   demo?: boolean;
 }) {
-  // Both index links open the public explorer, which is the page of record for
-  // the index (T32). They pointed at the worker's Index tab, which is one
-  // occupation inside the app frame and behind a tab bar; a visitor who has
-  // bought nothing is better served by the page that carries all fifteen.
-  const indexHref = '/index';
-
   return (
     <QuoteProvider>
       <div className="flex flex-col bg-canvas">
-        <Nav indexHref={indexHref} />
+        <SiteHeader action={<QuoteButton variant="night" />} tone="night" />
         <main>
           <section className="bg-night">
             <HeroBand
@@ -128,7 +121,6 @@ export function LandingScreen({
           <IndexSection explorer={data.explorer} index={data.index} />
           <Closing investorLine={data.investorLine} />
         </main>
-        <FooterBar demo={demo} indexHref={indexHref} />
       </div>
     </QuoteProvider>
   );
@@ -149,66 +141,6 @@ function figureOf<T>(value: Streamed<T>): T {
 
 function isPromised<T>(value: Streamed<T>): value is Promise<T> {
   return value !== null && typeof (value as Promise<T>).then === 'function';
-}
-
-/**
- * A navigation link. The design draws these without an underline, which is why
- * they are not the sheet's TextLink: that component is the underlined 16px link
- * inside the app. The 44px minimum tap target is the sheet's rule and applies
- * to both.
- */
-function NavLink({
-  children,
-  className,
-  href,
-  tone = 'day',
-}: {
-  children: ReactNode;
-  className?: string;
-  href: string;
-  tone?: 'day' | 'night';
-}) {
-  return (
-    <a
-      className={[
-        'min-h-11 items-center text-body no-underline transition-opacity duration-200 ease-out motion-reduce:transition-none',
-        tone === 'night' ? 'text-white/66 hover:text-white' : 'text-ink-2 hover:text-ink',
-        className ?? 'inline-flex',
-      ].join(' ')}
-      href={href}
-    >
-      {children}
-    </a>
-  );
-}
-
-/**
- * The wordmark is Creance, where the design file reads Displacement Bond.
- * Displacement Bond Note is the instrument and Creance is the product, which is
- * Root's decision and predates the design file. docs/DECISIONS.md.
- */
-function Nav({ indexHref }: { indexHref: string }) {
-  return (
-    <header
-      className={`flex min-h-18 items-center justify-between gap-4 border-b border-white/10 bg-night py-3 ${PAGE}`}
-    >
-      <span className="whitespace-nowrap text-body font-semibold text-white">Creance</span>
-      {/* One line at every width. The two secondary links are hidden below the
-          medium breakpoint rather than wrapped, because a navigation that grows
-          a second row pushes the hero down the screen at 390 and the wordmark
-          and the one action are what has to survive. Both are still in the
-          markup and both are reachable from the footer and the hero. */}
-      <nav aria-label="Main" className="flex items-center gap-x-6 lg:gap-x-8">
-        <NavLink className="hidden md:inline-flex" href={indexHref} tone="night">
-          The index
-        </NavLink>
-        <NavLink className="hidden md:inline-flex" href="/invest" tone="night">
-          Investors
-        </NavLink>
-        <QuoteButton variant="night" />
-      </nav>
-    </header>
-  );
 }
 
 /**
@@ -304,7 +236,7 @@ function HeroBand({
 }) {
   return (
     <div className={`pb-24 pt-16 lg:pb-32 lg:pt-24 ${PAGE}`}>
-      <div className="mx-auto grid w-full max-w-[1240px] items-center gap-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)] lg:gap-20">
+      <div className="mx-auto grid w-full max-w-[1200px] items-center gap-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)] lg:gap-20">
         <Hero index={index} price={price} />
         {/* The card's own column, with the soft ground behind whichever of the
             two is standing in it. */}
@@ -349,6 +281,7 @@ function Hero({
     </div>
   );
 }
+
 
 /**
  * "From 4.25 a month", beside the hero button.
@@ -426,7 +359,7 @@ function HeroCard({ occupation }: { occupation: string }) {
  */
 function Questions({ index }: { index: Streamed<LandingIndexView> }) {
   return (
-    <section className={`mx-5 border-t border-hairline py-16 lg:mx-16 lg:py-20`}>
+    <section className={`mx-5 border-t border-hairline py-16 lg:mx-10 lg:py-20`}>
       <dl className={`flex flex-col ${CONTENT}`}>
         <Question
           answer={
@@ -643,25 +576,5 @@ function InvestorLineResting() {
       <RestingBar className="h-[18px] w-[21.5rem] max-w-full lg:h-5 lg:w-[27rem]" />
       <RestingBar className="h-[18px] w-[14rem] max-w-full lg:hidden" />
     </span>
-  );
-}
-
-/**
- * The footer bar. The design carries "Terms" and "Contact" beside "How the
- * index works"; neither page exists and this ticket does not write them, so
- * they are left out rather than pointed at something that is not them.
- * docs/DECISIONS.md.
- */
-function FooterBar({ demo, indexHref }: { demo: boolean; indexHref: string }) {
-  return (
-    <div
-      className={`flex min-h-22 flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-hairline py-3 ${PAGE}`}
-    >
-      <span className="text-secondary text-ink-2">Creance</span>
-      <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-6">
-        <NavLink href={indexHref}>How the index works</NavLink>
-        {demo ? <NavLink href="/home/demo">{DEMO_ENTRY}</NavLink> : null}
-      </nav>
-    </div>
   );
 }

@@ -296,12 +296,13 @@ function Position({
 /**
  * The certificate at the height it stands at once its figures are in it: the
  * headline block and the next payment row, inside the card's own padding,
- * measured in a browser on the demo series at both widths.
+ * measured in a browser on the demo series at both widths. It is taller at
+ * 390 because the row's caption wraps there.
  */
 function PositionResting() {
   return (
     <div data-testid="investor-resting">
-      <Skeleton className="mb-6 h-[289px] w-full max-w-[720px] rounded-card" />
+      <Skeleton className="mb-6 h-[321px] w-full max-w-[720px] rounded-card lg:h-[293px]" />
     </div>
   );
 }
@@ -389,14 +390,15 @@ function History({
 /**
  * The history at the height it takes on the demo series: the brought forward
  * line and six rows of two noteholders over three periods, measured in a
- * browser at both widths. The line wraps to four at 390 and two at 1440, which
- * is where the difference comes from.
+ * browser at both widths. The line wraps to four at 390 and two at 1440, and
+ * the table's cells wrap inside the scrolling region at 390, which is where
+ * the difference comes from.
  */
 function HistoryResting() {
   return (
     <div data-testid="investor-resting">
       <Skeleton className="mb-4 h-[80px] w-full max-w-[720px] lg:h-[40px]" />
-      <Skeleton className="h-[421px] w-full" />
+      <Skeleton className="h-[466.5px] w-full lg:h-[358.5px]" />
     </div>
   );
 }
@@ -430,11 +432,14 @@ function Terms({
   );
 }
 
-/** Seven rows of 52px with six hairlines between them, at the group radius. */
+/**
+ * Seven rows of 52px with six hairlines between them, at the group radius.
+ * At 390 the coupon row wraps to two lines and the group is 21px taller.
+ */
 function TermsResting() {
   return (
     <div data-testid="investor-resting">
-      <Skeleton className="h-[370px] w-full rounded-group" />
+      <Skeleton className="h-[385px] w-full rounded-group lg:h-[364px]" />
     </div>
   );
 }
@@ -469,13 +474,14 @@ function Principal({ series }: { series: Streamed<SeriesView | null> }) {
  * The bar and its two lines at their own heights, with the section's gap
  * between them, so that the explainer under them does not move when they land.
  * Three pieces rather than one slab because the section is a column with a
- * gap, and the fallback has to be worth the same number of gaps.
+ * gap, and the fallback has to be worth the same number of gaps. The caption
+ * is two lines of secondary type at 390 and one from the landing breakpoint.
  */
 function PrincipalResting() {
   return (
     <div className="flex flex-col gap-4" data-testid="investor-resting">
       <Skeleton className="h-3 w-full rounded-full" />
-      <Skeleton className="h-5 w-72 max-w-full" />
+      <Skeleton className="h-10 w-72 max-w-full lg:h-5" />
       <Skeleton className="h-6 w-64 max-w-full" />
     </div>
   );
@@ -524,12 +530,15 @@ function HashScanSection({ children }: { children: ReactNode }) {
   );
 }
 
-/** One row of links at the link's own 44px minimum height. */
+/**
+ * The links at the link's own 44px minimum height: one row at 1440, two with
+ * the gap between them at 390.
+ */
 function HashScanResting() {
   return (
     <div data-testid="investor-resting">
       <HashScanSection>
-        <Skeleton className="h-11 w-80 max-w-full" />
+        <Skeleton className="h-[112px] w-80 max-w-full lg:h-11" />
       </HashScanSection>
     </div>
   );

@@ -362,3 +362,82 @@ lead sentence and its paragraphs, are quoted in full in
 on both pages the attribution panel appears on. The last sentence of the
 second, that no exposure score touches the price or the payout, is a standing
 constraint on the rating path.
+
+## The hero, second pass (T54)
+
+The card is shown working, surrounded by its own output. Around the hero card
+stand up to five chips, each a real event built from a record the page already
+reads and each linking where that record can be checked: a coupon paid, with
+the executed transfer on HashScan; an occupation's newest reading, in the
+explorer's own words, opening the explorer below on that occupation; the month
+the oracle published, with the index topic. A chip with no event behind it is
+not drawn. Nothing on a chip is copy: the title and the detail are the
+record's own figures, dates through the en-GB formatters, amounts in the money
+form.
+
+Depth without a shadow. The one elevation stays the card's. Near chips are
+`night-2` with a white border at 16 percent and text at full opacity. Far chips
+are the same surface at 70 percent with the border at 8 percent and the whole
+chip at 60 percent opacity, full on hover. Chips carry no metal, no moving
+light and no entrance animation; they are in place on the first paint. At 390
+the two near chips stand in flow under the card and the far chips are not
+drawn. While a quote is open the chips are hidden.
+
+The headline takes `landing-headline`, 80px at a leading of 0.98 with the
+`landing-hero` tracking, from 1280 wide. Below that it keeps the sizes T34
+set. The lead, the price figure and the actions are unchanged.
+
+```css
+--text-landing-headline: 80px;
+--text-landing-headline--line-height: 0.98;
+```
+
+The badge above the headline carries a number beside its fact while the feed
+is live, and none when it is not.
+
+Under the actions, a credibility row: three facts at the secondary size and
+the secondary opacity, a list and not a heading, one under the other at 390
+and in a row with a small mark before each from the landing breakpoint.
+
+Under the hero grid, a band of four figures at display-l on the landing
+breakpoint and headline below it, in white, each with a label at the secondary
+size and opacity: the whole years of index history counted from the backtest's
+first month to the newest month served, the coupons settled, the total paid to
+noteholders, and the principal funding the cover. A figure the page could not
+read is absent. The band carries no hairline: the hero, the card, the chips
+and the figures are one composition, and the ticker's hairline under them is
+where it ends.
+
+## Copy deck additions, T54 (verbatim)
+
+"Index live for 15 occupations, updated monthly from public data"
+
+The live badge, with the count of occupation groups the index runs for. The
+stale badge, "Showing the last reading we published", is unchanged.
+
+"Settles on public BLS data" / "Runs on Hedera testnet" / "One person, one
+cover, with World ID"
+
+The credibility row, in that order.
+
+"years of index history" / "coupons settled on Hedera" / "paid to noteholders"
+/ "funding the cover"
+
+The labels of the four figures in the band, each under its figure.
+
+"Coupon 3 paid" / "657.53 on 10 September 2026"
+
+The shape of a coupon chip: the coupon number in the title, and the amount
+that moved to the holders that were paid with the day it settled in the
+detail. Every figure is the settlement's own.
+
+"Arts, design, entertainment and media" / "on the line, July 2026"
+
+The shape of a reading chip: the occupation in the title, and the explorer's
+own gap phrase ("on the line", "0.7 points away", "claims open") with the
+month of the reading in the detail.
+
+"Index published, July 2026" / "Topic 0.0.10366470, message 33"
+
+The shape of the published chip, drawn only when the reading's publication
+block names a topic.

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
@@ -9,19 +11,30 @@ import {
   rankByDistance,
 } from '../src/lib/explorer-model.js';
 import { AMOUNT_MIN } from '../src/lib/cover-amount.js';
+import { formatPeriod } from '../src/lib/format.js';
 import {
+  COUPON_EVENTS,
+  INDEX_HISTORY_FROM,
   LANDING_GROUP,
+  couponEvents,
   fromPriceBuys,
   fromPriceLine,
+  historyFigure,
+  historyYears,
+  indexBadge,
   investorLine,
   landingIndexSection,
+  noteFigures,
   payAnswer,
+  publishedEvent,
+  readingEvents,
   staleNote,
   tickerReadings,
 } from '../src/lib/landing-model.js';
-import { findOccupation, hasCover, occupationLabel } from '../src/lib/occupations.js';
+import { OCCUPATIONS, findOccupation, hasCover, occupationLabel } from '../src/lib/occupations.js';
 
 import { EXPLORER_READINGS } from './explorer-fixtures.js';
+import { COUPONS, SERIES } from './investor-fixtures.js';
 import { COLD, LIVE, REPLAYING, STALE } from './landing-fixtures.js';
 import { INDEX } from './worker-fixtures.js';
 
@@ -265,10 +278,29 @@ describe('the dark marketing ground', () => {
     // light sections are a sheet laid on it, so the page carries the class
     // twice, on the header and on the main. The page root is still canvas and
     // so is the document, so no other route can be darkened by this page.
-    expect(live.match(/bg-night/g)).toHaveLength(2);
+    expect(live.match(/bg-night(?![-\w/])/g)).toHaveLength(2);
     expect(live).toContain('<main class="bg-night">');
     expect(live).toContain('flex flex-col bg-canvas');
-    expect(live).not.toContain('bg-night-2');
+  });
+
+  it('raises the chips on night-2, and raises nothing else', () => {
+    // The addendum's raised ground had no use until T54: the chips around the
+    // card are the one thing on the page that stands off the night, and each
+    // of them carries it. Nothing outside the chips does.
+    const chips = [...live.matchAll(/<a class="([^"]*)"[^>]*data-testid="landing-event"/g)];
+    expect(chips.length).toBeGreaterThan(0);
+    for (const chip of chips) expect(chip[1]).toMatch(/bg-night-2/);
+    expect(live.match(/bg-night-2/g)).toHaveLength(chips.length);
+  });
+
+  it('turns the focus outline white on both night bands', () => {
+    // The stylesheet's one night rule reads data-tone (T52). The hero's pills
+    // and chips and the closing band's pills stand on the night ground, so
+    // both sections carry it; the sheet between them does not.
+    const sections = [...live.matchAll(/<section[^>]*data-tone="night"/g)];
+    expect(sections).toHaveLength(2);
+    const sheet = /<div class="rounded-\[20px\] bg-canvas lg:rounded-hero">[\s\S]*?<\/div><section/.exec(live)?.[0] ?? '';
+    expect(sheet).not.toContain('data-tone');
   });
 
   it('lays the light sections on it as one sheet with rounded corners', () => {
@@ -285,7 +317,7 @@ describe('the dark marketing ground', () => {
   });
 
   it('writes headings in white and everything else at the addendum opacity', () => {
-    const closing = /<section class="py-16 lg:py-28[^"]*">(?:(?!<\/section>)[\s\S])*The quiet kind of ready[\s\S]*?<\/section>/.exec(live)?.[0] ?? '';
+    const closing = /<section class="py-16 lg:py-28[^"]*"[^>]*>(?:(?!<\/section>)[\s\S])*The quiet kind of ready[\s\S]*?<\/section>/.exec(live)?.[0] ?? '';
     expect(closing).toContain('text-white lg:text-display-xl');
     expect(closing).toContain('text-secondary text-white/66');
     expect(closing).not.toContain('text-ink-2');
@@ -320,9 +352,9 @@ describe('the navigation on the dark ground', () => {
 
 describe('the ticker of occupation readings', () => {
   /** Every occupation label the strip prints, in the order it prints them. */
-  const labels = [...live.matchAll(/class="font-medium text-white">([^<]+)</g)].map(
-    (match) => match[1],
-  );
+  const labels = [
+    ...live.matchAll(/landing-ticker__item[^>]*><span class="font-medium text-white">([^<]+)</g),
+  ].map((match) => match[1]);
 
   it('carries all fifteen groups twice, so the loop closes on itself', () => {
     expect(LIVE.explorer.ticker).toHaveLength(15);
@@ -467,7 +499,9 @@ describe('the hero card as an object', () => {
 
 describe('the index live state', () => {
   it('says live when the feed answered on this request', () => {
-    expect(visibleText(live)).toContain('Index live, updated monthly from public data');
+    expect(visibleText(live)).toContain(
+      'Index live for 15 occupations, updated monthly from public data',
+    );
     expect(LIVE.index.live).toBe(true);
   });
 
@@ -475,7 +509,140 @@ describe('the index live state', () => {
     const text = visibleText(renderToStaticMarkup(<LandingScreen data={STALE} />));
     expect(text).toContain('Showing the last reading we published');
     expect(text).not.toContain('Index live');
+    expect(text).not.toContain('15 occupations');
     expect(STALE.index.live).toBe(false);
+  });
+});
+
+describe('the events around the card (T54)', () => {
+  const chips = [...live.matchAll(/<a class="([^"]*)"([^>]*)>([\s\S]*?)<\/a>/g)]
+    .filter((match) => (match[2] ?? '').includes('data-testid="landing-event"'))
+    .map((match) => ({
+      classes: match[1] ?? '',
+      attributes: match[2] ?? '',
+      text: visibleText(match[3] ?? ''),
+    }));
+
+  it('are the four true things the recorded reads hold, and no fifth', () => {
+    // Two coupons that settled, two readings, and no published month: the
+    // recorded reading was computed and not settled on the topic, so the
+    // fifth slot is empty rather than filled.
+    expect(chips.map((chip) => chip.text)).toStrictEqual([
+      'Coupon 3 paid 657.53 on 10 September 2026',
+      'Arts, design, entertainment and media on the line, July 2026',
+      'Computer and mathematical 0.7 points away, July 2026',
+      'Coupon 2 paid 679.45 on 10 September 2026',
+    ]);
+    expect(LIVE.index.published).toBeNull();
+    expect(live).not.toContain('Index published');
+  });
+
+  it('link every settlement to HashScan and every reading to the explorer below', () => {
+    const [newest, nearest, own, previous] = chips;
+    expect(newest?.attributes).toContain(
+      'href="https://hashscan.io/testnet/transaction/0.0.10366450-1789080523-877923930"',
+    );
+    expect(newest?.attributes).toContain('target="_blank"');
+    expect(newest?.attributes).toContain('rel="noreferrer"');
+    expect(previous?.attributes).toContain('href="https://hashscan.io/testnet/transaction/');
+    for (const reading of [nearest, own]) {
+      expect(reading?.attributes).toContain('href="#the-index"');
+      expect(reading?.attributes).not.toContain('target=');
+    }
+    expect(live).toContain('id="the-index"');
+  });
+
+  it('have depth: the two near at full opacity on the raised ground, the far faded', () => {
+    expect(chips.map((chip) => /data-depth="(\w+)"/.exec(chip.attributes)?.[1])).toStrictEqual([
+      'near',
+      'near',
+      'far',
+      'far',
+    ]);
+    for (const chip of chips.slice(0, 2)) {
+      expect(chip.classes).toContain('border-white/16');
+      expect(chip.classes).not.toContain('opacity-60');
+      expect(chip.classes).not.toContain('hidden');
+    }
+    for (const chip of chips.slice(2)) {
+      expect(chip.classes).toContain('border-white/8');
+      expect(chip.classes).toContain('lg:opacity-60');
+      // Not drawn at 390, where the column has room for the near two only.
+      expect(chip.classes).toContain('hidden');
+    }
+  });
+
+  it('carry no shadow, no metal and no moving light', () => {
+    // The one elevation is the card's and the shimmer budget is one. Depth on
+    // the chips is surface, border and opacity, so nothing here can be either.
+    for (const chip of chips) {
+      expect(chip.classes).not.toMatch(/shadow/);
+      expect(chip.classes).not.toMatch(/cover-card/);
+      expect(chip.classes).not.toMatch(/animate-(?!none)/);
+    }
+    expect(live.match(/cover-card__shimmer/g)).toHaveLength(1);
+  });
+
+  it('stand in the card column, after the card and before the figures', () => {
+    const column = /<div class="relative flex flex-col items-center">[\s\S]*?data-testid="landing-figures"/.exec(live)?.[0] ?? '';
+    expect(column).toContain('cover-card-stack');
+    expect(column.indexOf('cover-card-stack')).toBeLessThan(column.indexOf('data-testid="landing-events"'));
+    expect(column.match(/data-testid="landing-event"/g)).toHaveLength(4);
+  });
+
+  it('are gone, every one, when the reads behind them are', () => {
+    expect(renderToStaticMarkup(<LandingScreen data={COLD} />)).not.toContain(
+      'data-testid="landing-event"',
+    );
+  });
+});
+
+describe('the figures band (T54)', () => {
+  const band = /<div class="[^"]*" data-testid="landing-figures">[\s\S]*?<\/div>/.exec(live)?.[0] ?? '';
+
+  it('carries the four figures the reads hold, with their labels, under the hero', () => {
+    expect(visibleText(band)).toBe(
+      '16 years of index history 3 coupons settled on Hedera 1,994.52 paid to noteholders 100,000 funding the cover',
+    );
+    expect(live.indexOf('cover-card-stack')).toBeLessThan(live.indexOf('data-testid="landing-figures"'));
+    expect(live.indexOf('data-testid="landing-figures"')).toBeLessThan(live.indexOf('landing-ticker'));
+  });
+
+  it('writes the value in white at a display size and the label at the secondary opacity', () => {
+    const figure = /<p class="flex flex-col gap-1"><span class="([^"]*)">16<\/span><span class="([^"]*)">/.exec(band);
+    expect(figure?.[1]).toContain('text-white');
+    expect(figure?.[1]).toContain('lg:text-display-l');
+    expect(figure?.[2]).toContain('text-white/66');
+  });
+
+  it('is as wide as the truth: no note, no note figures, and no space kept for them', () => {
+    const cold = renderToStaticMarkup(<LandingScreen data={COLD} />);
+    const empty = /<div class="[^"]*" data-testid="landing-figures">([\s\S]*?)<\/div>/.exec(cold)?.[1] ?? '';
+    expect(visibleText(empty)).toBe('');
+    expect(empty).not.toContain('landing-resting');
+  });
+});
+
+describe('the credibility row (T54)', () => {
+  it('names the three facts under the actions, as a list and not a heading', () => {
+    const hero = /<h1[\s\S]*?<\/section>/.exec(live)?.[0] ?? '';
+    const row = /<ul class="mt-8 flex flex-col[^"]*">[\s\S]*?<\/ul>/.exec(hero)?.[0] ?? '';
+    expect(visibleText(row)).toBe(
+      'Settles on public BLS data Runs on Hedera testnet One person, one cover, with World ID',
+    );
+    expect(row).toContain('text-secondary text-white/66');
+    expect(row).not.toMatch(/<h\d/);
+    expect(hero.indexOf('Get a quote')).toBeLessThan(hero.indexOf('Settles on public BLS data'));
+  });
+});
+
+describe('the headline (T54)', () => {
+  it('takes the landing headline size from 1280, at its tighter leading', () => {
+    const h1 = /<h1 class="([^"]*)"/.exec(live)?.[1] ?? '';
+    expect(h1).toContain('xl:text-landing-headline');
+    expect(h1).toContain('xl:tracking-landing-hero');
+    // Below that the column beside the card is narrower, and T34's size holds.
+    expect(h1).toContain('lg:text-display-xl');
   });
 });
 
@@ -552,3 +719,119 @@ describe('the way in to the example (T50)', () => {
     expect(without).toBe(visibleText(live));
   });
 });
+
+describe('the events around the card are built from records, never typed (T54)', () => {
+  const occupations = EXPLORER_READINGS.map(explorerOccupation);
+
+  it('names the occupation nearest its line and the one the page speaks for', () => {
+    const events = readingEvents(occupations, LANDING_GROUP);
+    const ranked = rankByDistance(occupations);
+    expect(events).toHaveLength(2);
+    expect(events[0]?.title).toBe(ranked[0]?.occupation.label);
+    expect(events[1]?.title).toBe(occupationLabel(LANDING_GROUP));
+    // The explorer's own gap phrase, then the month, and nothing else.
+    for (const event of events) {
+      const entry = ranked.find((row) => row.occupation.label === event.title);
+      expect(event.detail).toBe(`${entry?.gap}, ${headlineMonth(entry?.month?.period)}`);
+      expect(event.href).toBe('#the-index');
+      expect(event.group).toBe(entry?.occupation.key);
+    }
+  });
+
+  it('says the next nearest rather than the same occupation twice', () => {
+    const ranked = rankByDistance(occupations);
+    const nearest = ranked[0]?.occupation.key ?? '';
+    const events = readingEvents(occupations, nearest);
+    expect(events.map((event) => event.title)).toStrictEqual([
+      ranked[0]?.occupation.label,
+      ranked[1]?.occupation.label,
+    ]);
+  });
+
+  it('skips an occupation with no reading, because that is the absence of an event', () => {
+    const unread = occupations.map((occupation) =>
+      occupation.key === LANDING_GROUP ? { ...occupation, months: [] } : occupation,
+    );
+    const events = readingEvents(unread, LANDING_GROUP);
+    expect(events).toHaveLength(2);
+    expect(events.map((event) => event.title)).not.toContain(occupationLabel(LANDING_GROUP));
+    expect(events.map((event) => event.detail).join(' ')).not.toContain('no reading');
+  });
+
+  it('gives the published month a chip only when the chain says it was published', () => {
+    expect(publishedEvent(null)).toBeNull();
+    expect(publishedEvent(INDEX)).toBeNull();
+    expect(INDEX.publication.topic_id).toBeNull();
+    const published = publishedEvent({
+      ...INDEX,
+      publication: { topic_id: '0.0.10366470', sequence_number: 33, submit_transaction: null },
+    });
+    expect(published?.title).toBe('Index published, July 2026');
+    expect(published?.detail).toBe('Topic 0.0.10366470, message 33');
+    expect(published?.href).toBe('https://hashscan.io/testnet/topic/0.0.10366470');
+  });
+
+  it('lists the coupons that were paid, newest first, each linking its settlement', () => {
+    const events = couponEvents(COUPONS);
+    expect(events).toHaveLength(COUPON_EVENTS);
+    expect(events[0]?.title).toBe('Coupon 3 paid');
+    expect(events[0]?.detail).toBe('657.53 on 10 September 2026');
+    expect(events[0]?.href).toBe(
+      'https://hashscan.io/testnet/transaction/0.0.10366450-1789080523-877923930',
+    );
+    expect(events[1]?.title).toBe('Coupon 2 paid');
+    expect(events[1]?.detail).toBe('679.45 on 10 September 2026');
+  });
+
+  it('gives a coupon that nobody was paid no chip at all', () => {
+    const unpaid = {
+      ...COUPONS,
+      coupons: COUPONS.coupons.map((coupon) => ({
+        ...coupon,
+        holders: coupon.holders.map((holder) => ({
+          ...holder,
+          settlement: { ...holder.settlement, settled: false },
+        })),
+      })),
+    };
+    expect(couponEvents(unpaid)).toStrictEqual([]);
+  });
+
+  it('counts the years of history from the month docs/INDEX.md starts the backtest', () => {
+    const doc = readFileSync(new URL('../../../docs/INDEX.md', import.meta.url), 'utf8');
+    expect(doc).toContain(`The backtest window on this page runs from ${INDEX_HISTORY_FROM}.`);
+    expect(historyYears('2026-07')).toBe(16);
+    expect(historyYears('2026-01')).toBe(16);
+    expect(historyYears('2025-12')).toBe(15);
+    expect(historyYears(null)).toBeNull();
+    expect(historyYears('2009-06')).toBeNull();
+    expect(historyFigure(INDEX.as_of)).toStrictEqual({ value: '16', label: 'years of index history' });
+  });
+
+  it('takes the band figures from the series and the coupons the API served', () => {
+    expect(noteFigures(SERIES, COUPONS)).toStrictEqual([
+      { value: '3', label: 'coupons settled on Hedera' },
+      { value: '1,994.52', label: 'paid to noteholders' },
+      { value: '100,000', label: 'funding the cover' },
+    ]);
+  });
+
+  it('prints no nought for a note that has settled nothing', () => {
+    const fresh = { ...SERIES, coupons: { ...SERIES.coupons, settled: 0 } };
+    const figures = noteFigures(fresh, { ...COUPONS, coupons: [] });
+    expect(figures).toStrictEqual([{ value: '100,000', label: 'funding the cover' }]);
+  });
+
+  it('gives the badge its number only while the feed is live', () => {
+    expect(OCCUPATIONS).toHaveLength(15);
+    expect(indexBadge(true)).toBe(
+      'Index live for 15 occupations, updated monthly from public data',
+    );
+    expect(indexBadge(false)).toBe('Showing the last reading we published');
+    expect(indexBadge(false)).not.toMatch(/\d/);
+  });
+});
+
+function headlineMonth(period: string | undefined): string {
+  return period === undefined ? '' : formatPeriod(period);
+}

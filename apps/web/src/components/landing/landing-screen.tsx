@@ -5,15 +5,18 @@ import type {
   LandingData,
   LandingExplorerView,
   LandingIndexView,
+  LandingNoteView,
   LandingPriceView,
   Streamed,
 } from '../../lib/landing-data';
+import type { LandingEvent, LandingFigure } from '../../lib/landing-model';
 import { CoverCard } from '../cover-card';
 import { PillLink } from '../pill-button';
 import { ReplayBar } from '../replay-bar';
 import { CHROME_PAGE, SiteHeader } from '../site-chrome';
 import { Skeleton } from '../skeleton';
 import { HeroAmount } from './hero-amount';
+import { EventChip, EventField, type EventDepth } from './hero-events';
 import { IndexTicker } from './index-ticker';
 import { LandingExplorer } from './landing-explorer';
 import { QuoteButton } from './quote-button';
@@ -117,11 +120,16 @@ export function LandingScreen({
       <div className="flex flex-col bg-canvas">
         <SiteHeader action={<QuoteButton variant="night" />} />
         <main className="bg-night">
-          <section>
+          {/* data-tone is what the stylesheet's focus rule reads (T52): the
+              outline turns white on this ground, where the sheet's black one
+              would be invisible on every chip and pill in the hero. */}
+          <section data-tone="night">
             <HeroBand
               demo={demo}
+              explorer={data.explorer}
               index={data.index}
               interim={interim}
+              note={data.note}
               occupation={data.occupation}
               price={data.price}
             />
@@ -138,7 +146,7 @@ export function LandingScreen({
             <Questions index={data.index} />
             <IndexSection explorer={data.explorer} index={data.index} />
           </div>
-          <Closing investorLine={data.investorLine} />
+          <Closing note={data.note} />
         </main>
       </div>
     </QuoteProvider>
@@ -170,19 +178,18 @@ function isPromised<T>(value: Streamed<T>): value is Promise<T> {
  * never a decoration that is always green. The dot is aria-hidden: the sentence
  * beside it carries the state, which is the same rule the status pill follows,
  * and it has to be, because the covered green is 2.9:1 on the night ground.
+ *
+ * The sentence is the view's, worded in src/lib/landing-model.ts (T54): live
+ * carries the number of occupations the index runs for, and stale carries no
+ * number, so the figure is added beside the fact and never in place of it.
  */
-function IndexLive({ live }: { live: boolean }) {
-  return (
-    <IndexLivePill dot={live ? 'bg-covered' : 'bg-watch'}>
-      {live
-        ? 'Index live, updated monthly from public data'
-        : 'Showing the last reading we published'}
-    </IndexLivePill>
-  );
+function IndexLive({ live, badge }: { live: boolean; badge: string }) {
+  return <IndexLivePill dot={live ? 'bg-covered' : 'bg-watch'}>{badge}</IndexLivePill>;
 }
 
 function IndexLiveFrom({ index }: { index: Streamed<LandingIndexView> }) {
-  return <IndexLive live={figureOf(index).live} />;
+  const { live, badge } = figureOf(index);
+  return <IndexLive badge={badge} live={live} />;
 }
 
 /**
@@ -192,11 +199,16 @@ function IndexLiveFrom({ index }: { index: Streamed<LandingIndexView> }) {
  * the line height of the type it stands for, and the dot is neither of the two
  * colours that mean something. It says nothing rather than saying "live", which
  * is the one thing this badge may never claim before it is known.
+ *
+ * The live sentence takes two lines at 390 since it carries its number (T54)
+ * and one line from the small breakpoint, measured in a browser, so the bar
+ * is two lines tall below that width and the pill stands at the same height
+ * whether the sentence is there or resting.
  */
 function IndexLiveResting() {
   return (
     <IndexLivePill dot="bg-white/24">
-      <RestingBar className="h-5 w-[18.5rem] max-w-full" />
+      <RestingBar className="h-10 w-[19.5rem] max-w-full sm:h-5 sm:w-[27rem]" />
     </IndexLivePill>
   );
 }
@@ -233,7 +245,7 @@ function IndexLivePill({ children, dot }: { children: ReactNode; dot: string }) 
 
 /**
  * The hero band: the text on the left and the card on the right at 1440, one
- * column at 390 with the card under the text.
+ * column at 390 with the card under the text, and the figures under both.
  *
  * The design of record centres the hero and stands the card under it. Benedict
  * asked for the card to the right, and the two cannot both have the full width,
@@ -241,17 +253,28 @@ function IndexLivePill({ children, dot }: { children: ReactNode; dot: string }) 
  * display-xl at 1440 and the band is a two column grid. Recorded in
  * docs/DECISIONS.md. Below the landing breakpoint nothing about the order
  * changes: the text, then the card, in one readable column.
+ *
+ * T54 surrounds the card with the events the page already reads and lays a band
+ * of figures under the grid, in the shape of the pages Benedict pointed at:
+ * a product shown working, surrounded by its own output. Every chip and every
+ * figure is built from a record in src/lib/landing-model.ts; the band carries
+ * no hairline above it, because the hero, the card, the chips and the figures
+ * are one composition and a rule across it would make them two sections.
  */
 function HeroBand({
   demo,
+  explorer,
   index,
   interim,
+  note,
   occupation,
   price,
 }: {
   demo: boolean;
+  explorer: Streamed<LandingExplorerView>;
   index: Streamed<LandingIndexView>;
   interim: boolean;
+  note: Streamed<LandingNoteView>;
   occupation: string;
   price: Streamed<LandingPriceView>;
 }) {
@@ -260,16 +283,224 @@ function HeroBand({
       <div className="mx-auto grid w-full max-w-[1200px] items-center gap-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)] lg:gap-20">
         <Hero demo={demo} index={index} price={price} />
         {/* The card's own column, with the soft ground behind whichever of the
-            two is standing in it. */}
-        <div className="relative flex justify-center">
+            two is standing in it, and the field of events around it. The column
+            is as tall as the card, so the field's slots are measured from the
+            card's own edges. */}
+        <div className="relative flex flex-col items-center">
           <div
             aria-hidden="true"
             className="landing-glow pointer-events-none absolute left-1/2 top-1/2 h-[620px] w-full max-w-[1100px] -translate-x-1/2 -translate-y-1/2 rounded-full"
           />
           <QuoteSlot card={<HeroCard occupation={occupation} />} interim={interim} />
+          <Events explorer={explorer} index={index} note={note} />
         </div>
       </div>
+      <FiguresBand index={index} note={note} />
     </div>
+  );
+}
+
+/**
+ * The field of events (T54): five slots around the card, each taken by one
+ * kind of event from one of the page's reads, so a chip lands as its figure
+ * arrives and never waits on another read.
+ *
+ * Near, at full opacity: the newest coupon paid, over the card's lower right
+ * edge where the face is empty, and the occupation nearest its line, above
+ * the card's top left. Far, faded: the occupation this page speaks for below
+ * the card, the coupon before the newest above its right edge, and the month
+ * the oracle published below the card's right edge. The slots are chosen so
+ * that no chip reaches the occupation, the status pill or the amount on the
+ * card's face, and at 390 the near two stand in flow under the card instead.
+ *
+ * A slot whose event does not exist is empty. The published month is empty
+ * on any deployment whose newest reading was computed and not yet settled on
+ * the topic, which is the honest state of the index between a run and its
+ * publication.
+ */
+function Events({
+  explorer,
+  index,
+  note,
+}: {
+  explorer: Streamed<LandingExplorerView>;
+  index: Streamed<LandingIndexView>;
+  note: Streamed<LandingNoteView>;
+}) {
+  return (
+    <EventField>
+      <Suspense fallback={<EventResting className={SLOT_NEAR_RIGHT} />}>
+        <NoteEvent at={0} className={SLOT_NEAR_RIGHT} depth="near" note={note} />
+      </Suspense>
+      <Suspense fallback={<EventResting className={SLOT_NEAR_ABOVE} />}>
+        <ReadingEvent at={0} className={SLOT_NEAR_ABOVE} depth="near" explorer={explorer} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <ReadingEvent at={1} className={SLOT_FAR_BELOW} depth="far" explorer={explorer} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <NoteEvent at={1} className={SLOT_FAR_ABOVE} depth="far" note={note} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <PublishedEvent className={SLOT_FAR_BELOW_RIGHT} index={index} />
+      </Suspense>
+    </EventField>
+  );
+}
+
+// The slots, measured from the card's edges at the landing breakpoint. The
+// overhang past the column is kept inside the chrome's own 40px margin, so a
+// chip never widens the page (T34 measured what a percentage wider than its
+// parent does), and it grows only where the display has the room for it.
+const SLOT_NEAR_RIGHT = 'lg:right-[-24px] lg:top-[calc(50%+52px)] xl:right-[-40px]';
+const SLOT_NEAR_ABOVE = 'lg:bottom-[calc(100%+20px)] lg:left-[-24px] xl:left-[-40px]';
+const SLOT_FAR_BELOW = 'lg:left-[-16px] lg:top-[calc(100%+24px)]';
+const SLOT_FAR_ABOVE = 'lg:bottom-[calc(100%+28px)] lg:right-[8px]';
+const SLOT_FAR_BELOW_RIGHT = 'lg:right-[-16px] lg:top-[calc(100%+32px)]';
+
+function NoteEvent({
+  at,
+  className,
+  depth,
+  note,
+}: {
+  at: number;
+  className: string;
+  depth: EventDepth;
+  note: Streamed<LandingNoteView>;
+}) {
+  return <Chip className={className} depth={depth} event={figureOf(note).events[at] ?? null} />;
+}
+
+function ReadingEvent({
+  at,
+  className,
+  depth,
+  explorer,
+}: {
+  at: number;
+  className: string;
+  depth: EventDepth;
+  explorer: Streamed<LandingExplorerView>;
+}) {
+  return (
+    <Chip className={className} depth={depth} event={figureOf(explorer).events[at] ?? null} />
+  );
+}
+
+function PublishedEvent({
+  className,
+  index,
+}: {
+  className: string;
+  index: Streamed<LandingIndexView>;
+}) {
+  return <Chip className={className} depth="far" event={figureOf(index).published} />;
+}
+
+/** No event, no chip. Not a dim one and not an empty one. */
+function Chip({
+  className,
+  depth,
+  event,
+}: {
+  className: string;
+  depth: EventDepth;
+  event: LandingEvent | null;
+}) {
+  return event === null ? null : <EventChip className={className} depth={depth} event={event} />;
+}
+
+/**
+ * A near chip before its event has been read: a box at the width a chip of
+ * two short lines takes and its two lines of height, in the resting tone, in
+ * the same slot. A chip sizes to its words up to a cap, so the box is the
+ * usual width and not always the exact one; it is absolute from the landing
+ * breakpoint, so the difference moves nothing.
+ * Only the two near slots rest. The far slots are absolute from the landing
+ * breakpoint and not drawn below it, so a far chip landing moves nothing,
+ * and one of them is empty by design on most days.
+ */
+function EventResting({ className }: { className: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-block h-[62px] w-[256px] max-w-full rounded-group bg-white/12 lg:absolute ${className}`}
+      data-testid="landing-resting"
+    />
+  );
+}
+
+/**
+ * The band of figures under the hero (T54): four large numbers with their
+ * labels, in the shape the reference pages use, every one of them a record
+ * the page read. The years of history are counted from the backtest's first
+ * month to the newest month served; the other three are the note's. A figure
+ * the page could not read is absent, so the band is as wide as the truth.
+ */
+function FiguresBand({
+  index,
+  note,
+}: {
+  index: Streamed<LandingIndexView>;
+  note: Streamed<LandingNoteView>;
+}) {
+  return (
+    <div
+      className="mx-auto mt-16 grid w-full max-w-[1200px] grid-cols-2 gap-x-6 gap-y-8 lg:mt-20 lg:grid-cols-4 lg:gap-x-10"
+      data-testid="landing-figures"
+    >
+      <Suspense fallback={<FigureResting />}>
+        <HistoryFigure index={index} />
+      </Suspense>
+      <Suspense
+        fallback={
+          <>
+            <FigureResting />
+            <FigureResting />
+            <FigureResting />
+          </>
+        }
+      >
+        <NoteFigures note={note} />
+      </Suspense>
+    </div>
+  );
+}
+
+function HistoryFigure({ index }: { index: Streamed<LandingIndexView> }) {
+  const { history } = figureOf(index);
+  return history === null ? null : <Figure figure={history} />;
+}
+
+function NoteFigures({ note }: { note: Streamed<LandingNoteView> }) {
+  return (
+    <>
+      {figureOf(note).figures.map((figure) => (
+        <Figure figure={figure} key={figure.label} />
+      ))}
+    </>
+  );
+}
+
+function Figure({ figure }: { figure: LandingFigure }) {
+  return (
+    <p className="flex flex-col gap-1">
+      <span className="font-display text-headline font-semibold tracking-headline text-white lg:text-display-l lg:tracking-display">
+        {figure.value}
+      </span>
+      <span className="text-secondary text-white/66">{figure.label}</span>
+    </p>
+  );
+}
+
+/** The value at the height of its type, and the label under it, at rest. */
+function FigureResting() {
+  return (
+    <span className="flex flex-col gap-1">
+      <RestingBar className="h-10 w-24 lg:h-[60px] lg:w-32" />
+      <RestingBar className="h-5 w-40 max-w-full" />
+    </span>
   );
 }
 
@@ -289,7 +520,12 @@ function Hero({
       </Suspense>
       {/* White for headings and rgba(255,255,255,.66) for everything else, which
           is the addendum's whole rule for text on this ground. */}
-      <h1 className="text-balance font-display text-headline font-semibold tracking-headline text-white sm:text-display-l lg:text-display-xl lg:tracking-landing-tight">
+      {/* At 1280 and up the headline takes the landing scale's own size for a
+          hero beside a card (T54): 80px at a leading of 0.98, which is the
+          presence the reference pages get from their headline. Between the
+          landing breakpoint and there the column is narrower and display-xl
+          stays, as T34 set it. */}
+      <h1 className="text-balance font-display text-headline font-semibold tracking-headline text-white sm:text-display-l lg:text-display-xl lg:tracking-landing-tight xl:text-landing-headline xl:tracking-landing-hero">
         Cover for the day your job is automated.
       </h1>
       <p className="mt-6 max-w-[500px] text-balance text-body-lg text-white/66 lg:mt-8 lg:text-landing-lead">
@@ -318,7 +554,37 @@ function Hero({
           </PillLink>
         ) : null}
       </div>
+      <Credibility />
     </div>
+  );
+}
+
+/**
+ * docs/DESIGN-TOKENS-ADDENDUM.md, "Copy deck additions, T54", verbatim: the
+ * three facts a judge checks first, in place of the awards row the reference
+ * pages carry. Plain, small, at the secondary opacity, and not a heading: the
+ * hero has the page's one h1 and this is a list under its actions.
+ */
+const CREDIBILITY = [
+  'Settles on public BLS data',
+  'Runs on Hedera testnet',
+  'One person, one cover, with World ID',
+] as const;
+
+function Credibility() {
+  return (
+    <ul className="mt-8 flex flex-col items-center gap-y-1.5 text-secondary text-white/66 lg:mt-10 lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-5">
+      {/* Every item carries its own mark from the landing breakpoint, where
+          the row wraps at the column's width and a mark between items would
+          open a line on its own. At 390 the three stand centred, one under
+          the other, and need no mark. */}
+      {CREDIBILITY.map((fact) => (
+        <li className="flex items-center gap-2.5" key={fact}>
+          <span aria-hidden="true" className="hidden size-1 shrink-0 rounded-full bg-white/24 lg:inline-block" />
+          {fact}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -607,9 +873,9 @@ function IndexNote({ index }: { index: Streamed<LandingIndexView> }) {
  * section above is gone: the ground changes, and a hairline over a change of
  * ground is a second separator doing the same job.
  */
-function Closing({ investorLine }: { investorLine: Streamed<string> }) {
+function Closing({ note }: { note: Streamed<LandingNoteView> }) {
   return (
-    <section className={`py-16 lg:py-28 ${PAGE}`}>
+    <section className={`py-16 lg:py-28 ${PAGE}`} data-tone="night">
       <div className="mx-auto flex max-w-[800px] flex-col items-center text-center">
         <h2 className="text-balance font-display text-headline font-semibold tracking-headline text-white lg:text-display-xl lg:tracking-landing-tight">
           The quiet kind of ready.
@@ -622,7 +888,7 @@ function Closing({ investorLine }: { investorLine: Streamed<string> }) {
         </div>
         <p className="mt-6 text-secondary text-white/66">
           <Suspense fallback={<InvestorLineResting />}>
-            <InvestorLine line={investorLine} />
+            <InvestorLine note={note} />
           </Suspense>
         </p>
       </div>
@@ -630,8 +896,8 @@ function Closing({ investorLine }: { investorLine: Streamed<string> }) {
   );
 }
 
-function InvestorLine({ line }: { line: Streamed<string> }) {
-  return <>{figureOf(line)}</>;
+function InvestorLine({ note }: { note: Streamed<LandingNoteView> }) {
+  return <>{figureOf(note).investorLine}</>;
 }
 
 /**

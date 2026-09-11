@@ -75,6 +75,8 @@ describe('the theme block is the config', () => {
     // sizes the design of record draws at 1440. Marketing surface only.
     for (const [role, size, lineHeight] of [
       ['landing-hero', '104px', '1.02'],
+      // T54: the hero headline beside the card, from 1280.
+      ['landing-headline', '80px', '0.98'],
       ['landing-amount', '108px', '0.95'],
       ['landing-reading', '96px', '1'],
       ['landing-step', '72px', '1'],

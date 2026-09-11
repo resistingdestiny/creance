@@ -8,6 +8,7 @@ import { LandingScreen } from '../src/components/landing/landing-screen.js';
 import type {
   LandingExplorerView,
   LandingIndexView,
+  LandingNoteView,
   LandingPriceView,
 } from '../src/lib/landing-data.js';
 
@@ -76,7 +77,7 @@ describe('the shell', () => {
     const index = deferred<LandingIndexView>();
     const price = deferred<LandingPriceView>();
     const explorer = deferred<LandingExplorerView>();
-    const investorLine = deferred<string>();
+    const note = deferred<LandingNoteView>();
 
     const stream = await renderToReadableStream(
       <LandingScreen
@@ -86,7 +87,7 @@ describe('the shell', () => {
           index: index.promise,
           price: price.promise,
           explorer: explorer.promise,
-          investorLine: investorLine.promise,
+          note: note.promise,
         }}
       />,
     );
@@ -107,25 +108,36 @@ describe('the shell', () => {
     expect(shell).toContain('The quiet kind of ready.');
     expect(shell).toContain('One number decides. You can watch it.');
 
-    // And not one figure, because not one of them has been read.
+    // And not one figure, because not one of them has been read: no price,
+    // no badge, no ticker, and (T54) no chip around the card and no figure in
+    // the band under it.
     expect(shell).not.toContain('From 4.25 a month');
-    expect(shell).not.toContain('Index live, updated monthly from public data');
+    expect(shell).not.toContain(LIVE.index.badge);
     expect(shell).not.toContain('landing-ticker__item');
+    expect(shell).not.toContain('data-testid="landing-event"');
+    expect(shell).not.toContain('years of index history');
+    expect(shell).not.toContain('Coupon 3 paid');
     expect(restingStates(shell)).toBeGreaterThan(0);
+    // The two near chips and the four figures rest at their size, in place.
+    expect(shell).toContain('data-testid="landing-events"');
+    expect(shell).toContain('data-testid="landing-figures"');
 
     index.resolve(LIVE.index);
     price.resolve(LIVE.price);
     explorer.resolve(LIVE.explorer);
-    investorLine.resolve(LIVE.investorLine);
+    note.resolve(LIVE.note);
 
     const rest = await drain(reader);
     const whole = shell + rest;
 
     expect(whole).toContain('From 4.25 a month');
-    expect(whole).toContain('Index live, updated monthly from public data');
+    expect(whole).toContain(LIVE.index.badge);
     expect(whole).toContain('landing-ticker__item');
     expect(whole).toContain(LIVE.index.payLine);
-    expect(whole).toContain(LIVE.investorLine);
+    expect(whole).toContain(LIVE.note.investorLine);
+    expect(whole).toContain('Coupon 3 paid');
+    expect(whole).toContain('years of index history');
+    expect(whole.match(/data-testid="landing-event"/g)).toHaveLength(4);
   });
 
   it('rests nowhere at all when the figures are already in hand', async () => {

@@ -2989,3 +2989,33 @@ while the robots file above promises it, and `https://creance.co/` carries no
 `og:` or `twitter:` meta tag at all, so the link unfurls without a title card.
 The live pages answer with `x-nextjs-cache: HIT` behind Cloudflare, so a
 redeploy alone will keep serving the old head until the cache is purged.
+
+## The reading's publication block is empty for a month the topic carries
+
+Measured 11 September 2026 against the API on this host, through the web
+app's own paying client. `GET /v1/index/{group}?months=60` answered for all
+fifteen groups with `as_of` 2026-07 and `publication` of `{"topic_id": null,
+"sequence_number": null, "submit_transaction": null}` on every one. The
+mirror node's view of the index topic,
+`https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.10366470/messages`,
+carries 33 messages; docs/HEDERA.md records July 2026 published for every
+bindable group at sequences 17 to 31 on 5 September, and the two newest
+messages, 32 and 33, are computer_math for 2026-05 and 2026-06.
+
+So the month the API serves is on the topic and the API does not say so. The
+observation rows the reading is built from were written without `hcs_seq` and
+`submit_tx`, which is what happens when a month is computed on a deployment
+other than the one that published it, or computed again after it was
+published; `apps/api/src/routes/index-feed.ts` still carries a comment saying
+the fields are empty because the publishing oracle is T12, which is no longer
+why.
+
+What T54 does about it: the landing page's "Index published" chip is built
+from `publication` and only from it, so on this deployment it does not
+render, and the page says nothing about a month being published. It renders
+the day the rows carry their receipt. Nothing in the web app can fill the
+block from the topic without a read the page does not make, and a chip typed
+from docs/HEDERA.md would be a claim the page had not read. Whoever owns the
+oracle's rows can close this by reconciling `hcs_seq` and `submit_tx` for
+the published months against the topic, or by having a run on the deployment
+that serves the reading be the run that publishes.

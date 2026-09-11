@@ -1,13 +1,14 @@
 /**
  * What the landing page reads, and what a visitor waits for while it does.
  *
- * Four calls, all on the server, all live: the metered index reading, a quote
- * for the smallest cover on offer, the coupon the note pays, and the round of
- * fifteen readings the explorer buys. Two of them are x402 gated, which means
- * each one settles on Hedera before the handler answers, and settlement is
- * seconds. Until T40 all four were made on every request and awaited before the
- * first byte, so the front door cost about one settlement per view and three to
- * four seconds of consensus per visitor.
+ * Four reads, all on the server, all live: the metered index reading, a quote
+ * for the smallest cover on offer, the note the investors hold with the
+ * coupons it has paid, and the round of fifteen readings the explorer buys.
+ * Two of them are x402 gated, which means each one settles on Hedera before
+ * the handler answers, and settlement is seconds. Until T40 all four were made
+ * on every request and awaited before the first byte, so the front door cost
+ * about one settlement per view and three to four seconds of consensus per
+ * visitor.
  *
  * Neither of those is a price worth paying, and neither has to be paid.
  *
@@ -44,18 +45,31 @@ import { replayBadgeLabel } from './claim-model';
 import { AMOUNT_MIN } from './cover-amount';
 import { readExplorer, type ExplorerData } from './explorer-data';
 import { heldRead, heldReadPerKey } from './held-read';
-import { fetchSeries, fetchSeriesList } from './investor-api';
+import {
+  fetchCoupons,
+  fetchSeries,
+  fetchSeriesList,
+  type CouponsView,
+  type SeriesView,
+} from './investor-api';
 import { couponLine } from './investor-model';
 import {
   LANDING_GROUP,
   attachmentFor,
+  couponEvents,
   fromPriceBuys,
   fromPriceLine,
+  historyFigure,
   investorLine,
   landingIndexSection,
+  noteFigures,
   payAnswer,
+  publishedEvent,
+  readingEvents,
   seriesFor,
   tickerReadings,
+  type LandingEvent,
+  type LandingFigure,
   type TickerReading,
 } from './landing-model';
 import { recallReading, rememberReading } from './last-reading';
@@ -99,8 +113,9 @@ export const QUOTE_STALE_MS = 5 * 60 * 1000;
 
 /**
  * The coupon is a rate written into the series at issuance, so it changes when
- * a series is issued and not otherwise. The read is free, and the window is
- * about the second a visitor spends waiting for it rather than about money.
+ * a series is issued and not otherwise, and a coupon settles once a month. Both
+ * reads are free, and the window is about the second a visitor spends waiting
+ * for them rather than about money.
  */
 export const COUPON_TTL_MS = 10 * 60 * 1000;
 export const COUPON_STALE_MS = 10 * 60 * 1000;
@@ -118,10 +133,16 @@ export type Streamed<T> = T | Promise<T>;
 export interface LandingIndexView {
   /** Whether the reading behind the hero badge could be had at all. */
   readonly live: boolean;
+  /** The badge above the headline, worded for this render (T54). */
+  readonly badge: string;
   /** "When does it pay." */
   readonly payLine: string;
   /** Null while the feed answers, the honest note when it does not. */
   readonly note: string | null;
+  /** The month the oracle settled on the index topic, or null when none was. */
+  readonly published: LandingEvent | null;
+  /** "16 years of index history", counted to the month served, or null with none. */
+  readonly history: LandingFigure | null;
 }
 
 export interface LandingPriceView {
@@ -138,6 +159,22 @@ export interface LandingExplorerView {
   readonly round: ExplorerData | null;
   /** "Replay: Jul 2026" while the demo clock is walking. */
   readonly replayBadge: string | null;
+  /** The readings worth a chip around the card (T54), or empty with no round. */
+  readonly events: readonly LandingEvent[];
+}
+
+/**
+ * What the note the investors hold gives the page: the closing line's rate,
+ * the coupons that were paid, and the band's figures. One hold and one view,
+ * because all three are one series read once.
+ */
+export interface LandingNoteView {
+  /** "Investors fund the cover and earn 8 percent a year, paid monthly." */
+  readonly investorLine: string;
+  /** The coupons that were paid, newest first, or empty when none was. */
+  readonly events: readonly LandingEvent[];
+  /** The band's figures from the note, or empty when it could not be read. */
+  readonly figures: readonly LandingFigure[];
 }
 
 export interface LandingData {
@@ -147,8 +184,7 @@ export interface LandingData {
   readonly index: Streamed<LandingIndexView>;
   readonly price: Streamed<LandingPriceView>;
   readonly explorer: Streamed<LandingExplorerView>;
-  /** "Investors fund the cover and earn 8 percent a year, paid monthly." */
-  readonly investorLine: Streamed<string>;
+  readonly note: Streamed<LandingNoteView>;
 }
 
 /**
@@ -166,7 +202,7 @@ export function readLanding(group: string = LANDING_GROUP): LandingData {
     index: readIndexSection(group),
     price: readPrice(group),
     explorer: readExplorerSection(group),
-    investorLine: readCoupon().then(investorLine),
+    note: readNote(),
   };
 }
 
@@ -231,22 +267,35 @@ const prices = heldReadPerKey<HeldQuote>((group) =>
 );
 
 /**
- * The coupon the note pays, from the series the investor screens already read.
+ * The note the investors hold, from the series the investor screens already
+ * read, with the coupons it has paid.
  *
  * Which series is the API's to say, not this page's: it is the head of
  * GET /v1/series, the same default /invest opens on, so the landing page and
- * the investor screen never quote different notes. Both calls sit inside the
- * hold, so listing the series costs the same as it did to name one.
+ * the investor screen never quote different notes. All three calls sit inside
+ * the hold, so listing the series and reading its coupons cost what it cost
+ * to name one, and none of them is on the first byte.
+ *
+ * The coupons are read here and not on demand because the chips around the
+ * hero card link the settlement that paid each one (T54), and that receipt is
+ * on the coupons route and nowhere else. It is a free read of the same
+ * series, held for the same window.
  */
-const coupons = heldRead({
-  what: 'the landing investor line',
+interface HeldNote {
+  readonly series: SeriesView;
+  readonly coupons: CouponsView;
+}
+
+const notes = heldRead<HeldNote>({
+  what: 'the landing note',
   ttlMs: COUPON_TTL_MS,
   staleMs: COUPON_STALE_MS,
   read: async () => {
     const listing = await fetchSeriesList();
     const first = listing.series[0]?.series_id;
     if (first === undefined) throw new Error('the API serves no series');
-    return couponLine(await fetchSeries(first));
+    const [series, coupons] = await Promise.all([fetchSeries(first), fetchCoupons(first)]);
+    return { series, coupons };
   },
 });
 
@@ -254,7 +303,7 @@ const coupons = heldRead({
 export function forgetLandingReads(): void {
   readings.forget();
   prices.forget();
-  coupons.forget();
+  notes.forget();
 }
 
 /**
@@ -284,6 +333,8 @@ async function readIndexSection(group: string): Promise<LandingIndexView> {
       seriesFor(group, index, catalogue),
     ),
     ...landingIndexSection(index, live),
+    published: publishedEvent(index),
+    history: historyFigure(index?.as_of ?? null),
   };
 }
 
@@ -308,13 +359,24 @@ async function readPrice(group: string): Promise<LandingPriceView> {
   };
 }
 
-async function readCoupon(): Promise<string | null> {
+/**
+ * The note's three contributions, or what the page says without them: the
+ * closing line in its first wording, no coupon chips and no figures. A note
+ * that cannot be read costs the page those and nothing else.
+ */
+async function readNote(): Promise<LandingNoteView> {
+  let note: HeldNote | null;
   try {
-    return await coupons.read();
+    note = await notes.read();
   } catch (cause) {
-    reportUnreachable('the landing investor line', cause);
-    return null;
+    reportUnreachable('the landing note', cause);
+    note = null;
   }
+  return {
+    investorLine: investorLine(note === null ? null : couponLine(note.series)),
+    events: note === null ? [] : couponEvents(note.coupons),
+    figures: note === null ? [] : noteFigures(note.series, note.coupons),
+  };
 }
 
 /**
@@ -349,6 +411,7 @@ async function readExplorerSection(group: string): Promise<LandingExplorerView> 
     ticker: explorer === null ? [] : tickerReadings(explorer.occupations, group),
     round: explorer,
     replayBadge: explorer?.replayBadge ?? replayBadgeLabel(await fetchReplay()),
+    events: explorer === null ? [] : readingEvents(explorer.occupations, group),
   };
 }
 

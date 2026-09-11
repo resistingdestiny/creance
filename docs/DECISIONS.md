@@ -6937,3 +6937,194 @@ snapshot of the margin caption for each of the fifteen occupations including
 the two that have never been triggerable. `explorer-screen.test.tsx` gained
 three. `attribution.test.tsx` gained two and one existing test was scoped as
 above. None runs against a network.
+
+## T54, the hero shows the product working, 11 September 2026
+
+Root asked for a pass on the hero drawing on two pages that put a device in
+the middle running the real app and float its own output around it, with an
+enormous headline, a badge carrying a number, a credibility row and a band of
+large figures under the hero. This section records what was taken from that
+shape, what was refused, and why every chip on the page is a record and not
+an illustration.
+
+### The structure is taken and the palette is not
+
+Both reference pages are light. The hero stays dark, as the backlog
+recommends, because the metal card reads as metal against the night ground and
+against canvas it reads as a grey rectangle. The chips are the addendum's
+`night-2`, the raised marketing ground that had no use until now, with the
+white border and the secondary opacity the addendum already gives text on this
+ground. No new colour and no new token was needed for the chips.
+
+### Every chip is a record the page already reads, and a missing record is a missing chip
+
+The reference pages float notifications that are illustrations. Ours are
+built in `src/lib/landing-model.ts` from three reads the page was already
+making: the coupons of the note the investors hold, the explorer's round of
+fifteen readings, and the metered reading behind the badge. There are five
+slots and each is one kind of event from one read, so a chip lands with its
+figure and none waits on another read:
+
+- the newest coupon paid and the one before it, each linking the Scheduled
+  Transaction's executed transfer on HashScan, from `GET /v1/series/{id}/coupons`;
+- the occupation nearest its line and the one this page speaks for, in the
+  explorer's own gap phrase through `rankByDistance`, each opening the explorer
+  below on that occupation;
+- the month the oracle published, from the reading's own `publication`
+  block, linking the index topic.
+
+A chip with no event behind it is not drawn. The recorded reading in the test
+suite carries no publication, and so does every reading the API served on 11
+September: the newest month, 2026-07, was computed from the archive and has
+not been settled on the topic, whose newest computer_math message is 2026-06
+at sequence 33. So on this deployment the fifth slot is empty, the page says
+nothing about a month being published, and the four chips it does carry are
+two settlements and two readings. That is the ticket's own preference: fewer
+true chips over a full field of invented ones.
+
+Two chips the backlog lists are not built at all: a cover bound with its NFT
+serial and a claim paying. Nothing on the landing page reads a policy or a
+claim, the two real payouts of 5 September predate the cover key and cannot
+be opened by a read, and the seeded demo covers are keys rather than policy
+ids. Typing a policy id from docs/HEDERA.md into the page as if it had read
+it would be exactly the fabrication the ticket forbids. They can be added the
+day a free read of one exists inside a hold the page already has.
+
+### The coupons route is read inside the note's hold
+
+The landing read the head of `GET /v1/series` and that series for the closing
+line's rate. The chips need the settlement that paid each coupon, which is on
+`GET /v1/series/{id}/coupons` and nowhere else, so that route is read in the
+same hold, in parallel with the series, behind the same ten minute window. It
+is a free route, it is never awaited before the first byte, and a hundred
+visitors in a window cost one read of it, which `landing-data.test.ts` counts.
+The hold returns the series and the coupons whole and the view is derived
+from both, so the closing line, the chips and the band figures are one read
+and cannot disagree. A coupons route that fails takes the whole note with it
+rather than leaving a rate beside chips that could not be read.
+
+### Depth without a shadow
+
+The reference chips are shadowed. `built-css.test.ts` allows one box-shadow
+value in the build, the elevation the hero card spends, and the addendum
+permits it on that card only. The chips do their depth with surface, border
+and opacity instead: near chips on `night-2` with a white border at sixteen
+percent and text at full opacity; far chips with the border at eight percent,
+the surface at seventy percent and the whole chip at sixty percent opacity,
+rising to full on hover. The field reads as deep because the far chips fade
+towards the ground, which is the effect the shadow was doing on the reference
+pages, and the test that permits one shadow is unchanged. A shadow on the chips
+was considered and refused for the reason the addendum gives: one elevation,
+and the card has it.
+
+### The chips stand off the card's figures and fade behind the quote
+
+The slots are measured from the card's own edges rather than from the column,
+because the grid centres the card in its row and the column is exactly the
+card's height. One near chip overlaps the card, over its lower right where the
+face is empty; measured in a browser at 1440 it clears the amount's glyphs, the
+occupation label and the status pill. The overhang past the column is 24px
+from the landing breakpoint and 40px from 1280, which is the chrome's own
+margin, so a chip never widens the page; 48px did, by 8px at 1280, and was
+measured and reduced. The page scrolls sideways by nothing at 390, 1024, 1280,
+1366 and 1440.
+
+Below the landing breakpoint the two near chips stand in flow under the card,
+because a 350px column has no room to surround anything and a chip over the
+card there would cover its own numbers; the far chips are not drawn at all
+there. While a quote is open the whole field is at opacity zero, aria-hidden
+and without pointer events, because the card turns to carry each step and the
+World widget opens beside it. It comes back when the quote closes.
+
+### The chips animate nothing
+
+The backlog allows the chips to join the card's entrance. They do not. They
+are in place on the first paint and arrive with their figure when the page
+streams, so a still frame, a reduced motion reader and a screen recording all
+see the same composition, and the count of `motion-reduce:animate-none` on
+the page is what it was. The one entrance on the page is still the card's.
+
+### The badge carries a number beside its fact, and stale carries none
+
+"Index live, updated monthly from public data" becomes "Index live for 15
+occupations, updated monthly from public data". The count is the table the
+explorer buys its round from, the fifteen groups DESIGN.md 3.3 names, and it
+is added beside the fact the badge already stated rather than in place of it.
+The stale sentence, "Showing the last reading we published", is unchanged and
+carries no number, because a number on a stale badge would be decoration on
+the one thing the badge may never decorate. The live sentence takes two lines
+at 390 and its resting bar is two lines there, so the pill stands at one
+height whether the sentence is present or resting.
+
+### The figures band prints four records, and its fourth is counted rather than typed
+
+Sixteen years of history is the one number the backlog names that the page
+did not load. It is not typed as sixteen: `INDEX_HISTORY_FROM` is 2010-01, the
+month docs/INDEX.md starts the backtest on, and the page counts whole years
+from there to the newest month it was actually served, so the figure moves
+with the index and the test pins the start to the document. The other three
+are the note's: coupons settled, the API's own count; what has been paid to
+noteholders, the sum of every settled holder row, which is the arithmetic
+"Earned to date" already does for one holder; and the principal funded, in the
+deck's whole-money form. A note that has settled nothing prints no coupon
+figure and no nought, for the reason "Earned to date" is null before a payment.
+
+The coupon rate is not in the band, although the note carries it, because the
+closing line prints it and T44's rule is that the page prints each fact once.
+The newest month and the months on screen are not in the band because the
+explorer's provenance line prints both.
+
+### The credibility row is copy, and the page's own copy grows by it
+
+T44 brought the page's own copy to 80 words and asked that it not creep back.
+The credibility row adds sixteen: "Settles on public BLS data", "Runs on
+Hedera testnet", "One person, one cover, with World ID". The badge adds three.
+Nothing else on the hero is prose: every chip and every figure is built from a
+record. The row is a list under the actions and not a heading, so the hero
+keeps the page's one h1 and the outline test holds. The source name is not
+taken from `ExplorerProvenance.source` because the API's sentence is
+seventeen words and the row needs the three a judge scans for; the provenance
+line below still prints the API's own words in full.
+
+### The headline takes a size of its own from 1280
+
+T34 stepped the headline down to display-xl so the card could stand beside it.
+That size read as a heading. From 1280 the column beside the card is 500px
+wide and the headline takes a new token, `landing-headline`, 80px at a leading
+of 0.98 with the landing hero's tracking, which is the presence the reference
+pages get from their headline and the largest size at which every line of the
+sentence fits the column. Between the landing breakpoint and 1280 the column
+is narrower and display-xl stays. At 390 nothing about the headline changes.
+It is a token because `built-css.test.ts` pins the landing scale with its
+ratios, and it is pinned there.
+
+### Both night bands carry the focus tone
+
+The stylesheet turns the focus outline white where `data-tone="night"` is set
+(T52), and only the header set it. The hero's pills stood on the night ground
+with a black outline, which is invisible, and the chips would have joined
+them. The hero section and the closing band carry the tone now; the sheet
+between them does not, so the outline is white on the night and black on the
+canvas, as the one focus state intends.
+
+### Time to first byte
+
+Measured with `curl -w %{time_starttransfer}` against the dev server on this
+host, eight warm samples each. Before: 0.095 to 0.364 seconds, median 0.127.
+After: 0.089 to 0.198 seconds, median 0.125. Nothing new is awaited before
+the first byte; the coupons read is inside a hold that was already there and
+is streamed behind its own boundary.
+
+### Test counts that changed, with the reason
+
+landing.test.tsx counted `bg-night` twice on the page with a pattern that
+also matched `bg-night-2`; it matches the bare class now and counts the raised
+ground separately, once per chip. Its ticker labels were read with a pattern
+that also matched chip titles; it reads them from the ticker's own items. The
+badge sentence and the closing band's section pattern changed with the copy
+and the tone attribute. built-css.test.ts pins the new headline token.
+landing-stream.test.tsx asserts that no chip and no figure is on the shell and
+that both are on the whole. landing-data.test.ts counts one coupons read per
+window and asserts that a failed coupons read empties the note. The rest is
+new: the events, the band, the credibility row and the headline are each
+pinned in landing.test.tsx.

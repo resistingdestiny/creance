@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import { fetchSeriesList, type SeriesListView } from '../../lib/investor-api';
-import { readInvestor } from '../../lib/investor-data';
+import { readInvestor, type InvestorData } from '../../lib/investor-data';
 import { demoInvestorAccount } from '../../lib/wallet';
 import { InvestorOverview } from './investor-overview';
 import { InvestorUnavailable } from './unavailable';
@@ -46,11 +46,14 @@ export default async function InvestPage({
   }
 
   // The list decides the default, not a constant in this bundle. A series
-  // the API does not serve is asked for anyway, so the endpoint answers the
-  // 404 and the screen says it cannot load that series rather than silently
-  // showing a different one.
+  // the list does not carry is not asked for: the API would answer 404 twice,
+  // and the id came off a query string, so a read per unknown id would be a
+  // hold per string a crawler sends. The screen is handed nothing for both
+  // figures and says it cannot load that series rather than silently showing
+  // a different one.
   const id = requested ?? listing.series[0]?.series_id ?? '';
-  const data = readInvestor(id);
+  const listed = listing.series.some((entry) => entry.series_id === id);
+  const data = listed ? readInvestor(id) : UNLISTED;
   return (
     <InvestorOverview
       choices={listing.series}
@@ -61,3 +64,6 @@ export default async function InvestPage({
     />
   );
 }
+
+/** Both figures absent, which the screen renders as its two cannot-load blocks. */
+const UNLISTED: InvestorData = { series: null, coupons: null };

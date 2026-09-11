@@ -67,42 +67,96 @@ describe('the explorer opens on the newest published month', () => {
   });
 });
 
+/** The chooser's row: the one button that says which occupation is on screen. */
+function chooserRow(): HTMLElement {
+  return screen
+    .getAllByRole('button')
+    .find((button) => button.getAttribute('aria-expanded') !== null) as HTMLElement;
+}
+
+/** The options the open chooser is showing. */
+function chips(): HTMLElement[] {
+  return screen.getAllByRole('button').filter((button) => button.getAttribute('aria-pressed') !== null);
+}
+
 describe('the picker', () => {
-  it('offers the fifteen occupations in the addendum order, as buttons', () => {
+  it('opens as one row naming the occupation on screen, with the options put away', () => {
+    // T52. It was fifteen pills wrapping four rows deep above the verdict.
+    // The row is the statement of what is picked; the options are in the
+    // markup, hidden, so both pages still carry every one of them.
     render(<ExplorerScreen data={data()} />);
-    const chips = screen
-      .getAllByRole('button')
-      .filter((button) => button.getAttribute('aria-pressed') !== null);
-    expect(chips).toHaveLength(15);
-    expect(chips[0]?.textContent).toContain('Office and administrative support');
-    expect(chips[1]?.textContent).toContain('Computer and mathematical');
-    expect(chips.at(-1)?.textContent).toContain('Farming, fishing and forestry');
+    const row = chooserRow();
+    expect(row.textContent).toContain('Computer and mathematical');
+    expect(row.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryAllByRole('button').filter((b) => b.getAttribute('aria-pressed') !== null)).toHaveLength(0);
+    expect(document.querySelectorAll('[aria-pressed]')).toHaveLength(15);
+    expect(document.getElementById(row.getAttribute('aria-controls')!)?.hidden).toBe(true);
   });
 
-  it('filters the chips as the visitor types, and says when nothing matches', () => {
+  it('offers the fifteen occupations in the addendum order, as buttons, once opened', () => {
     render(<ExplorerScreen data={data()} />);
+    fireEvent.click(chooserRow());
+    expect(chooserRow().getAttribute('aria-expanded')).toBe('true');
+    const options = chips();
+    expect(options).toHaveLength(15);
+    expect(options[0]?.textContent).toContain('Office and administrative support');
+    expect(options[1]?.textContent).toContain('Computer and mathematical');
+    expect(options[1]?.getAttribute('aria-pressed')).toBe('true');
+    expect(options.at(-1)?.textContent).toContain('Farming, fishing and forestry');
+  });
+
+  it('filters the options as the visitor types, and says when nothing matches', () => {
+    render(<ExplorerScreen data={data()} />);
+    fireEvent.click(chooserRow());
     const search = screen.getByRole('searchbox', { name: 'Search occupations' });
 
     fireEvent.change(search, { target: { value: 'legal' } });
-    expect(
-      screen.getAllByRole('button').filter((button) => button.getAttribute('aria-pressed') !== null),
-    ).toHaveLength(1);
+    expect(chips()).toHaveLength(1);
 
     fireEvent.change(search, { target: { value: 'astronaut' } });
     expect(screen.getByText('No occupation matches that.')).toBeDefined();
   });
 
-  it('changes the whole verdict when another occupation is picked', () => {
+  it('changes the whole verdict when another occupation is picked, and closes', () => {
     render(<ExplorerScreen data={data()} />);
-    const legal = screen
-      .getAllByRole('button')
-      .find((button) => button.textContent?.startsWith('Legal') === true);
+    fireEvent.click(chooserRow());
+    const legal = chips().find((button) => button.textContent?.startsWith('Legal') === true);
     fireEvent.click(legal!);
 
     const occupation = occupations.find((entry) => entry.key === 'legal');
     const month = latestMonth(occupation!);
     expect(screen.getByText(`Legal, ${formatPeriod('2026-07')}`)).toBeDefined();
     expect(screen.getByText(`${month!.distance!.toFixed(1)} points from a payout`)).toBeDefined();
+    expect(chooserRow().textContent).toContain('Legal');
+    expect(chooserRow().getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('is walked by the keyboard: arrows through the options, Enter picks, Escape closes', () => {
+    render(<ExplorerScreen data={data()} />);
+    fireEvent.click(chooserRow());
+    const search = screen.getByRole('searchbox', { name: 'Search occupations' });
+
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    expect(document.activeElement?.textContent).toContain('Office and administrative support');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
+    expect(document.activeElement?.textContent).toContain('Computer and mathematical');
+    fireEvent.keyDown(document.activeElement!, { key: 'End' });
+    expect(document.activeElement?.textContent).toContain('Farming, fishing and forestry');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
+    expect(document.activeElement?.textContent).toContain('Office and administrative support');
+
+    fireEvent.change(search, { target: { value: 'production' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(screen.getByText(`Production, ${formatPeriod('2026-07')}`)).toBeDefined();
+    expect(chooserRow().getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(chooserRow());
+
+    fireEvent.click(chooserRow());
+    fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search occupations' }), {
+      key: 'Escape',
+    });
+    expect(chooserRow().getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(chooserRow());
   });
 });
 
@@ -124,9 +178,8 @@ describe('the occupation another page names', () => {
     // Followed, not obeyed. A panel that snapped back to the quote's
     // occupation would be a control with two owners.
     render(<ExplorerPanel data={data()} follows="legal" />);
-    const chip = screen
-      .getAllByRole('button')
-      .find((button) => button.textContent?.startsWith('Production') === true);
+    fireEvent.click(chooserRow());
+    const chip = chips().find((button) => button.textContent?.startsWith('Production') === true);
     fireEvent.click(chip!);
     expect(screen.getByText(`Production, ${formatPeriod('2026-07')}`)).toBeDefined();
   });
@@ -221,9 +274,8 @@ describe('the price block', () => {
         })}
       />,
     );
-    const legal = screen
-      .getAllByRole('button')
-      .find((button) => button.textContent?.startsWith('Legal') === true);
+    fireEvent.click(chooserRow());
+    const legal = chips().find((button) => button.textContent?.startsWith('Legal') === true);
     fireEvent.click(legal!);
 
     expect(screen.getByText('Guide price for 5,000 of cover')).toBeDefined();

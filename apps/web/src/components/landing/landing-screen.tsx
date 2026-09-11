@@ -347,7 +347,7 @@ function Events({
 // overhang past the column is kept inside the chrome's own 40px margin, so a
 // chip never widens the page (T34 measured what a percentage wider than its
 // parent does), and it grows only where the display has the room for it.
-const SLOT_NEAR_RIGHT = 'lg:right-[-24px] lg:top-[calc(50%+52px)] xl:right-[-48px]';
+const SLOT_NEAR_RIGHT = 'lg:right-[-24px] lg:top-[calc(50%+52px)] xl:right-[-40px]';
 const SLOT_NEAR_ABOVE = 'lg:bottom-[calc(100%+20px)] lg:left-[-24px] xl:left-[-40px]';
 const SLOT_FAR_BELOW = 'lg:left-[-16px] lg:top-[calc(100%+24px)]';
 const SLOT_FAR_ABOVE = 'lg:bottom-[calc(100%+28px)] lg:right-[8px]';

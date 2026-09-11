@@ -199,11 +199,16 @@ function IndexLiveFrom({ index }: { index: Streamed<LandingIndexView> }) {
  * the line height of the type it stands for, and the dot is neither of the two
  * colours that mean something. It says nothing rather than saying "live", which
  * is the one thing this badge may never claim before it is known.
+ *
+ * The live sentence takes two lines at 390 since it carries its number (T54)
+ * and one line from the small breakpoint, measured in a browser, so the bar
+ * is two lines tall below that width and the pill stands at the same height
+ * whether the sentence is there or resting.
  */
 function IndexLiveResting() {
   return (
     <IndexLivePill dot="bg-white/24">
-      <RestingBar className="h-5 w-[18.5rem] max-w-full" />
+      <RestingBar className="h-10 w-[19.5rem] max-w-full sm:h-5 sm:w-[27rem]" />
     </IndexLivePill>
   );
 }

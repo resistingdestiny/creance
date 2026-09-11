@@ -139,13 +139,25 @@ describe('no drop shadows, and one elevation on the marketing surface', () => {
 });
 
 describe('one focus state', () => {
+  const isNight = (selector: string) => selector.includes('data-tone="night"');
+
   it('is 2px solid black with a 2px offset wherever focus-visible is styled', () => {
-    const blocks = blocksMatching(/focus-visible/);
+    const blocks = blocksMatching(/focus-visible/).filter(([selector]) => !isNight(selector));
     expect(blocks.length).toBeGreaterThan(0);
     for (const [, body] of blocks) {
       expect(body).toMatch(/outline:\s*2px solid #000/);
       expect(body).toMatch(/outline-offset:\s*2px/);
     }
+  });
+
+  it('turns only the colour white on the night ground, and nothing else', () => {
+    // T52: the header is night on every route, where a black outline is
+    // invisible. The one rule scoped to that ground changes the colour and
+    // leaves the width and the offset to the rule above, so there is still
+    // one focus state, read in the colour the ground needs.
+    const night = blocksMatching(/focus-visible/).filter(([selector]) => isNight(selector));
+    expect(night.map(([selector]) => selector)).toStrictEqual(['[data-tone="night"] :focus-visible']);
+    expect(night[0]?.[1]).toMatch(/^outline-color:\s*#fff;?$/);
   });
 
   it('overrides the browser default that the reset restores', () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * The one moving light in the material: the rainbow band that travels across
@@ -17,24 +17,26 @@ import { useEffect, useRef, useState } from 'react';
  * to: the ticker pauses with `animation-play-state` and the hero amount stops
  * on `visibilitychange`.
  *
- * The server renders the band running, because a server cannot know where the
- * viewport is, and the first client render matches it. Where there is no
- * IntersectionObserver the band runs on visibility alone, which is also what
- * the test environment sees.
+ * The class is toggled on the element directly rather than held in state. The
+ * span has no children and its class is never otherwise rendered, so nothing
+ * React reconciles can disagree with it, and a card that scrolls in and out
+ * of view costs no render of the card it sits on. The server renders the band
+ * running, because a server cannot know where the viewport is. Where there is
+ * no IntersectionObserver the band runs on visibility alone, which is also
+ * what the test environment sees.
  *
  * The animation is on the pseudo-element inside this span and animates
  * transform only, so pausing and resuming it never repaints the card.
  */
 export function CardShimmer() {
   const ref = useRef<HTMLSpanElement>(null);
-  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     const node = ref.current;
     if (node === null) return;
 
     let inView = true;
-    const apply = () => setPaused(document.hidden || !inView);
+    const apply = () => node.classList.toggle('is-paused', document.hidden || !inView);
 
     const observer =
       typeof IntersectionObserver === 'undefined'
@@ -53,11 +55,5 @@ export function CardShimmer() {
     };
   }, []);
 
-  return (
-    <span
-      aria-hidden="true"
-      className={paused ? 'cover-card__shimmer is-paused' : 'cover-card__shimmer'}
-      ref={ref}
-    />
-  );
+  return <span aria-hidden="true" className="cover-card__shimmer" ref={ref} />;
 }

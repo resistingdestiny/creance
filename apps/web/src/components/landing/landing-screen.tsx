@@ -98,7 +98,15 @@ export function LandingScreen({
    * configured deployment does and what a caller with nothing to say means.
    */
   interim?: boolean;
-  /** This deployment publishes a demonstration. Read by the hero in the next commit. */
+  /**
+   * This deployment publishes a demonstration, so the hero offers it.
+   *
+   * One control beside "Get a quote", in the secondary treatment, and nothing
+   * else (T50). /home/demo opens a real cover on Hedera testnet with no World
+   * ID and no wallet, which is the strongest thing the product can show in ten
+   * seconds, and it was a link in the footer bar, which is the last place a
+   * visitor looks. A deployment that has published nothing shows nothing.
+   */
   demo?: boolean;
 }) {
   return (
@@ -108,6 +116,7 @@ export function LandingScreen({
         <main>
           <section className="bg-night">
             <HeroBand
+              demo={demo}
               index={data.index}
               interim={interim}
               occupation={data.occupation}
@@ -224,11 +233,13 @@ function IndexLivePill({ children, dot }: { children: ReactNode; dot: string }) 
  * changes: the text, then the card, in one readable column.
  */
 function HeroBand({
+  demo,
   index,
   interim,
   occupation,
   price,
 }: {
+  demo: boolean;
   index: Streamed<LandingIndexView>;
   interim: boolean;
   occupation: string;
@@ -237,7 +248,7 @@ function HeroBand({
   return (
     <div className={`pb-24 pt-16 lg:pb-32 lg:pt-24 ${PAGE}`}>
       <div className="mx-auto grid w-full max-w-[1200px] items-center gap-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)] lg:gap-20">
-        <Hero index={index} price={price} />
+        <Hero demo={demo} index={index} price={price} />
         {/* The card's own column, with the soft ground behind whichever of the
             two is standing in it. */}
         <div className="relative flex justify-center">
@@ -253,9 +264,11 @@ function HeroBand({
 }
 
 function Hero({
+  demo,
   index,
   price,
 }: {
+  demo: boolean;
   index: Streamed<LandingIndexView>;
   price: Streamed<LandingPriceView>;
 }) {
@@ -274,6 +287,14 @@ function Hero({
       </p>
       <div className="mt-8 flex flex-col items-center gap-4 lg:mt-11 lg:flex-row lg:gap-6">
         <QuoteButton variant="night" />
+        {/* The way in to the example, secondary on this ground so that "Get a
+            quote" stays the one primary action. Only where there is an example
+            to show: demonstrationOn() decides that on the server. */}
+        {demo ? (
+          <PillLink href="/home/demo" variant="night-secondary">
+            {DEMO_EXAMPLE}
+          </PillLink>
+        ) : null}
         <Suspense fallback={<PriceLineResting />}>
           <PriceLine price={price} />
         </Suspense>
@@ -282,6 +303,12 @@ function Hero({
   );
 }
 
+/**
+ * docs/DESIGN-TOKENS-ADDENDUM.md, "Copy deck additions, T50", verbatim. The
+ * footer bar's link and the sign in screen's read "See a live cover"; this one
+ * is the hero's and says what it opens is an example.
+ */
+const DEMO_EXAMPLE = 'See an example of cover';
 
 /**
  * "From 4.25 a month", beside the hero button.

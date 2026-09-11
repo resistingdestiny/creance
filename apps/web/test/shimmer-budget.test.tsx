@@ -78,9 +78,13 @@ describe('Home', () => {
 
   it('puts nothing on the metal but the card', () => {
     // The next payment row, the index row and the history are ordinary
-    // content and stay on surface.
+    // content and stay on surface. The frame's own ground is surface too
+    // since T50 and stands before the card, so the slice starts at the first
+    // surface after the card's content.
     const markup = homeMarkup('covered');
-    const afterCard = markup.slice(markup.indexOf('bg-surface'));
+    const afterCard = markup.slice(
+      markup.indexOf('bg-surface', markup.indexOf('cover-card__content')),
+    );
     expect(afterCard).toContain('Next payment');
     expect(afterCard).not.toContain('cover-card');
   });

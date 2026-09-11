@@ -96,7 +96,7 @@ export function HomeScreen({
 
   return (
     <AppFrame>
-      <div className="flex min-h-dvh flex-col">
+      <div className="flex min-h-frame flex-col">
         <main className="flex flex-1 flex-col gap-6 px-5 py-10">
           <div className="flex items-baseline justify-between gap-4">
             <h1 className="text-title font-display font-semibold tracking-title text-ink">

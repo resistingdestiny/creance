@@ -83,7 +83,7 @@ export function PayScreen({
 
   return (
     <AppFrame>
-      <main className="relative flex min-h-dvh flex-col gap-2 px-5 py-10">
+      <main className="relative flex min-h-frame flex-col gap-2 px-5 py-10">
         <h1 className="text-title font-display font-semibold tracking-title text-ink">
           Cover amount
         </h1>

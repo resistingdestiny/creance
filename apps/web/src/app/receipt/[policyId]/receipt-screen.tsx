@@ -38,7 +38,7 @@ export { entryCaption as caption, entryTitle as title };
 export function ReceiptScreen({ trail }: { trail: AuditTrail }) {
   return (
     <AppFrame>
-      <main className="flex min-h-dvh flex-col gap-6 px-5 py-10">
+      <main className="flex min-h-frame flex-col gap-6 px-5 py-10">
         <header className="flex flex-col gap-2">
           <h1 className="text-headline font-display font-semibold tracking-headline text-ink">
             Receipt

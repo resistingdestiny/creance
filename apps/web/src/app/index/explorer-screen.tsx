@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import { DesktopFrame } from '../../components/desktop-frame';
+import { PillLink } from '../../components/pill-button';
 import { ReplayBar } from '../../components/replay-bar';
 import type { ExplorerData } from '../../lib/explorer-data';
 import { ExplorerPanel, NO_READINGS } from './explorer-panel';
@@ -12,17 +14,19 @@ import { ExplorerPanel, NO_READINGS } from './explorer-panel';
  * A visitor picks one of the fifteen occupations, drags through five years of
  * published months and watches the position and the price move with them.
  *
- * This file is the page: the replay bar, the navigation, the heading and the
+ * This file is the page: the replay bar, the header, the heading and the
  * attribution panel under it. The explorer itself is ExplorerPanel, which the
  * landing page renders too (T34), so the behaviour is written once and the two
  * pages cannot drift apart.
  *
  * It is the light ground with hairline depth of docs/DESIGN-TOKENS.md. The
  * marketing surface tokens belong to the landing page and are not used here.
+ * Since T50 it stands in the same desktop frame as the investor screens, with
+ * the product's header in its day tone and "Get cover" as the header's action,
+ * so the two light desktop pages are one construction and the wordmark and the
+ * heading start on the same line. This page had a header of its own before,
+ * which was the seed of the shared one.
  */
-
-const PAGE = 'px-5 lg:px-16';
-const CONTENT = 'mx-auto w-full max-w-[1180px]';
 
 export function ExplorerScreen({
   data,
@@ -39,30 +43,11 @@ export function ExplorerScreen({
   const empty = data.occupations.length === 0;
 
   return (
-    <div className="flex flex-col bg-canvas">
+    <div className="flex flex-1 flex-col">
       {data.replayBadge === null ? null : <ReplayBar label={data.replayBadge} />}
 
-      <header className={`border-b border-hairline py-4 ${PAGE}`}>
-        <div className={`flex min-h-11 items-center justify-between gap-6 ${CONTENT}`}>
-          <a
-            className="inline-flex min-h-11 items-center text-body font-semibold text-ink no-underline"
-            href="/"
-          >
-            Creance
-          </a>
-          <nav aria-label="Main">
-            <a
-              className="inline-flex min-h-11 items-center text-body text-ink-2 no-underline transition-opacity duration-200 ease-out hover:text-ink motion-reduce:transition-none"
-              href="/"
-            >
-              Get cover
-            </a>
-          </nav>
-        </div>
-      </header>
-
-      <main className={`flex flex-col gap-10 py-12 lg:py-16 ${PAGE}`}>
-        <div className={`flex flex-col gap-10 ${CONTENT}`}>
+      <DesktopFrame action={<PillLink href="/">Get cover</PillLink>} current="index">
+        <main className="flex flex-col gap-10">
           {/* A page with nothing to show says so in its own heading, rather
               than promising five years of history above an empty panel. */}
           <div className="flex flex-col gap-4">
@@ -81,14 +66,10 @@ export function ExplorerScreen({
           </div>
 
           {empty ? null : <ExplorerPanel data={data} />}
-        </div>
-      </main>
+        </main>
 
-      {attribution === null ? null : (
-        <section className={`pb-12 ${PAGE}`}>
-          <div className={CONTENT}>{attribution}</div>
-        </section>
-      )}
+        {attribution === null ? null : <section className="pt-10">{attribution}</section>}
+      </DesktopFrame>
     </div>
   );
 }

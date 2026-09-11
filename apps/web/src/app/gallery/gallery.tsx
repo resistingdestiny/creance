@@ -784,8 +784,9 @@ export function Gallery() {
 
       <Section id="frame" title="Desktop frame">
         <p className="text-secondary text-ink-2">
-          The tab bar is a mobile pattern. On a wide viewport the 390 frame is centred on canvas
-          rather than stretched, and the frame gains hairline sides.
+          The tab bar is a mobile pattern. On a wide viewport the 390 column stays a column: it
+          stands on the surface ground under the product&apos;s header, as a canvas sheet with
+          hairline sides, the same construction the investor frame uses at 1280.
         </p>
         <AppFrame>
           <div className="flex flex-col gap-6 px-5 py-8">

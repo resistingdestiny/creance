@@ -45,7 +45,7 @@ function positions(text: string, strings: readonly string[]): number[] {
 const live = renderToStaticMarkup(<LandingScreen data={LIVE} />);
 
 describe('the sections, in the order of the design of record', () => {
-  it('runs nav, hero, the question, index, closing, investor line, footer', () => {
+  it('runs header, hero, the question, index, closing, investor line', () => {
     const found = positions(visibleText(live), [
       // nav
       'Creance',
@@ -68,8 +68,9 @@ describe('the sections, in the order of the design of record', () => {
       'The quiet kind of ready.',
       'I want to invest',
       'Investors fund the cover and earn 8 percent a year, paid monthly.',
-      // the footer bar
-      'How the index works',
+      // The footer bar is no longer this page's: since T50 the root layout
+      // puts the product's one footer, with "How the index works" in it, under
+      // every route, so it is asserted in site-chrome.test.tsx instead.
     ]);
     expect(found).toStrictEqual([...found].sort((a, b) => a - b));
   });
@@ -457,16 +458,51 @@ describe('motion and focus', () => {
     const interactive = [...live.matchAll(/<(a|button)\b[^>]*>([\s\S]*?)<\/\1>/g)].map((match) =>
       visibleText(match[2] ?? ''),
     );
-    for (const label of ['Get a quote', 'I want to invest', 'The index', 'How the index works']) {
+    for (const label of ['Get a quote', 'I want to invest', 'The index', 'Creance']) {
       expect(interactive, label).toContain(label);
     }
     expect(live).not.toContain('outline-none');
     expect(live).not.toContain('focus:outline');
   });
 
-  it('sends the two index links to the public explorer', () => {
-    expect(live.match(/href="\/index"/g)).toHaveLength(2);
+  it('sends the index link to the public explorer', () => {
+    // There were two, the navigation's and the footer bar's. The footer is the
+    // root layout's since T50 and carries the second, so this page has one.
+    expect(live.match(/href="\/index"/g)).toHaveLength(1);
     expect(live).not.toContain('/cover/index');
     expect(live).toContain('href="/invest"');
+  });
+});
+
+describe('the way in to the example (T50)', () => {
+  const demo = renderToStaticMarkup(<LandingScreen data={LIVE} demo />);
+
+  it('is in the hero, beside the quote, only where a demonstration exists', () => {
+    expect(live).not.toContain('See an example of cover');
+    expect(live).not.toContain('href="/home/demo"');
+    const link = /<a[^>]*href="\/home\/demo"[^>]*>([\s\S]*?)<\/a>/.exec(demo);
+    expect(visibleText(link?.[1] ?? '')).toBe('See an example of cover');
+    // In the hero, after the primary and before the price line.
+    const hero = /<h1[\s\S]*?From 4\.25 a month/.exec(demo)?.[0] ?? '';
+    expect(hero).toContain('href="/home/demo"');
+    expect(hero.indexOf('Get a quote')).toBeLessThan(hero.indexOf('href="/home/demo"'));
+    expect(demo.match(/href="\/home\/demo"/g)).toHaveLength(1);
+  });
+
+  it('does not outrank the primary', () => {
+    // The secondary pill on the night ground: a border and no fill, where the
+    // primary is the filled canvas pill. Neither is bg-ink, which is invisible
+    // on this ground.
+    const link = /<a[^>]*href="\/home\/demo"[^>]*>/.exec(demo)?.[0] ?? '';
+    expect(link).toContain('border-white/24');
+    expect(link).toContain('bg-transparent');
+    expect(link).not.toContain('bg-canvas');
+  });
+
+  it('adds one control and no other words', () => {
+    // T44 set a word budget for this page; the control is four words and the
+    // only thing the flag adds.
+    const without = visibleText(demo).replace('See an example of cover ', '');
+    expect(without).toBe(visibleText(live));
   });
 });

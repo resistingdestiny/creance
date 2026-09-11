@@ -196,3 +196,61 @@ flicker on data dense pages and as rendering glitches in a screen recording.
 
 The night grounds and the one elevation are not part of the metal and stay
 marketing only. Light mode remains the product's mode.
+
+## The chrome (T50)
+
+The product has one header and one footer, `SiteHeader` and `SiteFooter` in
+`src/components/site-chrome.tsx`, and every screen wears them: the landing,
+the public explorer, every worker screen through `AppFrame` and every investor
+screen through `DesktopFrame`. Nothing else may draw a header or a footer, and
+nothing may draw a second wordmark.
+
+The header carries the wordmark as a link to the front door, "The index" to
+`/index` and "Investors" to `/invest`, hidden below the medium breakpoint as
+the landing's navigation already hid them, and one action slot: "Get a quote"
+on the landing, "Get cover" on the explorer, nothing on a screen that is
+already inside a cover. The footer carries the wordmark, "How the index works"
+and "Investors", and DESIGN.md's disclosure line. The footer is rendered by the
+root layout once; the header is rendered by each frame, because on the landing
+its action is the quote button and that button needs the quote's own provider.
+
+Two tones, one component. The landing's header is the night tone, on `night`
+with the addendum's text rules for that ground; every other route's is the day
+tone, on canvas with a hairline. The marketing surface tokens above are
+unchanged by this: `night` and `night-2` are still the landing's alone, and no
+worker or investor screen took a dark ground.
+
+The height is a token, `--spacing-chrome`, 72px: the 56px pill with 8px either
+side, which is the height the landing's navigation already stood at. The worker
+screens measure their column against the viewport with the header above it, so
+`min-h-frame` in globals.css is `100dvh` less that token, and it replaces
+`min-h-dvh` on every worker screen. A second header height is not to be
+invented; change the token.
+
+The margins are one set, `px-5 lg:px-10`, 20 at 390 and 40 from the landing
+breakpoint, inside a centred 1280 frame (`CHROME_FRAME`), which is the desktop
+app frame of docs/DESIGN-TOKENS.md section 3. The header, the footer, the explorer,
+the investor sheet and the landing's hero all start on that line, so the
+wordmark and the first heading under it are flush at every width. The landing's
+64px web page margin is retired with this: it was the margin of a standalone
+page, and the landing is a page of the product now.
+
+The ground is `surface`. Under the header, the worker column and the desktop
+sheet stand on `surface`, as canvas sheets with hairline sides where the ground
+shows: `sm:border-x` for the 390 column, `xl:border-x` for the 1280 sheet. It
+is the same construction at two widths, and it is what stops the 390 column
+reading as a bare column on white at 1440. Depth is ground colour and hairline,
+as section 1 of the sheet says; no shadow. At 390 either sheet is the viewport
+and the ground is not seen. The landing keeps its own grounds, the night bands
+and canvas between them; it shares the chrome, the type and the margins and is
+not a sheet.
+
+## Copy deck additions, T50 (verbatim)
+
+"See an example of cover"
+
+The hero's way in to `/home/demo`, in the night secondary pill beside "Get a
+quote", rendered only when `demonstrationOn()` is true. The sign in screen's
+link to the same place reads "See a live cover" and keeps that string; the
+landing's footer bar, which carried that link too, went with the shared footer.
+The hero's says what it opens is an example, which is Root's wording.

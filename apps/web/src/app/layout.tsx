@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 // fonts.option-c. See src/lib/font-option.ts for what chooses which.
 import { fontClassName, fontStylesheetHref } from 'creance-active-font';
 
+import { SiteFooter } from '../components/site-chrome';
 import './globals.css';
 import { Providers } from './providers';
 
@@ -52,6 +53,13 @@ export const viewport: Viewport = {
  * `Providers` installs MiniKit, so the same pages are a Mini App inside World
  * App and a website everywhere else. It is a client component because MiniKit
  * only exists in a browser; this layout stays a server component.
+ *
+ * The footer is the product's one footer (T50), under every route: the mark,
+ * the two links the header hides at 390, and DESIGN.md's closing line, which
+ * was the only shared thing on every page before T50. The header is not here,
+ * because the landing wears it in its night tone with "Get a quote" in it and
+ * that button needs the quote's own provider; each frame renders the same
+ * header component instead.
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -61,26 +69,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <link href={fontStylesheetHref} precedence="default" rel="stylesheet" />
         )}
         <Providers>
-          <div className="flex-1">{children}</div>
-          <Disclosure />
+          <div className="flex flex-1 flex-col">{children}</div>
+          <SiteFooter />
         </Providers>
       </body>
     </html>
-  );
-}
-
-/**
- * DESIGN.md's closing line, in the footer of every public page. The canonical
- * index page and the investor screens read most like a real financial product,
- * so this is not optional decoration.
- */
-function Disclosure() {
-  return (
-    <footer className="mx-auto w-full max-w-[1280px] px-5 py-8 sm:px-16">
-      <p className="text-caption text-ink-2">
-        This is a testnet prototype built for a hackathon. It is not an offer of insurance or
-        securities in any jurisdiction and no real funds are involved.
-      </p>
-    </footer>
   );
 }

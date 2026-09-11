@@ -6,7 +6,8 @@ import { SiteHeader } from './site-chrome';
  * The desktop frame: the product's header, then a 1280 sheet on the product's
  * ground. docs/DESIGN-TOKENS.md section 3 gives the investor screens 1280 wide
  * with 40px side margins, and those are the chrome's own margins, so the
- * wordmark above and the heading below it start on the same line.
+ * wordmark above and the heading below it start on the same line. The public
+ * explorer stands in it too, with "Get cover" as the header's action.
  *
  * It is the same construction as the worker frame at another width (T50): the
  * same header, the same `surface` ground, a canvas sheet on it with hairline
@@ -21,16 +22,19 @@ import { SiteHeader } from './site-chrome';
  */
 
 export function DesktopFrame({
+  action = null,
   children,
   current = null,
 }: {
+  /** The header's one control, top right. Nothing on the investor screens. */
+  action?: ReactNode;
   children: ReactNode;
-  /** The investor screens say so in the header; the admin screens are neither place. */
-  current?: 'invest' | null;
+  /** Which of the header's two places this screen is; the admin screens are neither. */
+  current?: 'index' | 'invest' | null;
 }) {
   return (
     <div className="flex flex-1 flex-col">
-      <SiteHeader current={current} />
+      <SiteHeader action={action} current={current} />
       <div className="flex flex-1 justify-center bg-surface">
         <div className="min-h-frame w-full max-w-[1280px] bg-canvas px-10 py-12 xl:border-x xl:border-hairline">
           {children}

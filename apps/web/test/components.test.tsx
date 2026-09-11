@@ -115,8 +115,12 @@ describe('the three button levels', () => {
     // is the only one with neither a fill nor an edge.
     expect(skinOf('primary')).toContain('bg-ink');
     expect(skinOf('night')).toContain('bg-canvas');
-    expect(skinOf('secondary')).toContain('bg-surface');
+    // The secondary is a hairline on canvas, not a filled plate. Disabled is
+    // the filled plate with no edge, and if the secondary were filled too the
+    // only thing between them would be the shade of the label.
+    expect(skinOf('secondary')).toContain('bg-canvas');
     expect(skinOf('secondary')).toContain('border-hairline');
+    expect(skinOf('secondary')).not.toContain('bg-surface');
     for (const tertiary of ['tertiary', 'night-tertiary'] as const) {
       expect(skinOf(tertiary), tertiary).toContain('bg-transparent');
       expect(skinOf(tertiary), tertiary).toContain('border-transparent');

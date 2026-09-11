@@ -487,7 +487,7 @@ describe('the investor overview screen', () => {
     );
     expect(actions).toHaveLength(2);
     expect(actions[0]).toContain('bg-ink');
-    expect(actions[1]).toContain('bg-surface');
+    expect(actions[1]).toContain('bg-canvas');
     expect(actions[1]).toContain('border-hairline');
     expect(actions[1]).not.toContain('bg-ink');
   });

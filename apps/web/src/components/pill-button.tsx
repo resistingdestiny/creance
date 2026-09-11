@@ -82,16 +82,22 @@ const press = 'hover:opacity-80 active:opacity-70';
 
 const variants: Record<PillButtonVariant, string> = {
   primary: 'border-ink bg-ink text-canvas',
-  secondary: 'border-hairline bg-surface text-ink',
+  secondary: 'border-hairline bg-canvas text-ink',
   tertiary: 'border-transparent bg-transparent text-ink',
   night: 'border-canvas bg-canvas text-ink',
   'night-secondary': 'border-white/40 bg-white/12 text-white',
   'night-tertiary': 'border-transparent bg-transparent text-white',
 };
 
+/* Disabled has to differ from the secondary in more than its text, because a
+   secondary standing on its own under a field is exactly where a reader asks
+   "is that greyed out?". So the two differ in all three: the secondary draws a
+   hairline and stands on canvas, and disabled draws no edge and is the filled
+   plate. Contrast on the label is the one thing that may fall here, and WCAG
+   1.4.3 exempts a disabled control from the floor. */
 const disabledStyles: Record<'day' | 'night', string> = {
   day: 'border-transparent bg-surface text-ink-3',
-  night: 'border-transparent bg-white/12 text-white/40',
+  night: 'border-transparent bg-white/8 text-white/40',
 };
 
 function groundOf(variant: PillButtonVariant): 'day' | 'night' {

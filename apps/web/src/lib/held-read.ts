@@ -107,6 +107,8 @@ export function heldRead<T>({ what, ttlMs, staleMs, read }: HeldReadOptions<T>):
 
 export interface HeldReadPerKey<T> {
   read(key: string, now?: number): Promise<T>;
+  /** How many keys are held. Tests only: what a run of reads left behind. */
+  size(): number;
   /** Tests only, as above. Forgets every key. */
   forget(): void;
 }
@@ -118,6 +120,15 @@ export interface HeldReadPerKey<T> {
  * are both per group and the module takes the group as an argument, so a hold
  * keyed on it is the only shape that cannot serve one occupation's price under
  * another occupation's name.
+ *
+ * A key whose read fails holds nothing, so it is dropped. `read` rejects only
+ * when the hold has no value it can stand behind, cold or past both windows,
+ * so nothing servable is lost by forgetting it, and what is gained is that the
+ * map only ever grows by keys that were read successfully. The investor page
+ * keys on a series id that arrives in a query string, and a map that kept an
+ * entry per id a crawler ever sent would grow without bound on a public route
+ * (T51). The next read of a dropped key makes a new hold and buys again,
+ * exactly as a cold one does.
  */
 export function heldReadPerKey<T>(make: (key: string) => HeldRead<T>): HeldReadPerKey<T> {
   const holds = new Map<string, HeldRead<T>>();
@@ -129,7 +140,17 @@ export function heldReadPerKey<T>(make: (key: string) => HeldRead<T>): HeldReadP
         hold = make(key);
         holds.set(key, hold);
       }
-      return hold.read(now);
+      const made = hold;
+      return made.read(now).catch((cause: unknown) => {
+        // Only the hold that failed. A key forgotten and remade while this
+        // rejection was in flight has a newer hold in the map, which stays.
+        if (holds.get(key) === made) holds.delete(key);
+        throw cause;
+      });
+    },
+
+    size(): number {
+      return holds.size;
     },
 
     forget(): void {

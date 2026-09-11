@@ -356,12 +356,30 @@ Every assumption in that formula is arguable and all of them are stated. The cha
   opens claims too, and the loss key does not try to tell the two apart.
 - The detailed occupation series carry more sampling noise than the majors. The
   per-series attachments price that in rather than hiding it.
-- First published values settle. Not seasonally adjusted household data is not
-  revised after first print, which is BLS policy, so the backtest above was
-  computed on the same numbers the product settles on. The exception is the
-  January population control update, which touched 2026-01; a replay whose window
-  crosses that month is recomputed on the pre revision values before the result
-  is shown.
+- First published values settle, and that rests on this pipeline rather than
+  on the source. Not seasonally adjusted household data has no scheduled
+  revision cycle, but the occupation series have been corrected three times
+  since 2020. On 2020-09-23 BLS corrected January to July 2020 for errors that
+  came in with the new occupation classification; 13 of the 30 archived
+  series carry the C footnote on 2020-01 to 2020-06. On 2025-06-06 it corrected
+  April 2025 after a sample redesign weighting error, five weeks after first
+  print; construction and extraction moved from 6.0 to 5.9 and arts, design,
+  entertainment, sports and media from 4.4 to 4.3. On 2026-03-06 it revised
+  every January 2026 value for updated population controls, footnote 12 on all
+  30 series. BLS corrects its database in place and in 2020 reissued the
+  archived release itself, so the archive here holds the corrected values and
+  no vintage of what a month read first. Determinism therefore comes from the
+  first-final rule: the first value published to the index topic settles, its
+  signed message commits to the sha256 of the six source rows it was computed
+  from, and a later change to those rows produces a revision record that
+  references the original, never a resettlement. 19 of the 99 open group
+  months in the table above were computed from at least one input month BLS
+  later corrected or revised, counting the six months a period reads, t to t-2
+  and t-12 to t-14, on the group's series and on the aggregate. The three
+  notices:
+  https://www.bls.gov/bls/errata/revision-to-current-population-survey-estimates-for-January-through-July-2020.htm
+  https://www.bls.gov/bls/errata/cps-corrections-april-2025.htm
+  https://www.bls.gov/cps/methods/population-controls/experimental-series-accounting-for-january-2026-population-control-effects.htm
 - The index is a lagging measure by construction. Job postings and layoff
   announcement series turned twelve to twenty four months before this index did
   for computer and mathematical work. They are suitable for pricing and not for

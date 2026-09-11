@@ -108,11 +108,19 @@ describe('the shell', () => {
     expect(shell).toContain('The quiet kind of ready.');
     expect(shell).toContain('One number decides. You can watch it.');
 
-    // And not one figure, because not one of them has been read.
+    // And not one figure, because not one of them has been read: no price,
+    // no badge, no ticker, and (T54) no chip around the card and no figure in
+    // the band under it.
     expect(shell).not.toContain('From 4.25 a month');
-    expect(shell).not.toContain('Index live, updated monthly from public data');
+    expect(shell).not.toContain(LIVE.index.badge);
     expect(shell).not.toContain('landing-ticker__item');
+    expect(shell).not.toContain('data-testid="landing-event"');
+    expect(shell).not.toContain('years of index history');
+    expect(shell).not.toContain('Coupon 3 paid');
     expect(restingStates(shell)).toBeGreaterThan(0);
+    // The two near chips and the four figures rest at their size, in place.
+    expect(shell).toContain('data-testid="landing-events"');
+    expect(shell).toContain('data-testid="landing-figures"');
 
     index.resolve(LIVE.index);
     price.resolve(LIVE.price);
@@ -123,10 +131,13 @@ describe('the shell', () => {
     const whole = shell + rest;
 
     expect(whole).toContain('From 4.25 a month');
-    expect(whole).toContain('Index live, updated monthly from public data');
+    expect(whole).toContain(LIVE.index.badge);
     expect(whole).toContain('landing-ticker__item');
     expect(whole).toContain(LIVE.index.payLine);
     expect(whole).toContain(LIVE.note.investorLine);
+    expect(whole).toContain('Coupon 3 paid');
+    expect(whole).toContain('years of index history');
+    expect(whole.match(/data-testid="landing-event"/g)).toHaveLength(4);
   });
 
   it('rests nowhere at all when the figures are already in hand', async () => {

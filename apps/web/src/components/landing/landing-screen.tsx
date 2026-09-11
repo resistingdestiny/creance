@@ -422,11 +422,14 @@ function HeroCard({ occupation }: { occupation: string }) {
  *
  * The band came down from 128px of padding to 80px at the landing breakpoint
  * with them. It was the height three rows stood in; one row left in it read as
- * a section that had failed to load rather than as one statement.
+ * a section that had failed to load rather than as one statement. The hairline
+ * above it went with T52: the section is the top of the sheet on the night
+ * ground now, and a hairline over a change of ground is a second separator
+ * doing the same job.
  */
 function Questions({ index }: { index: Streamed<LandingIndexView> }) {
   return (
-    <section className={`mx-5 border-t border-hairline py-16 lg:mx-10 lg:py-20`}>
+    <section className="mx-5 py-16 lg:mx-10 lg:py-20">
       <dl className={`flex flex-col ${CONTENT}`}>
         <Question
           answer={

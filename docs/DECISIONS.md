@@ -6166,7 +6166,17 @@ material on data dense screens. It is now a small client component,
 document with `visibilitychange` and sets `is-paused`, which the stylesheet
 turns into `animation-play-state: paused`; the face of the landing card that is
 turned away is paused by the same property. Paused rather than stopped, so the
-band resumes where it was. The loop animates transform only and
+band resumes where it was.
+
+The class is toggled on the element from the effect rather than held in React
+state. A first version kept it in state, and with that version the landing
+purchase test failed in three out of three full workspace runs, always at the
+turn back to the check after a wallet was chosen, while passing on its own and
+passing under the same load with the state removed; the mechanism was not
+established and the state was not needed, so it went. The span has no children
+and its class is never otherwise rendered, so nothing React reconciles can
+disagree with the toggle, and a card scrolling in and out of view costs no
+render of the card it sits on. The loop animates transform only and
 built-css.test.ts holds it to that, because a repaint every frame is the cost
 the ticket said not to pay. Server markup is unchanged, so the landing's time
 to first byte is where T40 left it; the numbers are in the pull request.

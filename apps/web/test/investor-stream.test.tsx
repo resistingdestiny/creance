@@ -267,6 +267,6 @@ describe('a read that fails costs the page its figure and never the page', () =>
     expect(text).not.toContain('Next payment');
     expect(text).not.toContain('Earned to date');
     expect(whole).toContain('href="/invest/subscribe"');
-    expect(text).not.toMatch(/[–—]/);
+    expect(text).not.toMatch(/[\u2013\u2014]/);
   });
 });

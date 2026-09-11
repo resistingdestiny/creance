@@ -16,9 +16,14 @@ import { SiteHeader } from './site-chrome';
  * canvas with a hairline either side and nothing else on the page: no mark, no
  * way back, no ground, so it read as an unfinished page rather than a focused
  * one. Now the header above it is the same header every other screen wears,
- * the ground beside it is `surface`, the same ground the investor frame stands
- * on, and the column is a canvas sheet on it with the hairline sides it had.
- * Depth is ground colour and hairline, as the sheet says, never a shadow.
+ * the ground beside it is `surface`, and the column is a canvas sheet on it
+ * with the hairline sides it had. Depth is ground colour and hairline, as the
+ * sheet says, never a shadow.
+ *
+ * The desktop frame gave up its sheet in T52 and stands on continuous canvas;
+ * this one keeps its sheet on purpose. Beside a 390 column at 1440 the ground
+ * is most of the screen, and it is what makes the column read as a deliberate
+ * object rather than a page that stopped early. docs/DECISIONS.md under T52.
  *
  * At 390 the column is the viewport, the ground is not visible and the
  * hairlines are suppressed, so a phone sees no box around the app. The stage

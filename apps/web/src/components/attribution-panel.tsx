@@ -1,5 +1,6 @@
 import {
   ATTRIBUTION_CORRELATION,
+  ATTRIBUTION_DISCLOSURES,
   ATTRIBUTION_HEADING,
   ATTRIBUTION_LIMITS,
   ATTRIBUTION_SETTLEMENT,
@@ -101,6 +102,17 @@ export function AttributionPanel({ data }: { data: AttributionPanelData }) {
           ))}
         </ul>
       </div>
+
+      {/* T56. Two disclosures under the limits, each a bold lead and its
+          paragraphs, verbatim from the model and in the limits' own scale. */}
+      {ATTRIBUTION_DISCLOSURES.map((block) => (
+        <div className="flex flex-col gap-2 text-secondary text-ink-2" key={block.lead}>
+          <p className="font-medium text-ink">{block.lead}</p>
+          {block.paragraphs.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </div>
+      ))}
 
       <p className="text-caption text-ink-2">{ATTRIBUTION_SOURCE}</p>
     </section>

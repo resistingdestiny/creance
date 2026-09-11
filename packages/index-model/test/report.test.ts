@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadDataset } from '../src/dataset.js';
-import { GAP_CAPTION, lossWindows, renderIndexReport } from '../src/report.js';
+import {
+  GAP_CAPTION,
+  lossWindows,
+  movedSourceSummary,
+  renderIndexReport,
+  SOURCE_CORRECTIONS,
+} from '../src/report.js';
 
 const dataset = loadDataset();
 
@@ -23,6 +29,32 @@ describe('lossWindows', () => {
 
   it('is empty for an occupation that never opened', () => {
     expect(lossWindows([])).toEqual([]);
+  });
+});
+
+describe('movedSourceSummary', () => {
+  it('reads the correction footnotes out of the archive', () => {
+    // A frozen map with no open rows isolates the archive facts from the backtest.
+    const summary = movedSourceSummary(dataset, new Map());
+    expect(summary.archivedSeries).toBe(30);
+    expect(summary.correctedSeries).toBe(13);
+    expect(summary.correctedFrom).toBe('2020-01');
+    expect(summary.correctedTo).toBe('2020-06');
+    expect(summary.open).toBe(0);
+    expect(summary.openOnMoved).toBe(0);
+  });
+
+  it('carries the April 2025 errata the archive cannot show', () => {
+    // The archive was pulled after the correction, so 2025-04 reads the
+    // corrected value with an empty footnote; the constant is the only record.
+    for (const entry of SOURCE_CORRECTIONS) {
+      const row = dataset.allSeries.get(entry.seriesId)?.find((r) => r.period === entry.period);
+      expect(row?.raw).toBe(entry.corrected);
+      expect(row?.footnoteCodes).toEqual([]);
+      expect(entry.correctedOn).toBe('2025-06-06');
+    }
+    expect(SOURCE_CORRECTIONS.map((c) => c.seriesId)).toContain('LNU04032224');
+    expect(SOURCE_CORRECTIONS.map((c) => c.seriesId)).toContain('LNU04034027');
   });
 });
 
@@ -76,8 +108,34 @@ describe('the generated index page', () => {
   it('carries the honesty notes and the corrected spare window', () => {
     expect(report).toContain('The index does not attribute cause');
     expect(report).toContain('lagging measure by construction');
-    expect(report).toContain('January population control update');
     expect(report).toContain('arts, design, entertainment, sports and\nmedia from January to April 2025');
+  });
+
+  it('dates the three source corrections and cites a BLS notice for each', () => {
+    expect(report).toContain('On 2020-09-23 BLS corrected January to July 2020');
+    expect(report).toContain('13 of the 30 archived\n  series carry the C footnote on 2020-01 to 2020-06');
+    expect(report).toContain('On 2025-06-06 it corrected\n  April 2025');
+    expect(report).toContain('construction and extraction moved from 6.0 to 5.9');
+    expect(report).toContain('On 2026-03-06 it revised\n  every January 2026 value');
+    expect(report).toContain(
+      'https://www.bls.gov/bls/errata/revision-to-current-population-survey-estimates-for-January-through-July-2020.htm',
+    );
+    expect(report).toContain('https://www.bls.gov/bls/errata/cps-corrections-april-2025.htm');
+    expect(report).toContain(
+      'https://www.bls.gov/cps/methods/population-controls/experimental-series-accounting-for-january-2026-population-control-effects.htm',
+    );
+  });
+
+  it('rests determinism on the first-final rule, not on source stability', () => {
+    expect(report).toContain('the first value published to the index topic settles');
+    expect(report).toContain('never a resettlement');
+    // The sentence that described an unimplemented pre revision replay is gone.
+    expect(report).not.toContain('pre revision');
+    expect(report).not.toContain('is not\n  revised after first print');
+  });
+
+  it('counts the open months computed on later corrected source', () => {
+    expect(report).toContain('19 of the 99 open group\n  months in the table above');
   });
 
   it('uses no em dashes or en dashes', () => {

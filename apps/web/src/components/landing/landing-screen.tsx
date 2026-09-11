@@ -112,7 +112,7 @@ export function LandingScreen({
   return (
     <QuoteProvider>
       <div className="flex flex-col bg-canvas">
-        <SiteHeader action={<QuoteButton variant="night" />} tone="night" />
+        <SiteHeader action={<QuoteButton variant="night" />} />
         <main>
           <section className="bg-night">
             <HeroBand

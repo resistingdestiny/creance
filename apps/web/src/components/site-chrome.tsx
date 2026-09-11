@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import { PillLink } from './pill-button';
+
 /**
  * The product's one piece of chrome: the header every screen wears, and the
  * footer the root layout puts under every route.
@@ -13,11 +15,13 @@ import type { ReactNode } from 'react';
  * mark, one set of links and one set of margins, so moving between the four is
  * moving inside one product.
  *
- * Two tones, not two headers. The landing is the marketing surface and keeps
- * its night ground (docs/DESIGN-TOKENS-ADDENDUM.md, "Marketing surface
- * tokens"), so its header is the night tone of this one component; every
- * other route is the product and stays light, so its header is the day tone.
- * The links, the height and the margins do not change with the tone.
+ * One tone, one action (T52). T50 drew this header in two tones, night on
+ * the landing and day everywhere else, and Root looked at the built site and
+ * saw three headers: crossing from the landing to the index was a visible
+ * change of clothes. The header band is the night ground on every route now,
+ * and the action in its top right is "Get a quote" on every route, which is
+ * the deck's string. The content under the band stays light: the night ground
+ * travelled to the header and to nothing else. docs/DECISIONS.md under T52.
  *
  * Static server markup with no data dependency and no client component, so the
  * landing's shell is still on the first byte (T40) and a worker screen that is
@@ -44,6 +48,13 @@ export const CHROME_PAGE = 'px-5 lg:px-10';
 export const CHROME_FRAME = `mx-auto w-full max-w-[1280px] ${CHROME_PAGE}`;
 
 export type ChromeTone = 'day' | 'night';
+
+/**
+ * The header's one action, docs/DESIGN-TOKENS.md section 8. It is one string
+ * here so that the landing's button and every other route's link cannot come
+ * to say two things.
+ */
+export const CHROME_ACTION = 'Get a quote';
 
 /**
  * A navigation link. The design draws these without an underline, which is
@@ -87,9 +98,12 @@ export function NavLink({
 
 /**
  * The header. The wordmark is the way back to the front door, the two links
- * are the two other places the product has, and the action slot is whatever
- * the screen wants in the top right: "Get a quote" on the landing, "Get cover"
- * on the explorer, nothing on a screen that is already inside a cover.
+ * are the two other places the product has, and the action slot is the one
+ * control in the top right: "Get a quote", on every route. The landing passes
+ * its own quote button, which opens the quote where the hero card stands; every
+ * other route takes the default, a link to the front door with the same words,
+ * because there is no query or hash that opens the quote from another route
+ * and a relabel is not logic.
  *
  * "The index" opens the public explorer, which is the page of record for the
  * index (T32), and not the worker's Index tab: that tab is one occupation
@@ -104,31 +118,26 @@ export function NavLink({
  * pushes the hero down the screen at 390 and the wordmark and the one action
  * are what has to survive. Both are still in the markup and both are reachable
  * from the footer under every route.
+ *
+ * `data-tone` is what the stylesheet's focus rule reads: the sheet's outline
+ * is black, which is invisible on this ground, so inside a night tone the
+ * outline is white. It is an attribute rather than the ground's class so that
+ * a utility renamed later cannot silently take the focus state with it.
  */
 export function SiteHeader({
-  action = null,
+  action,
   current = null,
-  tone = 'day',
 }: {
-  /** The one control in the top right, or nothing. */
+  /** The one control in the top right. Defaults to the front door link. */
   action?: ReactNode;
   /** Which of the two places this screen is, for aria-current. */
   current?: 'index' | 'invest' | null;
-  tone?: ChromeTone;
 }) {
-  const night = tone === 'night';
   return (
-    <header
-      className={['border-b', night ? 'border-white/10 bg-night' : 'border-hairline bg-canvas'].join(
-        ' ',
-      )}
-    >
+    <header className="border-b border-white/10 bg-night" data-tone="night">
       <div className={`flex h-chrome items-center justify-between gap-4 ${CHROME_FRAME}`}>
         <a
-          className={[
-            'inline-flex min-h-11 items-center no-underline whitespace-nowrap text-body font-semibold',
-            night ? 'text-white' : 'text-ink',
-          ].join(' ')}
+          className="inline-flex min-h-11 items-center no-underline whitespace-nowrap text-body font-semibold text-white"
           href="/"
         >
           Creance
@@ -138,7 +147,7 @@ export function SiteHeader({
             className="hidden md:inline-flex"
             current={current === 'index'}
             href="/index"
-            tone={tone}
+            tone="night"
           >
             The index
           </NavLink>
@@ -146,11 +155,17 @@ export function SiteHeader({
             className="hidden md:inline-flex"
             current={current === 'invest'}
             href="/invest"
-            tone={tone}
+            tone="night"
           >
             Investors
           </NavLink>
-          {action}
+          {action === undefined ? (
+            <PillLink href="/" variant="night">
+              {CHROME_ACTION}
+            </PillLink>
+          ) : (
+            action
+          )}
         </nav>
       </div>
     </header>

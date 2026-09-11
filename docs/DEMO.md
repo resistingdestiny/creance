@@ -33,7 +33,10 @@ Run `pnpm demo:seed` and then walk this list. Every line on it has silently
 broken a take somewhere.
 
     [ ] pnpm api:migrate has run against the database this take will use
-    [ ] pnpm demo:seed has run to the end and its id block is saved
+    [ ] pnpm demo:seed has run to the end and its id block is saved. When the
+        coupons are up to date it prints "coupon N is not due: payable at ...,
+        skipping seed and pay" inside the investors stage. That is a skip, not
+        a failure, and the run still exits 0
     [ ] pnpm demo:seed status prints "202605 is unspent"
     [ ] the two policies it printed are active and carry no claim yet
     [ ] the reserve is at least one cover limit, or shot 5 runs before shot 6

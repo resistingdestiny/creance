@@ -5,9 +5,11 @@ import {
   EXECUTION_AFTER_RECORD_SECONDS,
   EXECUTION_LEAD_SECONDS,
   RECORD_LEAD_SECONDS,
+  couponDue,
   couponMemo,
   couponRef,
   couponSettlementMessage,
+  dayOf,
   encodeCouponSettlement,
   fromBytes32,
   monthAfter,
@@ -225,5 +227,62 @@ describe('nextCouponPeriod', () => {
         recordDate: 'brought forward',
       }),
     ).toThrow(/unix timestamp/);
+  });
+});
+
+describe('couponDue', () => {
+  // Coupon 4 on the demo note, on its own dates: record 4 January 2027,
+  // payable the day after. The run that motivated this was on 11 September 2026.
+  const COUPON_4 = { couponId: '4', executionTimestamp: 1_799_180_183 };
+  const SEPTEMBER_11 = 1_789_119_269;
+
+  it('is not due before the execution date, with the payable day spelled out', () => {
+    const verdict = couponDue({ ...COUPON_4, now: SEPTEMBER_11, recordDateReached: false });
+    expect(verdict).toEqual({ due: false, reason: 'payable at 1799180183, 5 January 2027' });
+  });
+
+  it('is due once the execution date has passed and the note has reached the record date', () => {
+    expect(
+      couponDue({ ...COUPON_4, now: COUPON_4.executionTimestamp, recordDateReached: true }),
+    ).toEqual({ due: true });
+    expect(
+      couponDue({ ...COUPON_4, now: COUPON_4.executionTimestamp + 60, recordDateReached: true }),
+    ).toEqual({ due: true });
+  });
+
+  it('is not due when the execution date has passed but the note says otherwise', () => {
+    const verdict = couponDue({
+      ...COUPON_4,
+      now: COUPON_4.executionTimestamp + 60,
+      recordDateReached: false,
+    });
+    expect(verdict.due).toBe(false);
+    if (verdict.due) throw new Error('unreachable');
+    expect(verdict.reason).toMatch(/not reached its record date/);
+    expect(verdict.reason).toContain('5 January 2027');
+  });
+
+  it('never treats a reached record date as due before the execution date', () => {
+    // The brought forward periods have five minutes between the two dates, and
+    // paying inside that gap is what the pay step refused before this existed.
+    const verdict = couponDue({
+      couponId: '2',
+      executionTimestamp: 1_789_080_327,
+      now: 1_789_080_100,
+      recordDateReached: true,
+    });
+    expect(verdict.due).toBe(false);
+  });
+
+  it('refuses dates that are not timestamps', () => {
+    expect(() =>
+      couponDue({ ...COUPON_4, executionTimestamp: 0, now: SEPTEMBER_11, recordDateReached: false }),
+    ).toThrow(/execution date/);
+    expect(() => couponDue({ ...COUPON_4, now: 1.5, recordDateReached: false })).toThrow(/now/);
+  });
+
+  it('names a day in UTC', () => {
+    expect(dayOf(1_799_180_183)).toBe('5 January 2027');
+    expect(dayOf(1_799_093_783)).toBe('4 January 2027');
   });
 });

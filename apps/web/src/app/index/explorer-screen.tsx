@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import { PillLink } from '../../components/pill-button';
 import { ReplayBar } from '../../components/replay-bar';
-import { CHROME_PAGE, CHROME_WIDTH, SiteHeader } from '../../components/site-chrome';
+import { CHROME_FRAME, SiteHeader } from '../../components/site-chrome';
 import type { ExplorerData } from '../../lib/explorer-data';
 import { ExplorerPanel, NO_READINGS } from './explorer-panel';
 
@@ -27,8 +27,7 @@ import { ExplorerPanel, NO_READINGS } from './explorer-panel';
  * header of its own before, which was the seed of the shared one.
  */
 
-const PAGE = CHROME_PAGE;
-const CONTENT = CHROME_WIDTH;
+const CONTENT = CHROME_FRAME;
 
 export function ExplorerScreen({
   data,
@@ -50,7 +49,7 @@ export function ExplorerScreen({
 
       <SiteHeader action={<PillLink href="/">Get cover</PillLink>} current="index" />
 
-      <main className={`flex flex-col gap-10 py-12 lg:py-16 ${PAGE}`}>
+      <main className="flex flex-col gap-10 py-12 lg:py-16">
         <div className={`flex flex-col gap-10 ${CONTENT}`}>
           {/* A page with nothing to show says so in its own heading, rather
               than promising five years of history above an empty panel. */}
@@ -74,7 +73,7 @@ export function ExplorerScreen({
       </main>
 
       {attribution === null ? null : (
-        <section className={`pb-12 ${PAGE}`}>
+        <section className="pb-12">
           <div className={CONTENT}>{attribution}</div>
         </section>
       )}

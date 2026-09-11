@@ -33,8 +33,15 @@ import type { ReactNode } from 'react';
 /** The side margins of the chrome and of every frame it wraps. 20 at 390, 40 from lg. */
 export const CHROME_PAGE = 'px-5 lg:px-10';
 
-/** The width the chrome's contents and the investor frame share. */
-export const CHROME_WIDTH = 'mx-auto w-full max-w-[1280px]';
+/**
+ * The frame the chrome's contents stand in: 1280 wide, centred, with the
+ * margins inside it, which is the investor sheet's own construction, so the
+ * wordmark and the first heading under it start on the same line at every
+ * width. The margins are inside the width and not around it on purpose: put
+ * outside, the centred 1280 lands 40px further out on a 1440 display than the
+ * padded sheet does, and the two edges do not meet.
+ */
+export const CHROME_FRAME = `mx-auto w-full max-w-[1280px] ${CHROME_PAGE}`;
 
 export type ChromeTone = 'day' | 'night';
 
@@ -112,13 +119,11 @@ export function SiteHeader({
   const night = tone === 'night';
   return (
     <header
-      className={[
-        'border-b',
-        night ? 'border-white/10 bg-night' : 'border-hairline bg-canvas',
-        CHROME_PAGE,
-      ].join(' ')}
+      className={['border-b', night ? 'border-white/10 bg-night' : 'border-hairline bg-canvas'].join(
+        ' ',
+      )}
     >
-      <div className={`flex h-chrome items-center justify-between gap-4 ${CHROME_WIDTH}`}>
+      <div className={`flex h-chrome items-center justify-between gap-4 ${CHROME_FRAME}`}>
         <a
           className={[
             'inline-flex min-h-11 items-center no-underline whitespace-nowrap text-body font-semibold',
@@ -163,8 +168,8 @@ export function SiteHeader({
  */
 export function SiteFooter() {
   return (
-    <footer className={`border-t border-hairline bg-canvas ${CHROME_PAGE}`}>
-      <div className={`flex flex-col gap-4 py-8 ${CHROME_WIDTH}`}>
+    <footer className="border-t border-hairline bg-canvas">
+      <div className={`flex flex-col gap-4 py-8 ${CHROME_FRAME}`}>
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
           <span className="text-secondary text-ink-2">Creance</span>
           <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-6">

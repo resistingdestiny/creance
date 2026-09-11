@@ -15,6 +15,13 @@ import { CoverTabs } from '../../cover-tabs';
  * docs/DECISIONS.md: a consumer is never shown a signed index value, because a
  * negative level line is correct and unreadable, and the same number framed as
  * a distance removes the sign without changing the maths.
+ *
+ * The last caption is how close the call was (T56): the published margin to
+ * each line for the newest month, and that the first published value settles.
+ * The demonstration months clear their line by less than the largest
+ * correction the source has made, and a buyer deserves to find that on the
+ * page rather than hear it later. It is a fact about precision, in the same
+ * voice and the same element as the never-paid caption above it.
  */
 
 export function IndexScreen({
@@ -28,6 +35,7 @@ export function IndexScreen({
   description,
   negativeLine,
   neverOpened,
+  margins = [],
   months,
   open,
   replayBadge = null,
@@ -47,6 +55,12 @@ export function IndexScreen({
   description: string;
   negativeLine: boolean;
   neverOpened: boolean;
+  /**
+   * How close the call was for the newest published month, from the feed's
+   * own margins, and the sentence that the first published value settles.
+   * Empty where no margin was published (T56).
+   */
+  margins?: readonly string[];
   months: readonly BacktestMonth[];
   open: boolean;
   /** "Replay: Jul 2026" while the demo clock is walking, null when it is live. */
@@ -114,6 +128,9 @@ export function IndexScreen({
               This cover has never paid for this occupation since 2010.
             </p>
           ) : null}
+          {margins.length === 0 ? null : (
+            <p className="text-secondary text-ink-2">{margins.join(' ')}</p>
+          )}
         </main>
         <CoverTabs active="index" />
       </div>

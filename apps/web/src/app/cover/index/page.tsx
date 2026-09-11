@@ -22,6 +22,7 @@ import {
   chartPoints,
   chartThreshold,
   headlineReading,
+  indexMargins,
   lineIsNegative,
   whatWouldHaveHappened,
 } from '../../../lib/worker-model';
@@ -77,6 +78,7 @@ export default async function CoverIndexPage({
         bandLabel={bandLabelFor(index)}
         description={chartDescription(index)}
         distance={reading?.distance ?? null}
+        margins={indexMargins(index)}
         months={whatWouldHaveHappened(index)}
         negativeLine={lineIsNegative(index)}
         neverOpened={occupation?.lastOpenPeriod === null}

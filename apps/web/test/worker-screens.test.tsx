@@ -69,14 +69,16 @@ const {
   chartDescription,
   chartPoints,
   chartThreshold,
+  FIRST_VALUE_SETTLES,
   headlineReading,
+  indexMargins,
   lineIsNegative,
   whatWouldHaveHappened,
 } = await import('../src/lib/worker-model.js');
 const { attributionPanel, attributionSnapshot } = await import(
   '../src/lib/attribution-model.js'
 );
-const { INDEX } = await import('./worker-fixtures.js');
+const { INDEX, openIndex } = await import('./worker-fixtures.js');
 const { withWallet } = await import('./wallet-harness.js');
 
 afterEach(() => {
@@ -624,11 +626,49 @@ describe('the index tab', () => {
     ).toBeTruthy();
   });
 
+  // T56. The margins are the feed's own, and the screen only joins the
+  // sentences the model wrote; what is asserted is that they reach the page,
+  // that an absent shock margin prints nothing, and that the settle sentence
+  // is beside them.
+  it('says how close the call was, with the first published value settling', () => {
+    renderIndex({ margins: indexMargins(INDEX) });
+    expect(
+      screen.getByText(
+        `In July 2026 the index was 0.69 points short of the line for staying worse, and 2.07 points short of the line for a sudden jump. ${FIRST_VALUE_SETTLES}`,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('reads 0.08 past the line for the open month, and no shock sentence when odi is null', () => {
+    const april = openIndex();
+    renderIndex({
+      margins: indexMargins({
+        ...april,
+        reading: { ...april.reading, period: '2026-04', odi: null },
+        trigger: { ...april.trigger, shock_margin: null },
+      }),
+    });
+    const caption = screen.getByText(/the index was 0\.08 points past/);
+    expect(caption.textContent).toBe(
+      `In April 2026 the index was 0.08 points past the line for staying worse. ${FIRST_VALUE_SETTLES}`,
+    );
+    expect(caption.textContent).not.toContain('sudden jump');
+    expect(caption.textContent).not.toContain('0.8 ');
+  });
+
+  it('shows no margin caption where none was published', () => {
+    renderIndex({ margins: [] });
+    expect(screen.queryByText(/the index was/)).toBeNull();
+    expect(screen.queryByText(FIRST_VALUE_SETTLES)).toBeNull();
+  });
+
   it('never puts a signed index value on the screen', () => {
-    const { container } = renderIndex();
+    const { container } = renderIndex({ margins: indexMargins(INDEX) });
     const shown = container.textContent ?? '';
     expect(shown).not.toContain('-0.68');
     expect(shown).not.toContain('-1.37');
+    expect(shown).not.toContain('-0.69');
+    expect(shown).not.toContain('-2.07');
     expect(shown).toContain('Pays out within 0.68 of average');
   });
 });

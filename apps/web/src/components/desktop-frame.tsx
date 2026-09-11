@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { SiteHeader } from './site-chrome';
+import { CHROME_PAGE, SiteHeader } from './site-chrome';
 
 /**
  * The desktop frame: the product's header, then a 1280 sheet on the product's
@@ -16,7 +16,8 @@ import { SiteHeader } from './site-chrome';
  * two websites rather than as one product at two widths.
  *
  * Below 1280 the sheet is the viewport and the margins hold, so the screen is
- * still usable on a laptop without a second layout. There is no tab bar here:
+ * still usable on a laptop without a second layout; at 390 they are the
+ * sheet's 20px mobile margin, as they are everywhere else. There is no tab bar here:
  * the sheet's two tabs are a worker pattern and do not appear on an investor
  * screen.
  */
@@ -36,7 +37,7 @@ export function DesktopFrame({
     <div className="flex flex-1 flex-col">
       <SiteHeader action={action} current={current} />
       <div className="flex flex-1 justify-center bg-surface">
-        <div className="min-h-frame w-full max-w-[1280px] bg-canvas px-10 py-12 xl:border-x xl:border-hairline">
+        <div className={`min-h-frame w-full max-w-[1280px] bg-canvas py-12 xl:border-x xl:border-hairline ${CHROME_PAGE}`}>
           {children}
         </div>
       </div>

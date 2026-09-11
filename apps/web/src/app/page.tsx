@@ -1,3 +1,5 @@
+import type { Metadata } from 'next';
+
 import { LandingScreen } from '../components/landing/landing-screen';
 import { demonstrationOn } from '../lib/demo-states';
 import { isInterimIssuer } from '../lib/eligibility';
@@ -25,6 +27,22 @@ import { readLanding } from '../lib/landing-data';
  * app id at all. A clone with none gets the interim issuer and says so, in the
  * same words on the same step.
  */
+
+/**
+ * The front door names itself in the deck's own words rather than inheriting
+ * the bare default (T53). The title is absolute because the site template
+ * would put "| Creance" after a sentence that ends in a full stop. The
+ * description carries the three things worth quoting, in the voice of the
+ * hero: what it is, what decides a payout, and the second key. It names no
+ * price, because the price is a live quote and this line is what a preview
+ * shows for as long as it is cached.
+ */
+export const metadata: Metadata = {
+  title: { absolute: 'Creance: cover for the day your job is automated' },
+  description:
+    'A monthly payment now. A payout if your occupation is displaced. A public index of fifteen occupation groups decides when claims open, and a payout needs proof that you lost your job.',
+  alternates: { canonical: '/' },
+};
 
 export const dynamic = 'force-dynamic';
 

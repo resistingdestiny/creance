@@ -231,7 +231,7 @@ function amountClasses(hero: boolean, weight: 'font-medium' | 'font-semibold'): 
  * so the figure has a caption in proportion.
  */
 function labelClasses(hero: boolean, width: string): string {
-  return hero ? 'max-w-[420px] text-body-lg' : `${width} text-secondary`;
+  return hero ? 'max-w-[420px] text-body lg:text-body-lg' : `${width} text-secondary`;
 }
 
 function captionClasses(hero: boolean): string {

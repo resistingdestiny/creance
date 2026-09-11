@@ -218,14 +218,34 @@ describe('the three home card directions', () => {
     });
 
     it('leaves the metal finish off every card that did not ask for it', () => {
-      // The same rule as depth: the landing hero is the only caller. T34 adds
-      // the modifier and one light layer, and neither reaches Home, the
-      // receipt, the gallery or any other card.
+      // The same rule as depth: the finish is opt in. T34 added the modifier
+      // and one light layer, T49 let any screen ask for them, and a card that
+      // does not ask still renders neither.
       for (const treatment of TREATMENTS) {
         for (const metalOnly of ['cover-card--metal', 'cover-card__shimmer']) {
           expect(render(treatment), `${treatment} carries ${metalOnly}`).not.toContain(metalOnly);
           expect(withDepth(treatment), `${treatment} carries ${metalOnly}`).not.toContain(metalOnly);
         }
+      }
+    });
+
+    it('draws the still finish as the edge alone, with no moving band', () => {
+      // The addendum's budget is one shimmering element in view. A second
+      // metal object on a screen asks for 'still' and gets the same edge and
+      // the same sheen with nothing travelling across it.
+      for (const treatment of TREATMENTS) {
+        const markup = renderToStaticMarkup(
+          <CoverCard
+            amount="5,000"
+            metal="still"
+            occupation="Office and administrative support"
+            state="covered"
+            statusLabel="Covered"
+            treatment={treatment}
+          />,
+        );
+        expect(markup, treatment).toContain('cover-card--metal');
+        expect(markup, treatment).not.toContain('cover-card__shimmer');
       }
     });
 
@@ -236,7 +256,7 @@ describe('the three home card directions', () => {
             amount="5,000"
             depth
             hero
-            metal
+            metal="shimmer"
             occupation="Office and administrative support"
             state="covered"
             statusLabel="Covered"

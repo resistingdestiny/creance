@@ -266,7 +266,7 @@ export function QuoteSlot({
  */
 function QuoteFace({ children, current }: { children: ReactNode; current: boolean }) {
   return (
-    <CoverCardShell className="w-full" depth hero metal padded={false}>
+    <CoverCardShell className="w-full" depth hero metal="shimmer" padded={false}>
       <div
         className="cover-card__content flex flex-col gap-5 p-6 lg:p-8"
         data-testid={current ? 'landing-quote' : undefined}

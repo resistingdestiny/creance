@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { fontClassName, fontStylesheetHref } from 'creance-active-font';
 
 import { SiteFooter } from '../components/site-chrome';
+import { StructuredData } from '../components/structured-data';
 import './globals.css';
 import { Providers } from './providers';
 
@@ -88,6 +89,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {fontStylesheetHref === undefined ? null : (
           <link href={fontStylesheetHref} precedence="default" rel="stylesheet" />
         )}
+        {/* What the site is, to a machine: one JSON-LD graph in the HTML of
+            every page, rendered here on the server so it is in the document
+            a crawler fetches and never waits for a script (T53). */}
+        <StructuredData site={siteUrl} />
         <Providers>
           <div className="flex flex-1 flex-col">{children}</div>
           <SiteFooter />

@@ -259,23 +259,33 @@ describe('the demo clock and the page', () => {
 });
 
 describe('the dark marketing ground', () => {
-  it('is three sections and never the body', () => {
-    // The navigation, the hero with the card and the ticker, and the closing
-    // line. The page root is still canvas and so is the document, so no other
-    // route can be darkened by this page.
-    expect(live.match(/bg-night/g)).toHaveLength(3);
+  it('is the header and the main, and never the body', () => {
+    // T50 counted three bands: the header, the hero with the ticker, and the
+    // closing line. Since T52 the main itself is the night ground and the
+    // light sections are a sheet laid on it, so the page carries the class
+    // twice, on the header and on the main. The page root is still canvas and
+    // so is the document, so no other route can be darkened by this page.
+    expect(live.match(/bg-night/g)).toHaveLength(2);
+    expect(live).toContain('<main class="bg-night">');
     expect(live).toContain('flex flex-col bg-canvas');
-  });
-
-  it('leaves the sections between them exactly as they were', () => {
-    // The steps keep the surface ground and the questions and the index section
-    // keep the canvas one. Nothing between the two dark bands changed.
-    expect(live).toContain('bg-surface');
     expect(live).not.toContain('bg-night-2');
   });
 
+  it('lays the light sections on it as one sheet with rounded corners', () => {
+    // The boundary between the two grounds is a drawn edge, not a seam: the
+    // question and the index sit in one canvas sheet inside the night main,
+    // with the sheet's radius at 390 and the hero card's at the landing
+    // breakpoint, and the closing line stands outside it on the night again.
+    const sheet = /<div class="rounded-\[20px\] bg-canvas lg:rounded-hero">[\s\S]*?<\/div><section/.exec(live)?.[0] ?? '';
+    expect(sheet).toContain('When does it pay.');
+    expect(sheet).toContain('id="the-index"');
+    expect(sheet).not.toContain('The quiet kind of ready.');
+    expect(live.indexOf('landing-ticker')).toBeLessThan(live.indexOf('rounded-[20px] bg-canvas'));
+    expect(live.match(/rounded-\[20px\] bg-canvas lg:rounded-hero/g)).toHaveLength(1);
+  });
+
   it('writes headings in white and everything else at the addendum opacity', () => {
-    const closing = /<section class="bg-night py-16[\s\S]*?<\/section>/.exec(live)?.[0] ?? '';
+    const closing = /<section class="py-16 lg:py-28[^"]*">(?:(?!<\/section>)[\s\S])*The quiet kind of ready[\s\S]*?<\/section>/.exec(live)?.[0] ?? '';
     expect(closing).toContain('text-white lg:text-display-xl');
     expect(closing).toContain('text-secondary text-white/66');
     expect(closing).not.toContain('text-ink-2');

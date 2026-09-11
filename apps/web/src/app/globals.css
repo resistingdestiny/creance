@@ -118,6 +118,22 @@
   --radius-group: 16px;
   --radius-card: 20px;
   --radius-hero: 32px;
+
+  /* T50: the height of the product's one header, src/components/site-chrome.tsx.
+     It is a token because the worker screens measure their column against the
+     viewport and have to know what stands above them; see min-h-frame below.
+     72 holds the 56px pill with 8px either side, and it is the same 72 the
+     landing's navigation already stood at. */
+  --spacing-chrome: 72px;
+}
+
+/* The height of a screen below the header, so a worker screen whose primary
+   action sits at the bottom of the viewport, or whose tab bar does, still
+   reaches exactly the bottom of the viewport with the header above it rather
+   than 72px past it. Every worker screen used min-h-dvh before T50 and this is
+   that measurement with the chrome taken off. */
+@utility min-h-frame {
+  min-height: calc(100dvh - var(--spacing-chrome));
 }
 
 /* The single permitted elevation, landing hero card only, from

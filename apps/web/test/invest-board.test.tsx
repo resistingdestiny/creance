@@ -334,6 +334,9 @@ function board(patch: Partial<BoardView> = {}): BoardView {
       topicId: '0.0.10366470',
       hashscan: 'https://hashscan.io/testnet/topic/0.0.10366470',
       seriesHash: null,
+      published: 15,
+      groups: 15,
+      deepest: null,
     },
     missing: [],
     holdings: [

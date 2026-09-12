@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { CHROME_FRAME, SiteHeader } from './site-chrome';
+import { CHROME_FRAME, SiteHeader, type ChromePlace } from './site-chrome';
 
 /**
  * The desktop frame: the product's header, then the page on one continuous
@@ -37,7 +37,7 @@ export function DesktopFrame({
   action?: ReactNode;
   children: ReactNode;
   /** Which of the header's three places this screen is; the admin screens are none of them. */
-  current?: 'index' | 'activity' | 'invest' | null;
+  current?: ChromePlace | null;
 }) {
   return (
     <div className="flex flex-1 flex-col">

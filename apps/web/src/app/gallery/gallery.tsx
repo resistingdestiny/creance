@@ -61,11 +61,16 @@ function Section({ id, title, children }: { id: string; title: string; children:
   );
 }
 
+/* `min-w-0` and a scroller around the specimen, because some of what this page
+   shows is drawn at a fixed size: the chart at its 640 by 300 web measure is
+   wider than a phone, and without these the grid cell took its width from the
+   specimen and the whole page scrolled sideways. A specimen that will not fit
+   scrolls inside its own box now. */
 function Case({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-w-0 flex-col gap-3">
       <p className="text-caption text-ink-2">{label}</p>
-      {children}
+      <div className="overflow-x-auto">{children}</div>
     </div>
   );
 }
@@ -161,7 +166,9 @@ export function Gallery() {
         </h1>
         <p className="text-body text-ink-2">
           Every component in the token sheet, in every state. Nothing here is a product screen and
-          nothing here is linked from the app.
+          nothing here is linked from the app. Every figure on this page is a specimen chosen to
+          show a component at a plausible size, and none of them is a quote: the prices the
+          product actually charges are on the index and the investor pages, and they move.
         </p>
       </header>
 

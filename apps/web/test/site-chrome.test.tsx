@@ -43,10 +43,16 @@ describe('the header', () => {
   it('carries the mark as the way back, the three other places and the action', () => {
     const mark = /<a[^>]*href="\/"[^>]*>Creance<\/a>/.exec(day)?.[0] ?? '';
     expect(mark).toContain('font-semibold');
-    expect(day.match(/href="\/index"/g)).toHaveLength(1);
-    expect(day.match(/href="\/activity"/g)).toHaveLength(1);
-    expect(day.match(/href="\/invest"/g)).toHaveLength(1);
-    expect(visibleText(day)).toBe('Creance The index Activity Earn yield Get a quote');
+    // Twice each: once in the bar from the medium breakpoint up and once in
+    // the menu below it. A disclosure without script cannot move one element
+    // between two places, so the three places are in the markup twice with
+    // each set display none at the other's width.
+    expect(day.match(/href="\/index"/g)).toHaveLength(2);
+    expect(day.match(/href="\/activity"/g)).toHaveLength(2);
+    expect(day.match(/href="\/invest"/g)).toHaveLength(2);
+    expect(visibleText(day)).toBe(
+      'Creance The index Activity Earn yield Menu The index Activity Earn yield Get a quote',
+    );
   });
 
   it('is the night ground, with the text rules for that ground', () => {
@@ -74,7 +80,7 @@ describe('the header', () => {
     expect(day).toContain('max-w-[1280px] px-5 lg:px-10');
   });
 
-  it('hides the three links below the medium breakpoint rather than wrapping', () => {
+  it('hides the row of three below the medium breakpoint rather than wrapping', () => {
     for (const label of ['The index', 'Activity', 'Earn yield']) {
       const link = new RegExp(`<a[^>]*>${label}</a>`).exec(day)?.[0] ?? '';
       expect(link, label).toContain('max-md:hidden');
@@ -82,11 +88,46 @@ describe('the header', () => {
     expect(day).not.toContain('flex-wrap');
   });
 
+  it('gives the phone a menu of those three rather than nothing', () => {
+    // Root could reach none of the three from a phone: the row was hidden and
+    // the footer is not where a person looks for a way around. What replaces
+    // the nothing is a native disclosure, so it opens with no script and works
+    // before hydration, the way the series chooser does.
+    const menu = /<details[\s\S]*?<\/details>/.exec(day)?.[0] ?? '';
+    expect(menu).not.toBe('');
+    expect(menu).toContain('md:hidden');
+    // The whole label is the summary. A label written inside the details above
+    // the summary would be disclosed content, which is hidden until the thing
+    // it labels has already been opened.
+    const summary = /<summary[\s\S]*?<\/summary>/.exec(menu)?.[0] ?? '';
+    expect(summary).toContain('Menu');
+    expect(summary).toContain('cursor-pointer');
+    expect(summary).toContain('list-none');
+    // The panel holds all three, in the row's own order and at the row's own
+    // ranks: two tertiaries and the secondary, and nothing relabelled.
+    const panel = menu.slice(menu.indexOf('</summary>'));
+    expect(panel.match(/<a\b/g)).toHaveLength(3);
+    expect(visibleText(panel)).toBe('The index Activity Earn yield');
+    expect(panel).toContain('bg-white/12');
+    // The primary never goes in it.
+    expect(panel).not.toContain('Get a quote');
+  });
+
+  it('stands the panel under the band, in front of whatever the page draws', () => {
+    expect(day).toMatch(/<header[^>]*class="[^"]*relative z-30/);
+    expect(day).toContain('absolute inset-x-0 top-full');
+  });
+
   it('says which place this is, and nothing when it is neither', () => {
     expect(day).not.toContain('aria-current');
     const index = renderToStaticMarkup(<SiteHeader current="index" />);
     expect(/<a[^>]*aria-current="page"[^>]*>The index<\/a>/.test(index)).toBe(true);
-    expect(index.match(/aria-current/g)).toHaveLength(1);
+    // On both copies of the link, so it says "here" at whichever width the
+    // reader is at, and on nothing else.
+    expect(index.match(/aria-current/g)).toHaveLength(2);
+    const invest = renderToStaticMarkup(<SiteHeader current="invest" />);
+    expect(invest.match(/aria-current/g)).toHaveLength(2);
+    expect(/<a[^>]*aria-current="page"[^>]*>Earn yield<\/a>/.test(invest)).toBe(true);
   });
 
   it('runs nothing on scroll and needs no script', () => {
@@ -136,10 +177,12 @@ describe('the frames', () => {
       expect(header(markup), name).toContain('bg-night');
     }
     // The night ground travelled to the header band and to nothing else: the
-    // three product frames carry it once, in the header, and stay light below.
+    // three product frames carry it in the header and in the menu panel that
+    // hangs off it, and stay light below.
     for (const markup of [worker, investor, explorer]) {
-      expect(markup.match(/bg-night/g)).toHaveLength(1);
+      expect(markup.match(/bg-night/g)).toHaveLength(2);
       expect(markup).not.toContain('bg-night-2');
+      expect(header(markup)).toContain('<details');
     }
   });
 

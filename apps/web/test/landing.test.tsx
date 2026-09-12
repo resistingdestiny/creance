@@ -274,9 +274,11 @@ describe('the dark marketing ground', () => {
     // T50 counted three bands: the header, the hero with the ticker, and the
     // closing line. Since T52 the main itself is the night ground and the
     // light sections are a sheet laid on it, so the page carries the class
-    // twice, on the header and on the main. The page root is still canvas and
-    // so is the document, so no other route can be darkened by this page.
-    expect(live.match(/bg-night(?![-\w/])/g)).toHaveLength(2);
+    // twice, on the header and on the main, and a third time on the panel the
+    // header's menu opens, which is the band continuing down the screen. The
+    // page root is still canvas and so is the document, so no other route can
+    // be darkened by this page.
+    expect(live.match(/bg-night(?![-\w/])/g)).toHaveLength(3);
     expect(live).toContain('<main class="bg-night">');
     expect(live).toContain('flex flex-col bg-canvas');
   });
@@ -575,8 +577,9 @@ describe('motion and focus', () => {
 
   it('sends the index link to the public explorer', () => {
     // There were two, the navigation's and the footer bar's. The footer is the
-    // root layout's since T50 and carries the second, so this page has one.
-    expect(live.match(/href="\/index"/g)).toHaveLength(1);
+    // root layout's since T50, so what is left is the header's, which is in
+    // the markup twice: the row at the desktop widths and the phone's menu.
+    expect(live.match(/href="\/index"/g)).toHaveLength(2);
     expect(live).not.toContain('/cover/index');
     expect(live).toContain('href="/invest"');
   });

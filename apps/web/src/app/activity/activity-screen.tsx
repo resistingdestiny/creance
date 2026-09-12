@@ -201,17 +201,25 @@ function Filters({ filter }: { filter: ActivitySourceKey | null }) {
 /**
  * The stream itself.
  *
- * Four columns at the desktop width. At 390 the amount and the place fold away
- * and the two that carry the page stay: when it happened and what happened, with
- * the link to the record inside the second.
+ * Four columns at the desktop width. On a phone three of them fold away and
+ * what is left is what happened, with the time above it inside the same cell
+ * and the link to the record under it.
  *
- * The two that stay carry no minimum width, unlike the market board's, and that
- * is deliberate. The board can be scrolled sideways because its far columns are
- * extra figures; here the thing in the second column is the link out, which is
- * the one thing every line has to offer, and a link a phone reader has to scroll
- * to find is a link they will not find. So the sentence wraps instead. The
- * region is still scrollable and focusable for the desktop width, where the four
- * columns do have a measure.
+ * The time was a column of its own at every width, and it cost too much. A
+ * date and a clock will not go in less than about a hundred and thirty pixels,
+ * which at 360 is more than a third of the screen, and what it took that from
+ * was the sentence: "An agent paid to read the index" came out four words a
+ * line beside a time nobody is comparing row to row. Down the left edge of a
+ * wide table a column of times is the thing that makes it scannable; in a
+ * phone's one column it is a caption, so that is what it becomes.
+ *
+ * The columns that stay carry no minimum width, unlike the market board's, and
+ * that is deliberate. The board can be scrolled sideways because its far
+ * columns are extra figures; here the thing in the cell is the link out, which
+ * is the one thing every line has to offer, and a link a phone reader has to
+ * scroll to find is a link they will not find. So the sentence wraps instead.
+ * The region is still scrollable and focusable for the desktop width, where the
+ * four columns do have a measure.
  */
 function ActivityTable({ now, runs }: { now: number; runs: readonly ActivityRun[] }) {
   return (
@@ -221,8 +229,8 @@ function ActivityTable({ now, runs }: { now: number; runs: readonly ActivityRun[
       role="region"
       tabIndex={0}
     >
-      {/* Fixed layout below the desktop breakpoint so the two columns divide the
-          width a phone has rather than the width their longest line wants, and
+      {/* Fixed layout below the desktop breakpoint so the one column takes the
+          width a phone has rather than the width its longest line wants, and
           the sentence wraps instead of the table growing past the screen. From
           lg the four columns have room and the browser measures them. */}
       <table className="w-full table-fixed border-collapse text-body lg:table-auto lg:min-w-[56rem]">
@@ -232,7 +240,9 @@ function ActivityTable({ now, runs }: { now: number; runs: readonly ActivityRun[
         </caption>
         <thead>
           <tr className="border-b border-hairline">
-            <Th className="w-32 lg:w-auto">When</Th>
+            <Th className="lg:w-32" wide>
+              When
+            </Th>
             <Th>What happened</Th>
             <Th numeric wide>
               Amount
@@ -243,14 +253,14 @@ function ActivityTable({ now, runs }: { now: number; runs: readonly ActivityRun[
         <tbody>
           {runs.map((run) => (
             <tr className="border-b border-hairline align-top" key={run.key}>
-              <Td>
+              <Td wide>
                 <span className="flex flex-col gap-0.5 whitespace-nowrap">
                   <span>{formatAge(run.at, now)}</span>
                   <span className="text-caption text-ink-2">{formatInstant(run.at)}</span>
                 </span>
               </Td>
               <Td>
-                <Happened run={run} />
+                <Happened now={now} run={run} />
               </Td>
               <Td numeric wide>
                 <Amount run={run} />
@@ -291,10 +301,18 @@ function ActivityTable({ now, runs }: { now: number; runs: readonly ActivityRun[
  * reader who follows it and finds a single transfer must not think the count
  * above it was wrong.
  */
-function Happened({ run }: { run: ActivityRun }) {
+function Happened({ now, run }: { now: number; run: ActivityRun }) {
   const many = run.count > 1;
   return (
     <span className="flex flex-col gap-1 py-1">
+      {/* The time, on a phone, where the column that carried it used to be. It
+          is the same two readings in the same order, set as the caption they
+          are once they are not a column. From lg the column is back and this
+          is gone, so neither width says it twice. */}
+      <span className="flex flex-wrap items-baseline gap-x-2 text-caption text-ink-2 lg:hidden">
+        <span>{formatAge(run.at, now)}</span>
+        <span>{formatInstant(run.at)}</span>
+      </span>
       <span className="flex flex-wrap items-center gap-2">
         <span className="min-w-0 text-ink">{run.title}</span>
         {many ? (
@@ -311,7 +329,10 @@ function Happened({ run }: { run: ActivityRun }) {
         )}
         {run.href === null ? null : (
           <a
-            className="underline-offset-[3px] hover:underline"
+            /* The one control on this line, so it takes the sheet's 44px
+               minimum. It is caption type on a phone and a thumb is not, and
+               this link is the whole point of the row. */
+            className="inline-flex min-h-11 items-center underline-offset-[3px] hover:underline"
             href={run.href}
             rel="noreferrer"
             target="_blank"

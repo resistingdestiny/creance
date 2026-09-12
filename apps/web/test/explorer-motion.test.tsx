@@ -7,7 +7,7 @@ import { ExplorerScreen } from '../src/app/index/explorer-screen.js';
 import type { ExplorerData } from '../src/lib/explorer-data.js';
 import { explorerOccupation } from '../src/lib/explorer-model.js';
 
-import { EXPLORER_READINGS } from './explorer-fixtures.js';
+import { EXPLORER_READINGS, EXPLORER_UTILISATION } from './explorer-fixtures.js';
 
 /**
  * The explorer's one piece of motion: the chart line tweening when the reader
@@ -34,6 +34,7 @@ const occupations = EXPLORER_READINGS.map(explorerOccupation);
 const data: ExplorerData = {
   occupations,
   missing: [],
+  utilisation: EXPLORER_UTILISATION,
   provenance: {
     source: 'US Bureau of Labor Statistics, Current Population Survey',
     asOf: '2026-07',
@@ -43,6 +44,9 @@ const data: ExplorerData = {
     topicId: '0.0.10366470',
     hashscan: 'https://hashscan.io/testnet/topic/0.0.10366470',
     seriesHash: null,
+    published: occupations.length,
+    groups: occupations.length,
+    deepest: null,
   },
   replayBadge: null,
   readAt: '2026-09-06T12:00:00.000Z',

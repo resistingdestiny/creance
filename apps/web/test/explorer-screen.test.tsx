@@ -17,7 +17,11 @@ import {
 } from '../src/lib/explorer-model.js';
 import { formatPeriod } from '../src/lib/format.js';
 
-import { EXPLORER_READINGS, explorerData as data } from './explorer-fixtures.js';
+import {
+  EXPLORER_READINGS,
+  EXPLORER_UTILISATION,
+  explorerData as data,
+} from './explorer-fixtures.js';
 
 /// The explorer, rendered against the fifteen readings recorded from the API on
 /// Hedera testnet.
@@ -70,6 +74,41 @@ describe('the explorer opens on the newest published month', () => {
     );
     const link = screen.getByRole('link', { name: '0.0.10366470' });
     expect(link.getAttribute('href')).toBe('https://hashscan.io/testnet/topic/0.0.10366470');
+
+    // What the topic actually holds is one message per occupation per
+    // published month, so the sentence counts and never says "every month".
+    // A reader who follows the link is counting the same thing.
+    expect(link.parentElement?.textContent).toBe(
+      'The newest month for every occupation, and the whole 19 month history for computer and mathematical, are settled on Hedera topic 0.0.10366470, so the same figures can be read without trusting this page.',
+    );
+  });
+
+  it('counts what is settled rather than claiming more than the topic holds', () => {
+    render(
+      <ExplorerScreen
+        data={data({
+          provenance: { ...data().provenance, published: 9, deepest: null },
+        })}
+      />,
+    );
+    const link = screen.getByRole('link', { name: '0.0.10366470' });
+    expect(link.parentElement?.textContent).toBe(
+      'The newest month for 9 of 15 occupations is settled on Hedera topic 0.0.10366470, so the same figures can be read without trusting this page.',
+    );
+  });
+
+  it('claims nothing about months when the topic could not be counted', () => {
+    render(
+      <ExplorerScreen
+        data={data({
+          provenance: { ...data().provenance, published: 0, deepest: null },
+        })}
+      />,
+    );
+    const link = screen.getByRole('link', { name: '0.0.10366470' });
+    expect(link.parentElement?.textContent).toBe(
+      'The index settles on Hedera topic 0.0.10366470, so the same figures can be read without trusting this page.',
+    );
   });
 
   it('shows the replay badge only while the demo clock walks', () => {
@@ -293,18 +332,69 @@ describe('the price block', () => {
     expect(price!.parentElement).toBe(columns!.parentElement);
   });
 
-  it('is the model price for the month and the capacity on the slider', () => {
+  it('opens at the occupation’s own capacity, which is what the API would quote', () => {
+    // The slider used to open at a flat 45 percent for all fifteen, which made
+    // this the only surface in the product that disagreed with the quote and
+    // the market board, under a caption naming the real series it supposedly
+    // came from. It now opens where the series is, so the figure is the price.
     render(<ExplorerScreen data={data()} />);
     const distance = latestMonth(opensOn)?.distance ?? 0;
-    const price = priceFor(distance, 0.45);
+    const live = EXPLORER_UTILISATION[DEFAULT_KEY]!;
+    const price = priceFor(distance, live);
 
     expect(screen.getByText('Monthly premium for 5,000 of cover')).toBeDefined();
     expect(screen.getByText(price!.monthly)).toBeDefined();
+    expect(screen.getByText('0 percent of this pool already used')).toBeDefined();
+  });
+
+  it('names the series the capacity was read from, to two places', () => {
+    // 0.8866 is 88.66 percent and not 89: the price above the caption is
+    // struck at the exact figure, so a rounded caption would name a capacity
+    // the number was not priced at.
+    const priced = occupations.find((entry) => entry.key === 'computer_math')!;
+    render(<ExplorerPanel data={data()} follows="computer_math" />);
+
+    expect(screen.getByText('88.66 percent of this pool already used')).toBeDefined();
+    expect(screen.getByText(`Read from ${priced.seriesId!}.`)).toBeDefined();
+    const distance = latestMonth(priced)?.distance ?? 0;
+    expect(
+      screen.getByText(priceFor(distance, EXPLORER_UTILISATION.computer_math!)!.monthly),
+    ).toBeDefined();
+  });
+
+  it('says the premium is a what if once the capacity slider is moved', () => {
+    render(<ExplorerScreen data={data()} />);
+    const distance = latestMonth(opensOn)?.distance ?? 0;
 
     const capacity = screen.getByRole('slider', { name: 'How much capital wants this risk' });
-    fireEvent.change(capacity, { target: { value: '0' } });
-    const atZero = priceFor(distance, 0);
-    expect(screen.getByText(atZero!.monthly)).toBeDefined();
+    fireEvent.change(capacity, { target: { value: '60' } });
+
+    expect(screen.getByText(priceFor(distance, 0.6)!.monthly)).toBeDefined();
+    expect(screen.getByText('Monthly premium at 60 percent used, for 5,000 of cover')).toBeDefined();
+    expect(screen.getByText('60 percent of this pool already used')).toBeDefined();
+  });
+
+  it('keeps the live capacity on the screen once the slider has been moved', () => {
+    // The reader can always get back to the real figure, because the caption
+    // under a moved slider is where the series actually stands.
+    const priced = occupations.find((entry) => entry.key === 'computer_math')!;
+    render(<ExplorerPanel data={data()} follows="computer_math" />);
+    fireEvent.change(screen.getByRole('slider', { name: 'How much capital wants this risk' }), {
+      target: { value: '10' },
+    });
+
+    expect(screen.getByText(`${priced.seriesId!} is at 88.66 percent.`)).toBeDefined();
+  });
+
+  it('shows the guide price when the capacity behind an occupation is unknown', () => {
+    // A market price needs a utilisation. One nobody read would be a quote
+    // struck at a number this page made up, so the block says guide price.
+    render(<ExplorerScreen data={data({ utilisation: {} })} />);
+    const distance = latestMonth(opensOn)?.distance ?? 0;
+
+    expect(screen.getByText('Guide price for 5,000 of cover')).toBeDefined();
+    expect(screen.getByText(priceFor(distance, 0)!.guide)).toBeDefined();
+    expect(screen.queryByRole('slider', { name: 'How much capital wants this risk' })).toBeNull();
   });
 
   it('says an occupation with no capacity cannot be bought rather than pricing it', () => {
@@ -339,7 +429,9 @@ describe('the price block', () => {
 describe('the two disclosures', () => {
   it('are native details, shut on load', () => {
     render(<ExplorerScreen data={data()} />);
-    const disclosures = [...document.querySelectorAll('details')];
+    // Under main, not the whole document: the chrome's own menu is a details
+    // as well and it is not one of the two this page draws.
+    const disclosures = [...document.querySelectorAll<HTMLDetailsElement>('main details')];
     expect(disclosures).toHaveLength(2);
     for (const disclosure of disclosures) expect(disclosure.open).toBe(false);
     expect(disclosures[0]?.textContent).toContain('How this number is built');
@@ -348,7 +440,7 @@ describe('the two disclosures', () => {
 
   it('explains the number in four steps, each with its own chart', () => {
     render(<ExplorerScreen data={data()} />);
-    const steps = document.querySelectorAll('details')[0];
+    const steps = document.querySelectorAll('main details')[0];
     expect(within(steps as HTMLElement).getAllByRole('listitem')).toHaveLength(4);
     // Inside the body, so the summary's own chevron is not counted.
     expect(steps?.querySelectorAll(':scope > div svg')).toHaveLength(4);
@@ -360,7 +452,7 @@ describe('the two disclosures', () => {
 
   it('ranks the fifteen occupations closest to opening first, each a button', () => {
     render(<ExplorerScreen data={data()} />);
-    const grid = document.querySelectorAll('details')[1] as HTMLElement;
+    const grid = document.querySelectorAll('main details')[1] as HTMLElement;
     const cells = within(grid).getAllByRole('button');
     expect(cells).toHaveLength(15);
     expect(cells[0]?.textContent).toContain('Arts, design, entertainment and media');
@@ -370,7 +462,7 @@ describe('the two disclosures', () => {
 
   it('selects an occupation in the explorer above when a cell is chosen', () => {
     render(<ExplorerScreen data={data()} />);
-    const grid = document.querySelectorAll('details')[1] as HTMLElement;
+    const grid = document.querySelectorAll('main details')[1] as HTMLElement;
     const cell = within(grid)
       .getAllByRole('button')
       .find((button) => button.textContent?.startsWith('Legal') === true);

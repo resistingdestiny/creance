@@ -182,7 +182,11 @@ export function InvestorOverview({
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-hairline pb-6">
         <div className="flex flex-col gap-1">
           <a
-            className="mb-1 inline-flex w-fit items-center gap-1 text-secondary text-ink-2 underline-offset-[3px] hover:underline"
+            /* The tap minimum: this is the way back and it is set in the small
+               type, which on a phone was twenty pixels of target. The negative
+               margins take back the space the taller box would have added
+               around a line that has not changed height. */
+            className="-mt-2 -mb-1 inline-flex min-h-11 w-fit items-center gap-1 text-secondary text-ink-2 underline-offset-[3px] hover:underline"
             href="/invest"
           >
             <ChevronRight className="shrink-0 rotate-180" />

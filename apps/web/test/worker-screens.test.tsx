@@ -562,7 +562,8 @@ describe('home', () => {
    */
   it('draws the index line at the size the chart rules give the Home row', () => {
     renderHome(false);
-    const svg = document.querySelector('svg');
+    // Under main: the chrome's menu glyph is the first svg in the document.
+    const svg = document.querySelector('main svg');
     expect(svg?.getAttribute('width')).toBe('64');
     expect(svg?.getAttribute('height')).toBe('20');
     expect(screen.queryByTestId('index-chart-band')).toBeNull();

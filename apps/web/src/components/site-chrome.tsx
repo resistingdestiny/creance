@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { MenuGlyph } from './icons';
 import { PillLink } from './pill-button';
 
 /**
@@ -135,23 +136,52 @@ export function NavLink({
  * would be two alternatives of equal weight and no hierarchy at all. Neither
  * "Earn yield" nor "Get a quote" moved or changed.
  *
- * Which place you are on is `aria-current` and nothing else. There are two
- * destinations, both permanently on screen, and the page under the header is
- * titled: a tint on the secondary would say "here" at the cost of blurring
- * the one distinction the row exists to draw.
+ * Which place you are on is `aria-current` and nothing else, on whichever copy
+ * of the link the width is showing. The page under the header is titled: a
+ * tint on the secondary would say "here" at the cost of blurring the one
+ * distinction the row exists to draw.
  *
  * The wordmark is Creance, where the design file reads Displacement Bond.
  * Displacement Bond Note is the instrument and Creance is the product, which is
  * Root's decision and predates the design file. docs/DECISIONS.md.
  *
- * One line at every width. The two subordinate controls are hidden below the
- * medium breakpoint rather than wrapped, because a navigation that grows a
- * second row pushes the hero down the screen at 390 and the wordmark and the
- * one primary are what has to survive. Both are still in the markup and both
- * are reachable from the footer under every route. The hiding is `max-md:` and
- * not `hidden md:inline-flex` because the pill already declares a display of
- * its own and two display utilities on one element are settled by whichever
- * the framework happened to emit last.
+ * One line at every width, and below the medium breakpoint the three
+ * subordinate controls are a menu rather than nothing. They used to be hidden
+ * outright, which on a phone left "Get a quote" as the only control in the
+ * product's only navigation: the index, the activity page and the investor
+ * side could not be reached from the header on any route. The footer named two
+ * of the three, and a footer is not where a person looks for a way around.
+ *
+ * The menu is a native `details`, which is the construction the series chooser
+ * already uses: no client component, no script, and it works on the first byte
+ * rather than at hydration. The summary is the whole label, so there is no
+ * label element above it inside the disclosure; anything in a `details` that is
+ * not the summary is the disclosed content and would be hidden until the thing
+ * was already open. The word "Menu" is on the summary as screen reader text
+ * beside the glyph, the browser reports the open state itself, Enter or Space
+ * on the summary opens it, and Tab then walks the three links. The panel is
+ * inside the same `nav`, so what it holds is still the main navigation.
+ *
+ * All three go in, not two. At 360, which is the common Android portrait
+ * width, the bar holds the mark, the primary action and about fifty pixels
+ * more, so "Earn yield" cannot stand in the row and be a button as well. Its
+ * rank survives instead of its position: the two tertiaries are drawn as
+ * tertiaries and "Earn yield" as the secondary, in the row's own order, and
+ * the primary never leaves the bar. The three pills in the row and the three
+ * in the panel are the same three links twice in the markup, each set display
+ * none at the other's width, which is what a disclosure without script costs.
+ *
+ * The row's hiding is `max-md:` and not `hidden md:inline-flex` because the
+ * pill already declares a display of its own and two display utilities on one
+ * element are settled by whichever the framework happened to emit last. The
+ * menu's `md:hidden` is safe the other way round: a `details` takes the
+ * browser's own display and declares none of its own.
+ *
+ * The panel hangs off the header rather than off the menu button: the header
+ * is the positioned ancestor, so `inset-x-0 top-full` puts it edge to edge
+ * directly under the band, which is where a phone expects it, and the header
+ * takes a stacking context of its own so nothing on any page can come out in
+ * front of it.
  *
  * `data-tone` is what the stylesheet's focus rule reads: the sheet's outline
  * is black, which is invisible on this ground, so inside a night tone the
@@ -159,6 +189,24 @@ export function NavLink({
  * a utility renamed later cannot silently take the focus state with it, and it
  * is what gives all three controls here a focus outline that can be seen.
  */
+/** Which of the three subordinate places a screen is, for `aria-current`. */
+export type ChromePlace = 'index' | 'activity' | 'invest';
+
+/**
+ * The three subordinate places in rank order, written once and drawn twice:
+ * in the bar from the medium breakpoint up, and inside the menu below it.
+ */
+const PLACES: readonly {
+  place: ChromePlace;
+  href: string;
+  label: string;
+  variant: 'night-tertiary' | 'night-secondary';
+}[] = [
+  { place: 'index', href: '/index', label: 'The index', variant: 'night-tertiary' },
+  { place: 'activity', href: '/activity', label: 'Activity', variant: 'night-tertiary' },
+  { place: 'invest', href: '/invest', label: CHROME_SECOND_ACTION, variant: 'night-secondary' },
+];
+
 export function SiteHeader({
   action,
   current = null,
@@ -166,11 +214,11 @@ export function SiteHeader({
   /** The primary control in the top right. Defaults to the front door link. */
   action?: ReactNode;
   /** Which of the three places this screen is, for aria-current. */
-  current?: 'index' | 'activity' | 'invest' | null;
+  current?: ChromePlace | null;
 }) {
   return (
-    <header className="border-b border-white/10 bg-night" data-tone="night">
-      <div className={`flex h-chrome items-center justify-between gap-4 ${CHROME_FRAME}`}>
+    <header className="relative z-30 border-b border-white/10 bg-night" data-tone="night">
+      <div className={`flex h-chrome items-center justify-between gap-3 ${CHROME_FRAME}`}>
         <a
           className="inline-flex min-h-11 items-center no-underline whitespace-nowrap text-body font-semibold text-white"
           href="/"
@@ -178,30 +226,52 @@ export function SiteHeader({
           Creance
         </a>
         <nav aria-label="Main" className="flex items-center gap-x-2 lg:gap-x-3">
-          <PillLink
-            aria-current={current === 'index' ? 'page' : undefined}
-            className="max-md:hidden"
-            href="/index"
-            variant="night-tertiary"
-          >
-            The index
-          </PillLink>
-          <PillLink
-            aria-current={current === 'activity' ? 'page' : undefined}
-            className="max-md:hidden"
-            href="/activity"
-            variant="night-tertiary"
-          >
-            Activity
-          </PillLink>
-          <PillLink
-            aria-current={current === 'invest' ? 'page' : undefined}
-            className="max-md:hidden"
-            href="/invest"
-            variant="night-secondary"
-          >
-            {CHROME_SECOND_ACTION}
-          </PillLink>
+          {PLACES.map(({ place, href, label, variant }) => (
+            <PillLink
+              aria-current={current === place ? 'page' : undefined}
+              className="max-md:hidden"
+              href={href}
+              key={place}
+              variant={variant}
+            >
+              {label}
+            </PillLink>
+          ))}
+          <details className="md:hidden">
+            {/* The summary is drawn at the secondary level rather than the
+                tertiary, because below the medium breakpoint it is standing in
+                for the secondary that went inside it, and because a control
+                with no edge on this ground is exactly the control Root could
+                not find. It is a circle of the sheet's minimum tap size rather
+                than a pill at the row's height: the bar at 320 has room for the
+                mark, this and the primary, and not for a fourth word.
+
+                The skin is written out rather than taken from PillLink because
+                a disclosure has to be a `summary` element, and the padding a
+                pill declares would fight the fixed size this one needs. */}
+            <summary
+              className="inline-flex size-12 cursor-pointer list-none items-center justify-center rounded-full border border-white/40 bg-white/12 text-white transition-opacity duration-200 ease-out hover:opacity-80 active:opacity-70 motion-reduce:transition-none [&::-webkit-details-marker]:hidden"
+              data-testid="chrome-menu"
+            >
+              <MenuGlyph />
+              <span className="sr-only">Menu</span>
+            </summary>
+            <div className="absolute inset-x-0 top-full border-b border-white/10 bg-night">
+              <div className={`flex flex-col gap-2 pb-5 pt-1 ${CHROME_FRAME}`}>
+                {PLACES.map(({ place, href, label, variant }) => (
+                  <PillLink
+                    aria-current={current === place ? 'page' : undefined}
+                    className="w-full"
+                    href={href}
+                    key={place}
+                    variant={variant}
+                  >
+                    {label}
+                  </PillLink>
+                ))}
+              </div>
+            </div>
+          </details>
           {action === undefined ? (
             <PillLink href="/" variant="night">
               {CHROME_ACTION}
@@ -216,9 +286,10 @@ export function SiteHeader({
 }
 
 /**
- * The footer, once, in the root layout. It carries the mark, the three links
- * the header hides at 390, and DESIGN.md's closing line, which the canonical
- * index page and the investor screens make more than decoration.
+ * The footer, once, in the root layout. It carries the mark, the header's
+ * three places under the names a reader would search for, and DESIGN.md's
+ * closing line, which the canonical index page and the investor screens make
+ * more than decoration.
  *
  * The middle link is the header's "Activity" under the name a reader would
  * search for. The header has one word of room and the footer has a phrase's

@@ -75,6 +75,33 @@ export function CopyGlyph({ className }: { className?: string }) {
 }
 
 /**
+ * The menu glyph, three rules, on the header's disclosure below the medium
+ * breakpoint. It is the one control in the product whose label is a picture,
+ * because at 360 the bar has room for the mark, the primary action and about
+ * fifty pixels, and fifty pixels is not a word. The summary carries the word
+ * "Menu" for anything that reads the page rather than looks at it.
+ */
+export function MenuGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      height="18"
+      viewBox="0 0 18 18"
+      width="18"
+    >
+      <path
+        d="M2.5 4.5h13M2.5 9h13M2.5 13.5h13"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+/**
  * The upload glyph: a tray with an arrow rising out of it. It stands in the
  * drop area, which is the one place in the product where a control has to say
  * what it is before it says what it does.

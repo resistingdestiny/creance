@@ -378,7 +378,11 @@ function Hero({
   price: Streamed<LandingPriceView>;
 }) {
   return (
-    <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+    // `min-w-0` because this is a grid item and a grid item may not shrink
+    // below its own longest unbreakable line unless it is told it may. The
+    // price under the lead is one, and at 320 it is wider than the column,
+    // which took the whole page sideways with it.
+    <div className="flex min-w-0 flex-col items-center text-center lg:items-start lg:text-left">
       <Suspense fallback={<IndexLiveResting />}>
         <IndexLiveFrom index={index} />
       </Suspense>
@@ -448,7 +452,11 @@ function PriceLine({ price }: { price: Streamed<LandingPriceView> }) {
   const { priceLine, buysLine } = figureOf(price);
   return priceLine === null ? null : (
     <p className="mt-8 flex flex-col gap-1 lg:mt-10">
-      <span className="whitespace-nowrap font-display text-headline font-semibold tracking-headline text-white">
+      {/* Unbroken from the small breakpoint up, where it always fits. Below it
+          the line is allowed to wrap, because "From 10.38 a month" at the
+          headline size is wider than a 320 screen and a figure that will not
+          break takes the page sideways rather than itself. */}
+      <span className="font-display text-headline font-semibold tracking-headline text-white sm:whitespace-nowrap">
         {priceLine}
       </span>
       <span className="text-body-lg text-white/66">{buysLine}</span>

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ActivityScreen, NO_ACTIVITY } from '../src/app/activity/activity-screen.js';
 import { PER_SOURCE_ON_A_PAGE, type ActivityFeed } from '../src/lib/activity-data.js';
-import { ACTIVITY_SOURCES, type ActivityEntry } from '../src/lib/activity-model.js';
+import { ACTIVITY_SOURCES, type ActivityRun } from '../src/lib/activity-model.js';
 
 /**
  * What the activity page shows, and what it refuses to show.
@@ -17,15 +17,17 @@ import { ACTIVITY_SOURCES, type ActivityEntry } from '../src/lib/activity-model.
 
 const NOW = Date.parse('2026-09-12T09:00:00.000Z');
 
-function entry(over: Partial<ActivityEntry> = {}): ActivityEntry {
+function run(over: Partial<ActivityRun> = {}): ActivityRun {
   return {
     key: 'payments-7942',
     source: 'payments',
     at: '2026-09-12T08:36:04.922Z',
+    since: '2026-09-12T08:36:04.922Z',
     consensus: '1789202164.922804104',
     title: 'An agent paid for a price',
     detail: 'POST /v1/quote',
-    amount: '0.05',
+    count: 1,
+    total: { minor: '50000', decimals: 6 },
     refused: false,
     href: 'https://hashscan.io/testnet/transaction/0.0.10366450-1789202159-814712667',
     ...over,
@@ -34,8 +36,8 @@ function entry(over: Partial<ActivityEntry> = {}): ActivityEntry {
 
 function feed(over: Partial<ActivityFeed> = {}): ActivityFeed {
   return {
-    entries: [entry()],
-    capped: false,
+    runs: [run()],
+    summarised: false,
     unread: [],
     readAt: '2026-09-12T09:00:00.000Z',
     older: null,
@@ -96,10 +98,13 @@ describe('the activity page', () => {
     }
   });
 
-  it('says so when a busy place was held back, rather than letting it look complete', () => {
-    const line = `no place takes more than ${String(PER_SOURCE_ON_A_PAGE)} lines here`;
+  it('says how a page is summarised, rather than letting it look complete', () => {
+    const line = `no place takes more than ${String(PER_SOURCE_ON_A_PAGE)} lines of a page`;
     expect(markup).not.toContain(line);
-    expect(render(feed({ capped: true }))).toContain(line);
+    const summarised = render(feed({ summarised: true }));
+    expect(summarised).toContain(line);
+    expect(summarised).toContain('one line with a count and a total');
+    expect(summarised).toContain('every one of its records on its own');
   });
 
   it('needs no script, no session and no wallet', () => {
@@ -111,7 +116,7 @@ describe('the activity page', () => {
 
 describe('when the mirror node cannot be read', () => {
   it('shows nothing at all and says so', () => {
-    const markup = render(feed({ entries: [], unread: ['payments', 'claims'] }));
+    const markup = render(feed({ runs: [], unread: ['payments', 'claims'] }));
     expect(markup).toContain(NO_ACTIVITY.title);
     expect(markup).toContain(NO_ACTIVITY.line);
     expect(markup).not.toContain('<table');
@@ -129,14 +134,55 @@ describe('a line the chain refused', () => {
   it('is still shown, because a refusal is the control working', () => {
     const markup = render(
       feed({
-        entries: [
-          entry({ title: 'Notes changed hands', refused: true, detail: 'The chain refused it' }),
+        runs: [
+          run({ title: 'Notes changed hands', refused: true, detail: 'The chain refused it' }),
         ],
       }),
     );
     expect(markup).toContain('Notes changed hands');
     expect(markup).toContain('Refused');
     expect(markup).toContain('hashscan.io/testnet/transaction');
+  });
+});
+
+describe('a line standing for a run of records', () => {
+  const one = render(feed());
+  const rolled = render(
+    feed({
+      summarised: true,
+      runs: [
+        run({
+          count: 15,
+          since: '2026-09-12T08:34:19.000Z',
+          at: '2026-09-12T08:36:04.922Z',
+          title: 'An agent paid to read the index',
+          detail: 'GET /v1/index/:group',
+          total: { minor: '150000', decimals: 6 },
+        }),
+      ],
+    }),
+  );
+
+  it('says how many it stands for and over what span', () => {
+    expect(rolled).toContain('15 times');
+    expect(rolled).toContain('12 September, 08:34 to 08:36');
+  });
+
+  it('shows the sum and calls it a total, so nobody reads it as one call', () => {
+    expect(rolled).toContain('0.15');
+    expect(rolled).toContain('>total<');
+  });
+
+  it('says its link is one of them, not all of them', () => {
+    expect(rolled).toContain('See the newest of them on HashScan');
+    expect(rolled).not.toContain('>See it on HashScan<');
+  });
+
+  it('changes nothing at all for a run of one', () => {
+    expect(one).toContain('>See it on HashScan<');
+    expect(one).not.toContain('times');
+    expect(one).not.toContain('>total<');
+    expect(one).toContain('0.05');
   });
 });
 

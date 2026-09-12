@@ -10,17 +10,19 @@ import {
   activityCursor,
   activityFilter,
   activitySource,
+  capRuns,
   contractEntry,
   hashscanSourceUrl,
   instantOf,
   mergeActivity,
+  rollUp,
   submitTransactionOf,
   topicEntry,
   type ActivityEntry,
   type ActivitySource,
   type ActivitySourceKey,
 } from '../src/lib/activity-model.js';
-import { formatAge, formatInstant } from '../src/lib/format.js';
+import { formatAge, formatInstant, formatSpan } from '../src/lib/format.js';
 
 /**
  * The activity page's two promises, held here.
@@ -171,7 +173,7 @@ describe('a topic message', () => {
     );
     expect(entry.title).toBe('An agent paid for a price');
     expect(entry.detail).toBe('POST /v1/quote');
-    expect(entry.amount).toBe('0.05');
+    expect(entry.amount).toEqual({ minor: '50000', decimals: 6 });
     expect(entry.href).toBe(
       'https://hashscan.io/testnet/transaction/0.0.10366450-1789202159-814712667',
     );
@@ -253,7 +255,10 @@ describe('a topic message', () => {
       result: 'SUCCESS',
       paidAt: '2026-09-10T00:00:00.000Z',
     };
-    expect(topicEntry(source('payments'), message(paid)).amount).toBe('328.77');
+    expect(topicEntry(source('payments'), message(paid)).amount).toEqual({
+      minor: '328767123',
+      decimals: SETTLEMENT_TOKEN.decimals,
+    });
 
     // Another token at an unknown scale is not printed at this one.
     expect(
@@ -338,13 +343,10 @@ describe('the stream', () => {
   }
 
   it('is newest first across every place, compared as seconds then nanoseconds', () => {
-    const merged = mergeActivity(
-      [
-        [at('1789202164.000000002'), at('1789202100.999999999')],
-        [at('1789202164.000000010'), at('1789202099.000000000')],
-      ],
-      10,
-    );
+    const merged = mergeActivity([
+      [at('1789202164.000000002'), at('1789202100.999999999')],
+      [at('1789202164.000000010'), at('1789202099.000000000')],
+    ]);
     expect(merged.map((entry) => entry.consensus)).toEqual([
       '1789202164.000000010',
       '1789202164.000000002',
@@ -353,20 +355,110 @@ describe('the stream', () => {
     ]);
   });
 
-  it('is cut to the page size', () => {
-    expect(mergeActivity([[at('2.0'), at('1.0'), at('3.0')]], 2)).toHaveLength(2);
-  });
-
   it('lets no one place fill a page, so a busy topic cannot hide the rest', () => {
     const payments = ['9.0', '8.0', '7.0', '6.0'].map((stamp) => at(stamp));
     const market = ['5.0', '4.0'].map((stamp) => ({ ...at(stamp), source: 'market' as const }));
-    const page = mergeActivity([payments, market], 10, 2);
-    expect(page.map((row) => row.consensus)).toEqual(['9.0', '8.0', '5.0', '4.0']);
+    const page = capRuns(rollUp(mergeActivity([payments, market])), 10, 2);
+    // Four identical payments roll into one line, which is one of its two.
+    expect(page.map((row) => [row.source, row.count])).toEqual([
+      ['payments', 4],
+      ['market', 2],
+    ]);
   });
 
-  it('caps nothing when the caller asks for no cap', () => {
-    const payments = ['9.0', '8.0', '7.0'].map((stamp) => at(stamp));
-    expect(mergeActivity([payments], 10)).toHaveLength(3);
+  it('is cut to the page size', () => {
+    const spread = ['9.0', '8.0', '7.0'].map((stamp, index) => ({
+      ...at(stamp),
+      title: `t${String(index)}`,
+    }));
+    expect(capRuns(rollUp(spread), 2, 10)).toHaveLength(2);
+  });
+});
+
+describe('a run of the same thing', () => {
+  function line(
+    consensus: string,
+    over: Partial<ActivityEntry> = {},
+  ): ActivityEntry {
+    return {
+      key: consensus,
+      source: 'payments',
+      at: instantOf(consensus),
+      consensus,
+      title: 'An agent paid to read the index',
+      detail: 'GET /v1/index/:group',
+      amount: { minor: '10000', decimals: 6 },
+      refused: false,
+      href: `https://hashscan.io/testnet/transaction/${consensus}`,
+      ...over,
+    };
+  }
+
+  it('is one line carrying the true count, the span and the sum', () => {
+    const runs = rollUp([line('9.0'), line('8.0'), line('7.0')]);
+    expect(runs).toHaveLength(1);
+    const [run] = runs;
+    expect(run?.count).toBe(3);
+    expect(run?.at).toBe(instantOf('9.0'));
+    expect(run?.since).toBe(instantOf('7.0'));
+    expect(run?.total).toEqual({ minor: '30000', decimals: 6 });
+    // The link is the newest of the run, and the page says so beside it.
+    expect(run?.href).toBe('https://hashscan.io/testnet/transaction/9.0');
+    // The cursor is the oldest, so the next page starts where this run ended.
+    expect(run?.consensus).toBe('7.0');
+  });
+
+  it('is one line for one record, with no count and no change', () => {
+    const runs = rollUp([line('9.0')]);
+    expect(runs[0]?.count).toBe(1);
+    expect(runs[0]?.at).toBe(runs[0]?.since);
+    expect(runs[0]?.total).toEqual({ minor: '10000', decimals: 6 });
+  });
+
+  it('never reaches across something else, even on the same topic', () => {
+    const runs = rollUp([
+      line('9.0'),
+      line('8.0', { title: 'A coupon was paid to a noteholder', detail: null }),
+      line('7.0'),
+    ]);
+    expect(runs.map((run) => run.count)).toEqual([1, 1, 1]);
+  });
+
+  it('never reaches across a place, however alike two lines read', () => {
+    const runs = rollUp([line('9.0'), line('8.0', { source: 'claims' }), line('7.0')]);
+    expect(runs.map((run) => [run.source, run.count])).toEqual([
+      ['payments', 1],
+      ['claims', 1],
+      ['payments', 1],
+    ]);
+  });
+
+  it('keeps a refusal apart from a settled call that reads the same', () => {
+    const runs = rollUp([
+      line('9.0', { title: 'Notes changed hands', detail: null }),
+      line('8.0', { title: 'Notes changed hands', detail: null, refused: true }),
+    ]);
+    expect(runs.map((run) => run.refused)).toEqual([false, true]);
+  });
+
+  it('gives no total at all rather than one that leaves a record out', () => {
+    expect(rollUp([line('9.0'), line('8.0', { amount: null })])[0]?.total).toBeNull();
+    expect(
+      rollUp([line('9.0'), line('8.0', { amount: { minor: '1', decimals: 8 } })])[0]?.total,
+    ).toBeNull();
+  });
+
+  it('says the span it covers, so the count can be checked against the times', () => {
+    expect(formatSpan('2026-09-12T09:14:02.000Z', '2026-09-12T09:15:40.000Z')).toBe(
+      '12 September, 09:14 to 09:15',
+    );
+    expect(formatSpan('2026-09-10T08:30:00.000Z', '2026-09-12T09:15:00.000Z')).toBe(
+      '10 September, 08:30 to 12 September, 09:15',
+    );
+    // A burst inside one minute is that minute, not "09:28 to 09:28".
+    expect(formatSpan('2026-09-12T09:28:01.000Z', '2026-09-12T09:28:59.000Z')).toBe(
+      '12 September, 09:28',
+    );
   });
 });
 

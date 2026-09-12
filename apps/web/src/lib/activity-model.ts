@@ -30,7 +30,7 @@
 import { auditFacts, parseTopicMessage, type TopicAuditMessage } from '@creance/client/src/audit';
 import { decodeMessage, type MirrorTopicMessage } from '@creance/client/src/hedera/mirror';
 
-import { formatIndexValue, formatMoney, formatPeriod } from './format';
+import { formatIndexValue, formatPeriod } from './format';
 import { OCCUPATIONS } from './occupations';
 
 /**
@@ -163,6 +163,21 @@ export function activityCursor(value: string | undefined): string | null {
   return value !== undefined && /^\d{1,12}\.\d{1,9}$/.test(value) ? value : null;
 }
 
+/**
+ * An amount, unformatted.
+ *
+ * It is carried in minor units rather than as a string of digits and a point
+ * because a run of identical records is shown as one line with their sum on it,
+ * and a sum of formatted strings is not a sum. The screen formats it through
+ * src/lib/format.ts, which is still the only place this app turns a figure into
+ * a string.
+ */
+export interface ActivityAmount {
+  /** An integer, in the asset's minor units. A string, because it is exact. */
+  readonly minor: string;
+  readonly decimals: number;
+}
+
 export interface ActivityEntry {
   /** Stable across renders: the source and the record's own place in it. */
   readonly key: string;
@@ -175,12 +190,55 @@ export interface ActivityEntry {
   readonly title: string;
   /** The one fact that tells this line apart from the one above it, or nothing. */
   readonly detail: string | null;
-  /** The amount that moved, already formatted, where the record carries one. */
-  readonly amount: string | null;
+  /** The amount that moved, where the record carries one at a scale it names. */
+  readonly amount: ActivityAmount | null;
   /** The chain refused the call. The line still renders, because it is evidence. */
   readonly refused: boolean;
   /** The transaction on HashScan. Null only when the record names no transaction. */
   readonly href: string | null;
+}
+
+/**
+ * A line on the page: one record, or a run of records that all say the same
+ * thing and happened one after another.
+ *
+ * Rolling a run up is the difference between a page that reads as a product
+ * running and a page that reads as a stuck log. The metered feed being called
+ * two hundred times in an hour is the evidence that the paid feed works, and it
+ * is far better said as "an agent paid for this 15 times" with the total beside
+ * it than as fifteen rows a reader scrolls past to find out that this product
+ * also decides claims and trades notes.
+ *
+ * Nothing is hidden by it and three rules see to that. A run says how many it
+ * stands for and over what span, so the count is checkable against the times
+ * beside it. Only records that are adjacent in the stream and would have printed
+ * the same words are ever put together, so an index reading with a coupon
+ * between it and the next one is three lines and not two. And choosing a place
+ * turns rolling up off altogether: that page is every record, one by one.
+ */
+export interface ActivityRun {
+  readonly key: string;
+  readonly source: ActivitySourceKey;
+  readonly title: string;
+  readonly detail: string | null;
+  readonly refused: boolean;
+  /** How many records this line stands for. One for most of them. */
+  readonly count: number;
+  /** The newest in the run. */
+  readonly at: string;
+  /** The oldest in the run, which is the same instant when the run is one. */
+  readonly since: string;
+  /**
+   * The sum over the run, or the single amount when the run is one.
+   *
+   * Null unless every record in the run carried an amount at the same scale: a
+   * total that quietly left one out would be a figure nobody published.
+   */
+  readonly total: ActivityAmount | null;
+  /** The newest record's transaction, which is one of the run and is named as one. */
+  readonly href: string | null;
+  /** The oldest record's timestamp, which is where the next page starts. */
+  readonly consensus: string;
 }
 
 /** A contract call as the mirror node returns it. Only the fields this page reads. */
@@ -250,17 +308,19 @@ function occupationLabel(group: unknown): string | null {
  * guess. Anything else carries no amount, because a figure at an unknown scale
  * is not a figure.
  */
-function amountOf(facts: ReturnType<typeof auditFacts>): string | null {
+function amountOf(facts: ReturnType<typeof auditFacts>): ActivityAmount | null {
   const money = facts.amount;
   if (money === null) return null;
-  let value: bigint;
   try {
-    value = BigInt(money.amount);
+    // Parsed only to reject anything that is not a whole number of minor units.
+    BigInt(money.amount);
   } catch {
     return null;
   }
-  if (money.decimals !== null) return formatMoney(value, money.decimals);
-  if (money.asset === SETTLEMENT_TOKEN.id) return formatMoney(value, SETTLEMENT_TOKEN.decimals);
+  if (money.decimals !== null) return { minor: money.amount, decimals: money.decimals };
+  if (money.asset === SETTLEMENT_TOKEN.id) {
+    return { minor: money.amount, decimals: SETTLEMENT_TOKEN.decimals };
+  }
   return null;
 }
 
@@ -478,44 +538,129 @@ export function contractEntry(
 }
 
 /**
- * Every source's lines as one stream, newest first, with no one place allowed to
- * fill the page.
+ * Every source's records as one stream, newest first.
  *
  * The consensus timestamp is a decimal count of seconds and it is compared as a
  * string only where the two have the same shape, so it is compared as a number
  * pair instead: seconds first, nanoseconds second. Two records cannot share a
  * consensus timestamp, so the order is total.
  *
- * The cap is the one thing on this page that is not simply "newest first", and
- * it is here because without it the page is useless. The payments topic carries
- * a settlement for every metered call this product makes, including the fifteen
- * the index explorer buys for itself every few minutes, so a straight newest
- * fifty is fifty lines of the same sentence and a reader learns nothing from it.
- * With the cap the same page carries the newest payments beside the months the
- * index published, the claims decided, the cover bound and the notes traded,
- * which is what somebody opening this page came to see.
- *
- * Nothing is invented by capping and nothing is hidden: the lines shown are real
- * and still in time order, the page says that a busy place is capped, and the
- * filter shows any one place with nothing left out.
+ * The merge happens before anything is rolled up, and it has to: adjacency is a
+ * property of the one stream a reader sees, not of the topic a record came off.
+ * Two paid readings with a note trade between them are two runs, because that is
+ * what the page shows between them.
  */
 export function mergeActivity(
   lists: readonly (readonly ActivityEntry[])[],
-  limit: number,
-  perSource: number = limit,
 ): readonly ActivityEntry[] {
-  const sorted = lists
+  return lists
     .flat()
     .sort((left, right) => compareConsensus(right.consensus, left.consensus));
+}
 
+/**
+ * Records that say the same thing, one after another, as one line with a count.
+ *
+ * Two records are the same thing when they would have printed the same words:
+ * the same place, the same sentence, the same detail under it and the same
+ * verdict from the chain. That is the strictest rule available and it is also
+ * the only one a reader can check, because the words are what they can see.
+ *
+ * The times are kept at both ends, so a run says the span it covers rather than
+ * a single moment it did not all happen at. That is also what makes the count
+ * honest at a page boundary: a run cut off by the end of what was read still
+ * truthfully says how many happened between the two times it names, and the next
+ * page carries the rest as a run of its own.
+ */
+export function rollUp(entries: readonly ActivityEntry[]): readonly ActivityRun[] {
+  const runs: ActivityRun[] = [];
+  let members: ActivityEntry[] = [];
+
+  const close = () => {
+    const newest = members[0];
+    const oldest = members[members.length - 1];
+    if (newest === undefined || oldest === undefined) return;
+    runs.push({
+      key: newest.key,
+      source: newest.source,
+      title: newest.title,
+      detail: newest.detail,
+      refused: newest.refused,
+      count: members.length,
+      at: newest.at,
+      since: oldest.at,
+      total: totalOf(members),
+      href: newest.href,
+      consensus: oldest.consensus,
+    });
+    members = [];
+  };
+
+  for (const entry of entries) {
+    const open = members[0];
+    if (open !== undefined && !sameLine(open, entry)) close();
+    members.push(entry);
+  }
+  close();
+  return runs;
+}
+
+/** Would these two print the same words? That is the whole test for a run. */
+function sameLine(left: ActivityEntry, right: ActivityEntry): boolean {
+  return (
+    left.source === right.source &&
+    left.title === right.title &&
+    left.detail === right.detail &&
+    left.refused === right.refused
+  );
+}
+
+/**
+ * The sum across a run, or nothing.
+ *
+ * Every record has to carry an amount at the same scale. A total over a run
+ * where one record's amount could not be read would be smaller than the run
+ * really moved, which is a figure nobody published, and this codebase does not
+ * render one of those.
+ */
+function totalOf(members: readonly ActivityEntry[]): ActivityAmount | null {
+  const first = members[0]?.amount;
+  if (first === undefined || first === null) return null;
+  let sum = 0n;
+  for (const member of members) {
+    if (member.amount === null || member.amount.decimals !== first.decimals) return null;
+    sum += BigInt(member.amount.minor);
+  }
+  return { minor: sum.toString(), decimals: first.decimals };
+}
+
+/**
+ * The page, with no one place allowed to fill it.
+ *
+ * The cap is the one thing here that is not simply "newest first", and rolling
+ * up did not remove the need for it, only shrink it. The payments topic writes
+ * a settlement for every metered call this product makes and they arrive in
+ * bursts, so even as runs it can still take the first dozen lines of the page
+ * and push the months published, the claims decided and the notes traded below
+ * the fold. Six lines of it is enough to see that it is running now.
+ *
+ * Nothing is invented by capping and nothing is hidden: the lines shown are real
+ * and still in time order, the page says that a busy place is held back, and
+ * choosing that place shows it with nothing left out and nothing rolled up.
+ */
+export function capRuns(
+  runs: readonly ActivityRun[],
+  limit: number,
+  perSource: number,
+): readonly ActivityRun[] {
   const taken = new Map<ActivitySourceKey, number>();
-  const page: ActivityEntry[] = [];
-  for (const entry of sorted) {
+  const page: ActivityRun[] = [];
+  for (const run of runs) {
     if (page.length >= limit) break;
-    const already = taken.get(entry.source) ?? 0;
+    const already = taken.get(run.source) ?? 0;
     if (already >= perSource) continue;
-    taken.set(entry.source, already + 1);
-    page.push(entry);
+    taken.set(run.source, already + 1);
+    page.push(run);
   }
   return page;
 }

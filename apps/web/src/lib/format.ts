@@ -112,6 +112,34 @@ export function formatInstant(iso: string): string {
 }
 
 /**
+ * The span two instants cover: "12 September, 09:14 to 09:15", or both dates in
+ * full when the span crosses midnight.
+ *
+ * It is what a line standing for several records says instead of a single
+ * moment. Two things are left out because they carry no information and cost
+ * the row its width: the day is not repeated inside one day, and a span whose
+ * two ends land in the same minute is written as that one minute rather than as
+ * "09:28 to 09:28", which reads like a rendering fault.
+ */
+export function formatSpan(from: string, to: string): string {
+  const start = parseInstant(from);
+  const end = parseInstant(to);
+  const started = formatInstant(from);
+  if (started === formatInstant(to)) return started;
+  const sameDay = start.toISOString().slice(0, 10) === end.toISOString().slice(0, 10);
+  return `${started} to ${sameDay ? clockOf(end) : formatInstant(to)}`;
+}
+
+function clockOf(at: Date): string {
+  return new Intl.DateTimeFormat(LOCALE, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: 'UTC',
+  }).format(at);
+}
+
+/**
  * How long ago an instant was: "just now", "4 minutes ago", "3 hours ago",
  * "6 days ago".
  *

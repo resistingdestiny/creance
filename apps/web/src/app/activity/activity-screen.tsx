@@ -8,11 +8,11 @@ import {
   ACTIVITY_SOURCES,
   activitySource,
   hashscanSourceUrl,
-  type ActivityEntry,
+  type ActivityRun,
   type ActivitySourceKey,
 } from '../../lib/activity-model';
 import { PER_SOURCE_ON_A_PAGE, type ActivityFeed } from '../../lib/activity-data';
-import { formatAge, formatInstant } from '../../lib/format';
+import { formatAge, formatInstant, formatMoney, formatSpan } from '../../lib/format';
 import type { Streamed } from '../../lib/investor-data';
 
 /**
@@ -116,7 +116,7 @@ function Feed({
 }) {
   const view = figureOf(feed);
 
-  if (view.entries.length === 0) {
+  if (view.runs.length === 0) {
     return (
       <div className="mt-10 flex flex-col gap-2">
         <p className="font-display text-title font-semibold tracking-title text-ink">
@@ -138,7 +138,7 @@ function Feed({
 
   return (
     <>
-      <ActivityTable entries={view.entries} now={now} />
+      <ActivityTable now={now} runs={view.runs} />
 
       <div className="mt-6 flex flex-wrap items-center gap-6 text-body">
         {before === null ? null : <TextLink href={href(filter, null)}>Back to the newest</TextLink>}
@@ -213,7 +213,7 @@ function Filters({ filter }: { filter: ActivitySourceKey | null }) {
  * region is still scrollable and focusable for the desktop width, where the four
  * columns do have a measure.
  */
-function ActivityTable({ entries, now }: { entries: readonly ActivityEntry[]; now: number }) {
+function ActivityTable({ now, runs }: { now: number; runs: readonly ActivityRun[] }) {
   return (
     <div
       aria-label="On chain activity"
@@ -241,23 +241,23 @@ function ActivityTable({ entries, now }: { entries: readonly ActivityEntry[]; no
           </tr>
         </thead>
         <tbody>
-          {entries.map((entry) => (
-            <tr className="border-b border-hairline align-top" key={entry.key}>
+          {runs.map((run) => (
+            <tr className="border-b border-hairline align-top" key={run.key}>
               <Td>
                 <span className="flex flex-col gap-0.5 whitespace-nowrap">
-                  <span>{formatAge(entry.at, now)}</span>
-                  <span className="text-caption text-ink-2">{formatInstant(entry.at)}</span>
+                  <span>{formatAge(run.at, now)}</span>
+                  <span className="text-caption text-ink-2">{formatInstant(run.at)}</span>
                 </span>
               </Td>
               <Td>
-                <Happened entry={entry} />
+                <Happened run={run} />
               </Td>
               <Td numeric wide>
-                {entry.amount}
+                <Amount run={run} />
               </Td>
               <Td wide>
                 <span className="whitespace-nowrap text-ink-2">
-                  {activitySource(entry.source).label}
+                  {activitySource(run.source).label}
                 </span>
               </Td>
             </tr>
@@ -279,29 +279,66 @@ function ActivityTable({ entries, now }: { entries: readonly ActivityEntry[]; no
  * A refused call is still a line. The chain refusing a transfer to somebody who
  * has not been through the compliance check is the control working, and it is
  * evidence in exactly the way a settled one is.
+ *
+ * A line standing for several records says so, and says over what span, before
+ * anything else in the caption: the count and the two times are what make the
+ * roll up checkable, and a reader who meets the count after the detail has
+ * already read the line as one thing.
+ *
+ * The link out then has to be honest about what it is. One record's line links
+ * to that record. A line standing for fifteen links to one of the fifteen, and
+ * it says which one it is rather than implying it is all of them, because a
+ * reader who follows it and finds a single transfer must not think the count
+ * above it was wrong.
  */
-function Happened({ entry }: { entry: ActivityEntry }) {
+function Happened({ run }: { run: ActivityRun }) {
+  const many = run.count > 1;
   return (
     <span className="flex flex-col gap-1 py-1">
       <span className="flex flex-wrap items-center gap-2">
-        <span className="min-w-0 text-ink">{entry.title}</span>
-        {entry.refused ? <StatusPill state="triggered">Refused</StatusPill> : null}
+        <span className="min-w-0 text-ink">{run.title}</span>
+        {many ? (
+          <span className="rounded-full border border-hairline bg-surface px-2 py-[3px] text-caption font-medium tabular-nums text-ink">
+            {String(run.count)} times
+          </span>
+        ) : null}
+        {run.refused ? <StatusPill state="triggered">Refused</StatusPill> : null}
       </span>
       <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-caption text-ink-2">
-        {entry.detail === null ? null : (
-          <span className="min-w-0 break-all tabular-nums">{entry.detail}</span>
+        {many ? <span className="tabular-nums">{formatSpan(run.since, run.at)}</span> : null}
+        {run.detail === null ? null : (
+          <span className="min-w-0 break-all tabular-nums">{run.detail}</span>
         )}
-        {entry.href === null ? null : (
+        {run.href === null ? null : (
           <a
             className="underline-offset-[3px] hover:underline"
-            href={entry.href}
+            href={run.href}
             rel="noreferrer"
             target="_blank"
           >
-            See it on HashScan
+            {many ? 'See the newest of them on HashScan' : 'See it on HashScan'}
           </a>
         )}
       </span>
+    </span>
+  );
+}
+
+/**
+ * What moved, and whether it is one figure or a sum.
+ *
+ * A line standing for fifteen paid readings at a hundredth each carries 0.15,
+ * and a reader who took that for the price of one call would have the whole
+ * point of the metered feed wrong by a factor of fifteen. So the word "total"
+ * sits under the figure whenever it is one, in the same place the market board
+ * puts what a principal has paid out.
+ */
+function Amount({ run }: { run: ActivityRun }) {
+  if (run.total === null) return null;
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span>{formatMoney(BigInt(run.total.minor), run.total.decimals)}</span>
+      {run.count > 1 ? <span className="text-caption text-ink-2">total</span> : null}
     </span>
   );
 }
@@ -375,14 +412,15 @@ function Provenance({ view }: { view: ActivityFeed }) {
         <span className="text-ink">{formatInstant(view.readAt)}</span>. Nothing on this page is
         stored by this product and nothing is shown from memory.
       </p>
-      {/* The one thing on the page that is not simply newest first, said where a
-          reader will look for it. Payments outnumbers everything else many times
-          over, so a page of everything holds it back to leave room for the rest;
-          choosing a place shows that place with nothing left out. */}
-      {view.capped ? (
+      {/* The two things on this page that are not simply newest first, said in
+          one sentence where a reader will look for it, with the way to the
+          unsummarised records at the end of it. Both exist because payments
+          outnumbers everything else many times over. */}
+      {view.summarised ? (
         <p>
-          One place can fill a page on its own, so no place takes more than{' '}
-          {String(PER_SOURCE_ON_A_PAGE)} lines here. Choose a place above to see all of it.
+          The same thing happening over and over is one line with a count and a total, and no
+          place takes more than {String(PER_SOURCE_ON_A_PAGE)} lines of a page. Choose a place
+          above to see every one of its records on its own.
         </p>
       ) : null}
       <ul className="flex flex-col gap-1">

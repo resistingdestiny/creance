@@ -28,7 +28,7 @@ import {
   type MethodStep,
 } from '../../lib/explorer-model';
 import { formatAmount, formatPeriod, formatPeriodShort } from '../../lib/format';
-import { filterOccupations } from '../../lib/occupations';
+import { CHOOSE_OCCUPATION, filterOccupations } from '../../lib/occupations';
 
 /**
  * The substance of the public index explorer: the picker, the verdict for the
@@ -346,6 +346,8 @@ function Picker({
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const labelId = useId();
+  const valueId = useId();
   const root = useRef<HTMLDivElement>(null);
   const row = useRef<HTMLButtonElement>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -422,7 +424,7 @@ function Picker({
 
   return (
     <div
-      className="relative"
+      className="flex flex-col gap-2"
       onBlur={(event) => {
         // Focus left the whole control, for anywhere but inside it.
         if (open && !root.current?.contains(event.relatedTarget as Node | null)) hide(false);
@@ -435,21 +437,35 @@ function Picker({
       }}
       ref={root}
     >
-      <button
-        aria-controls={panelId}
-        aria-expanded={open}
-        className="flex min-h-13 w-full items-center justify-between gap-3 rounded-xl border border-hairline bg-canvas px-4 text-left text-body text-ink transition-colors duration-200 ease-out hover:bg-surface motion-reduce:transition-none lg:w-auto lg:min-w-[400px]"
-        onClick={() => (open ? hide(true) : show())}
-        ref={row}
-        type="button"
-      >
-        <span className="flex items-center gap-2">
-          <span aria-hidden="true" className={`size-1.5 rounded-full ${DOT[currentState]}`} />
-          <span className="font-medium">{current.label}</span>
-          <span className="sr-only">, {stateWord(currentState).toLowerCase()}</span>
-        </span>
-        <ChevronRight className={`shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none ${open ? '-rotate-90' : 'rotate-90'}`} />
-      </button>
+      {/* The control is a bordered box carrying an occupation's name, which on
+          a page whose heading is also an occupation's name reads as a subtitle
+          rather than as something to press. Every other field in the product
+          carries a visible label above it at the secondary scale, so this one
+          does too, and it says what pressing it does rather than naming the
+          thing it holds. The button takes its accessible name from the label
+          and then from its own contents, so it is announced as "Choose an
+          occupation, Arts, design, entertainment and media". */}
+      <span className="text-secondary text-ink-2" id={labelId}>
+        {CHOOSE_OCCUPATION}
+      </span>
+      <div className="relative">
+        <button
+          aria-controls={panelId}
+          aria-expanded={open}
+          aria-labelledby={`${labelId} ${valueId}`}
+          className="flex min-h-13 w-full items-center justify-between gap-3 rounded-xl border border-hairline bg-canvas px-4 text-left text-body text-ink transition-colors duration-200 ease-out hover:border-ink-3 hover:bg-surface motion-reduce:transition-none lg:w-auto lg:min-w-[400px]"
+          id={valueId}
+          onClick={() => (open ? hide(true) : show())}
+          ref={row}
+          type="button"
+        >
+          <span className="flex items-center gap-2">
+            <span aria-hidden="true" className={`size-1.5 rounded-full ${DOT[currentState]}`} />
+            <span className="font-medium">{current.label}</span>
+            <span className="sr-only">, {stateWord(currentState).toLowerCase()}</span>
+          </span>
+          <ChevronRight className={`shrink-0 transition-transform duration-200 ease-out motion-reduce:transition-none ${open ? '-rotate-90' : 'rotate-90'}`} />
+        </button>
 
       <div
         className="absolute left-0 right-0 top-full z-20 mt-2 flex max-h-[420px] flex-col gap-2 overflow-y-auto rounded-2xl border border-hairline bg-canvas p-2 lg:right-auto lg:w-[400px]"
@@ -499,6 +515,7 @@ function Picker({
             })}
           </ul>
         )}
+        </div>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ExplorerPanel } from '../src/app/index/explorer-panel.js';
+import { CHOOSE_OCCUPATION } from '../src/lib/occupations.js';
 import { ExplorerScreen } from '../src/app/index/explorer-screen.js';
 import {
   bandCaption,
@@ -390,5 +391,25 @@ describe('what the explorer refuses to do', () => {
   it('runs no scroll observer anywhere', () => {
     render(<ExplorerScreen data={data()} />);
     expect(document.body.innerHTML).not.toContain('data-reveal');
+  });
+});
+
+describe('the occupation chooser says what it is for', () => {
+  it('carries a visible label above it, and names the control with both', () => {
+    // The control is a bordered box carrying an occupation's name, on a page
+    // whose heading is also an occupation's name, so without a label it reads
+    // as a subtitle rather than as something to press.
+    render(<ExplorerScreen data={data()} />);
+    expect(screen.getByText(CHOOSE_OCCUPATION)).toBeDefined();
+    const trigger = screen.getByRole('button', { expanded: false, name: /Choose an occupation/ });
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    // The accessible name is the label and then the value, so the control is
+    // announced as what it does and then as what it is holding.
+    expect(trigger.getAttribute('aria-labelledby')?.split(' ')).toHaveLength(2);
+  });
+
+  it('says occupation, which is the word every other screen uses', () => {
+    expect(CHOOSE_OCCUPATION).toContain('occupation');
+    expect(CHOOSE_OCCUPATION).not.toContain('industry');
   });
 });

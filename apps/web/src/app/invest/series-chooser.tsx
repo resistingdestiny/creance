@@ -1,6 +1,7 @@
 import { Check, ChevronRight } from '../../components/icons';
 import type { SeriesListEntry } from '../../lib/investor-api';
 import { seriesName } from '../../lib/investor-model';
+import { CHOOSE_OCCUPATION } from '../../lib/occupations';
 
 /**
  * The series an investor can open, from GET /v1/series.
@@ -34,47 +35,71 @@ export interface SeriesChooserProps {
   base: string;
 }
 
+/**
+ * A fixed id rather than useId, because this is a server component and there is
+ * one chooser on a page.
+ */
+const LABEL_ID = 'series-chooser-label';
+
 export function SeriesChooser({ choices, current, base }: SeriesChooserProps) {
   if (choices.length < 2) return null;
   const chosen = choices.find((choice) => choice.series_id === current);
   const chosenName = chosen === undefined ? current : (seriesName(chosen) ?? chosen.series_id);
   return (
-    <details className="group relative mt-6 lg:w-fit">
-      {/* A flex summary loses the browser's own marker, so the chevron is the
-          affordance and it turns a quarter when the disclosure opens. */}
-      <summary
-        className="flex min-h-13 w-full cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-hairline bg-canvas px-4 text-body font-medium text-ink transition-colors duration-200 ease-out hover:bg-surface motion-reduce:transition-none [&::-webkit-details-marker]:hidden lg:w-auto lg:min-w-[400px]"
-        title={current}
-      >
-        {chosenName}
-        <ChevronRight className="shrink-0 rotate-90 transition-transform duration-200 ease-out group-open:-rotate-90 motion-reduce:transition-none" />
-      </summary>
-      <nav
-        aria-label="Series"
-        className="absolute left-0 right-0 top-full z-20 mt-2 flex max-h-[420px] flex-col overflow-y-auto rounded-2xl border border-hairline bg-canvas p-2 lg:right-auto lg:w-[400px]"
-      >
-        {choices.map((choice) => {
-          const here = choice.series_id === current;
-          const name = seriesName(choice);
-          return (
-            <a
-              aria-current={here ? 'page' : undefined}
-              className={[
-                'flex min-h-11 items-center gap-3 rounded-xl px-3 text-body no-underline transition-colors duration-200 ease-out motion-reduce:transition-none',
-                here ? 'bg-surface font-medium text-ink' : 'text-ink hover:bg-surface',
-              ].join(' ')}
-              href={`${base}?series=${encodeURIComponent(choice.series_id)}`}
-              key={choice.series_id}
-              // The identifier for anyone who came looking for one, on a link
-              // whose label is the occupation.
-              title={choice.series_id}
-            >
-              <span className="flex-1">{name ?? choice.series_id}</span>
-              {here ? <Check className="shrink-0" /> : null}
-            </a>
-          );
-        })}
-      </nav>
-    </details>
+    /* The label stands outside the details, not inside it above the summary.
+       Anything in a details that is not the summary is the disclosed content,
+       so a label written there is hidden until the disclosure is opened, which
+       is exactly when it is no longer needed.
+
+       It is the same label the index explorer's chooser carries, because it is
+       the same act. Without it this control is a bordered box repeating the
+       page's own heading, since the heading is the series' occupation and so is
+       the box, and it read as a subtitle rather than as something to press. The
+       summary keeps its own accessible name, which is the occupation, and takes
+       the label as its description, so it is announced as the value and then as
+       what pressing it is for. */
+    <div className="mt-6 lg:w-fit">
+      <p className="mb-2 text-secondary text-ink-2" id={LABEL_ID}>
+        {CHOOSE_OCCUPATION}
+      </p>
+      <details className="group relative lg:w-fit">
+        {/* A flex summary loses the browser's own marker, so the chevron is
+            the affordance and it turns a quarter when the disclosure opens. */}
+        <summary
+          aria-describedby={LABEL_ID}
+          className="flex min-h-13 w-full cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-hairline bg-canvas px-4 text-body font-medium text-ink transition-colors duration-200 ease-out hover:border-ink-3 hover:bg-surface motion-reduce:transition-none [&::-webkit-details-marker]:hidden lg:w-auto lg:min-w-[400px]"
+          title={current}
+        >
+          {chosenName}
+          <ChevronRight className="shrink-0 rotate-90 transition-transform duration-200 ease-out group-open:-rotate-90 motion-reduce:transition-none" />
+        </summary>
+        <nav
+          aria-label="Series"
+          className="absolute left-0 right-0 top-full z-20 mt-2 flex max-h-[420px] flex-col overflow-y-auto rounded-2xl border border-hairline bg-canvas p-2 lg:right-auto lg:w-[400px]"
+        >
+          {choices.map((choice) => {
+            const here = choice.series_id === current;
+            const name = seriesName(choice);
+            return (
+              <a
+                aria-current={here ? 'page' : undefined}
+                className={[
+                  'flex min-h-11 items-center gap-3 rounded-xl px-3 text-body no-underline transition-colors duration-200 ease-out motion-reduce:transition-none',
+                  here ? 'bg-surface font-medium text-ink' : 'text-ink hover:bg-surface',
+                ].join(' ')}
+                href={`${base}?series=${encodeURIComponent(choice.series_id)}`}
+                key={choice.series_id}
+                // The identifier for anyone who came looking for one, on a link
+                // whose label is the occupation.
+                title={choice.series_id}
+              >
+                <span className="flex-1">{name ?? choice.series_id}</span>
+                {here ? <Check className="shrink-0" /> : null}
+              </a>
+            );
+          })}
+        </nav>
+      </details>
+    </div>
   );
 }

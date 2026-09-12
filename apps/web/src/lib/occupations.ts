@@ -218,3 +218,16 @@ export function groupOccupations(rows: readonly Occupation[]): OccupationGroups 
     noCover: rows.filter((row) => !hasCover(row)),
   };
 }
+
+/**
+ * The label over an occupation chooser: the index explorer's, and the investor
+ * screens' series chooser, which is the same act on another page. It lives here
+ * rather than beside either of them because one is a client component and the
+ * other is a server component, and a constant shared between the two has to sit
+ * in a module that is neither.
+ *
+ * It says "occupation" and not "industry", which is what Root called it when he
+ * asked for the label. Every other screen in the product says occupation, and a
+ * second word for the same thing costs more than the one it saves.
+ */
+export const CHOOSE_OCCUPATION = 'Choose an occupation';

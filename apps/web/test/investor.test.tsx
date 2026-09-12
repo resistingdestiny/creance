@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { InvestorOverview } from '../src/app/invest/investor-overview.js';
+import { CHOOSE_OCCUPATION } from '../src/lib/occupations.js';
 import { PrincipalBar } from '../src/components/principal-bar.js';
 import type { CouponsView } from '../src/lib/investor-api.js';
 import {
@@ -404,6 +405,25 @@ describe('the series a screen offers a choice from', () => {
       />,
     );
     expect(markup).toContain('href="/invest/subscribe"');
+  });
+
+  it('says what the chooser is for, in the words the index explorer uses', () => {
+    // Without a label this is a bordered box repeating the page's heading,
+    // because the heading is the series' occupation and so is the box, and it
+    // read as a subtitle rather than as something to press.
+    const markup = renderToStaticMarkup(
+      <InvestorOverview
+        choices={CHOICES}
+        coupons={COUPONS}
+        investor={DEMO_ACCOUNTS['investor-1']}
+        series={SERIES}
+        seriesId={SERIES.series_id}
+      />,
+    );
+    expect(visibleText(markup)).toContain(CHOOSE_OCCUPATION);
+    // The summary keeps the occupation as its own name and takes the label as
+    // its description, so it is announced as the value and then as the act.
+    expect(markup).toContain('aria-describedby="series-chooser-label"');
   });
 
   it('offers nothing to choose when the deployment serves one series', () => {

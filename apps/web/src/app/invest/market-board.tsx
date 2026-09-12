@@ -202,9 +202,15 @@ function Board({
   );
 }
 
-/** What a note is, for a reader who has never held one. */
+/**
+ * What a note is, for a reader who has never held one.
+ *
+ * One sentence. The heading says these are for sale, each row says how many and
+ * at what price, and the screen that takes one says the rest; what was left
+ * over was four sentences nobody was going to read on a phone.
+ */
 const NOTE_LINE =
-  "A note is one unit of an occupation's cover. It earns that series' coupon while you hold it and its principal comes back at maturity. These are the lots somebody is offering to sell right now, at the price they are asking. Taking one moves the note and the money in a single transaction, or neither moves.";
+  "One unit of an occupation's cover. It pays that series' coupon while you hold it, and its principal comes back at maturity.";
 
 /**
  * The notes on offer now.
@@ -828,12 +834,13 @@ function Td({
 function Provenance({ view }: { view: BoardView }) {
   const { coverPool, provenance, vault } = view;
   const priced = view.rows.some((row) => row.premiumPercent !== null);
-  const banded = view.rows.some((row) => row.premiumTopPercent !== null);
   return (
     <div className="mt-10 flex flex-col gap-2 border-t border-hairline pt-6 text-caption text-ink-2">
+      {/* A register rather than a paragraph. Which contract is which is the
+          whole of what this line has to say, and it said it in fifty five
+          words that named the same two contracts in the middle of a sentence. */}
       <p>
-        The principal, the exposure, the coupons and every holding above are read from Hedera
-        testnet. Every series keeps its principal in one collateral vault
+        Every figure above is read from Hedera testnet. One collateral vault
         {vault === null ? null : (
           <>
             {', '}
@@ -842,7 +849,7 @@ function Provenance({ view }: { view: BoardView }) {
             </TextLink>
           </>
         )}
-        , and the cover written on it in one cover pool
+        , one cover pool
         {coverPool === null ? null : (
           <>
             {', '}
@@ -851,8 +858,7 @@ function Provenance({ view }: { view: BoardView }) {
             </TextLink>
           </>
         )}
-        . Each series has a note contract of its own, and that is what a row&apos;s identifier
-        opens.
+        , and a note of its own for each series, which is what a row opens.
       </p>
       {provenance === null ? (
         <p>The index readings could not be read, so no row carries a risk or a premium rate.</p>
@@ -886,16 +892,13 @@ function Provenance({ view }: { view: BoardView }) {
           )}
         </>
       )}
+      {/* The build up used to be spelled out here in a paragraph and is drawn
+          row by row on the series page, so this points at it instead. */}
       {priced ? (
         <p>
-          The premium rate is what a policy sells at: the risk the newest index reading measures,
-          plus what capital requires for standing behind the cover, raised by the capacity already
-          taken. Opening a row shows those steps with this occupation&apos;s own figures in them.
-          {banded
-            ? ' Where capital has split an occupation into experience bands, the column is the range those bands are quoted at, because the series as a whole is then priced at a rate no policy sells at.'
-            : ''}{' '}
-          The rate history beside it is the risk charge alone, month by month, every row on one
-          scale. <TextLink href="/index">How the index works</TextLink>
+          Opening a row shows how its premium rate is built, step by step, and the rate history
+          beside it is the risk charge alone, every row on one scale.{' '}
+          <TextLink href="/index">How the index works</TextLink>
         </p>
       ) : null}
     </div>

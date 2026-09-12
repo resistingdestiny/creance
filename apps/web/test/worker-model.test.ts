@@ -9,7 +9,6 @@ import {
   chartThreshold,
   coverAmount,
   exhaustionFor,
-  FIRST_VALUE_SETTLES,
   headlineReading,
   indexMargins,
   lineIsNegative,
@@ -211,14 +210,12 @@ describe('how close the call was', () => {
     });
     expect(lines).toEqual([
       'In April 2026 the index was 0.08 points past the line for staying worse, and 1.70 points short of the line for a sudden jump.',
-      FIRST_VALUE_SETTLES,
     ]);
   });
 
   it('says how far short a closed month sat, on both forms', () => {
     expect(indexMargins(INDEX)).toEqual([
       'In July 2026 the index was 0.69 points short of the line for staying worse, and 2.07 points short of the line for a sudden jump.',
-      FIRST_VALUE_SETTLES,
     ]);
   });
 
@@ -226,7 +223,6 @@ describe('how close the call was', () => {
     const lines = marginSentences('2026-04', '0.08', null);
     expect(lines).toEqual([
       'In April 2026 the index was 0.08 points past the line for staying worse.',
-      FIRST_VALUE_SETTLES,
     ]);
     expect(lines.join(' ')).not.toContain('sudden jump');
     expect(lines.join(' ')).not.toContain('0.00');
@@ -251,11 +247,11 @@ describe('how close the call was', () => {
     }
   });
 
-  it('says that the first published value settles, in the same breath', () => {
-    expect(FIRST_VALUE_SETTLES).toBe(
-      'The first value published for a month settles, regardless of any later correction.',
-    );
-    expect(indexMargins(INDEX).at(-1)).toBe(FIRST_VALUE_SETTLES);
+  it('is the margin and nothing after it', () => {
+    // It carried a second sentence about later corrections settling, which is
+    // a caveat under a caveat and the kind of tail nobody reads on a phone.
+    expect(indexMargins(INDEX)).toHaveLength(1);
+    expect(indexMargins(INDEX).join(' ')).not.toContain('correction');
   });
 });
 

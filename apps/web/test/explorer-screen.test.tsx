@@ -6,8 +6,8 @@ import { ExplorerPanel } from '../src/app/index/explorer-panel.js';
 import { CHOOSE_OCCUPATION } from '../src/lib/occupations.js';
 import { ExplorerScreen } from '../src/app/index/explorer-screen.js';
 import {
+  PAYOUT_CONDITION,
   bandCaption,
-  formsNote,
   explorerOccupation,
   headlineFor,
   latestMonth,
@@ -68,10 +68,14 @@ describe('the explorer opens on the newest published month', () => {
   });
 
   it('prints the newest published month and where the record settles', () => {
+    // Four labelled facts and a link, where there were three lines of prose.
     render(<ExplorerScreen data={data()} />);
-    const line = screen.getByText(/Newest published month/);
-    expect(line.textContent).toBe(
-      'Newest published month July 2026. 60 months on screen, May 2021 to Jul 2026.',
+    expect(screen.getByText('Newest month').nextElementSibling?.textContent).toBe('July 2026');
+    expect(screen.getByText('On screen').nextElementSibling?.textContent).toBe(
+      '60 months, May 2021 to Jul 2026',
+    );
+    expect(screen.getByText('Source').nextElementSibling?.textContent).toContain(
+      'Bureau of Labor Statistics',
     );
     const link = screen.getByRole('link', { name: '0.0.10366470' });
     expect(link.getAttribute('href')).toBe('https://hashscan.io/testnet/topic/0.0.10366470');
@@ -80,7 +84,7 @@ describe('the explorer opens on the newest published month', () => {
     // published month, so the sentence counts and never says "every month".
     // A reader who follows the link is counting the same thing.
     expect(link.parentElement?.textContent).toBe(
-      'The newest month for every occupation, and the whole 19 month history for computer and mathematical, are settled on Hedera topic 0.0.10366470, so the same figures can be read without trusting this page.',
+      'The newest month for every occupation is settled on Hedera topic 0.0.10366470, which anyone can read.',
     );
   });
 
@@ -94,7 +98,7 @@ describe('the explorer opens on the newest published month', () => {
     );
     const link = screen.getByRole('link', { name: '0.0.10366470' });
     expect(link.parentElement?.textContent).toBe(
-      'The newest month for 9 of 15 occupations is settled on Hedera topic 0.0.10366470, so the same figures can be read without trusting this page.',
+      'The newest month for 9 of 15 occupations is settled on Hedera topic 0.0.10366470, which anyone can read.',
     );
   });
 
@@ -108,7 +112,7 @@ describe('the explorer opens on the newest published month', () => {
     );
     const link = screen.getByRole('link', { name: '0.0.10366470' });
     expect(link.parentElement?.textContent).toBe(
-      'The index settles on Hedera topic 0.0.10366470, so the same figures can be read without trusting this page.',
+      'The index settles on Hedera topic 0.0.10366470, which anyone can read.',
     );
   });
 
@@ -283,25 +287,19 @@ describe('the chart', () => {
     expect(caption?.textContent).toContain(bandCaption(opensOn));
   });
 
-  it('carries two lines of prose under it and nothing more', () => {
-    // The chart used to stand over four paragraphs: how the line is built, a
-    // caveat for an occupation that is usually better than average, the never
-    // paid note and the margin to each line with the settle sentence. All of
-    // it said again what the verdict, the band caption and the four steps say.
-    //
-    // The second line is the one thing none of them says: that the cover has
-    // two triggers and this chart draws whichever one the occupation is
-    // nearer. Without it the front door's answer and this chart's caption are
-    // two unreconcilable answers to "when does it pay".
+  it('labels the band on the chart and carries no prose under it', () => {
+    // The chart used to stand over paragraphs telling a reader that up was
+    // towards a payout, that the red band was where claims open and which of
+    // the two triggers the line was. All three are marks now: the band is
+    // named where it is drawn and the caption under it names the trigger and
+    // its level, so there is nothing left to read under the picture.
     render(<ExplorerScreen data={data()} />);
-    expect(
-      screen.getByText('Up is towards a payout, and the red band is where claims open.'),
-    ).toBeDefined();
-    expect(screen.getByText(formsNote(opensOn))).toBeDefined();
+    expect(screen.getByTestId('explorer-chart-band-mark').textContent).toBe('Claims open');
+    expect(screen.queryByText(/Up is towards a payout/)).toBeNull();
+    expect(screen.queryByText(/Claims open in two ways/)).toBeNull();
     expect(screen.queryByText(/The line rises when unemployment/)).toBeNull();
     expect(screen.queryByText(/usually unemployed less than average/)).toBeNull();
     expect(screen.queryByText(/points short of the line/)).toBeNull();
-    expect(screen.queryByText(/The first value published for a month settles/)).toBeNull();
   });
 });
 
@@ -350,8 +348,30 @@ describe('the price block', () => {
     const price = priceFor(distance, live);
 
     expect(screen.getByText('Monthly premium for 5,000 of cover')).toBeDefined();
-    expect(screen.getByText(price!.monthly)).toBeDefined();
+    // Twice on the screen at nought percent used, because capital adds nothing
+    // there and the guide row of the build up is the same figure.
+    expect(screen.getAllByText(price!.monthly).length).toBeGreaterThan(0);
     expect(screen.getByText('0 percent of this pool already used')).toBeDefined();
+  });
+
+  it('builds the price up in rows rather than narrating it', () => {
+    // The build up was two lines of prose under the figure. It is the series
+    // page's own four rows now, and the condition that explains why the
+    // premium is small beside the cover is one line rather than two.
+    render(<ExplorerScreen data={data()} />);
+    const distance = latestMonth(opensOn)?.distance ?? 0;
+    const price = priceFor(distance, EXPLORER_UTILISATION[DEFAULT_KEY]!)!;
+    const build = screen.getByTestId('explorer-price-build');
+
+    expect(within(build).getByText("This job's own risk").nextElementSibling?.textContent).toBe(
+      price.risk,
+    );
+    expect(within(build).getByText('Guide price').nextElementSibling?.textContent).toBe(
+      price.guide,
+    );
+    expect(screen.getByText(PAYOUT_CONDITION)).toBeDefined();
+    expect(screen.queryByText(/of which/)).toBeNull();
+    expect(screen.queryByText(/A payout needs two things/)).toBeNull();
   });
 
   it('names the series the capacity was read from, to two places', () => {

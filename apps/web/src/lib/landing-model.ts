@@ -101,10 +101,10 @@ export function payAnswer(
 ): string {
   const label = occupationLabel(group).toLowerCase();
   if (attachment === null || levelLine === null) {
-    return `Claims open in two ways for ${label}: a sudden jump past its trigger line, or staying worse than anything in the decade before AI. The live feed is not answering, so the levels are not shown.`;
+    return `Two ways, for ${label}: a sudden jump past its trigger line, or staying worse than anything in the decade before AI. The live feed is not answering, so the levels are not shown.`;
   }
   const exhaustion = seriesId === null ? null : exhaustionFor(seriesId);
-  const first = `Claims open in two ways for ${label}: a sudden jump of ${pointsInProse(attachment)} points above trend, or staying ${levelLinePhrase(levelLine)}.`;
+  const first = `Two ways, for ${label}: a sudden jump of ${pointsInProse(attachment)} points above trend, or staying ${levelLinePhrase(levelLine)}.`;
   if (exhaustion === null) return first;
   return `${first} A jump of ${pointsInProse(exhaustion)} pays in full.`;
 }
@@ -125,8 +125,11 @@ export function investorLine(coupon: string | null): string {
 /**
  * The badge above the headline, with its number (T54).
  *
- * "Index live for 15 occupations, updated monthly from public data" when the
- * feed answered on this request. The count is the table the explorer buys its
+ * "Index live for 15 occupations" when the feed answered on this request. It
+ * carried "updated monthly from public data" as well, which took the pill to
+ * two lines at 390 to say what a badge does not have to say: the explorer under
+ * it names the newest published month and its source. The count is the table
+ * the explorer buys its
  * round from, src/lib/occupations.ts, which is the fifteen groups DESIGN.md
  * 3.3 names; the reading behind the badge is one of them and the round under
  * the hero is all of them. When the feed did not answer the badge says what it
@@ -135,7 +138,7 @@ export function investorLine(coupon: string | null): string {
  */
 export function indexBadge(live: boolean, count: number = OCCUPATIONS.length): string {
   if (!live) return 'Showing the last reading we published';
-  return `Index live for ${String(count)} occupations, updated monthly from public data`;
+  return `Index live for ${String(count)} occupations`;
 }
 
 export interface LandingIndexSection {

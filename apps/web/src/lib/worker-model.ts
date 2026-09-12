@@ -264,15 +264,6 @@ export function chartDescription(index: IndexView): string {
 }
 
 /**
- * The one sentence that has to sit under any margin, because the margin is the
- * whole reason a reader would wonder what a later correction does. The source
- * has been corrected before; what it cannot do is move a month that has
- * settled. docs/INDEX-SPEC.md section 6.
- */
-export const FIRST_VALUE_SETTLES =
-  'The first value published for a month settles, regardless of any later correction.';
-
-/**
  * How close the call was, for one published month (T56).
  *
  * `level` and `shock` are the API's own `level_margin` and `shock_margin`: the
@@ -300,7 +291,7 @@ export function marginSentences(
   if (level !== null) parts.push(`${marginPhrase(level)} the line for staying worse`);
   if (shock !== null) parts.push(`${marginPhrase(shock)} the line for a sudden jump`);
   if (parts.length === 0) return [];
-  return [`In ${formatPeriod(period)} the index was ${parts.join(', and ')}.`, FIRST_VALUE_SETTLES];
+  return [`In ${formatPeriod(period)} the index was ${parts.join(', and ')}.`];
 }
 
 /** "0.08 points past", "0.69 points short of", or "on" for a margin of exactly zero. */

@@ -1,6 +1,7 @@
 import { ChevronRight } from '../../components/icons';
 import { CoverCardShell } from '../../components/cover-card';
 import { RateChart } from '../../components/rate-chart';
+import { ReturnSplitBar } from '../../components/return-split';
 import { StatusPill } from '../../components/status-pill';
 import type { ExplorerProvenance } from '../../lib/explorer-data';
 import type { ExplorerState } from '../../lib/explorer-model';
@@ -134,10 +135,12 @@ export function BoardHero({
             <span>{months.to}</span>
           </p>
         )}
+        {/* The chart is large enough that somebody could take it for a price,
+            so the caption says which it is. Four words rather than a sentence
+            of explanation: the shape above it is doing the talking. */}
         <p className="text-secondary text-white/66">
           The risk this occupation has carried, month by month
-          {reached === null ? '' : `, ${reached}`}. It is the risk half of the price and not a price
-          anything has changed hands at.
+          {reached === null ? '' : `, ${reached}`}. Not a traded price.
         </p>
       </div>
     </div>
@@ -181,11 +184,11 @@ function FeaturedCard({ row }: { row: MarketRow }) {
             occupation
           </p>
           {/* Where that rate goes, which is the question a coupon on its own
-              cannot answer. Three parts and not one netted figure, because the
-              first of the three is the one this deployment does not earn and a
-              single number would state it as income. */}
-          {row.yieldLine === null ? null : (
-            <p className="text-caption text-ink-2">{row.yieldLine}</p>
+              cannot answer. It was a nine line paragraph on the card at 390 and
+              is a bar now: the part this deployment does not earn is hatched
+              and labelled "implied" rather than explained underneath. */}
+          {row.yieldSplit === null ? null : (
+            <ReturnSplitBar className="mt-2" split={row.yieldSplit} />
           )}
         </div>
       </div>

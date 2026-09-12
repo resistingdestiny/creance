@@ -148,13 +148,13 @@ describe('the figures come from the feed and never from the page', () => {
         INDEX.series_id,
       ),
     ).toBe(
-      'Claims open in two ways for computer and mathematical: a sudden jump of 2 points above trend, or staying within 0.68 points of average. A jump of 4 pays in full.',
+      'Two ways, for computer and mathematical: a sudden jump of 2 points above trend, or staying within 0.68 points of average. A jump of 4 pays in full.',
     );
   });
 
   it('drops the full payout sentence for a series with no published exhaustion', () => {
     expect(payAnswer('2.00', '-0.68', LANDING_GROUP, 'ODI-OFFICE-2026-01')).toBe(
-      'Claims open in two ways for computer and mathematical: a sudden jump of 2 points above trend, or staying within 0.68 points of average.',
+      'Two ways, for computer and mathematical: a sudden jump of 2 points above trend, or staying within 0.68 points of average.',
     );
   });
 
@@ -515,7 +515,7 @@ describe('the hero card as an object', () => {
 describe('the index live state', () => {
   it('says live when the feed answered on this request', () => {
     expect(visibleText(live)).toContain(
-      'Index live for 15 occupations, updated monthly from public data',
+      'Index live for 15 occupations',
     );
     expect(LIVE.index.live).toBe(true);
   });
@@ -683,7 +683,7 @@ describe('the figures under the hero are built from records, never typed', () =>
   it('gives the badge its number only while the feed is live', () => {
     expect(OCCUPATIONS).toHaveLength(15);
     expect(indexBadge(true)).toBe(
-      'Index live for 15 occupations, updated monthly from public data',
+      'Index live for 15 occupations',
     );
     expect(indexBadge(false)).toBe('Showing the last reading we published');
     expect(indexBadge(false)).not.toMatch(/\d/);

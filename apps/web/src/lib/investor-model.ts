@@ -39,6 +39,7 @@ import {
   returnSplit,
   riskCharge,
   PRICING,
+  type ReturnSplit,
 } from '@creance/index-model/src/pricing';
 
 /** RFC 3339 in UTC to the date-only string the formatters take. */
@@ -934,8 +935,8 @@ export interface MarketRow {
   readonly decimals: number;
   /** The coupon the note has declared, in percent, where it has declared one. */
   readonly couponPercent: number | null;
-  /** Where the return to capital comes from, in one sentence. See `yieldLine`. */
-  readonly yieldLine: string | null;
+  /** Where the return to capital comes from, in parts. See `returnSplitFor`. */
+  readonly yieldSplit: ReturnSplit | null;
   /**
    * This series' own note contract on HashScan.
    *
@@ -1107,28 +1108,31 @@ export function priceBuildUp(
       : `${rateFigure(low)} to ${formatPercent(high)}`;
 
   return [
+    // The captions are labels and not explanations. Four rows that each carry a
+    // sentence read as a paragraph broken into pieces, and the arithmetic they
+    // sit beside is doing the explaining.
     {
       label: 'Risk charge',
       value: formatPercent(riskChargePercent),
-      caption: 'What the index says this occupation is worth, and the only part of the price that differs by occupation',
+      caption: 'The only part that differs by occupation',
     },
     {
       label: 'Capital charge',
       value: formatPercent(capital),
-      caption: 'What capital requires for standing behind the cover. The same for every occupation',
+      caption: 'The same for every occupation',
     },
     {
       label: 'Guide rate',
       value: formatPercent(guide),
-      caption: 'The two added. What the series has to charge to fund itself',
+      caption: 'The two added, what the series must charge',
     },
     {
       label: 'Premium rate',
       value: priced,
       caption:
         rates !== null && formatPercent(low) !== formatPercent(high)
-          ? 'The guide rate, raised by the share of its own capacity each experience band has taken'
-          : `The guide rate, raised by the ${formatPercent(used)} of capacity already taken`,
+          ? 'Raised by the capacity each experience band has taken'
+          : `Raised by the ${formatPercent(used)} of capacity taken`,
     },
   ];
 }
@@ -1143,25 +1147,28 @@ function bandRates(bands: SeriesBandsView, guide: number): number[] | null {
 }
 
 /**
- * Where this series' return to capital comes from, in one sentence.
+ * Where this series' return to capital comes from, in its parts.
  *
  * The question the investor screens could not answer. A coupon on its own says
  * what is promised and nothing about whether the product can pay it, and until
  * the pricing was inverted it could not: premium income on the demo series ran
- * at a fifth of the coupon it owed. The three parts are the whole answer, so
- * they are given separately rather than netted into one number.
+ * at a fifth of the coupon it owed. The parts are the whole answer, so they are
+ * handed over separately and the screen draws them as a bar rather than
+ * narrating them: see src/components/return-split.tsx.
  *
  * The first part is not income. The collateral would make it in tokenised
  * treasuries, and this deployment holds its collateral in a vault on Hedera
- * testnet where it makes nothing, so the sentence says "implied" and "would"
- * and names the assumption. Netting it into a single yield figure would state
- * as earned the one part of this that has not been.
+ * testnet where it makes nothing, which is why every surface that draws this
+ * labels that part "implied" and none of them calls it earned.
  *
  * Null wherever the rate is null, for the reason `premiumRatePercent` gives:
  * an unpriced risk is not a free one and a split nobody can check is worse
  * than no split.
  */
-export function yieldLine(series: SeriesView | null, distance: number | null): string | null {
+export function returnSplitFor(
+  series: SeriesView | null,
+  distance: number | null,
+): ReturnSplit | null {
   if (series === null || distance === null) return null;
   const rate = premiumRatePercent(series, distance);
   if (rate === null) return null;
@@ -1171,45 +1178,7 @@ export function yieldLine(series: SeriesView | null, distance: number | null): s
   // from on any series that has paid a claim.
   const principal = Number(BigInt(series.vault.principal_remaining.amount));
   const exposure = Number(BigInt(series.cover_pool!.active_exposure.amount));
-  const split = returnSplit(
-    rate / 100,
-    exposure,
-    principal,
-    expectedLossRate(Math.max(0, distance)),
-  );
-  if (split === null) return null;
-  const pct = (value: number) => formatPercent(value * 100);
-  const deployed =
-    `The first figure is what the collateral would make if it were deployed; this testnet ` +
-    `deployment holds it in the vault and does not deploy it.`;
-
-  // An empty pool is not a bad yield, and printing it as one was misleading in
-  // the place it mattered most. The band features the occupation nearest its
-  // line, which is the one capital has most reason to look at, and on the
-  // fourteen series nobody has bought cover from that produced "0 percent from
-  // premiums ... that is 4 percent a year" under the highest rate on the board.
-  // Every figure in it was true and the sentence as a whole was not: it read as
-  // what this occupation returns rather than as what has been written against
-  // it, which is nothing. So an unwritten pool says that, and then says what
-  // the cover it is waiting for is priced at.
-  if (split.premium === 0) {
-    return (
-      `No cover has been bought on this occupation yet, so there is no premium to share. The ` +
-      `capital would make ${pct(split.base)} implied from tokenised treasuries while it waits, ` +
-      `and cover written here is priced at ${formatPercent(rate)} a year of the amount covered. ` +
-      deployed
-    );
-  }
-
-  // "At today's capacity" is load bearing rather than a hedge. The premium
-  // share is premium income over principal, so a partly written pool shares
-  // less than its rate, and without the clause that reads as a ceiling.
-  return (
-    `At today's capacity: ${pct(split.base)} implied from tokenised treasuries while the capital ` +
-    `waits, ${pct(split.premium)} from premiums, less expected losses of ${pct(split.loss)}. ` +
-    `That is ${pct(split.total)} a year. ` +
-    deployed
-  );
+  return returnSplit(rate / 100, exposure, principal, expectedLossRate(Math.max(0, distance)));
 }
 
 /**
@@ -1255,7 +1224,7 @@ export function marketRow(input: {
       premium === null || formatPercent(premium.high) === formatPercent(premium.low)
         ? null
         : premium.high,
-    yieldLine: yieldLine(series, distance),
+    yieldSplit: returnSplitFor(series, distance),
     capacityPercent: series === null ? null : capacityPercent(series),
     funded: series === null ? null : BigInt(series.vault.principal_funded.amount),
     paid: series === null ? null : BigInt(series.vault.principal_paid.amount),

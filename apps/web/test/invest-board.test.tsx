@@ -24,14 +24,15 @@ import {
   premiumRatePercent,
   priceBuildUp,
   sortMarketRows,
+  returnSplitFor,
   takeState,
-  yieldLine,
   type MarketRow,
 } from '../src/lib/investor-model.js';
 import { demoInvestorAccount } from '../src/lib/wallet.js';
 import { COUPONS, INVESTOR_1, INVESTOR_2, SERIES, money } from './investor-fixtures.js';
 import { SENIORITY_BANDS } from '../src/lib/bands.js';
 import type { SeriesBandsView } from '../src/lib/worker-api.js';
+import { PRICING } from '@creance/index-model/src/pricing.js';
 
 /** Everything a person reads, with the markup taken out. */
 function visibleText(markup: string): string {
@@ -131,43 +132,38 @@ function committedSeries(exposure: string): SeriesView {
 
 describe('where the yield comes from', () => {
   /**
-   * The sentence a judge with a calculator was going to ask for. It is three
-   * parts rather than one number because the first part is not income: the
-   * collateral would make it in tokenised treasuries and this deployment holds
-   * it in a vault on testnet where it makes nothing.
+   * The figures a judge with a calculator was going to ask for. Parts rather
+   * than one number, because the first part is not income: the collateral would
+   * make it in tokenised treasuries and this deployment holds it in a vault on
+   * testnet where it makes nothing. The screen draws them as a bar and labels
+   * that part "implied"; see src/components/return-split.tsx.
    */
-  it('splits the return and never calls the implied part earned', () => {
-    const line = yieldLine(committedSeries('86000000000'), 0.69) ?? '';
-    expect(line).toContain('implied from tokenised treasuries');
-    expect(line).toContain('from premiums');
-    expect(line).toContain('less expected losses of');
-    expect(line).toContain('would make if it were deployed');
-    expect(line).toContain('does not deploy it');
-    // "Earns" and "yields" about the implied part would be false.
-    expect(line).not.toMatch(/\bearns\b/i);
+  it('splits the return into its parts and the sum they make', () => {
+    const split = returnSplitFor(committedSeries('86000000000'), 0.69);
+    expect(split).not.toBeNull();
+    // The implied base is the published constant and nothing this page worked
+    // out, and the three parts reconcile to the total the bar draws.
+    expect(split!.base).toBe(PRICING.impliedBaseYield);
+    expect(split!.premium).toBeGreaterThan(0);
+    expect(split!.loss).toBeGreaterThan(0);
+    expect(split!.total).toBeCloseTo(split!.base + split!.premium - split!.loss, 12);
   });
 
-  it('says an empty pool is empty rather than printing it as a bad yield', () => {
-    // The band features the occupation nearest its line, and on the fourteen
-    // nobody has written cover against, the split read "0 percent from
-    // premiums ... that is 4 percent a year" under the highest rate on the
-    // board. Every figure was true and the sentence was not: it read as what
-    // the occupation returns rather than as what has been written against it.
-    const line = yieldLine(committedSeries('0'), 0.02) ?? '';
-    expect(line).toContain('No cover has been bought on this occupation yet');
-    expect(line).toContain('priced at');
-    expect(line).not.toContain('0 percent from premiums');
-    expect(line).not.toContain("At today's capacity");
-    // The implied part and its caveat survive the other branch.
-    expect(line).toContain('implied from tokenised treasuries');
-    expect(line).toContain('does not deploy it');
+  it('leaves an empty pool at nought rather than inventing a premium for it', () => {
+    // The band features the occupation nearest its line, and fourteen of the
+    // sixteen have had no cover written against them. Nought is the honest
+    // premium there, and the bar says so in its own label rather than in prose.
+    const split = returnSplitFor(committedSeries('0'), 0.02);
+    expect(split!.premium).toBe(0);
+    expect(split!.loss).toBe(0);
+    expect(split!.total).toBe(split!.base);
   });
 
   it('says nothing at all where the rate could not be worked out', () => {
     // An unpriced risk is not a free one, and a split nobody can check is
     // worse than no split.
-    expect(yieldLine(committedSeries('86000000000'), null)).toBeNull();
-    expect(yieldLine(null, 0.69)).toBeNull();
+    expect(returnSplitFor(committedSeries('86000000000'), null)).toBeNull();
+    expect(returnSplitFor(null, 0.69)).toBeNull();
   });
 });
 
@@ -565,7 +561,7 @@ describe('the market board', () => {
   it('names the shared vault and pool once, and a row opens its own note', () => {
     const markup = boardMarkup();
     const text = visibleText(markup);
-    expect(text).toContain('one collateral vault');
+    expect(text).toContain('One collateral vault');
     expect(text).toContain('one cover pool');
     expect(text).toContain('0.0.10367194');
     expect(text).toContain('0.0.10367199');
@@ -591,7 +587,7 @@ describe('the market board', () => {
       ),
     );
     expect(text).toContain('Notes for sale');
-    expect(text).toContain('A note is one unit of an occupation');
+    expect(text).toContain("One unit of an occupation's cover");
     expect(text).toContain('3 notes, 3,060 for the lot');
     expect(text).toContain('1,020 a note');
   });

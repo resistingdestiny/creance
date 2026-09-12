@@ -15,11 +15,10 @@ import { CoverTabs } from '../../cover-tabs';
  * a distance removes the sign without changing the maths.
  *
  * The last caption is how close the call was (T56): the published margin to
- * each line for the newest month, and that the first published value settles.
- * The demonstration months clear their line by less than the largest
- * correction the source has made, and a buyer deserves to find that on the
- * page rather than hear it later. It is a fact about precision, in the same
- * voice and the same element as the never-paid caption above it.
+ * each line for the newest month. It is the one place on a worker screen where
+ * the two triggers are given their own figures side by side, which is what
+ * makes it worth its line, and it is in the same voice and the same element as
+ * the never-paid caption above it.
  */
 
 export function IndexScreen({
@@ -88,40 +87,37 @@ export function IndexScreen({
             />
             {negativeLine ? (
               <p className="text-secondary text-ink-2">
-                People in this occupation are usually unemployed less than average. The trigger is
-                about getting worse than their own normal, not about being above zero.
+                This job is usually unemployed less than average, so the trigger is getting worse
+                than its own normal.
               </p>
             ) : null}
           </div>
 
-          <div className="flex flex-col gap-3">
-            <p className="text-body text-ink">
-              It counts unemployment in your occupation, compared with everyone else&apos;s.
-            </p>
-            <p className="text-body text-ink">
-              It is smoothed over three months, so one bad month does not move it.
-            </p>
-            <p className="text-body text-ink">
-              It is compared with a year ago, so it shows change, not level.
-            </p>
-            <p className="text-body text-ink">
-              Claims open in two ways. A sudden jump past this occupation&apos;s trigger line, or
-              staying worse than anything in the decade before AI.
-            </p>
+          {/* What the index is, as four short items rather than five paragraphs
+              of body type. The band on the chart above now carries its own name
+              and its level, so the block no longer has to say where claims open
+              as well; what is left is the four things a mark cannot show. The
+              item about the comparison with a year ago went with the prose: it
+              described the sudden jump form, which the trigger item names. */}
+          <ul className="flex flex-col gap-2 text-secondary text-ink" data-testid="index-about">
+            <li>Counts unemployment in your job against everyone else&apos;s.</li>
+            <li>Smoothed over three months, so one bad month cannot move it.</li>
+            <li>
+              Claims open two ways: a sudden jump, or staying worse than anything in the decade
+              before AI.
+            </li>
             {/* The index reads unemployment and nothing else, so it cannot see a
                 reason. A buyer weighing this cover against a worry about AI has
                 to be told that in the block that explains the trigger, not
                 further down the page. */}
-            <p className="text-body text-ink">
-              It cannot tell why anyone lost their job, and any cause counts.
-            </p>
-          </div>
+            <li>Any cause counts. It cannot tell why anyone lost their job.</li>
+          </ul>
 
           <WhatWouldHaveHappened months={months} />
 
           {neverOpened ? (
             <p className="text-secondary text-ink-2">
-              This cover has never paid for this occupation since 2010.
+              Never paid for this occupation since 2010.
             </p>
           ) : null}
           {margins.length === 0 ? null : (

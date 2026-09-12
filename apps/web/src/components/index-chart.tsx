@@ -57,6 +57,23 @@ export interface IndexChartProps {
 export const BAND_FILL = 'rgba(209,59,59,0.06)';
 export const BAND_EDGE = 'rgba(209,59,59,0.4)';
 
+/**
+ * The band's own label, drawn inside the band on every chart wide enough to
+ * carry one.
+ *
+ * It replaces a line of prose under the chart that said the red band was where
+ * claims open and that up was towards a payout. A chart that needs a paragraph
+ * to be read is a chart that has not been labelled, and both facts are one mark:
+ * with the band named, up is towards it. The words sit at the top left of the
+ * drawing, which is inside the band at every threshold, so a thin band never
+ * pushes them out of it.
+ *
+ * It is an HTML span over the drawing rather than an SVG text node because the
+ * two fluid charts scale their viewBox with `preserveAspectRatio="none"`, which
+ * would stretch type horizontally by whatever the box is doing.
+ */
+export const BAND_MARK = 'Claims open';
+
 const DEFAULTS = {
   small: { width: 64, height: 20, stroke: 1.25 },
   large: { width: 320, height: 180, stroke: 1.5 },
@@ -195,13 +212,21 @@ export function IndexChart({
 
   return (
     <figure className="m-0 flex flex-col gap-2">
-      <div aria-label={ariaLabel} className={fluid ? FLUID_BOX : undefined} role="img">
+      <div
+        aria-label={ariaLabel}
+        className={`relative ${fluid ? FLUID_BOX : ''}`.trim()}
+        role="img"
+      >
         {/* The viewBox is in pixels, not in data coordinates, and the data is
             mapped to pixels above. At the two fixed sizes nothing is scaled at
             all, so the stroke width is the width it says it is; the landing
             size scales and keeps that true with FLUID_BOX's vector effect. */}
         <svg
-          className={fluid ? 'block size-full' : 'block'}
+          // The fixed sizes used to be flex items and were shrunk by the
+          // column they stood in at 360 and below. They stand in a positioned
+          // box now, which carries the band's own label, so the drawing asks
+          // to fit that box itself rather than relying on where it was put.
+          className={fluid ? 'block size-full' : 'block max-w-full'}
           height={fluid ? undefined : h}
           preserveAspectRatio={fluid ? 'none' : undefined}
           viewBox={`0 0 ${w} ${h}`}
@@ -244,6 +269,14 @@ export function IndexChart({
             />
           ))}
         </svg>
+        {wide ? (
+          <span
+            className="pointer-events-none absolute left-0 top-0 rounded bg-canvas/80 px-1 text-caption font-medium text-triggered"
+            data-testid="index-chart-band-mark"
+          >
+            {BAND_MARK}
+          </span>
+        ) : null}
       </div>
       {wide && first && last ? (
         <figcaption className="flex items-baseline justify-between text-caption">

@@ -7,6 +7,7 @@ import { formatPeriod, formatPeriodShort } from '../lib/format';
 import {
   BAND_EDGE,
   BAND_FILL,
+  BAND_MARK,
   buildScale,
   contiguousRuns,
   pathFor,
@@ -149,98 +150,111 @@ export function ExplorerChart({
 
   return (
     <figure className="m-0 flex flex-col gap-2">
-      {/* touch-action none, so a drag across the chart scrubs instead of
-          scrolling the page. https://developer.mozilla.org/en-US/docs/Web/CSS/touch-action */}
-      <svg
-        aria-label={name}
-        className="block h-56 w-full touch-none select-none lg:h-75"
-        onPointerCancel={() => (dragging.current = false)}
-        onPointerDown={(event) => {
-          dragging.current = true;
-          // The scrub first, then the capture. Capture keeps a drag that leaves
-          // the chart on the chart, and it throws for a pointer id the element
-          // has not seen; a tap that moves the handle matters more than a drag
-          // that follows the finger off the edge.
-          scrubFromPointer(event);
-          try {
-            event.currentTarget.setPointerCapture(event.pointerId);
-          } catch {
-            // Nothing to do. The pointermove handler still tracks the drag
-            // while the pointer is over the chart.
-          }
-        }}
-        onPointerMove={(event) => {
-          if (dragging.current) scrubFromPointer(event);
-        }}
-        onPointerUp={() => (dragging.current = false)}
-        preserveAspectRatio="none"
-        role="img"
-        viewBox={`0 0 ${String(WIDTH)} ${String(HEIGHT)}`}
-      >
-        <g transform={`translate(${String(PAD)} ${String(PAD)})`}>
-          <rect
-            data-testid="explorer-chart-band"
-            fill={BAND_FILL}
-            height={bandY}
-            width={INNER_WIDTH}
-            x={0}
-            y={0}
-          />
-          <line
-            shapeRendering="crispEdges"
-            stroke={BAND_EDGE}
-            strokeWidth={1}
-            vectorEffect="non-scaling-stroke"
-            x1={0}
-            x2={INNER_WIDTH}
-            y1={bandY}
-            y2={bandY}
-          />
-          <path
-            d={d}
-            data-testid="explorer-chart-line"
-            fill="none"
-            ref={pathRef}
-            stroke="#000"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.75}
-            vectorEffect="non-scaling-stroke"
-          />
-          {points.map((point, index) =>
-            point.open && ys[index] !== null && ys[index] !== undefined ? (
-              <circle
-                cx={scale.x(index)}
-                cy={ys[index]}
-                data-testid="explorer-chart-open-mark"
-                fill="#D13B3B"
-                key={point.period}
-                r={4}
-              />
-            ) : null,
-          )}
-          {handleY === null || handleY === undefined ? null : (
-            <>
-              <line
-                stroke="#A3A7AE"
-                strokeWidth={1}
-                vectorEffect="non-scaling-stroke"
-                x1={handleX}
-                x2={handleX}
-                y1={0}
-                y2={INNER_HEIGHT}
-              />
-              <circle
-                cx={handleX}
-                cy={handleY}
-                data-testid="explorer-chart-handle"
-                fill={month?.open === true ? '#D13B3B' : '#000'}
-                r={5}
-              />
-            </>
-          )}
-        </g>
-      </svg>
+      <div className="relative">
+        {/* touch-action none, so a drag across the chart scrubs instead of
+            scrolling the page. https://developer.mozilla.org/en-US/docs/Web/CSS/touch-action */}
+        <svg
+          aria-label={name}
+          className="block h-56 w-full touch-none select-none lg:h-75"
+          onPointerCancel={() => (dragging.current = false)}
+          onPointerDown={(event) => {
+            dragging.current = true;
+            // The scrub first, then the capture. Capture keeps a drag that leaves
+            // the chart on the chart, and it throws for a pointer id the element
+            // has not seen; a tap that moves the handle matters more than a drag
+            // that follows the finger off the edge.
+            scrubFromPointer(event);
+            try {
+              event.currentTarget.setPointerCapture(event.pointerId);
+            } catch {
+              // Nothing to do. The pointermove handler still tracks the drag
+              // while the pointer is over the chart.
+            }
+          }}
+          onPointerMove={(event) => {
+            if (dragging.current) scrubFromPointer(event);
+          }}
+          onPointerUp={() => (dragging.current = false)}
+          preserveAspectRatio="none"
+          role="img"
+          viewBox={`0 0 ${String(WIDTH)} ${String(HEIGHT)}`}
+        >
+          <g transform={`translate(${String(PAD)} ${String(PAD)})`}>
+            <rect
+              data-testid="explorer-chart-band"
+              fill={BAND_FILL}
+              height={bandY}
+              width={INNER_WIDTH}
+              x={0}
+              y={0}
+            />
+            <line
+              shapeRendering="crispEdges"
+              stroke={BAND_EDGE}
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+              x1={0}
+              x2={INNER_WIDTH}
+              y1={bandY}
+              y2={bandY}
+            />
+            <path
+              d={d}
+              data-testid="explorer-chart-line"
+              fill="none"
+              ref={pathRef}
+              stroke="#000"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.75}
+              vectorEffect="non-scaling-stroke"
+            />
+            {points.map((point, index) =>
+              point.open && ys[index] !== null && ys[index] !== undefined ? (
+                <circle
+                  cx={scale.x(index)}
+                  cy={ys[index]}
+                  data-testid="explorer-chart-open-mark"
+                  fill="#D13B3B"
+                  key={point.period}
+                  r={4}
+                />
+              ) : null,
+            )}
+            {handleY === null || handleY === undefined ? null : (
+              <>
+                <line
+                  stroke="#A3A7AE"
+                  strokeWidth={1}
+                  vectorEffect="non-scaling-stroke"
+                  x1={handleX}
+                  x2={handleX}
+                  y1={0}
+                  y2={INNER_HEIGHT}
+                />
+                <circle
+                  cx={handleX}
+                  cy={handleY}
+                  data-testid="explorer-chart-handle"
+                  fill={month?.open === true ? '#D13B3B' : '#000'}
+                  r={5}
+                />
+              </>
+            )}
+          </g>
+        </svg>
+        {/* The band's own name, inside the band. See BAND_MARK. */}
+        <span
+          className="pointer-events-none absolute rounded bg-canvas/80 px-1 text-caption font-medium text-triggered"
+          data-testid="explorer-chart-band-mark"
+          style={{
+            left: `${String((PAD / WIDTH) * 100)}%`,
+            top: `${String((PAD / HEIGHT) * 100)}%`,
+          }}
+        >
+          {BAND_MARK}
+        </span>
+      </div>
 
       {/* The sheet's own slider, painted by the `.amount-slider` rules: a 3px
           track and a 28px thumb, raised to a 44px box so the whole control is a

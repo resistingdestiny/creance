@@ -9,6 +9,7 @@ import type {
   Streamed,
 } from '../../lib/investor-band';
 import { PillLink } from '../pill-button';
+import { ReturnSplitBar } from '../return-split';
 
 /**
  * The investor side, on the front door.
@@ -21,19 +22,17 @@ import { PillLink } from '../pill-button';
  *
  * What it does not say is as deliberate as what it does.
  *
- * It names no return. The eight percent is a coupon written into one series at
+ * It names no coupon. The eight percent is a rate written into one series at
  * issuance, the closing band under this one already carries it in the page's
  * own words, and a rate in a large figure on a marketing band is a promise
  * whatever the caption says. What stands in its place is where the money comes
- * from, in three parts, unnetted.
+ * from, in its parts, drawn as a bar.
  *
- * And it never calls the first of those three parts income. The collateral
- * would make it in tokenised treasuries; this deployment holds its collateral
- * in a vault on Hedera testnet and deploys none of it, so the sentence says
- * "implied" and "would" and the line under it says the rest. That is the same
- * wording every other surface in the product that shows the split uses, for the
- * same reason: netting the three into one figure would state as earned the one
- * part that has not been.
+ * And it never calls the first of those parts income. The collateral would make
+ * it in tokenised treasuries; this deployment holds its collateral in a vault
+ * on Hedera testnet and deploys none of it, so that segment is hatched and its
+ * row is labelled "implied", which is the whole of the claim. Every other
+ * surface in the product that shows the split draws the same bar.
  *
  * Every figure arrives in `view`, already read in src/lib/investor-band.ts from
  * the records the investor screens read, so nothing here can print a number
@@ -197,34 +196,23 @@ function Figures({
 }
 
 /**
- * Where the return comes from, in its three parts and never netted.
+ * Where the return comes from, as a bar rather than as a paragraph.
  *
- * "At today's capacity" is load bearing rather than a hedge: the premium share
- * is premium income over principal, so a partly written pool shares less than
- * its rate, and without the clause the figure reads as a ceiling.
+ * This was six lines of prose on a phone carrying three numbers and a caveat,
+ * and a reader with a phone in one hand does not read six lines of prose about
+ * somebody else's yield. The parts are parts of one whole and the losses come
+ * off the end, so they are drawn: src/components/return-split.tsx.
  *
- * A series nobody has bought cover from yet has no premium to share, and saying
- * so is the honest form of the same sentence. Printing nought from premiums
- * beside four percent implied would read as what the occupation returns rather
- * than as what has been written against it, which is nothing.
- *
- * The second line is the one that has to survive every rewrite of the first.
+ * Nothing was dropped to get there. The part this deployment does not earn is
+ * hatched and labelled "implied", which is the claim the sentence was making;
+ * "at today's capacity" sits on the total, where it is load bearing rather than
+ * a hedge, because the premium share is premium income over principal and a
+ * partly written pool shares less than its rate.
  */
 function SplitLine({ split }: { split: BandSplit | null }) {
   if (split === null) return null;
-  const pct = (value: number) => formatPercent(value * 100);
   return (
-    <div className="mt-8 flex max-w-[640px] flex-col gap-2 lg:mt-10">
-      <p className="text-body text-white/66" data-testid="investor-band-split">
-        {split.premium === 0
-          ? `Where the return would come from: ${pct(split.base)} implied from tokenised treasuries while the capital waits. No cover has been bought on this occupation yet, so there is no premium to share.`
-          : `Where the return comes from, at today's capacity: ${pct(split.base)} implied from tokenised treasuries while the capital waits, ${pct(split.premium)} from premiums, less expected losses of ${pct(split.loss)}.`}
-      </p>
-      <p className="text-caption text-white/66">
-        The first figure is not earned here. This deployment holds the collateral in a vault on
-        Hedera testnet and deploys none of it.
-      </p>
-    </div>
+    <ReturnSplitBar className="mt-8 max-w-[420px] lg:mt-10" split={split} tone="night" />
   );
 }
 
@@ -276,9 +264,16 @@ function BandResting() {
           </span>
         ))}
       </div>
-      <div className="mt-8 flex max-w-[640px] flex-col gap-2 lg:mt-10">
-        <RestingBar className="h-12 w-full lg:h-6" />
-        <RestingBar className="h-9 w-full lg:h-[18px]" />
+      {/* The split's own shape: its label, the bar, and the four rows of the
+          ledger under it, so nothing moves when the figures land. */}
+      <div className="mt-8 flex max-w-[420px] flex-col gap-3 lg:mt-10">
+        <RestingBar className="h-5 w-52 max-w-full" />
+        <RestingBar className="h-3 w-full" />
+        <div className="flex flex-col gap-1.5">
+          {[0, 1, 2, 3].map((index) => (
+            <RestingBar className="h-6 w-full" key={index} />
+          ))}
+        </div>
       </div>
     </div>
   );

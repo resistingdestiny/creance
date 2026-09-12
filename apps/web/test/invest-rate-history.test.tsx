@@ -382,7 +382,7 @@ describe('the rate history on a series page', () => {
   it('says what the line is and refuses the words that would make it a lie', () => {
     const text = visibleText(render());
     expect(text).toContain('Rate history');
-    expect(text).toContain('It is the risk half of the price, not a traded price.');
+    expect(text).toContain('What the index said this risk was worth, month by month. Not a traded price.');
     expect(text.toLowerCase()).not.toContain('price history');
   });
 
@@ -543,7 +543,7 @@ describe('the rate history on the board', () => {
 
   it('says in the provenance that every row is on one scale', () => {
     expect(visibleText(markup)).toContain(
-      'The rate history beside it is the risk charge alone, month by month, every row on one scale.',
+      'the rate history beside it is the risk charge alone, every row on one scale.',
     );
   });
 

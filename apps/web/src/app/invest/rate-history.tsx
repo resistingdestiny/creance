@@ -44,9 +44,9 @@ import type { SeriesBandsView } from '../../lib/worker-api';
  * hold the other.
  */
 
-/** What the line is, and what it is not. Two sentences, and both are needed. */
+/** What the line is, and what it is not, in a caption rather than a paragraph. */
 const RATE_LINE =
-  'What the index said this risk was worth, month by month. It is the risk half of the price, not a traded price.';
+  'What the index said this risk was worth, month by month. Not a traded price.';
 
 export interface RateHistorySectionProps {
   /** The guide rate by month, or null when the index round could not be read. */

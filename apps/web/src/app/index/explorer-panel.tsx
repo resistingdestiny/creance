@@ -9,10 +9,10 @@ import { StatusPill } from '../../components/status-pill';
 import { TextLink } from '../../components/text-link';
 import type { ExplorerData } from '../../lib/explorer-data';
 import {
+  PAYOUT_CONDITION,
   bandCaption,
   chartName,
   clampMonth,
-  formsNote,
   headlineFor,
   latestMonth,
   latestMonthIndex,
@@ -20,6 +20,7 @@ import {
   methodSteps,
   positionSentence,
   priceFor,
+  priceRows,
   rankByDistance,
   settledLead,
   stateOf,
@@ -252,22 +253,16 @@ export function ExplorerPanel({
             threshold={occupation.line}
             tweenKey={occupation.key}
           />
-          {/* One line under the chart, and one fact where there is one to
-              state. Everything else that stood here said again what the
-              verdict beside it, the band caption on the chart and the four
-              steps behind the number already say. */}
-          <p className="text-secondary text-ink-2">
-            Up is towards a payout, and the red band is where claims open.
-          </p>
-          {/* The exception, and the one thing the chart cannot say for itself:
-              it draws one line and the cover has two triggers. Without this
-              the level line under a reader's eyes here and the attachment in
-              the answer on the front door look like two answers to one
-              question rather than the two ways into one cover. */}
-          <p className="text-secondary text-ink-2">{formsNote(occupation)}</p>
+          {/* Nothing under the chart but the one fact the chart cannot draw.
+              Two lines of prose stood here saying that up was towards a payout,
+              that the red band was where claims open, and which of the two
+              triggers the line was. All three are marks on the chart now: the
+              band carries its own name and the caption under it names the
+              trigger and its level, which is what a reader needed and what a
+              paragraph was a poor way to give them. */}
           {occupation.everOpened ? null : (
             <p className="text-secondary text-ink-2">
-              This cover has never paid for this occupation since 2010.
+              Never paid for this occupation since 2010.
             </p>
           )}
         </div>
@@ -691,24 +686,29 @@ function Price({
         <span className="font-display text-title font-semibold tracking-title tabular-nums text-ink">
           {quoted ? price.monthly : price.guide}
         </span>
-        {quoted ? (
-          <>
-            <span className="text-caption text-ink-2">
-              Guide price {price.guide}, of which {price.risk} is this occupation&rsquo;s own risk.
-              Capital adds {String(price.addOn)} percent for how full the pool is.
-            </span>
-            {/* Why a price this close to the line is not closer to the limit.
-                The premium looks small beside the cover until you know that
-                two things have to happen, not one. This is the sentence that
-                answers it, and it sits with the number rather than in a note
-                further down the page, because it is the number it explains. */}
-            <span className="text-caption text-ink-2">
-              A payout needs two things: the index opens for your occupation, and you lose the
-              job involuntarily while it is open.
-            </span>
-          </>
-        ) : null}
+        {/* Why a price this close to the line is not closer to the limit: two
+            things have to happen, not one. One line, beside the number it
+            explains, and in no other place in the product. */}
+        <span className="text-caption text-ink-2">{PAYOUT_CONDITION}</span>
       </div>
+
+      {/* The build up, as rows. It was two lines of prose narrating four
+          figures, which is the one shape a price build up should never take;
+          the series page has carried the same thing as rows since it was
+          written. The first two rows add to the third. */}
+      {quoted ? (
+        <dl className="flex flex-col lg:w-[260px] lg:shrink-0" data-testid="explorer-price-build">
+          {priceRows(price).map((row) => (
+            <div
+              className="flex items-baseline justify-between gap-4 border-b border-hairline py-2 last:border-b-0"
+              key={row.label}
+            >
+              <dt className="text-caption text-ink-2">{row.label}</dt>
+              <dd className="m-0 text-caption tabular-nums text-ink">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
 
       {quoted ? (
         <div className="flex flex-col gap-2 lg:w-[380px] lg:shrink-0">
@@ -850,41 +850,65 @@ function Disclosure({ children, summary }: { children: ReactNode; summary: strin
   );
 }
 
-/** Where the numbers came from, and where the same record can be read. */
+/**
+ * Where the numbers came from, and where the same record can be read.
+ *
+ * Labelled facts and a link. It was three lines of prose saying the newest
+ * month, the window on screen and the source, which are four facts with names
+ * and not a paragraph; the one sentence left is the one that invites a reader
+ * to go and check, and the link it ends on is the whole invitation.
+ */
 function Provenance({ data }: { data: ExplorerData }) {
   const { provenance } = data;
+  const window =
+    provenance.from === null || provenance.to === null
+      ? null
+      : `${String(provenance.months)} months, ${formatPeriodShort(provenance.from)} to ${formatPeriodShort(provenance.to)}`;
+
   return (
-    <div className="flex flex-col gap-2 border-t border-hairline pt-6 text-caption text-ink-2">
-      <p>
-        Newest published month{' '}
-        <span className="tabular-nums text-ink">
-          {provenance.asOf === null ? 'none' : formatPeriod(provenance.asOf)}
-        </span>
-        .{' '}
-        {provenance.from === null || provenance.to === null
-          ? null
-          : `${String(provenance.months)} months on screen, ${formatPeriodShort(provenance.from)} to ${formatPeriodShort(provenance.to)}.`}
-      </p>
-      <p>Source: {provenance.source}.</p>
+    <div className="flex flex-col gap-3 border-t border-hairline pt-6 text-caption text-ink-2">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-1">
+        <Fact label="Newest month">
+          <span className="tabular-nums">
+            {provenance.asOf === null ? 'none' : formatPeriod(provenance.asOf)}
+          </span>
+        </Fact>
+        {window === null ? null : <Fact label="On screen">{window}</Fact>}
+        <Fact label="Source">{provenance.source}</Fact>
+        {data.missing.length === 0 ? null : (
+          <Fact label="No reading">
+            {`${String(data.missing.length)} occupations, when this page was built`}
+          </Fact>
+        )}
+      </dl>
       <p>
         {provenance.topicId === null || provenance.hashscan === null ? (
           'The settled record is published on the index topic.'
         ) : (
           <>
-            {settledLead(provenance.published, provenance.groups, provenance.deepest)}{' '}
+            {/* No `deepest` here. What is settled for the occupation with the
+                deepest history is a second claim inside the sentence and took
+                it to four lines at 390; the market board is where it earns its
+                clause. What is left is the scope of what a reader will find,
+                and the link. */}
+            {settledLead(provenance.published, provenance.groups)}{' '}
             <TextLink href={provenance.hashscan} rel="noreferrer" target="_blank">
               {provenance.topicId}
             </TextLink>
-            , so the same figures can be read without trusting this page.
+            , which anyone can read.
           </>
         )}
       </p>
-      {data.missing.length === 0 ? null : (
-        <p>
-          {String(data.missing.length)} of the fifteen occupations had no reading to show when this
-          page was built.
-        </p>
-      )}
     </div>
+  );
+}
+
+/** One labelled fact in the provenance list. */
+function Fact({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <>
+      <dt className="text-ink-3">{label}</dt>
+      <dd className="m-0 text-ink-2">{children}</dd>
+    </>
   );
 }

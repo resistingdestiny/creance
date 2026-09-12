@@ -3,13 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { guideRate, marketRate, monthlyPremium } from '@creance/index-model/src/pricing';
 
 import {
+  PAYOUT_CONDITION,
   PRICE_COVER,
   againstAverage,
   bandCaption,
   chartName,
   clampMonth,
   explorerOccupation,
-  formsNote,
   headlineFor,
   latestMonth,
   latestMonthIndex,
@@ -18,6 +18,7 @@ import {
   methodSteps,
   positionSentence,
   priceFor,
+  priceRows,
   rankByDistance,
   stateOf,
   stateWord,
@@ -119,63 +120,48 @@ describe('how close the call was', () => {
       {
         "arts_design_ent_media": [
           "In July 2026 the index was 0.02 points short of the line for staying worse, and 2.50 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "business_financial_ops": [
           "In July 2026 the index was 1.02 points short of the line for staying worse, and 1.27 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "computer_math": [
           "In July 2026 the index was 0.69 points short of the line for staying worse, and 2.07 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "construction_extraction": [
           "In July 2026 the index was 11.81 points short of the line for staying worse, and 2.30 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "education_training_library": [
           "In July 2026 the index was 1.35 points short of the line for staying worse, and 1.90 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "farming_fishing_forestry": [
           "In July 2026 the index was 11.68 points short of the line for staying worse, and 5.86 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "installation_maintenance_repair": [
           "In July 2026 the index was 2.48 points short of the line for staying worse, and 2.33 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "legal": [
           "In July 2026 the index was 1.78 points short of the line for staying worse, and 3.00 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "management_business_financial": [
           "In July 2026 the index was 0.89 points short of the line for staying worse, and 1.40 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "office_admin_support": [
           "In July 2026 the index was 1.22 points short of the line for staying worse, and 1.24 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "production": [
           "In July 2026 the index was 4.42 points short of the line for staying worse, and 3.13 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "professional_related": [
           "In July 2026 the index was 0.71 points short of the line for staying worse, and 1.50 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "sales_related": [
           "In July 2026 the index was 1.55 points short of the line for staying worse, and 2.00 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "service": [
           "In July 2026 the index was 1.55 points short of the line for staying worse, and 1.37 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
         "transportation_material_moving": [
           "In July 2026 the index was 3.12 points short of the line for staying worse, and 1.94 points short of the line for a sudden jump.",
-          "The first value published for a month settles, regardless of any later correction.",
         ],
       }
     `);
@@ -259,15 +245,18 @@ describe('the distance framing, with no signed value anywhere', () => {
     expect(againstAverage(0.92)).toBe('0.92 points worse than average');
   });
 
-  it('says the level form as a position and the shock form as ground lost, each naming its trigger', () => {
+  it('says the level form as a position and the shock form as ground lost', () => {
+    // One sentence each. The trigger and its level used to follow in a second
+    // sentence; the band on the chart carries them now, so the sentence is
+    // where the occupation sits and nothing else.
     const level = occupationFor('computer_math');
     expect(positionSentence(level, latestMonth(level))).toBe(
-      'Unemployment in this job sits 1.37 points better than average. Staying within 0.68 points of average opens claims.',
+      'Unemployment in this job sits 1.37 points better than average.',
     );
 
     const shock = occupationFor('service');
     expect(positionSentence(shock, latestMonth(shock))).toContain('Against a year ago');
-    expect(positionSentence(shock, latestMonth(shock))).toContain('A sudden jump of');
+    expect(positionSentence(shock, latestMonth(shock))).not.toContain('opens claims');
   });
 
   it('tells a reading apart from its line where one decimal could not', () => {
@@ -276,16 +265,18 @@ describe('the distance framing, with no signed value anywhere', () => {
     // printed both as 1.3 and read as broken copy.
     const arts = occupationFor('arts_design_ent_media');
     expect(positionSentence(arts, latestMonth(arts))).toBe(
-      'Unemployment in this job sits 1.30 points worse than average. Staying 1.32 points worse than average opens claims.',
+      'Unemployment in this job sits 1.30 points worse than average.',
     );
   });
 
-  it('says there are two triggers and which one the chart is drawing', () => {
+  it('names the trigger the chart is drawing in the band caption', () => {
+    // It was a paragraph under the chart saying that there are two triggers
+    // and which one the line is. The caption is the label that does the same
+    // job: it names the form and its level, so a reader meeting the other
+    // trigger on the front door can tell the two apart.
     const level = occupationFor('computer_math');
-    expect(formsNote(level)).toBe(
-      'Claims open in two ways: a sudden jump, or staying worse than anything in the decade before AI. The chart shows staying worse, which is the one this occupation is nearer.',
-    );
-    expect(formsNote({ ...level, form: 'shock' })).toContain('The chart shows a sudden jump');
+    expect(bandCaption(level)).toContain('Staying');
+    expect(bandCaption({ ...level, form: 'shock', line: 2 })).toBe('A sudden jump above 2.00');
   });
 
   it('prints no minus sign on any sentence the page shows', () => {
@@ -296,7 +287,6 @@ describe('the distance framing, with no signed value anywhere', () => {
         positionSentence(occupation, month) ?? '',
         bandCaption(occupation),
         chartName(occupation, month),
-        formsNote(occupation),
         ...methodSteps(occupation, month).map((step) => `${step.title} ${step.body}`),
       ].join(' ');
       expect(said, occupation.key).not.toContain('-');
@@ -379,5 +369,27 @@ describe('the price block', () => {
   it('holds the hazard at the line rather than extrapolating past it', () => {
     const open = priceFor(-1.5, 0);
     expect(open?.monthly).toBe(priceFor(0, 0)?.monthly);
+  });
+
+  it('builds up to the guide price in labelled rows that add up', () => {
+    // The block was two lines of prose narrating these four figures. As rows
+    // the first two have to add to the third, which the prose never showed.
+    const price = priceFor(latestMonth(occupationFor('computer_math'))?.distance ?? 0, 0.45);
+    if (price === null) throw new Error('no price');
+    const rows = priceRows(price);
+    expect(rows.map((row) => row.label)).toEqual([
+      "This job's own risk",
+      'The capital behind it',
+      'Guide price',
+      'Capital asks on top',
+    ]);
+    expect(Number(price.risk) + Number(price.capital)).toBeCloseTo(Number(price.guide), 2);
+    expect(rows.at(-1)?.value).toBe('45 percent');
+  });
+
+  it('says in one line why the premium is small beside the cover', () => {
+    expect(PAYOUT_CONDITION).toBe(
+      'Pays when the index opens and you lose the job involuntarily.',
+    );
   });
 });

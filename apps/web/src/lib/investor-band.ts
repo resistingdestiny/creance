@@ -28,16 +28,16 @@
  *
  * Two things this module will not produce.
  *
- * It will not produce a return. The coupon is a rate written into one series at
- * issuance, the closing band already carries it, and a landing page that put a
- * yield in a large figure would be promising one. What the band shows instead
- * is where the money comes from, in three parts, unnetted.
+ * It will not produce a coupon. That is a rate written into one series at
+ * issuance, the closing band already carries it, and a landing page that put it
+ * in a large figure would be promising one. What the band shows instead is
+ * where the money comes from, in its parts, as a bar.
  *
  * And it will not state the base as earned. `PRICING.impliedBaseYield` is what
  * collateral would make in tokenised treasuries; this deployment holds its
- * collateral in a vault on Hedera testnet and deploys none of it. Every surface
- * that shows the split says so and so does this one, which is why the split is
- * handed over in its three parts rather than as a total.
+ * collateral in a vault on Hedera testnet and deploys none of it. So the split
+ * crosses in its parts and the bar labels that one "implied", which is the
+ * whole of the claim made about it.
  */
 
 import { reportUnreachable } from './api';
@@ -46,9 +46,9 @@ import { readExplorer, type ExplorerData } from './explorer-data';
 import { rankByDistance, type RankedOccupation } from './explorer-model';
 import { heldRead } from './held-read';
 import { fetchSeries, fetchSeriesList, type SeriesView } from './investor-api';
-import { capacityPercent, premiumRatePercent } from './investor-model';
+import { capacityPercent, returnSplitFor } from './investor-model';
 
-import { expectedLossRate, guideRate, marketRate, returnSplit } from '@creance/index-model/src/pricing';
+import { guideRate, marketRate } from '@creance/index-model/src/pricing';
 
 /**
  * How long the series read stands. The head of GET /v1/series is the same
@@ -78,12 +78,14 @@ export interface PricedRange {
   readonly count: number;
 }
 
-/** The three parts of the return, as annual percentages of the principal. */
+/** The parts of the return, as annual fractions of the principal. */
 export interface BandSplit {
   /** What the collateral would make waiting. Not earned in this deployment. */
   readonly base: number;
   readonly premium: number;
   readonly loss: number;
+  /** base + premium - loss, as `returnSplit` computed it. */
+  readonly total: number;
 }
 
 export interface InvestorBandView {
@@ -227,33 +229,24 @@ async function readNote(): Promise<SeriesView | null> {
 }
 
 /**
- * Where this series' return comes from, in three parts, as annual percentages
- * of the principal still standing behind it.
+ * Where this series' return comes from, in its parts, as annual fractions of
+ * the principal still standing behind it.
  *
- * `returnSplit`'s own arithmetic, on the figures the board feeds it: the rate
- * cover on this occupation is priced at, the exposure written against the
+ * `returnSplitFor` in src/lib/investor-model.ts and nothing of this module's
+ * own, so the front door and the market board cannot split one series two ways.
+ * That is `returnSplit`'s arithmetic on the figures the board feeds it: the
+ * rate cover on this occupation is priced at, the exposure written against the
  * series, the principal remaining, and the loss the index expects at this
- * distance. Divided by principal remaining rather than principal funded,
- * because that is the base the rate was priced off, and dividing by what was
- * funded would print a share of premium that does not reconcile to the rate it
- * came from on any series that has paid a claim.
+ * distance.
+ *
+ * The total comes across with the three parts. The band draws them as a bar,
+ * and a bar of parts with no whole is a shape a reader cannot read; the part
+ * that is not earned carries the word "implied" on its own segment instead.
  *
  * Null wherever the rate is null, for the reason `premiumRatePercent` gives:
  * an unpriced risk is not a free one, and a split nobody can check is worse
  * than no split.
  */
 function splitFor(series: SeriesView | null, distance: number | null): BandSplit | null {
-  if (series === null || distance === null) return null;
-  const rate = premiumRatePercent(series, distance);
-  const pool = series.cover_pool;
-  if (rate === null || pool === null) return null;
-  const split = returnSplit(
-    rate / 100,
-    Number(BigInt(pool.active_exposure.amount)),
-    Number(BigInt(series.vault.principal_remaining.amount)),
-    expectedLossRate(Math.max(0, distance)),
-  );
-  // `total` is deliberately dropped here. It is the one figure on this page
-  // that would read as a yield, and the base it contains has not been earned.
-  return split === null ? null : { base: split.base, premium: split.premium, loss: split.loss };
+  return returnSplitFor(series, distance);
 }

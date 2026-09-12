@@ -22,7 +22,13 @@ import { findOccupation, occupationLabel } from './occupations';
 import { bandLabel, bandSentence, levelLinePhrase, marginSentences } from './worker-model';
 import type { IndexView } from './worker-api';
 
-import { guideRate, marketRate, monthlyPremium, riskCharge } from '@creance/index-model/src/pricing';
+import {
+  PRICING,
+  guideRate,
+  marketRate,
+  monthlyPremium,
+  riskCharge,
+} from '@creance/index-model/src/pricing';
 
 export type IndexForm = 'level' | 'shock';
 
@@ -227,25 +233,18 @@ export function againstAverage(excess: number): string {
 }
 
 /**
- * The sentence under the headline: where the occupation sits, and what would
- * open claims, both in the same framing.
+ * The sentence under the headline: where the occupation sits.
  *
  * The two forms are different measurements and cannot share a sentence. The
  * level form is a position against every other occupation; the shock form is
  * ground lost against the same occupation a year earlier. Saying either one in
  * the other's words would be false.
  *
- * Each names its trigger, because the chart beside it draws one line and the
- * product has two. "Staying" is the level form and "a sudden jump" is the shock
- * form, which are the Index tab's own words for them, so a reader who meets the
- * attachment on the front door and the level line here can tell that they are
- * two ways into the same cover rather than two answers to one question.
- *
- * The level form's threshold goes through `levelLinePhrase` rather than through
- * `againstAverage`, so that a negative line is said the way the chart says it.
- * A profession usually unemployed less than average opens claims when the gap
- * narrows to within so many points of average, and "claims open when it reaches
- * 0.68 points better than average" said that backwards.
+ * It used to carry a second sentence naming the trigger and its level, so that
+ * a reader meeting the other trigger on the front door could tell the two
+ * apart. The chart beside it says that now: the band is named where it is drawn
+ * and its caption is the trigger and the level, printed once. The sentence was
+ * the same figure a third time, one line under the second.
  */
 export function positionSentence(
   occupation: ExplorerOccupation,
@@ -253,25 +252,10 @@ export function positionSentence(
 ): string | null {
   if (month === null || month.value === null) return null;
   if (occupation.form === 'level') {
-    return `Unemployment in this job sits ${againstAverage(month.value)}. Staying ${levelLinePhrase(occupation.line)} opens claims.`;
+    return `Unemployment in this job sits ${againstAverage(month.value)}.`;
   }
   const moved = month.value >= 0 ? 'lost' : 'gained';
-  return `Against a year ago this job has ${moved} ${formatIndexValue(Math.abs(month.value))} points of ground on everyone else. A sudden jump of ${formatIndexValue(Math.abs(occupation.line))} opens claims.`;
-}
-
-/**
- * That there are two triggers, and which one this chart is drawing.
- *
- * The explorer shows whichever form the occupation is nearer, chosen server
- * side, and said nothing at all about the other one. So the front door could
- * answer "when does it pay" with the attachment while the panel four inches
- * below it was captioned with the level line, and nothing on the page connected
- * them. This is the sentence that connects them, and it is the Index tab's own,
- * extended by the half a clause that names the form on screen.
- */
-export function formsNote(occupation: ExplorerOccupation): string {
-  const drawn = occupation.form === 'level' ? 'staying worse' : 'a sudden jump';
-  return `Claims open in two ways: a sudden jump, or staying worse than anything in the decade before AI. The chart shows ${drawn}, which is the one this occupation is nearer.`;
+  return `Against a year ago this job has ${moved} ${formatIndexValue(Math.abs(month.value))} points of ground on everyone else.`;
 }
 
 /**
@@ -396,11 +380,48 @@ export interface ExplorerPrice {
    * reader comparing two occupations is comparing these.
    */
   readonly risk: string;
+  /**
+   * The rest of the guide price: what the capital standing behind the cover
+   * costs. Flat across occupations, because the pool is collateralised one for
+   * one and a unit of limit locks the same capital whatever the job is.
+   */
+  readonly capital: string;
   /** What capital adds over the guide price, as whole percent. */
   readonly addOn: number;
   /** The cover the two figures are for. */
   readonly cover: number;
 }
+
+/** One labelled row of the build up under the premium. */
+export interface PriceRow {
+  readonly label: string;
+  readonly value: string;
+}
+
+/**
+ * How the premium is built, as labelled rows rather than as a sentence.
+ *
+ * It was two lines of prose narrating the same four figures, which is the form
+ * a price build up should never take: the series page has carried this as rows
+ * since it was written, and rows are read where a sentence about arithmetic is
+ * not. The first two rows add to the third, and the fourth is what capital that
+ * chose this occupation asks over it.
+ */
+export function priceRows(price: ExplorerPrice): readonly PriceRow[] {
+  return [
+    { label: "This job's own risk", value: price.risk },
+    { label: 'The capital behind it', value: price.capital },
+    { label: 'Guide price', value: price.guide },
+    { label: 'Capital asks on top', value: `${String(price.addOn)} percent` },
+  ];
+}
+
+/**
+ * Why the premium is small beside the cover: two things have to happen, not
+ * one. One line, with the number it explains, and nowhere else in the product.
+ */
+export const PAYOUT_CONDITION =
+  'Pays when the index opens and you lose the job involuntarily.';
 
 /**
  * The price of a month, from the index model's own pricing functions.
@@ -425,6 +446,10 @@ export function priceFor(
     monthly: money(monthlyPremium(rate, cover)),
     guide: money(monthlyPremium(guide, cover)),
     risk: money(monthlyPremium(riskCharge(Math.max(0, distance)), cover)),
+    // The guide rate is the capital charge plus the risk charge wherever the
+    // floor is not binding, and the floor is the capital charge itself, so the
+    // two rows of the build up add to the third exactly rather than nearly.
+    capital: money(monthlyPremium(PRICING.capitalCharge, cover)),
     addOn: Math.round((rate / guide - 1) * 100),
     cover,
   };

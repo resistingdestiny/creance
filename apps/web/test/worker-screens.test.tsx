@@ -71,7 +71,6 @@ const {
   chartDescription,
   chartPoints,
   chartThreshold,
-  FIRST_VALUE_SETTLES,
   headlineReading,
   indexMargins,
   lineIsNegative,
@@ -645,27 +644,18 @@ describe('the index tab', () => {
     );
   }
 
-  it('carries the three sentences from the copy deck', () => {
+  // Four items where there were five paragraphs of body type. The one that
+  // went said the index is compared with a year ago, which is the sudden jump
+  // form described a second time: the trigger item names it.
+  it('says what the index is, as four short items', () => {
     renderIndex();
-    expect(
-      screen.getByText("It counts unemployment in your occupation, compared with everyone else's."),
-    ).toBeTruthy();
-    expect(
-      screen.getByText('It is smoothed over three months, so one bad month does not move it.'),
-    ).toBeTruthy();
-    expect(
-      screen.getByText('It is compared with a year ago, so it shows change, not level.'),
-    ).toBeTruthy();
-  });
-
-  // The index reads unemployment and cannot see a cause. That is the one thing
-  // a buyer worried about AI has to be told, and it belongs in the block that
-  // explains the trigger rather than in an essay further down.
-  it('says the index cannot see why the job went', () => {
-    renderIndex();
-    expect(
-      screen.getByText('It cannot tell why anyone lost their job, and any cause counts.'),
-    ).toBeTruthy();
+    const items = [...screen.getByTestId('index-about').children].map((item) => item.textContent);
+    expect(items).toEqual([
+      "Counts unemployment in your job against everyone else's.",
+      'Smoothed over three months, so one bad month cannot move it.',
+      'Claims open two ways: a sudden jump, or staying worse than anything in the decade before AI.',
+      'Any cause counts. It cannot tell why anyone lost their job.',
+    ]);
   });
 
   it('carries no AI attribution essay under the index', () => {
@@ -673,20 +663,11 @@ describe('the index tab', () => {
     expect(screen.queryByText('What employers say about AI')).toBeNull();
   });
 
-  it("carries the addendum's second explanation block", () => {
+  it('says a negative line in one line, where the occupation has one', () => {
     renderIndex();
     expect(
       screen.getByText(
-        "Claims open in two ways. A sudden jump past this occupation's trigger line, or staying worse than anything in the decade before AI.",
-      ),
-    ).toBeTruthy();
-  });
-
-  it('explains a negative line where the occupation has one', () => {
-    renderIndex();
-    expect(
-      screen.getByText(
-        'People in this occupation are usually unemployed less than average. The trigger is about getting worse than their own normal, not about being above zero.',
+        'This job is usually unemployed less than average, so the trigger is getting worse than its own normal.',
       ),
     ).toBeTruthy();
   });
@@ -703,20 +684,17 @@ describe('the index tab', () => {
     expect(screen.queryByText(/never paid for this occupation since 2010/)).toBeNull();
     unmount();
     renderIndex({ neverOpened: true });
-    expect(
-      screen.getByText('This cover has never paid for this occupation since 2010.'),
-    ).toBeTruthy();
+    expect(screen.getByText('Never paid for this occupation since 2010.')).toBeTruthy();
   });
 
   // T56. The margins are the feed's own, and the screen only joins the
-  // sentences the model wrote; what is asserted is that they reach the page,
-  // that an absent shock margin prints nothing, and that the settle sentence
-  // is beside them.
-  it('says how close the call was, with the first published value settling', () => {
+  // sentences the model wrote; what is asserted is that they reach the page
+  // and that an absent shock margin prints nothing.
+  it('says how close the call was, on both forms', () => {
     renderIndex({ margins: indexMargins(INDEX) });
     expect(
       screen.getByText(
-        `In July 2026 the index was 0.69 points short of the line for staying worse, and 2.07 points short of the line for a sudden jump. ${FIRST_VALUE_SETTLES}`,
+        'In July 2026 the index was 0.69 points short of the line for staying worse, and 2.07 points short of the line for a sudden jump.',
       ),
     ).toBeTruthy();
   });
@@ -732,7 +710,7 @@ describe('the index tab', () => {
     });
     const caption = screen.getByText(/the index was 0\.08 points past/);
     expect(caption.textContent).toBe(
-      `In April 2026 the index was 0.08 points past the line for staying worse. ${FIRST_VALUE_SETTLES}`,
+      'In April 2026 the index was 0.08 points past the line for staying worse.',
     );
     expect(caption.textContent).not.toContain('sudden jump');
     expect(caption.textContent).not.toContain('0.8 ');
@@ -741,7 +719,6 @@ describe('the index tab', () => {
   it('shows no margin caption where none was published', () => {
     renderIndex({ margins: [] });
     expect(screen.queryByText(/the index was/)).toBeNull();
-    expect(screen.queryByText(FIRST_VALUE_SETTLES)).toBeNull();
   });
 
   it('never puts a signed index value on the screen', () => {

@@ -36,8 +36,8 @@ export function DesktopFrame({
   /** The header's one control, top right. The chrome's own unless a screen says otherwise. */
   action?: ReactNode;
   children: ReactNode;
-  /** Which of the header's two places this screen is; the admin screens are neither. */
-  current?: 'index' | 'invest' | null;
+  /** Which of the header's three places this screen is; the admin screens are none of them. */
+  current?: 'index' | 'activity' | 'invest' | null;
 }) {
   return (
     <div className="flex flex-1 flex-col">

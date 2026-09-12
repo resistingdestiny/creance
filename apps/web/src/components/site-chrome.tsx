@@ -103,10 +103,10 @@ export function NavLink({
 }
 
 /**
- * The header. The wordmark is the way back to the front door, and the three
- * controls beside it are the product's three destinations at the product's
- * three button levels, in rank order: "The index" is tertiary, "Earn yield" is
- * secondary, "Get a quote" is primary. The action slot is the primary, on
+ * The header. The wordmark is the way back to the front door, and the controls
+ * beside it are the product's destinations at the product's three button
+ * levels, in rank order: "The index" and "Activity" are tertiary, "Earn yield"
+ * is secondary, "Get a quote" is primary. The action slot is the primary, on
  * every route. The landing passes its own quote button, which opens the quote
  * where the hero card stands; every other route takes the default, a link to
  * the front door with the same words, because there is no query or hash that
@@ -124,6 +124,16 @@ export function NavLink({
  * inside a cover, and a visitor is better served by the page with all fifteen.
  * It is a tertiary and not a link because it stands in a row with two buttons,
  * and one text link among them was the last of the header's mixed vocabulary.
+ *
+ * "Activity" is the second tertiary and the newest control here. Everything
+ * this product does is settled on Hedera testnet and none of it was visible
+ * from any page: the evidence was a link buried in a provenance block here and
+ * a topic id there. A reader who wants to know whether the thing is real should
+ * not have to hunt, so the page that answers it is one press from every route.
+ * It takes the same level as "The index" because it is the same kind of thing,
+ * a public page of record, and because a second secondary beside "Earn yield"
+ * would be two alternatives of equal weight and no hierarchy at all. Neither
+ * "Earn yield" nor "Get a quote" moved or changed.
  *
  * Which place you are on is `aria-current` and nothing else. There are two
  * destinations, both permanently on screen, and the page under the header is
@@ -155,8 +165,8 @@ export function SiteHeader({
 }: {
   /** The primary control in the top right. Defaults to the front door link. */
   action?: ReactNode;
-  /** Which of the two places this screen is, for aria-current. */
-  current?: 'index' | 'invest' | null;
+  /** Which of the three places this screen is, for aria-current. */
+  current?: 'index' | 'activity' | 'invest' | null;
 }) {
   return (
     <header className="border-b border-white/10 bg-night" data-tone="night">
@@ -175,6 +185,14 @@ export function SiteHeader({
             variant="night-tertiary"
           >
             The index
+          </PillLink>
+          <PillLink
+            aria-current={current === 'activity' ? 'page' : undefined}
+            className="max-md:hidden"
+            href="/activity"
+            variant="night-tertiary"
+          >
+            Activity
           </PillLink>
           <PillLink
             aria-current={current === 'invest' ? 'page' : undefined}
@@ -198,9 +216,14 @@ export function SiteHeader({
 }
 
 /**
- * The footer, once, in the root layout. It carries the mark, the two links the
- * header hides at 390, and DESIGN.md's closing line, which the canonical index
- * page and the investor screens make more than decoration.
+ * The footer, once, in the root layout. It carries the mark, the three links
+ * the header hides at 390, and DESIGN.md's closing line, which the canonical
+ * index page and the investor screens make more than decoration.
+ *
+ * The middle link is the header's "Activity" under the name a reader would
+ * search for. The header has one word of room and the footer has a phrase's
+ * worth, so the footer spends it saying what the page is rather than repeating
+ * the label above it.
  *
  * The design's footer bar carries "Terms" and "Contact" beside "How the index
  * works"; neither page exists, so they are left out rather than pointed at
@@ -214,6 +237,7 @@ export function SiteFooter() {
           <span className="text-secondary text-ink-2">Creance</span>
           <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-6">
             <NavLink href="/index">How the index works</NavLink>
+            <NavLink href="/activity">What is happening on chain</NavLink>
             <NavLink href="/invest">Investors</NavLink>
           </nav>
         </div>

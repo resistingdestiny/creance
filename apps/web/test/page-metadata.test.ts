@@ -21,6 +21,7 @@ import { PUBLIC_ROUTES } from '../src/app/sitemap.js';
 const PAGES: Record<(typeof PUBLIC_ROUTES)[number], () => Promise<{ metadata: Metadata }>> = {
   '/': () => import('../src/app/page.js'),
   '/index': () => import('../src/app/index/page.js'),
+  '/activity': () => import('../src/app/activity/page.js'),
   '/invest': () => import('../src/app/invest/page.js'),
   '/occupation': () => import('../src/app/occupation/page.js'),
   '/home': () => import('../src/app/home/page.js'),

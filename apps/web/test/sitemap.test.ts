@@ -54,9 +54,9 @@ describe('the sitemap', () => {
     }
   });
 
-  it('lists the five public routes and no more', () => {
+  it('lists the six public routes and no more', () => {
     expect(pathnames()).toEqual([...PUBLIC_ROUTES]);
-    expect(pathnames()).toHaveLength(5);
+    expect(pathnames()).toHaveLength(6);
   });
 
   it('lists none of the excluded routes', () => {

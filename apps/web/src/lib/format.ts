@@ -83,6 +83,55 @@ export function formatPeriodShort(period: string): string {
   }).format(parseIsoPeriod(period));
 }
 
+function parseInstant(iso: string): Date {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) throw new RangeError(`Not an instant: ${iso}`);
+  return at;
+}
+
+/**
+ * An instant to "12 September, 08:36". UTC, like every other date here.
+ *
+ * The two date helpers above take a date-only string and refuse anything else,
+ * because everything the API sends is a day or a month. A consensus timestamp is
+ * neither: it is a moment, and on a page whose whole subject is what happened a
+ * moment ago, the clock time is the figure. The year is left off because the
+ * only page that prints these prints them beside how long ago they were.
+ */
+export function formatInstant(iso: string): string {
+  return new Intl.DateTimeFormat(LOCALE, {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: 'UTC',
+  })
+    .format(parseInstant(iso))
+    .replace(' at ', ', ');
+}
+
+/**
+ * How long ago an instant was: "just now", "4 minutes ago", "3 hours ago",
+ * "6 days ago".
+ *
+ * The moment it is measured against is passed in rather than read from the
+ * clock, so the server renders one consistent age for every line on a page and
+ * a test can state what it expects. Anything under a minute is "just now": a
+ * count of seconds on a page that is not going to update itself would be wrong
+ * by the time it is read.
+ */
+export function formatAge(iso: string, now: number): string {
+  const seconds = Math.max(0, Math.round((now - parseInstant(iso).getTime()) / 1000));
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${String(minutes)} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${String(hours)} ${hours === 1 ? 'hour' : 'hours'} ago`;
+  const days = Math.floor(hours / 24);
+  return `${String(days)} ${days === 1 ? 'day' : 'days'} ago`;
+}
+
 /**
  * Minor units to a money string: two decimals, thousands separators, no
  * currency symbol. The settlement asset has 6 decimals, so 28.00 is 28000000

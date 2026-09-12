@@ -5,8 +5,8 @@ import type { MetadataRoute } from 'next';
  * T29 and nothing served it, which is a worse promise than none.
  *
  * What is here is every route that answers a request with no session and no
- * cover: the front door, the index, the investor overview, the occupation
- * picker and the sign in screen. What is not here, and why:
+ * cover: the front door, the index, the activity page, the investor overview,
+ * the occupation picker and the sign in screen. What is not here, and why:
  *
  * - /gallery and /home/demo say noindex themselves, the one because it is a
  *   component sheet and the other because it prints cover keys in its markup.
@@ -31,7 +31,14 @@ import type { MetadataRoute } from 'next';
  */
 
 /** The public routes, as paths. Each is a page.tsx under src/app. */
-export const PUBLIC_ROUTES = ['/', '/index', '/invest', '/occupation', '/home'] as const;
+export const PUBLIC_ROUTES = [
+  '/',
+  '/index',
+  '/activity',
+  '/invest',
+  '/occupation',
+  '/home',
+] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://creance.co';

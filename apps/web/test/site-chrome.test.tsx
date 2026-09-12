@@ -40,12 +40,13 @@ function header(markup: string): string {
 const day = renderToStaticMarkup(<SiteHeader />);
 
 describe('the header', () => {
-  it('carries the mark as the way back, the two other places and the action', () => {
+  it('carries the mark as the way back, the three other places and the action', () => {
     const mark = /<a[^>]*href="\/"[^>]*>Creance<\/a>/.exec(day)?.[0] ?? '';
     expect(mark).toContain('font-semibold');
     expect(day.match(/href="\/index"/g)).toHaveLength(1);
+    expect(day.match(/href="\/activity"/g)).toHaveLength(1);
     expect(day.match(/href="\/invest"/g)).toHaveLength(1);
-    expect(visibleText(day)).toBe('Creance The index Earn yield Get a quote');
+    expect(visibleText(day)).toBe('Creance The index Activity Earn yield Get a quote');
   });
 
   it('is the night ground, with the text rules for that ground', () => {
@@ -73,8 +74,8 @@ describe('the header', () => {
     expect(day).toContain('max-w-[1280px] px-5 lg:px-10');
   });
 
-  it('hides the two links below the medium breakpoint rather than wrapping', () => {
-    for (const label of ['The index', 'Earn yield']) {
+  it('hides the three links below the medium breakpoint rather than wrapping', () => {
+    for (const label of ['The index', 'Activity', 'Earn yield']) {
       const link = new RegExp(`<a[^>]*>${label}</a>`).exec(day)?.[0] ?? '';
       expect(link, label).toContain('max-md:hidden');
     }
@@ -185,11 +186,12 @@ describe('the frames', () => {
 describe('the footer', () => {
   const footer = renderToStaticMarkup(<SiteFooter />);
 
-  it('carries the mark, the two links and the disclosure', () => {
+  it('carries the mark, the three links and the disclosure', () => {
     expect(footer).toContain('href="/index"');
+    expect(footer).toContain('href="/activity"');
     expect(footer).toContain('href="/invest"');
     expect(visibleText(footer)).toBe(
-      'Creance How the index works Investors This is a testnet prototype built for a hackathon. It is not an offer of insurance or securities in any jurisdiction and no real funds are involved.',
+      'Creance How the index works What is happening on chain Investors This is a testnet prototype built for a hackathon. It is not an offer of insurance or securities in any jurisdiction and no real funds are involved.',
     );
     expect(footer).toContain('max-w-[1280px] px-5 lg:px-10');
   });

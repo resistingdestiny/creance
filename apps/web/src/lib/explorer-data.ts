@@ -35,8 +35,10 @@
 import { reportUnreachable } from './api';
 import { fetchReplay } from './claim-api';
 import { replayBadgeLabel } from './claim-model';
+import { readUtilisation } from './cover-availability';
 import { explorerOccupation, hashscanTopicUrl, type ExplorerOccupation } from './explorer-model';
 import { heldRead } from './held-read';
+import { readIndexTopic, type IndexTopicSummary } from './index-topic';
 import { OCCUPATIONS } from './occupations';
 import {
   fetchIndex,
@@ -78,12 +80,38 @@ export interface ExplorerProvenance {
   readonly topicId: string | null;
   readonly hashscan: string | null;
   readonly seriesHash: string | null;
+  /**
+   * How many of the occupations on screen have their newest month settled on
+   * the index topic, and how many occupations there are.
+   *
+   * Both are counted off the topic itself through src/lib/index-topic.ts, not
+   * off anything the API said about its own figures. The pages word what is
+   * settled from these and never from a sentence somebody wrote once: the topic
+   * holds one message per occupation per published month, so "the newest month
+   * for every occupation" is a claim these two numbers either support or do
+   * not, and a reader who follows the link is counting the same thing.
+   */
+  readonly published: number;
+  readonly groups: number;
+  /**
+   * The occupation with the most months on the topic, where one has more than
+   * a single month and the whole topic was read. Null otherwise, and a page
+   * with null says nothing about history.
+   */
+  readonly deepest: { readonly label: string; readonly months: number } | null;
 }
 
 export interface ExplorerData {
   readonly occupations: readonly ExplorerOccupation[];
   /** Group keys the feed had no reading for, so the page can say so. */
   readonly missing: readonly string[];
+  /**
+   * Committed exposure over principal remaining, per occupation, as a
+   * fraction. The half of the price the index does not measure: without it a
+   * screen can show the guide price and nothing else. Absent for an occupation
+   * with no principal behind it, and empty when the free capacity read failed.
+   */
+  readonly utilisation: Readonly<Record<string, number>>;
   readonly provenance: ExplorerProvenance;
   /** "Replay: Jul 2026" while the demo clock is walking. */
   readonly replayBadge: string | null;
@@ -117,16 +145,40 @@ export function forgetExplorerRound(): void {
  */
 export async function readExplorer(now: number = Date.now()): Promise<ExplorerData> {
   // fetchReplay answers null rather than throwing, so a dead clock costs the
-  // page its badge and nothing else.
-  const [current, replay] = await Promise.all([readExplorerIndex(now), fetchReplay()]);
+  // page its badge and nothing else. readUtilisation answers an empty record
+  // rather than throwing, for the same reason and at the same cost: the price
+  // block falls back to the guide price and the rest of the page is unmoved.
+  //
+  // The capacity read is free, unmetered and held for a minute of its own
+  // (src/lib/cover-availability.ts). It is on its own hold rather than inside
+  // the round because the two move at different speeds: the index publishes
+  // once a month and the round is held for ten minutes on that ground, while
+  // exposure changes every time a policy binds.
+  const [current, replay, utilisation] = await Promise.all([
+    readExplorerIndex(now),
+    fetchReplay(),
+    readUtilisation(),
+  ]);
   const occupations = current.readings.map(explorerOccupation);
+  // After the round rather than beside it, because the round is what names the
+  // topic. It is a free mirror node read with a hold of its own, so a warm page
+  // pays nothing for it and a cold one waits a fraction of what it already
+  // waited for the fifteen readings.
+  const topic = await readIndexTopic(topicOf(current));
   return {
     occupations,
     missing: current.missing,
-    provenance: provenanceOf(current, occupations),
+    utilisation,
+    provenance: provenanceOf(current, occupations, topic),
     replayBadge: replayBadgeLabel(replay),
     readAt: current.readAt,
   };
+}
+
+/** The topic the feed named, from the free catalogue or from a reading. */
+function topicOf(current: ExplorerRound): string | null {
+  const settled = current.readings.find((entry) => entry.publication.topic_id !== null);
+  return current.catalogue?.index.topic_id ?? settled?.publication.topic_id ?? null;
 }
 
 /**
@@ -204,21 +256,37 @@ async function readCatalogue(): Promise<IndexCatalogueView | null> {
 }
 
 /**
- * Where the numbers came from, from what the API itself said. Nothing here is a
- * sentence this app wrote about the data: the source is the catalogue's own
- * description, the months are the months on screen, and the topic is the one
- * the feed named.
+ * Where the numbers came from. Nothing here is a sentence this app wrote about
+ * the data: the source is the catalogue's own description, the months are the
+ * months on screen, the topic is the one the feed named, and what is settled on
+ * that topic is counted off the topic.
+ *
+ * Counted off the topic and not off the API's own `publication` block, which is
+ * empty in this deployment for every group whose observation row predates the
+ * oracle's write back. The block being empty says nothing about whether a month
+ * reached the topic, and a page that read it would understate what is settled
+ * as badly as the old sentence overstated it.
  */
 function provenanceOf(
   current: ExplorerRound,
   occupations: readonly ExplorerOccupation[],
+  topic: IndexTopicSummary | null,
 ): ExplorerProvenance {
   const first = occupations[0] ?? null;
   const reading = current.readings[0] ?? null;
-  const published = current.readings.find((entry) => entry.publication.topic_id !== null);
-  const topicId = current.catalogue?.index.topic_id ?? published?.publication.topic_id ?? null;
+  const topicId = topicOf(current);
+
+  // An occupation counts as settled when the month the feed served for it is
+  // the month the topic carries for it. Anything less is the two disagreeing,
+  // and a page may not say a reading is settled that a reader cannot find.
+  const settled = current.readings.filter(
+    (entry) => topic !== null && topic.newest[entry.group] === entry.as_of,
+  );
 
   return {
+    published: settled.length,
+    groups: current.readings.length,
+    deepest: deepestOf(topic, occupations),
     source:
       current.catalogue?.index.source ??
       'US Bureau of Labor Statistics, Current Population Survey, unemployment rate by occupation, not seasonally adjusted',
@@ -230,4 +298,29 @@ function provenanceOf(
     hashscan: topicId === null ? null : hashscanTopicUrl(topicId),
     seriesHash: reading?.source.hash ?? null,
   };
+}
+
+/**
+ * The occupation with the most months on the topic, where there is one worth
+ * naming.
+ *
+ * Null when the topic could not be read, when the read was capped short of the
+ * whole topic, or when no occupation has more than its newest month: in the
+ * first two cases nothing may be called a full history, and in the third there
+ * is no history to distinguish from the newest month the sentence already
+ * names. The label is the occupation's own, so a group the picker does not
+ * carry cannot put a name on the page.
+ */
+function deepestOf(
+  topic: IndexTopicSummary | null,
+  occupations: readonly ExplorerOccupation[],
+): ExplorerProvenance['deepest'] {
+  if (topic === null || topic.truncated) return null;
+  let best: { label: string; months: number } | null = null;
+  for (const occupation of occupations) {
+    const months = topic.months[occupation.key] ?? 0;
+    if (months <= 1) continue;
+    if (best === null || months > best.months) best = { label: occupation.label, months };
+  }
+  return best;
 }

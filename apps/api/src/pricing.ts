@@ -11,10 +11,20 @@ import {
 ///
 /// The formula of record:
 ///
-///     capital charge = 0.08 * 1.20 / 0.85
+///     capital charge = (0.08 - 0.04) * 1.20 / 0.85
 ///     risk charge    = h(d) * 0.167 * 0.60 * 1.30
-///     guide rate     = max(capital charge, capital charge + risk charge)
+///     guide rate     = capital charge + risk charge
 ///     market rate    = guide * (1 + utilisation), capped at three times guide
+///
+/// The 0.04 subtracted from the coupon is the implied base yield: what the
+/// collateral would make in tokenised treasuries while it waits, so the premium
+/// only has to fund the spread over it rather than the whole coupon. It is an
+/// assumption and this deployment does not deploy its collateral. Omitting it
+/// here, which this comment did, stated the capital charge at exactly twice
+/// what the code computes, in the one place a reader checks the pricing.
+///
+/// The guide rate is a sum, not a floor over a sum. The risk charge cannot be
+/// negative, so `max(capital, capital + risk)` was always the second branch.
 ///
 /// where `d` is the distance in percentage points from the group's smoothed
 /// excess to its level line and `h` is the fitted hazard. DESIGN.md 3.4 prices

@@ -20,6 +20,7 @@ import {
   positionSentence,
   priceFor,
   rankByDistance,
+  settledLead,
   stateOf,
   stateWord,
   type ExplorerMonth,
@@ -62,10 +63,22 @@ import { CHOOSE_OCCUPATION, filterOccupations } from '../../lib/occupations';
  * the other's heading level.
  */
 
-/** The capacity slider's stops, in whole percent. */
-const CAPACITY_MAX = 95;
-const CAPACITY_STEP = 5;
-const CAPACITY_DEFAULT = 45;
+/**
+ * The capacity slider's stops, in whole percent.
+ *
+ * There is no default. The slider opens at the occupation's own utilisation,
+ * read live from `GET /v1/cover/bands` and carried on the round, so the price
+ * above it is the price the API would quote for that occupation and not a
+ * position somebody chose. It used to open at a flat 45 for every one of the
+ * fifteen, which made this the only surface in the product that disagreed with
+ * the quote, the market board and the series page, and it did so under a
+ * caption naming the real series the capacity supposedly came from.
+ *
+ * The reader can still move it, and the moment they do the block says the
+ * number is a what if and says where the live one is.
+ */
+const CAPACITY_MAX = 100;
+const CAPACITY_STEP = 1;
 
 /**
  * The occupation the panel opens on when nobody has said otherwise.
@@ -133,7 +146,13 @@ export function ExplorerPanel({
   const occupations = data.occupations;
   const [chosen, setChosen] = useState(follows ?? OPENS_ON);
   const [query, setQuery] = useState('');
-  const [capacity, setCapacity] = useState(CAPACITY_DEFAULT);
+  /**
+   * Where the reader has dragged the capacity slider, in whole percent, or null
+   * while it is still where the occupation's own utilisation put it. Null is
+   * not a synonym for nought: it is the difference between the live price and a
+   * what if, and it is what the two captions under the slider turn on.
+   */
+  const [capacity, setCapacity] = useState<number | null>(null);
 
   // React's own way to adjust state when a prop changes, rather than an effect
   // that would paint the old occupation for a frame first.
@@ -141,7 +160,10 @@ export function ExplorerPanel({
   const [followed, setFollowed] = useState(follows);
   if (follows !== followed) {
     setFollowed(follows);
-    if (follows !== null) setChosen(follows);
+    if (follows !== null && follows !== chosen) {
+      setChosen(follows);
+      setCapacity(null);
+    }
   }
 
   /**
@@ -176,12 +198,25 @@ export function ExplorerPanel({
     scrub !== null && scrub.key === occupation.key ? scrub.at : latestMonthIndex(occupation);
   const month = occupation.months[clampMonth(occupation, at)] ?? null;
   const state = stateOf(month);
-  const price = priceFor(month?.distance ?? null, capacity / 100);
+
+  /**
+   * The occupation's own utilisation, as a fraction, or null when the free
+   * capacity read did not answer for it. Null costs the block its market price
+   * and its slider and leaves the guide price, which is the price before
+   * capital has said what it will take the risk for: a guide price labelled as
+   * one is true, and a market price struck at a utilisation nobody read is not.
+   */
+  const live = data.utilisation[occupation.key] ?? null;
+  const used = capacity === null ? (live ?? 0) : capacity / 100;
+  const price = priceFor(month?.distance ?? null, used);
 
   function pick(index: number) {
     const next = occupations[index];
     if (next === undefined) return;
     setChosen(next.key);
+    // The slider belongs to the occupation under it. A what if carried across
+    // a pick would price the next occupation at the last one's capacity.
+    setCapacity(null);
   }
 
   return (
@@ -234,6 +269,7 @@ export function ExplorerPanel({
       <Price
         buyable={occupation.buyable}
         capacity={capacity}
+        live={live}
         onCapacity={setCapacity}
         price={price}
         seriesId={occupation.seriesId}
@@ -588,7 +624,15 @@ function Verdict({
  *
  * Capacity is committed per occupation (docs/DECISIONS.md), so an occupation
  * with no series behind it shows the guide price and says plainly that there is
- * nothing to buy, rather than quoting a premium nobody can pay.
+ * nothing to buy, rather than quoting a premium nobody can pay. An occupation
+ * whose capacity could not be read shows the guide price too, and says that
+ * instead: a market price needs a utilisation, and one nobody read would be a
+ * quote struck at a number this page made up.
+ *
+ * The slider opens at the occupation's live utilisation, so the premium on the
+ * screen is the premium the API would quote. Moving it is a what if, and it
+ * says so from the first move: the label over the number names the capacity it
+ * was struck at and the caption under the slider names the live one.
  *
  * It stands the full width of the panel, under both columns, rather than in the
  * narrow column beside the chart. It carries the premium, which is the thing a
@@ -599,18 +643,30 @@ function Verdict({
 function Price({
   buyable,
   capacity,
+  live,
   onCapacity,
   price,
   seriesId,
 }: {
   buyable: boolean;
-  capacity: number;
+  /** Where the reader dragged the slider, or null while it is on the live value. */
+  capacity: number | null;
+  /** The occupation's own utilisation as a fraction, or null when unread. */
+  live: number | null;
   onCapacity: (value: number) => void;
   price: ReturnType<typeof priceFor>;
   seriesId: string | null;
 }) {
   const capacityId = useId();
   if (price === null) return null;
+
+  // A market price needs a utilisation. Without one the block shows the guide
+  // price and says so, which is the same rule an occupation with no series
+  // behind it follows one line above.
+  const quoted = buyable && live !== null;
+  const usedPercent = capacity ?? (live === null ? 0 : live * 100);
+  const livePercent = live === null ? null : percent(live * 100);
+  const moved = capacity !== null;
 
   return (
     <div
@@ -619,12 +675,16 @@ function Price({
     >
       <div className="flex flex-col gap-1">
         <span className="text-secondary text-ink-2">
-          {buyable ? 'Monthly premium' : 'Guide price'} for {formatAmount(price.cover)} of cover
+          {quoted
+            ? moved
+              ? `Monthly premium at ${percent(usedPercent)} percent used, for ${formatAmount(price.cover)} of cover`
+              : `Monthly premium for ${formatAmount(price.cover)} of cover`
+            : `Guide price for ${formatAmount(price.cover)} of cover`}
         </span>
         <span className="font-display text-title font-semibold tracking-title tabular-nums text-ink">
-          {buyable ? price.monthly : price.guide}
+          {quoted ? price.monthly : price.guide}
         </span>
-        {buyable ? (
+        {quoted ? (
           <>
             <span className="text-caption text-ink-2">
               Guide price {price.guide}, of which {price.risk} is this occupation&rsquo;s own risk.
@@ -643,13 +703,13 @@ function Price({
         ) : null}
       </div>
 
-      {buyable ? (
+      {quoted ? (
         <div className="flex flex-col gap-2 lg:w-[380px] lg:shrink-0">
           <label className="text-secondary text-ink-2" htmlFor={capacityId}>
             How much capital wants this risk
           </label>
           <input
-            aria-valuetext={`${String(capacity)} percent of this pool already used`}
+            aria-valuetext={`${percent(usedPercent)} percent of this pool already used`}
             className="amount-slider h-11"
             id={capacityId}
             max={CAPACITY_MAX}
@@ -657,18 +717,33 @@ function Price({
             onChange={(event) => onCapacity(Number(event.target.value))}
             step={CAPACITY_STEP}
             style={{
-              ['--amount-slider-filled' as string]: `${String((capacity / CAPACITY_MAX) * 100)}%`,
+              ['--amount-slider-filled' as string]: `${String((usedPercent / CAPACITY_MAX) * 100)}%`,
             }}
             type="range"
-            value={capacity}
+            value={Math.round(usedPercent)}
           />
+          {/* The live figure never leaves the block. Before the slider is
+              touched the caption says the number above it was read from the
+              series; after it is touched the caption is where the live figure
+              still stands, so a reader can always get back to the real one. */}
           <span className="flex items-baseline justify-between gap-4 text-caption text-ink-2">
             <span className="tabular-nums">
-              {String(capacity)} percent of this pool already used
+              {percent(usedPercent)} percent of this pool already used
             </span>
-            {seriesId === null ? null : <span>Capacity from {seriesId}.</span>}
+            {seriesId === null ? null : (
+              <span>
+                {moved
+                  ? `${seriesId} is at ${livePercent ?? '0'} percent.`
+                  : `Read from ${seriesId}.`}
+              </span>
+            )}
           </span>
         </div>
+      ) : buyable ? (
+        <p className="text-caption text-ink-2 lg:max-w-[380px]">
+          How much of this occupation&rsquo;s capacity is already used could not be read, so this
+          is the guide price rather than a quote.
+        </p>
       ) : (
         <p className="text-caption text-ink-2 lg:max-w-[380px]">
           No cover is on sale for this occupation today. Capacity is committed one occupation at a
@@ -677,6 +752,20 @@ function Price({
       )}
     </div>
   );
+}
+
+/**
+ * A share of a pool, in whole percent where it is one and to two places where
+ * it is not.
+ *
+ * Utilisation is published to four places, so a series at 0.8866 is at 88.66
+ * percent and not at 89. The price above the caption is struck at the exact
+ * figure, so a caption that rounded it would be naming a capacity the number
+ * was not priced at.
+ */
+function percent(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
 }
 
 /** One of the four steps, with its own chart. */
@@ -775,7 +864,7 @@ function Provenance({ data }: { data: ExplorerData }) {
           'The settled record is published on the index topic.'
         ) : (
           <>
-            Every month is settled on Hedera topic{' '}
+            {settledLead(provenance.published, provenance.groups, provenance.deepest)}{' '}
             <TextLink href={provenance.hashscan} rel="noreferrer" target="_blank">
               {provenance.topicId}
             </TextLink>

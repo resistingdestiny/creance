@@ -1298,6 +1298,32 @@ export const EXPLORER_READINGS: readonly IndexView[] = [
 export const EXPLORER_DEFAULT = 'computer_math';
 
 /**
+ * Committed exposure over principal remaining, per occupation, as
+ * GET /v1/cover/bands answered it on the same day as the readings above.
+ *
+ * It is here and not a constant in a test because it is the other half of
+ * every price the explorer prints, and a fixture that left it out would let
+ * the panel be tested against a capacity nobody committed.
+ */
+export const EXPLORER_UTILISATION: Readonly<Record<string, number>> = {
+  computer_math: 86_000 / 97_000,
+  office_admin_support: 8_000 / 25_000,
+  education_training_library: 1_000 / 25_000,
+  legal: 5_000 / 25_000,
+  transportation_material_moving: 0,
+  production: 0,
+  sales_related: 0,
+  management_business_financial: 0,
+  professional_related: 0,
+  service: 0,
+  construction_extraction: 0,
+  installation_maintenance_repair: 0,
+  farming_fishing_forestry: 0,
+  business_financial_ops: 0,
+  arts_design_ent_media: 0,
+};
+
+/**
  * A round of the fifteen, as the explorer and the landing page both receive it.
  *
  * The provenance is what the API answered beside the readings on the same day.
@@ -1308,6 +1334,10 @@ export function explorerData(patch: Partial<ExplorerData> = {}): ExplorerData {
   return {
     occupations: EXPLORER_READINGS.map(explorerOccupation),
     missing: [],
+    // What GET /v1/cover/bands answered for the same fifteen on the same day:
+    // one series carrying most of the exposure in the product and the rest of
+    // them funded and barely written against.
+    utilisation: EXPLORER_UTILISATION,
     provenance: {
       source:
         'US Bureau of Labor Statistics, Current Population Survey, unemployment rate by occupation, not seasonally adjusted',
@@ -1318,6 +1348,11 @@ export function explorerData(patch: Partial<ExplorerData> = {}): ExplorerData {
       topicId: '0.0.10366470',
       hashscan: 'https://hashscan.io/testnet/topic/0.0.10366470',
       seriesHash: EXPLORER_READINGS[0]?.source.hash ?? null,
+      published: EXPLORER_READINGS.length,
+      groups: EXPLORER_READINGS.length,
+      // What the mirror node answered for topic 0.0.10366470 on the same day:
+      // the newest month for all fifteen, and the demo series' whole history.
+      deepest: { label: 'Computer and mathematical', months: 19 },
     },
     replayBadge: null,
     readAt: '2026-09-06T12:00:00.000Z',

@@ -303,6 +303,35 @@ export function rankByDistance(
     });
 }
 
+/**
+ * What is settled on the index topic, in the one wording every page that cites
+ * the topic uses.
+ *
+ * The topic carries one message per occupation per published month, so what a
+ * reader who follows the link finds is a count, and the sentence has to be that
+ * count and nothing wider. It is composed from what the round was actually
+ * served: how many of the occupations on screen carry a topic and a sequence
+ * number for their newest month, against how many occupations there are. A page
+ * that said more than that would be inviting a reader to check a claim the page
+ * itself has no reading behind.
+ *
+ * It stops at the topic id, which each page links itself, and each page says in
+ * its own words what the reader can then check.
+ */
+export function settledLead(
+  published: number,
+  groups: number,
+  deepest: { readonly label: string; readonly months: number } | null = null,
+): string {
+  if (published === 0 || groups === 0) return 'The index settles on Hedera topic';
+  const newest =
+    published >= groups
+      ? 'The newest month for every occupation'
+      : `The newest month for ${String(published)} of ${String(groups)} occupations`;
+  if (deepest === null) return `${newest} is settled on Hedera topic`;
+  return `${newest}, and the whole ${String(deepest.months)} month history for ${deepest.label.toLowerCase()}, are settled on Hedera topic`;
+}
+
 function gapWord(month: ExplorerMonth | null): string {
   if (month === null || month.distance === null) return 'no reading';
   if (month.open || month.distance <= 0) return 'claims open';

@@ -43,7 +43,8 @@ import { reportUnreachable } from './api';
 import { fetchReplay } from './claim-api';
 import { replayBadgeLabel } from './claim-model';
 import { AMOUNT_MIN } from './cover-amount';
-import { readExplorer, type ExplorerData } from './explorer-data';
+import { readUtilisation } from './cover-availability';
+import { readExplorer, readExplorerIndex, type ExplorerData } from './explorer-data';
 import { heldRead, heldReadPerKey } from './held-read';
 import {
   fetchCoupons,
@@ -80,6 +81,8 @@ import {
   type IndexView,
 } from './worker-api';
 import { premiumAmount } from './worker-model';
+
+import { guideRate, marketRate } from '@creance/index-model/src/pricing';
 
 /**
  * How long a metered reading stands before it is bought again, and how long
@@ -190,7 +193,9 @@ export function readLanding(group: string = LANDING_GROUP): LandingData {
     group,
     occupation: occupationLabel(group),
     index: readIndexSection(group),
-    price: readPrice(group),
+    // No group: the from price is the cheapest of the fifteen and not this
+    // page's own occupation. See cheapestGroup below.
+    price: readPrice(),
     explorer: readExplorerSection(group),
     note: readNote(),
   };
@@ -218,8 +223,8 @@ const readings = heldReadPerKey<IndexView>((group) =>
 );
 
 /**
- * The from price: a quote for the smallest cover on offer, held for the window
- * above.
+ * The from price: a quote for the smallest cover on offer, on the cheapest of
+ * the fifteen occupations, held for the window above.
  *
  * A quote takes no capacity, lasts fifteen minutes and needs no eligibility, so
  * pricing the landing costs the same call the Amount screen makes and the
@@ -227,6 +232,14 @@ const readings = heldReadPerKey<IndexView>((group) =>
  * what makes it affordable to keep it that way: the price on the front door is
  * still a real quote taken against the live index, and it is bought a few times
  * an hour rather than once per visitor.
+ *
+ * Which occupation it quotes is worked out first, and that is the whole of what
+ * makes the word "from" true. This used to quote LANDING_GROUP, which was
+ * harmless while every occupation sat within pennies of the old floor rate and
+ * false the moment utilisation became the dominant term in the price: computer
+ * and mathematical is the second dearest of the fifteen, so the front door was
+ * overstating the cheapest price by about a hundred percent. `cheapestGroup`
+ * below finds the real one.
  *
  * It names the demo wallet and keeps naming it whoever is reading. The hold is
  * one value for every visitor and lives for minutes, so it cannot be a quote
@@ -327,9 +340,56 @@ async function readIndexSection(group: string): Promise<LandingIndexView> {
   };
 }
 
-async function readPrice(group: string): Promise<LandingPriceView> {
+/**
+ * The cheapest of the fifteen to insure, at the cover the from price is
+ * quoted for, or null when it cannot be worked out.
+ *
+ * It costs no paid call. The premium is `marketRate(guideRate(d), u)` on a
+ * limit, so the cheapest occupation is decided by two things and the page reads
+ * both already: the round of fifteen readings the explorer under the hero buys
+ * carries every occupation's distance, and `GET /v1/cover/bands` is free,
+ * unmetered and carries every occupation's exposure and principal in one call.
+ * Both are behind holds shared with the screens that already use them, so
+ * ranking all fifteen adds one free request a minute and nothing else. The one
+ * paid call the page makes is the same single quote it always made; the only
+ * thing that changed is which occupation it is for.
+ *
+ * The arithmetic is apps/api/src/pricing.ts's own, from the same module: the
+ * level form's distance, unfloored, through `guideRate` and `marketRate`. This
+ * only ranks. The figure the page prints is whatever the API then quotes for
+ * the winner, so a disagreement between this ranking and the API costs the page
+ * a slightly dearer occupation and never a price nobody quoted.
+ *
+ * With no capacity read the ranking falls back to the guide rate alone, which
+ * is the measured half of the price and the half that differs by occupation.
+ * That is the best available answer rather than the exact one, and it can only
+ * name an occupation whose guide price is the lowest of the fifteen.
+ */
+async function cheapestGroup(): Promise<string | null> {
+  const [round, utilisation] = await Promise.all([readExplorerIndex(), readUtilisation()]);
+  let best: { group: string; rate: number } | null = null;
+  for (const reading of round.readings) {
+    // Nothing can be quoted for an occupation with no series behind it, so it
+    // cannot be the occupation a "from" price names.
+    if (reading.series_id === null) continue;
+    const ebar = reading.reading.ebar;
+    if (ebar === null) continue;
+    const distance = Number(reading.trigger.level_line) - Number(ebar);
+    if (!Number.isFinite(distance)) continue;
+    const rate = marketRate(guideRate(distance), utilisation[reading.group] ?? 0);
+    if (best === null || rate < best.rate) best = { group: reading.group, rate };
+  }
+  return best?.group ?? null;
+}
+
+async function readPrice(): Promise<LandingPriceView> {
   let premium: string | null;
   try {
+    const group = await cheapestGroup();
+    // No cheapest occupation, no "from" price. The page may print a price it
+    // was quoted and it may print nothing; what it may not do is call one
+    // occupation's price a floor without having looked at the other fourteen.
+    if (group === null) throw new Error('no occupation could be ranked for the from price');
     const quote = await prices.read(group);
     // The windows above are set so that this cannot happen, and it is checked
     // anyway: the quote itself is the only thing that knows when it dies, and a

@@ -8,7 +8,7 @@ import { StatusPill } from '../../components/status-pill';
 import { SurfaceGroup } from '../../components/surface-group';
 import { ListRow } from '../../components/list-row';
 import { TextLink } from '../../components/text-link';
-import { stateWord, type ExplorerState } from '../../lib/explorer-model';
+import { settledLead, stateWord, type ExplorerState } from '../../lib/explorer-model';
 import {
   formatDayWithYear,
   formatPercent,
@@ -264,7 +264,7 @@ function Holding({ holding }: { holding: BoardHolding }) {
       <div className="flex items-start justify-between gap-4">
         <span className="flex flex-col gap-0.5">
           <a
-            className="inline-flex w-fit items-center gap-1 text-body font-medium text-ink underline-offset-[3px] hover:underline"
+            className="inline-flex min-h-11 w-fit items-center gap-1 text-body font-medium text-ink underline-offset-[3px] hover:underline"
             href={`/invest?series=${encodeURIComponent(holding.seriesId)}`}
           >
             {holding.name ?? holding.seriesId}
@@ -533,8 +533,11 @@ function SeriesName({ row }: { row: MarketRow }) {
           which is what a list row carries. Without it nothing on a board of
           plain text says that a name is a door, and sixteen underlined names
           would be the only other way to say it. */}
+      {/* `min-h-11` is the sheet's tap minimum. A long occupation wraps past it
+          on its own; a one word one like Legal is twenty four pixels of link in
+          a row a thumb is aiming at. */}
       <a
-        className="inline-flex w-fit items-center gap-1 text-body text-ink underline-offset-[3px] hover:underline"
+        className="inline-flex min-h-11 w-fit items-center gap-1 text-body text-ink underline-offset-[3px] hover:underline"
         href={`/invest?series=${encodeURIComponent(row.seriesId)}`}
       >
         {row.name ?? row.seriesId}
@@ -657,7 +660,8 @@ function SortableTh({
     >
       <a
         className={[
-          'inline-flex items-center gap-1 underline-offset-[3px] hover:underline',
+          // The heading is a control, so it takes the tap minimum as well.
+          'inline-flex min-h-11 items-center gap-1 underline-offset-[3px] hover:underline',
           active ? 'text-ink' : undefined,
           numeric ? 'flex-row-reverse' : undefined,
         ]
@@ -739,7 +743,7 @@ function Provenance({ view }: { view: BoardView }) {
           </p>
           {provenance.topicId === null || provenance.hashscan === null ? null : (
             <p>
-              Every month is settled on Hedera topic{' '}
+              {settledLead(provenance.published, provenance.groups, provenance.deepest)}{' '}
               <TextLink href={provenance.hashscan} rel="noreferrer" target="_blank">
                 {provenance.topicId}
               </TextLink>

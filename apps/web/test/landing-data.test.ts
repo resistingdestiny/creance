@@ -21,6 +21,8 @@ const fetchSeries = vi.fn();
 const fetchSeriesList = vi.fn();
 const fetchCoupons = vi.fn();
 const readExplorer = vi.fn();
+const readExplorerIndex = vi.fn();
+const fetchAllBands = vi.fn();
 const fetchReplay = vi.fn();
 
 vi.mock('../src/lib/worker-api.js', async (importOriginal) => ({
@@ -28,6 +30,7 @@ vi.mock('../src/lib/worker-api.js', async (importOriginal) => ({
   fetchIndex: (...args: unknown[]) => fetchIndex(...args),
   fetchIndexCatalogue: () => fetchIndexCatalogue(),
   requestQuote: (...args: unknown[]) => requestQuote(...args),
+  fetchAllBands: () => fetchAllBands(),
 }));
 
 vi.mock('../src/lib/investor-api.js', async (importOriginal) => ({
@@ -39,6 +42,7 @@ vi.mock('../src/lib/investor-api.js', async (importOriginal) => ({
 
 vi.mock('../src/lib/explorer-data.js', () => ({
   readExplorer: () => readExplorer(),
+  readExplorerIndex: () => readExplorerIndex(),
 }));
 
 vi.mock('../src/lib/claim-api.js', () => ({
@@ -47,8 +51,55 @@ vi.mock('../src/lib/claim-api.js', () => ({
 
 const { INDEX, QUOTE } = await import('./worker-fixtures.js');
 const { COUPONS, SERIES } = await import('./investor-fixtures.js');
+const { EXPLORER_READINGS, EXPLORER_UTILISATION } = await import('./explorer-fixtures.js');
 const { LANDING_GROUP } = await import('../src/lib/landing-model.js');
 const { forgetReadings } = await import('../src/lib/last-reading.js');
+const { forgetFundedBands } = await import('../src/lib/cover-availability.js');
+const { findOccupation } = await import('../src/lib/occupations.js');
+const { guideRate, marketRate } = await import('@creance/index-model/src/pricing');
+
+/**
+ * The round, with the series each occupation has behind it today.
+ *
+ * The readings were recorded before T39 issued capacity for the other
+ * fourteen, so all but one of them carries a null series id and a from price
+ * ranked over them would have one candidate. The occupation table is the web
+ * app's own record of which group has a series, so it fills them in and the
+ * ranking is over the fifteen it is over in production.
+ */
+const ROUND_READINGS = EXPLORER_READINGS.map((reading) => ({
+  ...reading,
+  series_id: reading.series_id ?? findOccupation(reading.group)?.series ?? null,
+}));
+
+/**
+ * The occupation the from price should be quoted for: the cheapest of the
+ * fifteen at the cover the page asks about, worked out here from the same two
+ * recordings the page reads, so the expectation is derived and not typed.
+ */
+const CHEAPEST = ROUND_READINGS.filter(
+  (reading) => reading.series_id !== null && reading.reading.ebar !== null,
+)
+  .map((reading) => ({
+    group: reading.group,
+    rate: marketRate(
+      guideRate(Number(reading.trigger.level_line) - Number(reading.reading.ebar)),
+      EXPLORER_UTILISATION[reading.group] ?? 0,
+    ),
+  }))
+  .sort((left, right) => left.rate - right.rate)[0]!.group;
+
+/** GET /v1/cover/bands, carrying the exposure and the principal of all fifteen. */
+function bandsAnswer() {
+  return {
+    occupations: Object.entries(EXPLORER_UTILISATION).map(([group, used]) => ({
+      group,
+      principal_remaining: { amount: '25000000000' },
+      active_exposure: { amount: String(Math.round(used * 25_000_000_000)) },
+      bands: [],
+    })),
+  };
+}
 const {
   QUOTE_LIFE_MS,
   QUOTE_STALE_MS,
@@ -109,10 +160,21 @@ beforeEach(() => {
   readExplorer.mockReset().mockResolvedValue({
     occupations: [],
     missing: [],
+    utilisation: {},
     provenance: {},
     replayBadge: null,
     readAt: '2026-09-10T00:00:00.000Z',
   });
+  // The round the from price ranks the fifteen from. It is the explorer's own,
+  // already bought and already held, so ranking them costs nothing.
+  readExplorerIndex.mockReset().mockResolvedValue({
+    readings: ROUND_READINGS,
+    missing: [],
+    catalogue: null,
+    readAt: '2026-09-10T00:00:00.000Z',
+  });
+  fetchAllBands.mockReset().mockResolvedValue(bandsAnswer());
+  forgetFundedBands();
   fetchReplay.mockReset().mockResolvedValue(null);
 });
 
@@ -130,6 +192,9 @@ describe('what a hundred page views cost', () => {
     expect(fetchSeries).toHaveBeenCalledTimes(1);
     expect(fetchSeriesList).toHaveBeenCalledTimes(1);
     expect(fetchCoupons).toHaveBeenCalledTimes(1);
+    // What ranking all fifteen for the from price costs: one free call to
+    // GET /v1/cover/bands, held, and no second paid quote.
+    expect(fetchAllBands).toHaveBeenCalledTimes(1);
   });
 
   it('is one reading and one quote when they arrive one after another', async () => {
@@ -194,10 +259,31 @@ describe('the from price is a quote and never a figure from memory', () => {
     await pageView();
 
     expect(requestQuote).toHaveBeenCalledWith({
-      group: LANDING_GROUP,
+      group: CHEAPEST,
       limit: '1000000000',
       wallet: expect.any(String),
     });
+  });
+
+  it('quotes the cheapest of the fifteen, which is what makes "From" true', async () => {
+    // It used to quote LANDING_GROUP, which carries most of the exposure in
+    // the product and is the second dearest of the fifteen. That was within
+    // pennies of the floor while every occupation sat on it and became a
+    // hundred percent overstatement once utilisation dominated the price.
+    await pageView();
+
+    expect(CHEAPEST).not.toBe(LANDING_GROUP);
+    expect(requestQuote.mock.calls[0]?.[0]).toMatchObject({ group: CHEAPEST });
+  });
+
+  it('leaves the line out rather than naming a floor it could not rank', async () => {
+    readExplorerIndex.mockRejectedValue(new Error('no round'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { price } = await pageView();
+
+    expect(price.priceLine).toBeNull();
+    expect(requestQuote).not.toHaveBeenCalled();
   });
 });
 

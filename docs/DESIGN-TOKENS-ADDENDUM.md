@@ -336,28 +336,23 @@ on every render of the page.
 
 ## Copy deck additions, T56 (verbatim)
 
-"Only a sudden jump would open claims here."
+The picker rows carry no history line at all. They carried two: that claims had
+never opened for the occupation since 2010, and that its level line had never
+been reached since 2000, so only a sudden jump would open claims. Both were cut
+to one short sentence each and then removed entirely.
 
-The third sentence a picker row can carry, after the capacity line and the
-never-opened line, for the five occupations whose level line the smoothed
-excess has never reached across the whole published history, 2000 to 2026.
-It is true of legal's row too in form and is not drawn there, because legal
-reached its line once in 2007. Where the never-opened line stands above it the
-sentence is "Only a sudden jump would.", because after that first sentence the
-subject is already claims and the place is already here.
+Five rows of fifteen carried one or both and ten carried nothing, so a chooser
+read as a list of warnings, and the ten occupations with nothing said about them
+read as the safe ones, which is the opposite of what is true. Neither fact is
+lost. The explorer says "This cover has never paid for this occupation since
+2010." for exactly the series that have not, and the worker's index tab explains
+that claims open in two ways, a sudden jump or staying worse. A chooser is for
+choosing; the place to read what an index has done is the index.
 
-It was written as "Its level line has never been reached in the published
-history since 2000. Only a sudden jump would open claims.", which named the
-span it was measured over and then said what follows from it. Five of fifteen
-rows carry this and ten carry nothing, so at three lines a row it made the list
-read as broken rather than as careful. What a buyer has to hear is the
-consequence, which is the second clause, and the span is on the index page,
-where a reader who wants to check it is going anyway. The never-opened line was
-cut to its consequence in the same pass, from "Claims have never opened for
-this occupation since 2010." to "Claims have never opened here."
-
-The landing quote's chooser renders the same captions. See
-`LEVEL_LINE_NEVER_REACHED` in `occupation-picker.tsx`.
+What a row still carries is the one line that is about the transaction rather
+than the history, "No cover behind this occupation yet.", for an occupation with
+no capacity behind it. Since T39 that renders nowhere, and it stays for a
+deployment where it would.
 
 "In July 2026 the index was 0.69 points short of the line for staying worse, and 2.07 points short of the line for a sudden jump."
 

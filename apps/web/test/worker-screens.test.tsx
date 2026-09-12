@@ -56,7 +56,7 @@ vi.mock('../src/app/verify/world-check.js', () => ({
 const { AmountScreen } = await import('../src/app/amount/amount-screen.js');
 const { IndexScreen } = await import('../src/app/cover/index/index-screen.js');
 const { HomeScreen } = await import('../src/app/home/home-screen.js');
-const { LEVEL_LINE_NEVER_REACHED, OccupationPicker } = await import(
+const { OccupationPicker } = await import(
   '../src/app/occupation/occupation-picker.js'
 );
 const { PayScreen } = await import('../src/app/pay/pay-screen.js');
@@ -114,25 +114,22 @@ describe('the occupation picker', () => {
     expect(screen.queryAllByText(/No cover behind this occupation yet\./)).toHaveLength(0);
   });
 
-  it('carries the honest line for the two that have never opened since 2010', () => {
+  it('is a list of names and nothing else', () => {
+    // The rows carried two facts about each occupation's history, that claims
+    // had never opened for it and that its level line had never been reached.
+    // Five of fifteen carried one or both, which made a chooser read as a list
+    // of warnings and made the ten with nothing said about them look like the
+    // safe ones. Both facts are on the index pages, where somebody reading
+    // about an index is.
     render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
-    expect(screen.getAllByText(/Claims have never opened here\./)).toHaveLength(2);
-  });
-
-  it('says where the level line has never been reached, beside the never-opened line', () => {
-    render(<OccupationPicker chosen={null} rows={OCCUPATIONS} />);
-    const rows = screen.getAllByText(/sudden jump would/);
-    expect(rows).toHaveLength(5);
-    // Three carry the sentence on its own.
-    expect(screen.getAllByText(LEVEL_LINE_NEVER_REACHED)).toHaveLength(3);
-    // Office and administrative support carries both facts in one caption, the
-    // backtest's first and the whole history's second, and the second is cut
-    // to what it adds rather than repeating the subject of the first.
-    const office = rows.find((node) => node.textContent?.startsWith('Claims have never opened'));
-    expect(office?.textContent).toBe('Claims have never opened here. Only a sudden jump would.');
-    // Legal reached its line once, in 2007, and must not carry the sentence.
-    const legal = screen.getByText('Legal').closest('button');
-    expect(legal?.textContent).toBe('Legal');
+    const rows = screen
+      .getAllByRole('button')
+      .filter((node) => node.textContent !== 'Continue');
+    expect(rows).toHaveLength(OCCUPATIONS.length);
+    for (const row of rows) {
+      const label = OCCUPATIONS.find((entry) => row.textContent === entry.label);
+      expect(row.textContent, row.textContent ?? '').toBe(label?.label);
+    }
   });
 
   it('disables Continue until a row is chosen', () => {

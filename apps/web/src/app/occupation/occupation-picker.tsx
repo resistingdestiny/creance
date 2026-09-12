@@ -155,42 +155,31 @@ export function occupationGroupHeading(part: 'open' | 'noCover', count: number):
 }
 
 /**
- * What a row says when its level line has never been reached in the published
- * history, 2000 to 2026 (T56). The occupation can still open claims, because
- * the shock form is independent of the level form and does open; what the
- * sentence stops is a buyer reading a distance to that line as a countdown.
+ * What a row says under its name, which is now nothing at all unless the
+ * occupation cannot be bought.
  *
- * It used to name the span, "never been reached in the published history since
- * 2000", and say what follows from it in a second clause. Five of the fifteen
- * rows carry this and ten carry nothing, so at three lines each it made the
- * list look broken rather than honest. The claim a buyer has to hear is the
- * consequence, and it is the same claim in a third of the words. The span it
- * was measured over is on the index page, which is where a reader who wants to
- * check it is going anyway. Exported so the test and the copy deck can hold it
- * to one string.
- */
-export const LEVEL_LINE_NEVER_REACHED = 'Only a sudden jump would open claims here.';
-
-/**
- * What a row says under its name. Every line is a fact, not marketing: the
- * first is capacity, the second is the backtest in docs/INDEX.md, the third
- * is the whole published history since 2000.
+ * It used to carry two facts about the occupation's history: that claims had
+ * never opened for it since 2010, and that its level line had never been
+ * reached since 2000, so only a sudden jump would open claims. Both are true
+ * and both were cut to a single short sentence before Root asked for them to
+ * go entirely. Five rows of fifteen carried one or both and ten carried
+ * nothing, which made a chooser look like a list of warnings and made the
+ * occupations with nothing said about them look like the safe ones, which is
+ * the opposite of the truth.
  *
- * Both history lines are cut to their consequence for the same reason, and
- * they collapse into one another: an occupation whose claims have never opened
- * and whose level line has never been reached does not need to be told twice
- * that nothing has happened to it.
+ * Neither fact is lost. A chooser is for choosing, and the place to read what
+ * an occupation's index has done is the index: the explorer says "This cover
+ * has never paid for this occupation since 2010." for exactly the series that
+ * have not, and the worker's index tab explains that claims open in two ways,
+ * a sudden jump or staying worse. `levelLineNeverReached` stays on the record
+ * in src/lib/occupations.ts for whatever wants to say it next.
+ *
+ * What remains is the one line that is about the transaction rather than the
+ * history: an occupation with no capacity behind it cannot be bought, and a
+ * row that cannot be chosen has to say why. Since T39 issued capacity for all
+ * fifteen it renders nowhere today, and it stays for the deployment where that
+ * is not true.
  */
 export function captionFor(row: Occupation): string | undefined {
-  const lines: string[] = [];
-  if (!hasCover(row)) lines.push(NO_COVER_YET);
-  const neverOpened = row.lastOpenPeriod === null;
-  if (neverOpened) lines.push('Claims have never opened here.');
-  // Both lines together said "claims" twice and "here" twice in one breath.
-  // After the first sentence the subject is already claims and the place is
-  // already here, so the second says only what it adds.
-  if (row.levelLineNeverReached) {
-    lines.push(neverOpened ? 'Only a sudden jump would.' : LEVEL_LINE_NEVER_REACHED);
-  }
-  return lines.length === 0 ? undefined : lines.join(' ');
+  return hasCover(row) ? undefined : NO_COVER_YET;
 }

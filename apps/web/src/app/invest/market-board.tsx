@@ -377,11 +377,12 @@ function Traded({ row }: { row: MarketRow }) {
   if (quote === null || (quote.lastTraded === null && quote.bestAsk === null)) return null;
   return (
     <span className="flex flex-col gap-0.5">
-      <span>
-        {quote.lastTraded === null
-          ? null
-          : formatWholeMoney(BigInt(quote.lastTraded.amount), quote.lastTraded.decimals)}
-      </span>
+      {/* No figure where nothing has traded. A series with an offer standing on
+          it and no fill behind it has a price somebody is asking and not a
+          price anybody has paid, and the two are not the same number. */}
+      {quote.lastTraded === null ? null : (
+        <span>{formatWholeMoney(BigInt(quote.lastTraded.amount), quote.lastTraded.decimals)}</span>
+      )}
       {quote.bestAsk === null ? null : (
         <span className="text-caption whitespace-nowrap text-ink-2">
           {quote.unitsForSale} for sale at{' '}

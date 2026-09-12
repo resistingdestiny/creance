@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { BoardView } from '../src/app/invest/board-data.js';
 import { MarketBoard } from '../src/app/invest/market-board.js';
+import { OfferBook } from '../src/app/invest/trading.js';
 import { rankByDistance, type ExplorerOccupation } from '../src/lib/explorer-model.js';
 import type {
   OfferView,
@@ -585,6 +586,27 @@ describe('the market on the board', () => {
     expect(text).not.toContain('for sale at');
   });
 
+  it('prints no traded price for a series with an offer standing and no fill behind it', () => {
+    // An ask is what somebody wants, a fill is what somebody paid, and the
+    // column is the second of the two.
+    const asked = orderBook([
+      offer({ offer_id: '5', status: 'open', series_id: 'ODI-ARTS-2026-01', closed_at: null }),
+    ]);
+    const quote = marketQuotes(asked).get('ODI-ARTS-2026-01');
+    expect(quote?.lastTraded).toBeNull();
+    expect(quote?.bestAsk?.amount).toBe('1000000000');
+
+    const base = board();
+    const text = visibleText(
+      boardMarkup({
+        ...base,
+        rows: base.rows.map((row, at) => (at === 0 ? { ...row, quote: quote ?? null } : row)),
+      }),
+    );
+    expect(text).toContain('1 for sale at 1,000');
+    expect(text).not.toContain('1,000 1 for sale');
+  });
+
   it("says what a trade just did, in the product's own words and not the wire's", () => {
     const markup = renderToStaticMarkup(
       <MarketBoard
@@ -615,5 +637,55 @@ describe('the market on the board', () => {
     expect(text).toContain('On the market');
     expect(text).toContain('Withdraw');
     expect(text).toContain('Sell');
+  });
+});
+
+describe('the note refusing a buyer', () => {
+  /** Offer 5 as the venue answered it: the operator selling a note the demo
+   *  investor is not on the register of. */
+  const refused = offer({
+    offer_id: '5',
+    status: 'open',
+    series_id: 'ODI-ARTS-2026-01',
+    group: 'arts_design_ent_media',
+    closed_at: null,
+    readiness: { open: true, seller_holds: true, seller_approved: true },
+    buyer_eligibility: {
+      address: INVESTOR_1,
+      role: 'investor-1',
+      kyc_granted: false,
+      reason: 'the note holds no granted KYC record for this account',
+    },
+  });
+
+  function marketMarkup(view: OfferView): string {
+    return renderToStaticMarkup(
+      <OfferBook
+        address={INVESTOR_1}
+        book={orderBook([view])}
+        held={null}
+        seriesId="ODI-ARTS-2026-01"
+      />,
+    );
+  }
+
+  it("warns before the press, in the product's words and not the wire's", () => {
+    const text = visibleText(marketMarkup(refused));
+    expect(text).toContain('Not approved');
+    expect(text).toContain('This note keeps its own register of who may hold it');
+    // The API's own reason sentence is never printed.
+    expect(text).not.toContain('granted KYC record');
+  });
+
+  it('keeps the button, so the note answers rather than this screen guessing', () => {
+    const markup = marketMarkup(refused);
+    expect(visibleText(markup)).toContain('Take');
+    expect(markup).toContain('value="5"');
+  });
+
+  it('offers the seller a withdrawal rather than a refusal on its own offer', () => {
+    const text = visibleText(marketMarkup({ ...refused, buyer_eligibility: null }));
+    expect(text).not.toContain('Not approved');
+    expect(text).toContain('Take');
   });
 });

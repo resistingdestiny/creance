@@ -273,25 +273,45 @@ export function OfferBook({
  */
 function Take({ address, offer }: { address: string; offer: OfferView }) {
   const state = takeState(offer, address);
+  if (state === 'closed') return null;
   if (state === 'own') return <WithdrawButton offer={offer} />;
-  if (state === 'blocked') {
+  if (state === 'take') {
     return (
-      <span className="flex max-w-[320px] flex-col items-start gap-1">
-        <StatusPill state="watch">Not approved</StatusPill>
-        <span className="text-caption text-ink-2">
-          This note keeps its own register of who may hold it, and your account is not on it.
-        </span>
-      </span>
+      <form action={takeOffer}>
+        <input name="offer" type="hidden" value={offer.offer_id} />
+        {offer.series_id === null ? null : (
+          <input name="series" type="hidden" value={offer.series_id} />
+        )}
+        <PillButton type="submit">Take</PillButton>
+      </form>
     );
   }
-  if (state === 'closed') return null;
+
+  /* The refused case keeps its button.
+     
+     Saying so first and then letting the press happen is deliberate. The note
+     is what refuses, not this screen, and a control that vanished would put
+     this app's guess in place of the note's answer: a reader would have only
+     our word that a transfer would have failed. Pressing it asks the note, the
+     API reads the register and refuses before it signs anything, and the
+     sentence that comes back is the refusal itself. It is drawn as the
+     secondary and stands under the warning, so nothing here pretends the press
+     is likely to work. */
   return (
-    <form action={takeOffer}>
-      <input name="offer" type="hidden" value={offer.offer_id} />
-      {offer.series_id === null ? null : (
-        <input name="series" type="hidden" value={offer.series_id} />
-      )}
-      <PillButton type="submit">Take</PillButton>
-    </form>
+    <span className="flex max-w-[340px] flex-col items-start gap-2">
+      <StatusPill state="watch">Not approved</StatusPill>
+      <span className="text-caption text-ink-2">
+        This note keeps its own register of who may hold it, and your account is not on it.
+      </span>
+      <form action={takeOffer}>
+        <input name="offer" type="hidden" value={offer.offer_id} />
+        {offer.series_id === null ? null : (
+          <input name="series" type="hidden" value={offer.series_id} />
+        )}
+        <PillButton type="submit" variant="secondary">
+          Take
+        </PillButton>
+      </form>
+    </span>
   );
 }

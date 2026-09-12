@@ -7257,3 +7257,43 @@ concentrated in workers in their early twenties. It is not in this product and
 must not be put there. This build cannot measure it, the index has no age
 breakdown at all, and an unfunded junior band is capital's judgment and not
 this index's.
+
+### The investor board gets the night ground, and the graphs become the page
+
+T52 took `night` to the header band "and to nothing else", and every worker and
+investor screen stayed light below it. The investor board is now the exception,
+and it is a deliberate one rather than a drift.
+
+Root's words: the page "looks very boring and the graphs aren't really
+featuring in any way on the main page, no cool flighty style graphics neither".
+All three were true. It opened with a black heading on white, then a holdings
+block, then a dense table; the rate history, which is the most interesting
+thing on the page, was a sixty by twenty pixel line inside a table cell; and
+none of the product's own material was anywhere on it, on a product whose
+signature is a metal card on a dark ground.
+
+So the top of the board is a night panel carrying the occupation nearest its
+line: five years of its guide rate as a chart big enough to read, and the metal
+card beside it with the rate at display-xl. Three cards under it carry the next
+three off the same ranking. The table is unchanged and still the substance of
+the page, because sixteen rows by seven figures is a column question that cards
+cannot answer.
+
+Three things were refused while building it, and each is worth more than the
+band itself.
+
+An area fill under the hero line was built and removed: fourteen of sixteen
+rates are flat with a few tall spikes, so the fill drew a row of white columns
+that read exactly like volume bars. This product has no volume and may not look
+as though it has any.
+
+The chart stayed a guide rate and the caption stayed with it. Making a chart
+large makes the words under it more important, not less, because fourteen of
+these sixteen series have never traded at all.
+
+And the metal card is not a link. The addendum bars navigation on the metal, so
+the featured occupation opens from its table row and not from the band.
+
+The heading became "Earn yield" at the same time, which is what the header's
+control says. The page said "Occupations", so the one thing a visitor had just
+pressed for was not on the page they arrived at.

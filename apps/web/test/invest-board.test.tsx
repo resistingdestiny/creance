@@ -351,8 +351,10 @@ describe('the market board', () => {
     expect(text).toContain('2.65 percent');
     expect(text).toContain('8 percent');
     // The maturity demonstration row was read from neither, so it carries the
-    // name and the identifier and no figure at all.
-    expect(text).toContain('Maturity demonstration ODI-MAT-1 The principal');
+    // name and the identifier and no figure at all. What follows it is the
+    // holdings heading, which is the next thing on the page now that this
+    // account's own notes stand under the board rather than over it.
+    expect(text).toContain('Maturity demonstration ODI-MAT-1 Your notes');
   });
 
   it('writes percent as a word and uses no dash, as every screen does', () => {

@@ -893,4 +893,23 @@
       transparent 1px 5px
     );
   }
+
+  /* The glow under the rate line in the market board's hero band.
+
+     A two pixel white stroke on the night ground reads as a hairline, and the
+     chart there is the subject of the band rather than a mark beside a figure.
+     This throws the line's own colour softly behind it, so the line reads as
+     an object. It paints no second shape: there is no area under the line and
+     nothing on the chart that could be taken for a quantity nobody published.
+
+     It is a filter on a line and not an elevation on a surface, so the sheet's
+     rule stands and the one box-shadow in this product is still the landing
+     hero's. It is written here rather than as a utility because the utility
+     form compiles the framework's whole elevation variable chain into the
+     stylesheet, which built-css.test.ts refuses, and because Tailwind scans
+     the source for candidates and would compile the bare utility out of a
+     class string. */
+  .rate-glow {
+    filter: drop-shadow(0 0 10px rgb(255 255 255 / 0.45));
+  }
 }

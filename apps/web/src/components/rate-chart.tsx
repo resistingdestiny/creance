@@ -37,6 +37,13 @@ export interface RateChartProps {
    * when the row already carries the numbers in words.
    */
   readonly label?: string;
+  /**
+   * The line colour. Ink by default, which is every light ground in the
+   * product. The board's hero band stands on `night`, where a black line is
+   * invisible, so the ground passes its own colour rather than the chart
+   * learning about grounds.
+   */
+  readonly stroke?: string;
 }
 
 export function RateChart({
@@ -47,6 +54,7 @@ export function RateChart({
   height,
   strokeWidth = 1.3,
   label,
+  stroke = '#000',
 }: RateChartProps) {
   const runs = contiguousRuns(points);
   if (runs.length === 0) return null;
@@ -76,7 +84,7 @@ export function RateChart({
             cx={scale.x(run[0]!.index)}
             cy={scale.y(run[0]!.value)}
             data-testid="rate-chart-point"
-            fill="#000"
+            fill={stroke}
             key={run[0]!.index}
             r={strokeWidth}
           />
@@ -86,7 +94,7 @@ export function RateChart({
             data-testid="rate-chart-line"
             fill="none"
             key={run[0]?.index ?? position}
-            stroke="#000"
+            stroke={stroke}
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeWidth={strokeWidth}

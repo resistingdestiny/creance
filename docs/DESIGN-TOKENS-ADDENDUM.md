@@ -88,7 +88,7 @@ Paste this into the same Claude Design session, direction 1a: "Add nine mobile s
 
 Decided before kick-off. These two tokens exist for the landing page and the closing band on it. They are not available to any worker or investor screen, which stay light mode with hairline depth exactly as docs/DESIGN-TOKENS.md specifies.
 
-T49 reversed the "landing page only" scope for the card's gradient, sheen, brushing and shimmer, which are now the product's material: see "The metal" below and docs/DECISIONS.md under T49. T52 took `night` to the header band on every route, and to nothing else: see "The chrome" below and docs/DECISIONS.md under T52. `night-2` and the one elevation stay as written here, and every worker and investor screen stays light below the header.
+T49 reversed the "landing page only" scope for the card's gradient, sheen, brushing and shimmer, which are now the product's material: see "The metal" below and docs/DECISIONS.md under T49. T52 took `night` to the header band on every route, and to nothing else: see "The chrome" below and docs/DECISIONS.md under T52. That "nothing else" held until the investor board gained its featured band, which is the second place `night` is drawn: see "The featured band" below. `night-2` and the one elevation stay as written here, and every worker screen stays light below the header.
 
 ```js
 night:   '#0A0D12',  // marketing ground
@@ -456,3 +456,32 @@ month of the reading in the detail.
 
 The shape of the published chip, drawn only when the reading's publication
 block names a topic.
+
+## The featured band (the investor board)
+
+The investor board carries one `night` panel at the top of the page, which is
+the only place besides the header that the marketing ground is drawn.
+
+Root asked for this page to look like a prediction market and said the graphs
+were not featuring. The rate history was the most interesting thing on it and
+was rendered as a sixty by twenty pixel line inside a table cell, on a page
+that opened with a black heading on white and then a spreadsheet. The band
+gives the occupation nearest its line a chart big enough to read, the rate at
+display-xl, and the metal card, which is the product's signature object and
+appeared nowhere on this page before.
+
+What it may carry: one occupation, its chart, its state pill in the explorer's
+own words, and its rate. It is a feature, not a second layout, and the sixteen
+row table under it is still the page's substance and still answers what cards
+cannot.
+
+The line on the band is white with a soft glow, which is `.rate-glow`, a filter
+on a path. It is not elevation: the one `box-shadow` in this product is still
+the landing hero card's, and the Tailwind drop-shadow utilities are not used
+because they pull the framework's elevation variables into the compiled sheet,
+which built-css.test.ts refuses.
+
+An area fill under that line was built and taken out. Fourteen of the sixteen
+rates are flat with a few tall spikes, so a fill rendered as a row of white
+columns that read as volume bars. This product has no volume and may not appear
+to have any.

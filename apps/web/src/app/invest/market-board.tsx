@@ -31,6 +31,7 @@ import {
 } from '../../lib/investor-model';
 import { DEMO_WALLET_LABEL, type WalletAccount } from '../../lib/wallet';
 import type { BoardHolding, BoardView } from './board-data';
+import { BoardHero, MarketCards, featuredRows } from './board-hero';
 import { SellNotes, MarketOutcomeBanner, WithdrawButton } from './trading';
 
 /**
@@ -62,8 +63,23 @@ import { SellNotes, MarketOutcomeBanner, WithdrawButton } from './trading';
  *
  * There is no order book on this page, no bid, no ask and no volume, because
  * there is no such record to read yet. The seam for one is the positions block
- * above the table, which is this account's own holdings read off the note, and
+ * under the table, which is this account's own holdings read off the note, and
  * a row's own detail page below it.
+ *
+ * The table is not the whole page any more. Above it stand a hero band and
+ * three cards, in src/app/invest/board-hero.tsx, which take the first four rows
+ * of the same ranking and give them the room the board never had: the price at
+ * display size and the rate history as a chart rather than a mark. The
+ * reasoning for that is on that file. The table stays exactly as it was and for
+ * exactly the reason above: a card cannot answer a column question, and the
+ * reader who wants to compare all sixteen scrolls past the cards to the board
+ * they already know.
+ *
+ * This account's holdings moved under the table with it. They were the first
+ * thing on the screen, so a person with two notes met their own two notes
+ * before they met the market of sixteen, which is the wrong way round for the
+ * page the product points an investor at. They stay above the provenance block,
+ * which speaks for them.
  */
 
 /**
@@ -91,12 +107,32 @@ export function MarketBoard({
 }: MarketBoardProps) {
   return (
     <DesktopFrame current="invest">
-      <header className="flex flex-col gap-1 border-b border-hairline pb-6">
-        <h1 className="text-title font-display font-semibold tracking-title text-ink lg:text-landing-head lg:tracking-display">
-          Occupations
+      {/* The heading and the lead are outside the boundary and on the first
+          byte, which is the rule the whole route follows (T51). What waits on
+          a read is the featured occupation inside the band, and it rests at
+          the height it will stand at, so nothing under it moves when the
+          figures land.
+
+          `data-tone` is what the stylesheet's focus rule reads: the outline
+          turns white on this ground, where the sheet's black one would be
+          invisible on the card and the pill. */}
+      <section
+        className="overflow-hidden rounded-card bg-night px-6 py-8 lg:rounded-hero lg:px-12 lg:py-12"
+        data-tone="night"
+      >
+        {/* The heading is the words the reader pressed to get here. The
+            header's control says "Earn yield" and this page said
+            "Occupations", so the one thing a visitor had just been promised
+            was not on the page they landed on. The line under it still says
+            what the page is made of. */}
+        <h1 className="text-title font-display font-semibold tracking-title text-white lg:text-landing-head lg:tracking-display">
+          Earn yield
         </h1>
-        <p className="text-body text-ink-2">{BOARD_LINE}</p>
-      </header>
+        <p className="mt-1 text-body text-white/66 lg:text-landing-lead">{BOARD_LINE}</p>
+        <Suspense fallback={<HeroResting />}>
+          <Featured board={board} />
+        </Suspense>
+      </section>
 
       {outcome === null ? null : <MarketOutcomeBanner outcome={outcome} />}
 
@@ -105,6 +141,24 @@ export function MarketBoard({
       </Suspense>
     </DesktopFrame>
   );
+}
+
+/**
+ * The occupation nearest a payout, once the board has been read.
+ *
+ * Its own boundary, and the second one on this screen to `use` the same
+ * promise. Both resolve together, because it is one read; what the two
+ * boundaries buy is the band's heading on the first byte with the figures
+ * inside it landing in a space that was already the right size.
+ *
+ * A board where no row carries a reading has nothing to feature and the band
+ * is its heading alone, which is what the index round failing looks like.
+ */
+function Featured({ board }: { board: Streamed<BoardView> }) {
+  const view = figureOf(board);
+  const featured = featuredRows(view.rows)[0];
+  if (featured === undefined) return null;
+  return <BoardHero featured={featured} provenance={view.provenance} />;
 }
 
 /**
@@ -135,11 +189,13 @@ function Board({
 
   return (
     <>
-      {view.holdings.length === 0 ? null : <Positions investor={investor} view={view} />}
+      {/* The first is the band's, so the cards carry the three behind it. */}
+      <MarketCards rows={featuredRows(view.rows).slice(1, 4)} />
       <section className="mt-10">
         <h2 className="mb-4 text-body-lg font-medium text-ink">All occupations</h2>
         <MarketTable direction={direction} rows={rows} sort={sort} />
       </section>
+      {view.holdings.length === 0 ? null : <Positions investor={investor} view={view} />}
       <Provenance view={view} />
     </>
   );
@@ -148,12 +204,15 @@ function Board({
 /**
  * What this account holds, and what it can do with it.
  *
- * It stands above the board because a person who already has a position reads
- * it first, and because this is where a secondary market belongs: an offer is
- * made against a holding, and the holdings are here.
+ * It stands under the board, not over it. A person who already holds a note
+ * does read it first, but two notes are a smaller thing than sixteen
+ * occupations and this is the page the product points an investor at, so the
+ * market comes first and a holding is found by scrolling past it. The
+ * secondary market still belongs here, because an offer is made against a
+ * holding and the holdings are here.
  *
  * These are blocks and not a table, which is the opposite of the decision the
- * board itself makes twenty lines down, and for the opposite reason. The board
+ * board itself makes, and for the opposite reason. The board
  * is sixteen rows of six figures and the question there is a column question.
  * This is two notes with four figures and two controls each, and a control does
  * not belong in a cell: a form needs room for its fields and a person needs to
@@ -708,16 +767,43 @@ function Provenance({ view }: { view: BoardView }) {
 }
 
 /**
- * The board at the height it stands at once its figures are in it: the heading
- * row and sixteen rows of 56px, with the provenance block under them. A figure
- * landing changes what is in a space and never how much space there is.
+ * The board at the height it stands at once its figures are in it: the three
+ * cards, then the heading row and sixteen rows of 56px, with the provenance
+ * block under them. A figure landing changes what is in a space and never how
+ * much space there is.
  */
 function BoardResting() {
   return (
     <div className="mt-10" data-testid="board-resting">
-      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-[248px] w-full" />
+      <Skeleton className="mt-10 h-10 w-full" />
       <Skeleton className="mt-2 h-[896px] w-full" />
       <Skeleton className="mt-10 h-20 w-full max-w-[720px]" />
+    </div>
+  );
+}
+
+/**
+ * The featured occupation at the height it will stand at.
+ *
+ * The sheet's own Skeleton is the surface colour, which on this ground would
+ * be the brightest thing on the screen, so the band rests in white at twelve
+ * percent, which is what the landing's own dark resting bar uses. The heights
+ * are the card's and the chart's, so the band does not change height when the
+ * read lands.
+ */
+function HeroResting() {
+  return (
+    <div
+      className="mt-8 flex flex-col gap-8 lg:mt-12 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-stretch lg:gap-12"
+      data-testid="hero-resting"
+    >
+      <div className="order-1 h-[248px] rounded-card bg-white/12 lg:order-2 lg:h-auto" />
+      <div className="order-2 flex flex-col gap-3 lg:order-1">
+        <div className="h-5 w-48 rounded-field bg-white/12" />
+        <div className="h-36 w-full rounded-field bg-white/12 lg:h-56" />
+        <div className="h-10 w-full max-w-[520px] rounded-field bg-white/12" />
+      </div>
     </div>
   );
 }

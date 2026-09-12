@@ -517,8 +517,13 @@ export function latestRate(
  * A rate without the word, at whatever precision `formatPercent` rounds to.
  * Taken from the formatter rather than written again, so the two ends of a
  * range cannot round differently from the figure above the chart.
+ *
+ * The board's hero band wants the same split for the other reason: a rate set
+ * at display size has to break after the figure, because "7.9 percent" at 64px
+ * is wider than the card it stands on, and the word belongs with the caption
+ * under it rather than wrapped on to a line of its own.
  */
-function rateFigure(value: number): string {
+export function rateFigure(value: number): string {
   return formatPercent(value).replace(' percent', '');
 }
 

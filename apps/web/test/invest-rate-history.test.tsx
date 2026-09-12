@@ -516,8 +516,15 @@ describe('the rate history on the board', () => {
     />,
   );
 
+  /**
+   * Two occupations carry a reading and the maturity demonstration carries
+   * none, so the table draws two lines and the third cell is empty. The same
+   * two rows are drawn again above it: the nearer of them at hero size in the
+   * band, and the other on the one card behind it. Four lines, and not one of
+   * them for a series with nothing published.
+   */
   it('gives every occupation with a reading a line, and the rest none', () => {
-    expect(markup.match(/data-testid="rate-chart-line"/g)).toHaveLength(2);
+    expect(markup.match(/data-testid="rate-chart-line"/g)).toHaveLength(4);
   });
 
   it('heads the column with what it is and never with a traded price', () => {

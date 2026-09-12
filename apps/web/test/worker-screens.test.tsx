@@ -61,7 +61,9 @@ const { OccupationPicker } = await import(
 );
 const { PayScreen } = await import('../src/app/pay/pay-screen.js');
 const { VerifyScreen } = await import('../src/app/verify/verify-screen.js');
-const { completeWorldCheck, startWorldCheck } = await import('../src/app/purchase-actions.js');
+const { completeWorldCheck, startWorldCheck, verifyPerson } = await import(
+  '../src/app/purchase-actions.js'
+);
 const { OCCUPATIONS } = await import('../src/lib/occupations.js');
 const { homeStatus } = await import('../src/lib/claim-model.js');
 const {
@@ -205,7 +207,7 @@ describe('the verify screen', () => {
     signature: `0x${'a'.repeat(130)}`,
   };
 
-  it('carries the copy deck strings and says the check is the interim one', () => {
+  it('carries the copy deck strings and says the check is the demo one', () => {
     render(<VerifyScreen alreadyVerified={false} interim />);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
       "Confirm you're a real person.",
@@ -214,18 +216,60 @@ describe('the verify screen', () => {
       screen.getByText('One person, one cover. This stops bots and duplicate accounts.'),
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Verify with World ID' })).toBeTruthy();
-    expect(screen.getByText(/Interim check\. Testnet only\./)).toBeTruthy();
+    expect(screen.getByText(/Demo check\. Testnet only\./)).toBeTruthy();
   });
 
   it('does not claim a Selfie Check it did not run', () => {
     render(<VerifyScreen alreadyVerified={false} interim />);
-    expect(screen.getByText(/without running a World Selfie Check yet/)).toBeTruthy();
+    expect(screen.getByText(/without running a World Selfie Check/)).toBeTruthy();
   });
 
-  it('drops the interim line when the World check is the one running', () => {
+  it('drops the demo line when the World check is the one running', () => {
     render(<VerifyScreen alreadyVerified={false} interim={false} />);
-    expect(screen.queryByText(/Interim check\. Testnet only\./)).toBeNull();
+    expect(screen.queryByText(/Demo check\. Testnet only\./)).toBeNull();
     expect(screen.getByRole('button', { name: 'Verify with World ID' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Use the demo check' })).toBeNull();
+  });
+
+  /**
+   * The dead end this screen must not have. The widget can be opened and shut
+   * with nothing decided, which is what a device that cannot finish a Selfie
+   * Check leaves behind, and without a second way through, a purchase stops
+   * here for good. The demo check appears after the attempt and never before
+   * it, it is the secondary, and it says what it is.
+   */
+  it('offers the demo check, labelled, once a real check has come back with nothing', async () => {
+    vi.mocked(startWorldCheck).mockResolvedValue(CONTEXT);
+    vi.mocked(verifyPerson).mockResolvedValue({
+      ok: true,
+      error: null,
+      alreadyCovered: false,
+      wrongCheck: false,
+    });
+    render(<VerifyScreen alreadyVerified={false} interim={false} />);
+
+    expect(screen.queryByRole('button', { name: 'Use the demo check' })).toBeNull();
+    expect(screen.queryByText(/Demo check\. Testnet only\./)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Verify with World ID' }));
+    await waitFor(() => expect(widgetProps.length).toBeGreaterThan(0));
+
+    // The sheet shut with nothing decided, which is what the widget reports
+    // when a device cannot finish the check.
+    const onOpenChange = widgetProps.at(-1)?.['onOpenChange'] as (open: boolean) => void;
+    act(() => onOpenChange(false));
+
+    const demo = await screen.findByRole('button', { name: 'Use the demo check' });
+    expect(screen.getByText(/Demo check\. Testnet only\./)).toBeTruthy();
+    // Still the secondary. The World check keeps the primary.
+    expect(screen.getByRole('button', { name: 'Verify with World ID' })).toBeTruthy();
+
+    fireEvent.click(demo);
+    await waitFor(() => expect(verifyPerson).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe("You're verified"));
+    // And it still says what verified them, on the screen where the next press
+    // pays for cover.
+    expect(screen.getByText(/Demo check\. Testnet only\./)).toBeTruthy();
   });
 
   it('shows the verified state when the credential is already held', () => {
@@ -462,6 +506,53 @@ describe('home', () => {
       expect(screen.getByText(sentence)).toBeTruthy();
       unmount();
     }
+  });
+
+  /**
+   * A fixture has no claim session and no purchase session, so the controls
+   * that would need one do not move.
+   *
+   * They used to. "See your claim" followed /claim/status to the sign in
+   * screen, and "Pay" followed /pay through /verify to "What do you do?", the
+   * funnel for buying a cover the reader is already looking at. Landing
+   * somebody in an unrelated flow is worse than a control that does nothing:
+   * the screen says on its own face that it is drawn from fixtures.
+   */
+  it('does not let a fixture press a control that needs a session', () => {
+    const base = {
+      policyId: 'pol_01M1S3EBDQR3W79A9E8MR6MPYB',
+      occupation: 'Computer and mathematical',
+      cover: 1000,
+      nextPayment: '0.86 on 5 October',
+      index: { value: '0.69, falling', caption: 'Points from opening claims.' },
+      claimsOpen: null,
+      paid: null,
+      replayBadge: null,
+    };
+
+    const claim = renderHome(false, {
+      demo: true,
+      view: { ...base, status: homeStatus('claim_in_progress'), lapsed: null },
+    });
+    const seeClaim = screen.getByRole('button', { name: 'See your claim' });
+    expect(seeClaim.hasAttribute('disabled')).toBe(true);
+    expect(document.querySelector('a[href="/claim/status"]')).toBeNull();
+    claim.unmount();
+
+    renderHome(false, {
+      demo: true,
+      view: {
+        ...base,
+        status: homeStatus('lapsed'),
+        lapsed: {
+          heading: 'Payment due',
+          line: 'Your cover needs a payment.',
+          action: 'Pay 4.25',
+        },
+      },
+    });
+    expect(screen.getByRole('button', { name: 'Pay 4.25' }).hasAttribute('disabled')).toBe(true);
+    expect(document.querySelector('a[href="/pay"]')).toBeNull();
   });
 
   /**

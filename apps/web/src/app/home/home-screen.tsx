@@ -224,10 +224,25 @@ export function HomeScreen({
                 Start a claim
               </PillButton>
             ) : null}
+            {/* On a fixture these two go nowhere sensible, so they do not go.
+                A demo state has no claim session and no purchase session, so
+                "See your claim" followed /claim/status to the sign in screen
+                and "Pay" followed /pay through /verify to "What do you do?",
+                the funnel for buying a cover you already have. Landing a
+                reader in an unrelated flow is worse than a control that does
+                not move: the screen already says on its face that it is drawn
+                from fixtures, so the button stands there showing what the
+                state offers and does not pretend to work. */}
             {state === 'claim_in_progress' ? (
-              <PillLink className="w-full" href="/claim/status" variant="secondary">
-                See your claim
-              </PillLink>
+              demo ? (
+                <PillButton className="w-full" disabled variant="secondary">
+                  See your claim
+                </PillButton>
+              ) : (
+                <PillLink className="w-full" href="/claim/status" variant="secondary">
+                  See your claim
+                </PillLink>
+              )
             ) : null}
             {state === 'paid' ? (
               <PillLink
@@ -238,7 +253,11 @@ export function HomeScreen({
                 View receipt
               </PillLink>
             ) : null}
-            {view.lapsed === null ? null : (
+            {view.lapsed === null ? null : demo ? (
+              <PillButton className="w-full" disabled>
+                {view.lapsed.action}
+              </PillButton>
+            ) : (
               <PillLink className="w-full" href="/pay">
                 {view.lapsed.action}
               </PillLink>

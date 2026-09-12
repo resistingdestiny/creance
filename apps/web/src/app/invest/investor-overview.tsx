@@ -327,6 +327,12 @@ function isPromised<T>(value: Streamed<T>): value is Promise<T> {
  * "Verification needed", which would be a claim about an account the note was
  * never asked about.
  *
+ * It reads "Approved to hold" rather than "KYC approved". The negative state
+ * beside it has always been plain English, and a pill that says KYC on one
+ * side and a sentence on the other is two registers of language in one
+ * control. What the register actually decides is whether this account may hold
+ * this note, so that is what it says.
+ *
  * The market's position route is asked first where it answered, because it
  * reads the register off the note for whatever the account holds, and a unit
  * that arrived by transfer is a holding the series view's configured holder
@@ -353,7 +359,7 @@ function KycPill({
   const granted = onTheNote ?? holderFor(view, investor.evmAddress)?.kyc.granted === true;
   return (
     <StatusPill state={granted ? 'covered' : 'watch'}>
-      {granted ? 'KYC approved' : 'Verification needed'}
+      {granted ? 'Approved to hold' : 'Verification needed'}
     </StatusPill>
   );
 }

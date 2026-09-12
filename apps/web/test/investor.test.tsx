@@ -451,7 +451,7 @@ describe('the investor overview screen', () => {
   it('carries the copy deck strings verbatim', () => {
     for (const string of [
       'ODI-COMP-2026-01',
-      'KYC approved',
+      'Approved to hold',
       'Principal',
       'Reserved for claims',
       'Paid to policyholders',
@@ -542,7 +542,7 @@ describe('the investor overview screen', () => {
       ),
     );
     expect(stranger).toContain('Verification needed');
-    expect(stranger).not.toContain('KYC approved');
+    expect(stranger).not.toContain('Approved to hold');
   });
 
   it('never hides that the wallet is a demo one', () => {

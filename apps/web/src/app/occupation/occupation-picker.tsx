@@ -114,7 +114,13 @@ export function OccupationPicker({
              for all fifteen there is usually one part, and "Open to buy (15)"
              over every occupation there is names nothing: a heading that
              cannot be contrasted with anything is a label on the page. */
-          <div className="flex flex-col gap-6">
+          /* Capped and scrolling, at the height the landing card's copy of this
+             list has always capped it at. Fifteen rows rendered uncapped are
+             about 900px, so at 390 "Continue" sat 285px under the fold and the
+             first screen of the purchase needed a scroll to get off. The card
+             never had that problem and the route should not have had it either:
+             it is the same list, and one of the two treatments works. */
+          <div className="flex max-h-[212px] flex-col gap-6 overflow-y-auto lg:max-h-[268px]">
             {groups.open.length === 0 ? null : (
               <section className="flex flex-col gap-2">
                 {groups.noCover.length === 0 ? null : (

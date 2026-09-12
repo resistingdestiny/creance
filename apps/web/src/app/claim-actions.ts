@@ -60,10 +60,20 @@ export interface ClaimCheckResult extends ClaimStepResult {
   readonly wrongCheck: boolean;
 }
 
-/** Home, "Start a claim". The claim belongs to one cover from here on. */
+/**
+ * Home, "Start a claim". The claim belongs to one cover from here on.
+ *
+ * It goes to the gate, not past it. This redirected straight to the job form,
+ * and since nothing else in the product links to /claim, the one screen that
+ * says what this cover pays for and what it does not was unreachable by any
+ * route a worker has. A person could file a claim for a resignation and first
+ * hear that resignations are excluded from the Adjuster, days later. The gate
+ * exists to be read before the form, so it is what "Start a claim" opens, and
+ * continueToJob below is the button on it.
+ */
 export async function beginClaim(policyId: string): Promise<void> {
   await startClaim(policyId);
-  redirect('/claim/job');
+  redirect('/claim');
 }
 
 /** C1, "Start a claim". */

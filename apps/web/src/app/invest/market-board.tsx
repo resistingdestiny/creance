@@ -275,15 +275,27 @@ function MarketTable({
   sort: MarketSort;
 }) {
   return (
-    /* Seven columns are a desktop table. At 390 the four that say how a series
-       is funded fold away and the three that make the comparison stay: which
-       occupation, how near its line, what its cover costs. The rest is on the
-       series' own page. What is left still does not quite fit a 390 column, so
-       the table keeps its shape and the region scrolls, as the coupon history
-       does, and it is focusable so a keyboard reaches the scroll as well as
-       the links inside it. */
+    /* Seven columns are a desktop table. A 390 column is 350px of readable
+       width and the three figures the board exists for do not fit it as three
+       columns: the risk pill is 132px and will not wrap, because its words are
+       `rankByDistance`'s and not this screen's to shorten, and the premium
+       heading is 130px, which leaves under 90px for an occupation name. Four
+       columns was 590px in a 350px region, so a phone got the occupation and
+       the risk, the premium rate began past the cut with nothing to say it was
+       there, and the board read as a worse /index.
+
+       So below the landing breakpoint the board is two columns and the risk
+       moves into the first one, under the name, where the sheet already puts a
+       caption under a label. The comparison the board is for, which occupation,
+       how near its line, what its cover costs, is then on one row with no
+       sideways scroll at all. The identifier folds away with it: it is a
+       nowrap 151px that set the first column's floor, and the same vault link
+       is on the series' own page, one tap from the name. Sorting by the risk
+       column goes with the column; the board still opens in risk order, and
+       what a phone gains is the premium rate heading, which was sortable
+       before but off the screen. */
     <div aria-label="Occupations" className="overflow-x-auto" role="region" tabIndex={0}>
-      <table className="w-full min-w-[27rem] border-collapse text-body lg:min-w-[60rem]">
+      <table className="w-full border-collapse text-body lg:min-w-[60rem]">
         <caption className="sr-only">
           Every series on Hedera testnet, with what it pays and how near its index is to a payout
         </caption>
@@ -292,7 +304,7 @@ function MarketTable({
             <SortableTh column="name" direction={direction} sort={sort}>
               Occupation
             </SortableTh>
-            <SortableTh column="risk" direction={direction} sort={sort}>
+            <SortableTh column="risk" direction={direction} sort={sort} wide>
               Index
             </SortableTh>
             <SortableTh column="premium" direction={direction} numeric sort={sort}>
@@ -311,7 +323,7 @@ function MarketTable({
             <SortableTh column="coupon" direction={direction} numeric sort={sort} wide>
               Coupon
             </SortableTh>
-            <SortableTh column="traded" direction={direction} numeric sort={sort}>
+            <SortableTh column="traded" direction={direction} numeric sort={sort} wide>
               Last traded
             </SortableTh>
           </tr>
@@ -322,7 +334,7 @@ function MarketTable({
               <Td>
                 <SeriesName row={row} />
               </Td>
-              <Td>
+              <Td wide>
                 <Risk row={row} />
               </Td>
               <Td numeric>
@@ -340,7 +352,7 @@ function MarketTable({
               <Td numeric wide>
                 {row.couponPercent === null ? null : formatPercent(row.couponPercent)}
               </Td>
-              <Td numeric>
+              <Td numeric wide>
                 <Traded row={row} />
               </Td>
             </tr>
@@ -439,13 +451,21 @@ function Sparkline({ row }: { row: MarketRow }) {
 }
 
 /**
- * The occupation, and the identifier under it.
+ * The occupation, and under it the identifier, or below the landing breakpoint
+ * the risk.
  *
  * The name opens the series' own page, which is the detail view this board is
  * the index to. The identifier opens the vault on HashScan, so every figure on
  * the row can be read off the chain without trusting this page: that is what
  * the public explorer's provenance block does for the index, and a board of
  * money deserves the same.
+ *
+ * On a phone the second line is the risk pill instead. The reasoning is on
+ * `MarketTable`: three figures do not fit 350px as three columns, the risk and
+ * the premium rate are the pair the board exists to compare, and an occupation
+ * is better served by its state than by an identifier no one reads aloud. Only
+ * one of the two pills is in the tree at a given width, so nothing is announced
+ * twice.
  */
 function SeriesName({ row }: { row: MarketRow }) {
   return (
@@ -461,13 +481,19 @@ function SeriesName({ row }: { row: MarketRow }) {
         {row.name ?? row.seriesId}
         <ChevronRight className="shrink-0 text-ink-3" />
       </a>
+      {/* `empty:hidden` rather than a second copy of `Risk`'s own guard: a row
+          with no reading behind it draws no pill and must not leave a gap in
+          the column where one would have been. */}
+      <span className="empty:hidden lg:hidden">
+        <Risk row={row} />
+      </span>
       {row.hashscan === null ? (
-        <span className="text-caption tabular-nums whitespace-nowrap text-ink-2">
+        <span className="hidden text-caption tabular-nums whitespace-nowrap text-ink-2 lg:block">
           {row.seriesId}
         </span>
       ) : (
         <a
-          className="w-fit text-caption tabular-nums whitespace-nowrap text-ink-2 underline-offset-[3px] hover:underline"
+          className="hidden w-fit text-caption tabular-nums whitespace-nowrap text-ink-2 underline-offset-[3px] hover:underline lg:block"
           href={row.hashscan}
           rel="noreferrer"
           target="_blank"

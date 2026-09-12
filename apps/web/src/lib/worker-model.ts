@@ -302,6 +302,17 @@ export interface PriceResult {
   readonly usedPercent: number;
   readonly full: boolean;
   readonly error: string | null;
+  /**
+   * The occupation can be bought, but not by capital that named no length of
+   * experience, so the question has to be answered before there is a price.
+   *
+   * Absent everywhere but the one refusal that means it. It exists because the
+   * sentence below is written for a screen that asked the question, and the
+   * landing page's inline quote never asks it: a surface that cannot ask has to
+   * be able to tell this refusal from a price that simply failed, so that it
+   * can send somebody to the screen that can.
+   */
+  readonly needsBand?: boolean;
 }
 
 export interface VerifyResult {
@@ -379,6 +390,33 @@ export function verifyCopy(state: VerifyState, surface: Surface = 'browser'): Ve
 }
 
 /**
+ * What the demo check says about itself, wherever the purchase asks for a
+ * check: on /verify and on the same step inside the landing card.
+ *
+ * It is one string because it is one act. A deployment with no World app of its
+ * own has always minted the credential this way and said so here; a deployment
+ * that has one offers the same path a second time, after a real check has been
+ * opened and has not come back with anything. Both are the labelled demo
+ * issuer, both are testnet, and two surfaces wording that differently is how a
+ * person comes to believe a demo check was a World proof.
+ *
+ * The claim flow's C4 screen is the precedent and this is its sentence with the
+ * purchase's own object in it: what a check earns there is a live person on a
+ * claim, and what it earns here is the eligibility credential that binds cover.
+ * Nothing downstream changes: the credential carries which issuer minted it, so
+ * the receipt and the audit trail go on saying which check was used.
+ */
+export const DEMO_CHECK_LINE =
+  'Demo check. Testnet only. This issues the eligibility credential without running a World Selfie Check, because a camera cannot be automated.';
+
+/**
+ * The secondary control that runs it, which appears only once a real check has
+ * been opened and refused. It is never the primary: the World check is what
+ * this screen is for, and the demo path is the way out of a dead end.
+ */
+export const DEMO_CHECK_ACTION = 'Use the demo check';
+
+/**
  * The line while a check is out. Both check screens use it, at purchase and at
  * claim.
  *
@@ -426,6 +464,7 @@ export function priceFailure(limit: number, cause: unknown): PriceResult {
       ...empty,
       full: true,
       error: 'Nobody is funding that length of experience any more. Choose another.',
+      needsBand: true,
     };
   }
   return {
@@ -434,6 +473,19 @@ export function priceFailure(limit: number, cause: unknown): PriceResult {
     error: "We couldn't get a price. Check that the API is running, then try again.",
   };
 }
+
+/**
+ * The same refusal, said where the question was never asked.
+ *
+ * `priceFailure` above words it for the screens that did ask: you chose a
+ * length of experience, and the capital behind it has gone. The landing page's
+ * inline quote has no experience step and quotes with no band at all, so there
+ * the refusal means something else entirely: this occupation is sold by length
+ * of experience and nobody has said theirs yet. Two sentences because they are
+ * two different facts, not one fact worded twice.
+ */
+export const BAND_NEEDED_LINE =
+  'Cover for this occupation is sold by how long you have worked. Answer one more question and we can price it.';
 
 /**
  * The price for an occupation with no series behind it: none, and the reason.

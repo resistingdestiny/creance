@@ -142,7 +142,7 @@ describe('the shell', () => {
     expect(shell).toContain('Demo wallet. Testnet only.');
 
     // And not one figure, because not one of them has been read.
-    expect(shell).not.toContain('KYC approved');
+    expect(shell).not.toContain('Approved to hold');
     expect(shell).not.toContain('Verification needed');
     expect(shell).not.toContain('Earned to date');
     expect(shell).not.toContain('997.26');
@@ -157,7 +157,7 @@ describe('the shell', () => {
     const whole = shell + rest;
     const text = visibleText(whole);
 
-    expect(text).toContain('KYC approved');
+    expect(text).toContain('Approved to hold');
     expect(text).toContain('Earned to date 3 coupons paid to 0.0.10366460 997.26');
     expect(text).toContain('Next payment Coupon 4, accruing 4 December 2026 to 4 January 2027');
     expect(text).toContain('Principal 100,000');
@@ -221,7 +221,7 @@ describe('a read that fails costs the page its figure and never the page', () =>
     // No figure stands in for the ones that could not be read.
     expect(text).not.toContain('Principal 100,000');
     expect(text).not.toContain('percent intact');
-    expect(text).not.toContain('KYC approved');
+    expect(text).not.toContain('Approved to hold');
     expect(text).not.toContain('Verification needed');
     // The resting state's heading is still in the stream, hidden, which is
     // how a boundary is replaced; what matters is that no link was written.
@@ -249,7 +249,7 @@ describe('a read that fails costs the page its figure and never the page', () =>
     expect(text).toContain('Next payment Coupon 4, accruing');
     expect(whole).not.toContain('cover-card');
     expect(text).toContain('Principal 100,000');
-    expect(text).toContain('KYC approved');
+    expect(text).toContain('Approved to hold');
     expect(whole).toContain('https://hashscan.io/testnet/contract/0.0.10368240');
   });
 

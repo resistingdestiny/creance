@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition, type ReactNode, type Ref } from 'react';
 
 import {
@@ -29,7 +30,14 @@ import {
   occupationLabel,
 } from '../../lib/occupations';
 import { useSurface } from '../../lib/surface';
-import { verifyCopy, waitingLine, type PriceResult } from '../../lib/worker-model';
+import {
+  BAND_NEEDED_LINE,
+  DEMO_CHECK_ACTION,
+  DEMO_CHECK_LINE,
+  verifyCopy,
+  waitingLine,
+  type PriceResult,
+} from '../../lib/worker-model';
 import { AmountSlider } from '../amount-slider';
 import { CoverCardShell } from '../cover-card';
 import { DisplayNumber } from '../display-number';
@@ -331,6 +339,19 @@ function StepHeading({ children, ref }: { children: ReactNode; ref?: Ref<HTMLHea
  * grouping only. Choosing is unchanged: all fifteen still move the explorer,
  * and the search still matches across both parts, so a query that finds only
  * unbuyable occupations still shows them under their heading.
+ *
+ * The rows are capped and scroll, at the height the card has always capped them
+ * at. The route's picker did not cap, so at 390 its fifteen rows pushed
+ * "Continue" a long way under the fold while the card's landed above it: the
+ * same list, two answers. They are one answer now, and it is this one.
+ *
+ * One occupation cannot be quoted from here, and it is not a dead end. Capital
+ * commits to an occupation and a length of experience together, and this card
+ * has no experience step: it quotes against the capital that named no length,
+ * and an occupation allocated in full to its bands has none of that left. The
+ * card cannot ask the question, so "Continue" goes to the screen that can,
+ * carrying the occupation already chosen in the same session the routes read.
+ * One press, one question answered, which is what the button says it does.
  */
 function OccupationFace({
   current,
@@ -345,6 +366,7 @@ function OccupationFace({
 }) {
   const { choose, go, group } = useQuote();
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const heading = useRef<HTMLHeadingElement>(null);
   const groups = groupOccupations(filterOccupations(query));
   const nothing = groups.open.length === 0 && groups.noCover.length === 0;
@@ -354,6 +376,14 @@ function OccupationFace({
   function continueWith(selected: string): void {
     startTransition(async () => {
       const price = await quoteOccupation(selected);
+      // No price, because nobody has been told how long this person has
+      // worked and this occupation is only funded at particular lengths. The
+      // quote wrote the occupation to the session before it asked, so the
+      // experience screen opens on it and the purchase carries on there.
+      if (price.needsBand === true) {
+        router.push('/experience');
+        return;
+      }
       onPriced(price);
       go('amount');
     });
@@ -528,24 +558,39 @@ function AmountFace({
 
       {/* Ink, not the triggered red, which is 3.47:1 on the card's darkest
           gradient stop. The sentence carries what happened, the same way the
-          index badge's sentence carries the state and its dot is decoration. */}
+          index badge's sentence carries the state and its dot is decoration.
+
+          A refusal for want of a length of experience is said in the card's own
+          words and not the route's. The route's sentence is written for a
+          screen that asked the question; this one never did, and a card telling
+          somebody to choose another length of experience they were never asked
+          for is the card talking about a screen they have not seen. Reachable
+          only when capital moves while the slider is open, because the
+          occupation step sends this case to /experience before the card ever
+          turns to this face. */}
       {price?.error == null ? null : (
         <p className="text-secondary font-medium text-ink" role="status">
-          {price.error}
+          {price.needsBand === true ? BAND_NEEDED_LINE : price.error}
         </p>
       )}
 
       <div className="flex flex-col gap-3">
         <TextLink href={INDEX_ANCHOR}>How the index works</TextLink>
-        <PillButton
-          className="w-full"
-          disabled={!settled}
-          loading={pending}
-          onClick={() => go('complete')}
-          type="button"
-        >
-          Continue
-        </PillButton>
+        {price?.needsBand === true ? (
+          <PillLink className="w-full" href="/experience">
+            Continue
+          </PillLink>
+        ) : (
+          <PillButton
+            className="w-full"
+            disabled={!settled}
+            loading={pending}
+            onClick={() => go('complete')}
+            type="button"
+          >
+            Continue
+          </PillButton>
+        )}
         <BackTo step="occupation" />
       </div>
     </QuoteFace>
@@ -637,6 +682,13 @@ function CompleteFace({
  * covers the page from its own shadow-root host, so what is on the face is the
  * state of the check: idle before it, waiting while it is out, verified after
  * it, and the deck's failure with "Try again" when it does not come back.
+ *
+ * The demo check is the route's too, out of the same hook and in the same
+ * words. It has to be: this is the same step on two surfaces, and a card that
+ * left somebody at a check they cannot finish is the front door stopping a
+ * purchase the route would have let through. It is the secondary here as it is
+ * there, it appears only once a real check has been opened and come back with
+ * nothing, and the line above the buttons says what it is.
  */
 function VerifyFace({
   check,
@@ -670,22 +722,20 @@ function VerifyFace({
           {waitingLine(surface)}
         </p>
       ) : null}
-      {interim ? (
-        <p className="text-secondary text-ink-2">
-          Interim check. Testnet only. This issues the eligibility credential without running a
-          World Selfie Check yet.
-        </p>
-      ) : null}
 
       <div className="flex flex-col gap-3">
+        {/* Beside the control it is about, which is where the route puts it. */}
+        {check.demoLine ? <p className="text-secondary text-ink-2">{DEMO_CHECK_LINE}</p> : null}
         {check.state === 'verified' ? (
           <PillButton className="w-full" loading={pending} onClick={onContinue} type="button">
             {copy.button}
           </PillButton>
         ) : check.state === 'covered' ? (
-          // The one place this flow leaves the page on purpose. The rule has
-          // been read and the person already holds cover, so the destination is
-          // that cover and not another step of a purchase they cannot make.
+          // One of the two places this flow leaves the page on purpose, the
+          // other being an occupation sold by length of experience. The rule
+          // has been read and the person already holds cover, so the
+          // destination is that cover and not another step of a purchase they
+          // cannot make.
           <form action={goToCover}>
             <PillButton className="w-full" type="submit">
               {copy.button}
@@ -701,6 +751,16 @@ function VerifyFace({
             {copy.button}
           </PillButton>
         )}
+        {!interim && check.refusedCheck ? (
+          <PillButton
+            className="w-full"
+            onClick={check.demoCheck}
+            type="button"
+            variant="secondary"
+          >
+            {DEMO_CHECK_ACTION}
+          </PillButton>
+        ) : null}
         <BackTo step="complete" />
       </div>
     </QuoteFace>

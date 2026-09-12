@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { ApiError, reportUnreachable } from '../lib/api';
@@ -7,7 +8,12 @@ import { ApiError, reportUnreachable } from '../lib/api';
 import { bandLabel, isSeniorityBand, type SeniorityBand } from '../lib/bands';
 
 import { forgetCover, openCoverSession } from '../lib/current-cover';
-import { issueEligibilityFor, type EligibilityRequest } from '../lib/eligibility';
+import {
+  demoIssuer,
+  issueEligibilityFor,
+  type EligibilityIssuer,
+  type EligibilityRequest,
+} from '../lib/eligibility';
 import { AMOUNT_DEFAULT } from '../lib/cover-amount';
 import { findOccupation, hasCover, occupationLabel } from '../lib/occupations';
 import {
@@ -84,6 +90,31 @@ function bandOf(session: PurchaseSession | null): { band?: SeniorityBand } {
 }
 
 /**
+ * The screens that render an answer this session holds, told that the answer
+ * has changed.
+ *
+ * Every step of this flow is `dynamic = 'force-dynamic'`, which settles how a
+ * screen is rendered on the server and nothing at all about what the browser
+ * does with a copy it already has. The client router keeps the payload of every
+ * route it has soft navigated to, and a back or a forward is served out of it
+ * without asking the server anything: that is the point of it, and it is why
+ * the button press is instant. The payload it kept for /experience was rendered
+ * on the way in, before a band had been chosen, so going back landed on a
+ * screen with nothing ticked while the session, the next screen and the price
+ * all knew perfectly well which band it was. /occupation only escaped the same
+ * fate by being reached with a full page load, which does not go in that cache.
+ *
+ * So the fix is to say what happened: these actions write the answer, and the
+ * two screens that draw it are revalidated in the same breath, which is what
+ * drops the browser's stale copy and makes the next visit, forward or back,
+ * fetch the session as it now stands. Nothing is refetched that has not changed.
+ */
+function purchaseAnswersChanged(): void {
+  revalidatePath('/occupation');
+  revalidatePath('/experience');
+}
+
+/**
  * Start screen: "Get a quote". Nothing calls this since T35.
  *
  * It was the landing page's button, which started a session and left for the
@@ -118,6 +149,7 @@ export async function chooseOccupation(formData: FormData): Promise<void> {
     redirect('/occupation');
   }
   await updatePurchase({ group, band: null, limit: AMOUNT_DEFAULT, quoteId: null });
+  purchaseAnswersChanged();
   redirect('/experience');
 }
 
@@ -135,6 +167,7 @@ export async function chooseBand(formData: FormData): Promise<void> {
   const value = String(formData.get('band') ?? '');
   if (!isSeniorityBand(value)) redirect('/experience');
   await updatePurchase({ band: value, quoteId: null });
+  purchaseAnswersChanged();
   redirect('/amount');
 }
 
@@ -162,6 +195,7 @@ export async function quoteOccupation(group: string): Promise<PriceResult> {
     return noCoverForGroup(AMOUNT_DEFAULT);
   }
   await updatePurchase({ group, band: null, limit: AMOUNT_DEFAULT, quoteId: null });
+  purchaseAnswersChanged();
   return await priceCover(AMOUNT_DEFAULT);
 }
 
@@ -240,25 +274,43 @@ export async function completeWorldCheck(result: unknown): Promise<VerifyResult>
 }
 
 /**
- * Verify screen: the interim check, for a clone with no World app.
+ * Verify screen: the labelled demo check.
  *
  * The nullifier is the session's own, because there is no proof to take one
  * from. On the World path it comes out of the proof, inside the API.
+ *
+ * It names `demoIssuer` rather than asking `activeIssuer()` which path this
+ * deployment is on, and that is the whole of the fix. A deployment with no
+ * World app got the demo issuer from `activeIssuer()` anyway, so nothing about
+ * that path changes. A deployment that has one got the World issuer, which
+ * refuses to mint without an IDKit result it was never given, so this action
+ * could only ever fail there: the screen offering it had no way through and the
+ * check could never be finished on a device whose Selfie Check cannot complete.
+ * The credential it mints says on its face that no camera ran, so the receipt
+ * and the audit trail still say which check was used.
  */
 export async function verifyPerson(): Promise<VerifyResult> {
   const session = await readPurchase();
   const group = session?.group;
   if (!group || session === null) redirect('/occupation');
-  return await earnCredential({
-    group,
-    wallet: purchaseWallet(session),
-    nullifier: session.nullifier,
-  });
+  return await earnCredential(
+    {
+      group,
+      wallet: purchaseWallet(session),
+      nullifier: session.nullifier,
+    },
+    demoIssuer,
+  );
 }
 
-async function earnCredential(request: EligibilityRequest): Promise<VerifyResult> {
+async function earnCredential(
+  request: EligibilityRequest,
+  issuer?: EligibilityIssuer,
+): Promise<VerifyResult> {
   try {
-    const issued = await issueEligibilityFor(request);
+    const issued = await (issuer === undefined
+      ? issueEligibilityFor(request)
+      : issuer.issue(request));
     await updatePurchase({
       credential: issued.credential,
       credentialExpiresAt: issued.expiresAt,

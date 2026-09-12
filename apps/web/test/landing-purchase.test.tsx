@@ -277,18 +277,46 @@ describe('the check step is the verify screen, on the card', () => {
     expect(document.querySelector('.cover-card-turn')?.contains(widget)).toBe(false);
   });
 
-  it('runs the interim issuer, and says so, where there is no World app id', async () => {
+  it('runs the demo issuer, and says so, where there is no World app id', async () => {
     page(true);
     await toCheck();
 
-    expect(
-      panel().getByText(/Interim check\. Testnet only\./),
-    ).toBeDefined();
+    expect(panel().getByText(/Demo check\. Testnet only\./)).toBeDefined();
     fireEvent.click(panel().getByRole('button', { name: 'Verify with World ID' }));
 
     await waitFor(() => expect(verifyPerson).toHaveBeenCalledTimes(1));
     expect(startWorldCheck).not.toHaveBeenCalled();
     expect(widgetProps).toHaveLength(0);
+  });
+
+  /**
+   * The same step on two surfaces has to behave the same way. /verify offers
+   * the labelled demo check once a real one has been opened and left with
+   * nothing, and this card is that step, so it offers it too. Without it the
+   * front door is where a purchase stops on a deployment whose Selfie Check
+   * cannot be completed.
+   */
+  it('offers the demo check on the card, once a real check has come back with nothing', async () => {
+    page();
+    await toCheck();
+
+    expect(panel().queryByRole('button', { name: 'Use the demo check' })).toBeNull();
+    expect(panel().queryByText(/Demo check\. Testnet only\./)).toBeNull();
+
+    fireEvent.click(panel().getByRole('button', { name: 'Verify with World ID' }));
+    await waitFor(() => expect(widgetProps.length).toBeGreaterThan(0));
+    const onOpenChange = widgetProps.at(-1)?.['onOpenChange'] as (open: boolean) => void;
+    act(() => onOpenChange(false));
+
+    const demo = await settledButton('Use the demo check');
+    expect(panel().getByText(/Demo check\. Testnet only\./)).toBeDefined();
+    // The World check keeps the primary. The demo path is never it.
+    expect(panel().getByRole('button', { name: 'Verify with World ID' })).toBeDefined();
+
+    fireEvent.click(demo);
+    await waitFor(() => expect(verifyPerson).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(panel().getByText("You're verified")).toBeDefined());
+    expect(panel().getByText(/Demo check\. Testnet only\./)).toBeDefined();
   });
 
   it('says nothing when the person cancels, and leaves them where they were', async () => {

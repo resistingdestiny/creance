@@ -25,8 +25,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 vi.setConfig({ testTimeout: 20_000 });
 
+/** One spy across every useRouter call, so a navigation can be asserted. */
+const routerPush = vi.hoisted(() => vi.fn());
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: routerPush, replace: vi.fn() }),
   redirect: vi.fn(),
 }));
 
@@ -194,6 +197,42 @@ describe('the occupation step keeps the deck', () => {
     expect(rows.at(-1)?.textContent).toContain('Farming, fishing and forestry');
     expect(panel().getByText('Open to buy (15)')).toBeDefined();
     expect(panel().queryByText(/No cover behind these yet/)).toBeNull();
+  });
+
+  /**
+   * The card has no experience step and quotes with no band at all, so an
+   * occupation whose capital has all been committed to particular lengths of
+   * experience has nothing to quote against here. That is not a dead end and it
+   * is not a refusal: the occupation can be bought, the person simply has to
+   * say how long they have worked, and the screen that asks that is a route.
+   * The session already holds the occupation, so it opens on it.
+   */
+  it('sends an occupation sold by length of experience to the screen that asks', async () => {
+    vi.mocked(quoteOccupation).mockResolvedValue({
+      limit: '5,000',
+      premium: '',
+      sentence: '',
+      usedPercent: 0,
+      full: true,
+      error: 'Nobody is funding that length of experience any more. Choose another.',
+      needsBand: true,
+    });
+    page();
+    await getAQuote();
+    const legal = panel()
+      .getAllByRole('button')
+      .find((button) => button.textContent?.startsWith('Legal') === true) as HTMLElement;
+    fireEvent.click(legal);
+    fireEvent.click(continueButton());
+
+    await waitFor(() => expect(routerPush).toHaveBeenCalledWith('/experience'));
+    // The card does not turn to a cover amount it has no price for, and the
+    // sentence about choosing another length of experience, which is written
+    // for a screen that asked about experience, is never read here.
+    expect(document.querySelector('[data-facing="viewer"]')?.textContent).toContain(
+      'What do you do?',
+    );
+    expect(panel().queryByText(/length of experience any more/)).toBeNull();
   });
 
   it('keeps a search under the heading for the part it matched', async () => {

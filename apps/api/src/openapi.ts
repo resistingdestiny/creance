@@ -14,6 +14,11 @@
 /// an agent reading this document has to be able to find out what a call will
 /// cost before it makes one. The gate is live: an unpaid call to any of them
 /// comes back 402 with the requirements in `PAYMENT-REQUIRED`.
+///
+/// The six market operations carry no 402 and that is a decision rather than an
+/// omission: this venue charges no fee, so there is no fee to meter, and a book
+/// nobody may read is not an order book. The reasoning is in
+/// apps/api/src/market/index.ts and in docs/ATS.md, "The secondary market".
 
 import { HISTORY_MONTHS, HISTORY_MONTHS_MAX } from './routes/index-feed.js';
 import {
@@ -40,6 +45,12 @@ export const OPERATIONS = [
   'GET /v1/series',
   'GET /v1/series/{seriesId}',
   'GET /v1/series/{seriesId}/coupons',
+  'GET /v1/market/offers',
+  'POST /v1/market/offers',
+  'GET /v1/market/offers/{id}',
+  'POST /v1/market/offers/{id}/fill',
+  'POST /v1/market/offers/{id}/cancel',
+  'GET /v1/market/positions/{holder}',
 ] as const;
 
 export function buildOpenApiDocument(options: DocumentOptions): Record<string, unknown> {
@@ -75,6 +86,10 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
         'network `hedera:testnet`, settled through the Blocky402 testnet facilitator.',
         'An unpaid call is refused with 402 and the requirements in the',
         '`PAYMENT-REQUIRED` header; every settlement is written to the payments topic.',
+        '',
+        'The secondary market is free, to read and to trade. The venue takes no fee off',
+        'either leg of a fill, so there is nothing to meter, and an order book behind a',
+        'paywall is an order book nobody can price against.',
       ].join('\n'),
       license: { name: 'MIT' },
     },
@@ -83,6 +98,11 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
       { name: 'index', description: 'The Occupation Displacement Index.' },
       { name: 'cover', description: 'Quoting and binding a policy.' },
       { name: 'series', description: 'The Displacement Bond Note series.' },
+      {
+        name: 'market',
+        description:
+          "The secondary market in the notes. Free, and the compliance gate on a fill is the note's own KYC register rather than anything of this API.",
+      },
       { name: 'audit', description: 'The trail on the Hedera Consensus Service topics.' },
     ],
     paths: {
@@ -401,6 +421,274 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
           },
         },
       },
+      '/v1/market/offers': {
+        get: {
+          tags: ['market'],
+          operationId: 'getOrderBook',
+          summary: 'The order book',
+          description: [
+            'Free. Every offer ever made on the venue, newest first, with the venue',
+            'address, the settlement asset and a count of each status.',
+            '',
+            'Filled and cancelled offers are in it by default. An order book showing',
+            'only what is open would throw away the only record this system has of what',
+            'a unit of a note last changed hands for, which is the number a holder',
+            'deciding whether to sell actually wants. `status=open` narrows it.',
+            '',
+            "Naming a `buyer` adds `buyer_eligibility` to every offer: the note's own",
+            'answer to whether that account may hold it. A screen greys its take button',
+            'on that, and the note is what actually refuses.',
+            '',
+            'A deployment with no venue in its record answers an empty book rather than',
+            'an error, because a venue that exists nowhere has no offers.',
+          ].join('\n'),
+          parameters: [
+            {
+              name: 'status',
+              in: 'query',
+              required: false,
+              description: 'One status, or `all`, which is the default.',
+              schema: { type: 'string', enum: ['all', 'open', 'filled', 'cancelled'] },
+              example: 'open',
+            },
+            {
+              name: 'series',
+              in: 'query',
+              required: false,
+              description: 'One series, by its label, its id or its occupation group.',
+              schema: { type: 'string' },
+              example: 'ODI-ARTS-2026-01',
+            },
+            {
+              name: 'holder',
+              in: 'query',
+              required: false,
+              description:
+                'Only offers this account made as a seller or took as a buyer. A demo role, a Hedera account id or an EVM address.',
+              schema: { type: 'string' },
+              example: '0.0.10366460',
+            },
+            {
+              name: 'buyer',
+              in: 'query',
+              required: false,
+              description:
+                'An account a screen is about to offer a take button to. Adds `buyer_eligibility` to every offer.',
+              schema: { type: 'string' },
+              example: 'investor-1',
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'The book.',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/OrderBook' } },
+              },
+            },
+          },
+        },
+        post: {
+          tags: ['market'],
+          operationId: 'createOffer',
+          summary: 'Offer a lot of note units at a price',
+          description: [
+            'Free. Raises the venue allowance on the note where it has to, then writes',
+            'the offer, and answers the offer as the book now holds it with the',
+            'transactions that made it.',
+            '',
+            'Nothing is escrowed. An offer is a standing instruction backed by an',
+            'allowance, so a seller can move the units elsewhere or revoke the allowance',
+            'and the offer stays on the book until it is taken or withdrawn. `readiness`',
+            'on the offer reports whether the seller still holds the lot and whether the',
+            'allowance is still in place, which is what a screen reads rather than',
+            'guessing.',
+            '',
+            'The seller is named by its demo role and not by a key. This deployment',
+            'signs only for the accounts in its own record, which is a demonstration',
+            'posture and not a custody model; a deployment with no operator key answers',
+            '503 here and serves the reads exactly as before.',
+          ].join('\n'),
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/OfferRequest' } },
+            },
+          },
+          responses: {
+            '201': {
+              description: 'The offer, and the transactions that placed it.',
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Offer' } } },
+            },
+            '400': problemResponse(
+              '`seller_missing` or `seller_unknown`, `series_missing` or `series_not_found`, `units_invalid` or `price_invalid` for anything that is not a whole number of minor units above nought.',
+            ),
+            '409': problemResponse(
+              '`series_has_no_note`: that series has no note issued against it. `units_not_held`: the seller holds fewer units than the offer.',
+            ),
+            '503': problemResponse(
+              '`market_writes_unavailable`: this deployment reads the market but cannot sign for an account.',
+            ),
+          },
+        },
+      },
+      '/v1/market/offers/{id}': {
+        get: {
+          tags: ['market'],
+          operationId: 'getOffer',
+          summary: 'One offer',
+          description: [
+            'Free. The lot, the price, the parties, and what stands between the offer',
+            'and a fill. `buyer` asks the note whether a named account may hold it.',
+          ].join('\n'),
+          parameters: [
+            {
+              name: 'id',
+              in: 'path',
+              required: true,
+              description: 'The offer id the venue gave it, counting from one.',
+              schema: { type: 'integer', minimum: 1 },
+              example: 1,
+            },
+            {
+              name: 'buyer',
+              in: 'query',
+              required: false,
+              description: 'An account to report `buyer_eligibility` for.',
+              schema: { type: 'string' },
+              example: 'investor-1',
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'The offer.',
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Offer' } } },
+            },
+            '400': problemResponse('`offer_id_invalid`: an offer id is a whole number of one or more.'),
+            '404': problemResponse('`offer_not_found`.'),
+          },
+        },
+      },
+      '/v1/market/offers/{id}/fill': {
+        post: {
+          tags: ['market'],
+          operationId: 'fillOffer',
+          summary: 'Take an offer',
+          description: [
+            'Free. One transaction carries both legs, the note first and the settlement',
+            'token second, so either both move or neither does and there is no state in',
+            'which one side has been paid and the other has not.',
+            '',
+            "The compliance gate is the note's, and this is the operation it gates. A",
+            'buyer with no granted KYC record on that note is refused with 409',
+            '`fill_refused` before anything is signed, because a fill the note will',
+            'refuse reverts the whole transaction and the buyer would still have paid',
+            'for the approval that preceded it. Where a call does get past the read, the',
+            'note reverts it and the revert reason is the same answer. Neither path is',
+            'this API softening or re-implementing the check: the register is the',
+            "note's own and there is no allow list here.",
+            '',
+            'A fill is whole lot. There is no partial fill and so no price rounding to',
+            'argue about.',
+          ].join('\n'),
+          parameters: [
+            {
+              name: 'id',
+              in: 'path',
+              required: true,
+              schema: { type: 'integer', minimum: 1 },
+              example: 1,
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/FillRequest' } },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'The offer as it now stands, and the transactions that settled it.',
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Offer' } } },
+            },
+            '400': problemResponse('`buyer_missing` or `buyer_unknown`.'),
+            '404': problemResponse('`offer_not_found`.'),
+            '409': problemResponse(
+              '`fill_refused`, which is the note refusing the transfer and carries the reason it refused with, `offer_not_open`, `seller_cannot_fill`, or `insufficient_settlement_balance`.',
+            ),
+            '503': problemResponse('`market_writes_unavailable`.'),
+          },
+        },
+      },
+      '/v1/market/offers/{id}/cancel': {
+        post: {
+          tags: ['market'],
+          operationId: 'cancelOffer',
+          summary: 'Withdraw an offer',
+          description:
+            'Free. Only the account that made an offer can withdraw it, and the venue holds nothing to give back: the units never left the seller.',
+          parameters: [
+            {
+              name: 'id',
+              in: 'path',
+              required: true,
+              schema: { type: 'integer', minimum: 1 },
+              example: 1,
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/CancelRequest' } },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'The offer, withdrawn, and the transaction that withdrew it.',
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/Offer' } } },
+            },
+            '400': problemResponse('`seller_missing` or `seller_unknown`.'),
+            '403': problemResponse('`not_the_seller`.'),
+            '404': problemResponse('`offer_not_found`.'),
+            '503': problemResponse('`market_writes_unavailable`.'),
+          },
+        },
+      },
+      '/v1/market/positions/{holder}': {
+        get: {
+          tags: ['market'],
+          operationId: 'getPositions',
+          summary: 'What an account holds and what it has traded',
+          description: [
+            'Free. Every note this account holds a unit of, its settlement balance, and',
+            'the offers it has open as a seller or filled as a buyer.',
+            '',
+            'A note with a zero balance is not a position and is not returned. Each',
+            "position carries the note's own KYC record for this account, which is what",
+            'decides whether the account can receive a unit of that note at all.',
+          ].join('\n'),
+          parameters: [
+            {
+              name: 'holder',
+              in: 'path',
+              required: true,
+              description: 'A demo role, a Hedera account id or an EVM address.',
+              schema: { type: 'string' },
+              example: '0.0.10366460',
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'The positions.',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/Positions' } },
+              },
+            },
+            '404': problemResponse(
+              '`holder_not_found`: name a holder by its demo role, its account id or its EVM address.',
+            ),
+          },
+        },
+      },
     },
     components: {
       securitySchemes: {
@@ -555,7 +843,7 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
             wallet: { type: 'string', example: '0.0.10366453' },
             limit: { $ref: '#/components/schemas/Money' },
             premium: { $ref: '#/components/schemas/Money' },
-            annual_rate_bps: { type: 'integer', example: 672 },
+            annual_rate_bps: { type: 'integer', example: 2311 },
             pricing_basis: {
               type: 'object',
               description: 'Every assumption behind the rate, so nothing has to be taken on trust.',
@@ -889,6 +1177,224 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
                   },
                 },
               },
+            },
+          },
+        },
+        MarketParty: {
+          type: 'object',
+          nullable: true,
+          description:
+            'An account on the venue. `role` and `account_id` are null for an address the deployment record has never named.',
+          required: ['address'],
+          properties: {
+            role: { type: 'string', nullable: true, example: 'investor-1' },
+            account_id: { type: 'string', nullable: true, example: '0.0.10366460' },
+            address: { type: 'string', example: '0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931' },
+            hashscan: { type: 'string' },
+          },
+        },
+        Offer: {
+          type: 'object',
+          description:
+            "One offer on the venue. Amounts are Money, and `units` is in the note's own minor units, which carries the same six decimals as the settlement asset by design so a price never has to be rescaled between the two legs of a fill.",
+          required: ['offer_id', 'status', 'units', 'price', 'seller', 'opened_at'],
+          properties: {
+            offer_id: { type: 'string', example: '1' },
+            status: { type: 'string', enum: ['open', 'filled', 'cancelled', 'unknown'] },
+            series_id: { type: 'string', nullable: true, example: 'ODI-ARTS-2026-01' },
+            series_key: { type: 'string', nullable: true },
+            group: { type: 'string', nullable: true, enum: [...GROUP_KEYS, null] },
+            note: {
+              type: 'object',
+              properties: {
+                address: { type: 'string' },
+                contract_id: { type: 'string', nullable: true, example: '0.0.10455865' },
+                symbol: { type: 'string', nullable: true, example: 'CDBN02' },
+                decimals: { type: 'integer', example: 6 },
+                hashscan: { type: 'string' },
+              },
+            },
+            seller: { $ref: '#/components/schemas/MarketParty' },
+            buyer: { $ref: '#/components/schemas/MarketParty' },
+            units: { type: 'string', example: '5000000' },
+            units_whole: { type: 'string', example: '5' },
+            price: { $ref: '#/components/schemas/Money' },
+            price_per_unit: { $ref: '#/components/schemas/Money' },
+            opened_at: { type: 'string', format: 'date-time' },
+            closed_at: { type: 'string', format: 'date-time', nullable: true },
+            readiness: {
+              type: 'object',
+              nullable: true,
+              description:
+                'What stands between this offer and a fill, read off the chain rather than assumed. Null on an offer that is not open, because a closed offer cannot become fillable again. None of it is a compliance verdict: that is `buyer_eligibility`.',
+              properties: {
+                open: { type: 'boolean' },
+                seller_holds: { type: 'boolean' },
+                seller_approved: { type: 'boolean' },
+              },
+            },
+            buyer_eligibility: {
+              type: 'object',
+              nullable: true,
+              description:
+                "Whether a named would-be buyer may hold this note at all. Present only when the request named a buyer. It is the note's own KYC register read back and nothing of this API.",
+              properties: {
+                address: { type: 'string' },
+                role: { type: 'string', nullable: true },
+                kyc_granted: { type: 'boolean' },
+                reason: { type: 'string', nullable: true },
+              },
+            },
+            transactions: {
+              type: 'object',
+              description:
+                'The transactions a write made, present on the answer to POST and never on a read. `approve` is null where the allowance was already in place.',
+              properties: {
+                approve: { type: 'string', nullable: true },
+                offer: { type: 'string' },
+                fill: { type: 'string' },
+                cancel: { type: 'string' },
+              },
+            },
+            gas_used: {
+              type: 'string',
+              description: 'The gas a fill used. Present on the answer to a fill and nowhere else.',
+              example: '564330',
+            },
+            hashscan: { type: 'string' },
+          },
+        },
+        OrderBook: {
+          type: 'object',
+          required: ['network', 'settlement_asset', 'offers', 'counts'],
+          properties: {
+            network: { type: 'string', example: 'testnet' },
+            market: {
+              type: 'object',
+              nullable: true,
+              description: 'The venue, or null on a deployment where it was never deployed.',
+              properties: {
+                address: { type: 'string' },
+                contract_id: { type: 'string', nullable: true, example: '0.0.10495570' },
+                hashscan: { type: 'string' },
+              },
+            },
+            settlement_asset: { $ref: '#/components/schemas/SettlementAsset' },
+            offers: { type: 'array', items: { $ref: '#/components/schemas/Offer' } },
+            counts: {
+              type: 'object',
+              description: 'Counted over the offers this request returned, not over the venue.',
+              properties: {
+                total: { type: 'integer' },
+                open: { type: 'integer' },
+                filled: { type: 'integer' },
+                cancelled: { type: 'integer' },
+              },
+            },
+          },
+        },
+        Position: {
+          type: 'object',
+          description:
+            'What one account holds of one note. `units` is what the note reports as spendable and `units_frozen` what is frozen; `units_position` is the two added together, which is the holding.',
+          required: ['series_id', 'group', 'units', 'units_position', 'kyc'],
+          properties: {
+            series_id: { type: 'string', example: 'ODI-OFFC-2026-01' },
+            series_key: { type: 'string' },
+            group: { type: 'string', enum: GROUP_KEYS },
+            note: {
+              type: 'object',
+              properties: {
+                address: { type: 'string' },
+                contract_id: { type: 'string', nullable: true, example: '0.0.10455865' },
+                symbol: { type: 'string', nullable: true, example: 'CDBN02' },
+                decimals: { type: 'integer', example: 6 },
+                hashscan: { type: 'string' },
+              },
+            },
+            units: { type: 'string' },
+            units_frozen: { type: 'string' },
+            units_position: { type: 'string' },
+            units_whole: { type: 'string', example: '5' },
+            kyc: {
+              type: 'object',
+              description:
+                "The note's own internal KYC register. Without a granted record this account cannot receive a unit of this note at all, whatever it offers.",
+              properties: {
+                status: { type: 'integer', example: 1 },
+                granted: { type: 'boolean' },
+              },
+            },
+          },
+        },
+        Positions: {
+          type: 'object',
+          required: ['network', 'holder', 'settlement_balance', 'positions', 'offers'],
+          properties: {
+            network: { type: 'string', example: 'testnet' },
+            holder: { $ref: '#/components/schemas/MarketParty' },
+            settlement_balance: { $ref: '#/components/schemas/Money' },
+            positions: {
+              type: 'array',
+              description: 'Only the series this account holds a unit of.',
+              items: { $ref: '#/components/schemas/Position' },
+            },
+            offers: {
+              type: 'array',
+              description:
+                'The offers this account has open as a seller and the ones it has filled as a buyer, newest first.',
+              items: { $ref: '#/components/schemas/Offer' },
+            },
+          },
+        },
+        OfferRequest: {
+          type: 'object',
+          required: ['seller', 'series', 'units', 'price'],
+          properties: {
+            seller: {
+              type: 'string',
+              description:
+                'The account making the offer, by the demo role this deployment signs for. It signs for nothing else.',
+              example: 'investor-1',
+            },
+            series: {
+              type: 'string',
+              description: 'The series whose note is being offered, by label, id or group.',
+              example: 'ODI-OFFC-2026-01',
+            },
+            units: {
+              type: 'string',
+              description: "The lot, an integer in the note's smallest unit. 5 units is 5000000.",
+              example: '5000000',
+            },
+            price: {
+              type: 'string',
+              description:
+                'What the whole lot costs, an integer in the settlement asset smallest unit. The lot is taken entire or not at all.',
+              example: '5000000000',
+            },
+          },
+        },
+        FillRequest: {
+          type: 'object',
+          required: ['buyer'],
+          properties: {
+            buyer: {
+              type: 'string',
+              description: 'The account taking the offer, by the demo role.',
+              example: 'investor-2',
+            },
+          },
+        },
+        CancelRequest: {
+          type: 'object',
+          required: ['seller'],
+          properties: {
+            seller: {
+              type: 'string',
+              description:
+                'The account that made the offer. Nobody else can withdraw it.',
+              example: 'investor-1',
             },
           },
         },

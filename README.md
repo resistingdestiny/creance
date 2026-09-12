@@ -129,7 +129,8 @@ Run all of these from the repository root.
 | `pnpm ats:issue` | Issues the demo Displacement Bond Note series as an Asset Tokenization Studio bond on Hedera testnet and runs the compliance sequence: roles, the credential issuer, a KYC grant per noteholder, the mints, a blocked then allowed transfer, pause, freeze and the first coupon. Idempotent: run it again and it does nothing. The run through with a link for every transaction is [docs/ATS.md](docs/ATS.md). Stages: `status throwaway issue roles issuer kyc1 mint1 blocked kyc2 allowed mint2 controls coupon couponcheck verify`. A second argument names the series to act on, by group key or by label, as in `pnpm ats:issue issue office_admin_support`; with no arguments it is the demo series and does exactly what it always did. |
 | `pnpm coupons:pay` | Settles a declared coupon on Hedera testnet: seeds the premium account, subscribes the noteholders in the vault, pays each holder with a Scheduled Transaction carrying the vault's `fundCoupon` call, and publishes each settlement to the payments topic. Idempotent: run it again and it does nothing. The run through is [docs/ATS.md](docs/ATS.md) section 14. Stages: `status fund probe seed subscribe pay publish verify`. |
 | `pnpm coupons:mature` | Runs a maturity redemption on Hedera testnet, on a short dated series opened for the purpose because the demo series matures in 2027: opens the series and a matching note, subscribes both noteholders, waits, then burns each holding through ATS and returns the principal from the vault. Stages: `status fund open bond subscribe wait redeem payout`. |
-| `pnpm api:dev` | Runs the API alone on port 3210, reading Hedera testnet and the local database. Endpoints: `POST /v1/quote`, `POST /v1/bind`, `GET /v1/policy/:id`, `GET /v1/audit/:id`, `GET /v1/index/:group`, `GET /v1/series`, `GET /v1/series/:id`, `GET /v1/series/:id/coupons`, `POST /v1/world/rp-context`, `POST /v1/world/verify`, `POST /v1/claims`, `GET /v1/claims/:id`, `GET /v1/replay`, `GET /health`, `GET /healthz` and `GET /.well-known/jwks.json`, with the review queue under `/v1/admin/claims` behind `ADMIN_TOKEN`. The index, quote and bind routes are paid: see [Payment flow](#payment-flow). `GET /v1/replay` is the oracle's run state, which is what puts the REPLAY badge on the web app; it sits outside `/v1/index/` because everything under that prefix is metered. Set `PORT` to move it, and `X402_ENABLED=false` to serve them open. |
+| `pnpm market:demo` | Deploys the `NoteMarket` venue and runs two trades on the office and administrative support note: a holder offers a lot of note units at a price, a buyer with no place on the note's KYC register is refused, the grant is made, and the same call then settles both legs in one transaction. Idempotent and record driven like `pnpm ats:issue`: it reads `contracts/deployments/testnet.json`, skips what is already there and writes back what it did, so nothing can be run twice into a second trade. The run through with a link for every transaction is [docs/ATS.md](docs/ATS.md) section 18. Stages: `status deploy fund trade verify`. |
+| `pnpm api:dev` | Runs the API alone on port 3210, reading Hedera testnet and the local database. Endpoints: `POST /v1/quote`, `POST /v1/bind`, `GET /v1/policy/:id`, `GET /v1/audit/:id`, `GET /v1/index/:group`, `GET /v1/series`, `GET /v1/series/:id`, `GET /v1/series/:id/coupons`, the free secondary market at `GET /v1/market/offers`, `GET /v1/market/offers/:id`, `GET /v1/market/positions/:holder`, `POST /v1/market/offers`, `POST /v1/market/offers/:id/fill` and `POST /v1/market/offers/:id/cancel`, `POST /v1/world/rp-context`, `POST /v1/world/verify`, `POST /v1/claims`, `GET /v1/claims/:id`, `GET /v1/replay`, `GET /health`, `GET /healthz` and `GET /.well-known/jwks.json`, with the review queue under `/v1/admin/claims` behind `ADMIN_TOKEN`. The index, quote and bind routes are paid: see [Payment flow](#payment-flow). `GET /v1/replay` is the oracle's run state, which is what puts the REPLAY badge on the web app; it sits outside `/v1/index/` because everything under that prefix is metered. Set `PORT` to move it, and `X402_ENABLED=false` to serve them open. |
 | `pnpm api:migrate` | Creates the API schema and seeds the fifteen occupation groups. Idempotent. |
 | `pnpm --filter @creance/api claims:close-windows` | Reads every registered series and calls `closeWindow` on the ones whose claim window has ended, so the unclaimed reserve returns to the vault. Permissionless: any funded account can run it. It refuses before the deadline and prints when it will work, rather than sending a transaction that reverts. Add `--dry-run` to read and report only. |
 | `pnpm --filter @creance/api testnet:claim` | Submits one proof of loss packet to a running API over HTTP, exactly as the web app will: a claim credential, an attestation signed by the policy wallet with its own key, and one of the committed documents. Options: `--policy pol_...` (required), `--packet a\|b`, `--holder ROLE`, `--url`, `--wait`. Then run `pnpm adjuster:run`. See [Claims](#claims). |
@@ -398,7 +399,7 @@ note is contract
 [0.0.10368240](https://hashscan.io/testnet/contract/0.0.10368240) and every
 transaction behind the steps below is linked in [docs/ATS.md](docs/ATS.md).
 
-Three commands, in this order. Each one is idempotent: run it again and it reads
+Four commands, in this order. Each one is idempotent: run it again and it reads
 the chain, finds the work done and does nothing, so a judge repeating a step
 sees `nothing to do` rather than a second issuance.
 
@@ -410,6 +411,12 @@ sees `nothing to do` rather than a second issuance.
                           payments topic
     pnpm coupons:mature   a maturity redemption, on a short dated series
                           opened for it because the demo series matures in 2027
+    pnpm market:demo      a secondary market in the notes, with a refused
+                          trade, a KYC grant and then the same trade settling
+
+The market runs on the office and administrative support note and not on the
+demo note, because this bond's coupons carry no snapshot and moving a unit of
+the demo note would change what its three settled coupons read back as.
 
 Each command takes a stage name to run one step on its own, which is what to use
 when watching a single operation rather than the whole sequence.
@@ -426,6 +433,7 @@ What each step proves, and where the evidence is:
 | `controls` | Pause and freeze, the two roles a regulated issuer needs | [docs/HEDERA.md](docs/HEDERA.md), "The compliance demonstration" |
 | `coupon`, then `pnpm coupons:pay` | A coupon distribution paid by Scheduled Transaction, with the settlement on the payments topic | [docs/HEDERA.md](docs/HEDERA.md), "The first coupon" |
 | `pnpm coupons:mature` | Redemption at maturity: the holding is burned through ATS and the principal returns from the vault | [docs/HEDERA.md](docs/HEDERA.md), "The maturity demonstration" |
+| `pnpm market:demo` | A secondary market in the notes with the compliance gate enforced at a price: an offer, a refused fill, a KYC grant, then the same fill settling both legs in one transaction | [docs/ATS.md](docs/ATS.md) section 18, [docs/HEDERA.md](docs/HEDERA.md), "The secondary market" |
 
 The principal at risk logic is ours, not ATS's: the CollateralVault holds the
 subscribed principal and the CoverPool reserves against it when a month opens,

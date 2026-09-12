@@ -1,8 +1,8 @@
 # The demonstration
 
-What has to be true before a camera is switched on, the nine shots the
-submission video is cut from, the procedure for recording them, and the separate
-Bazantic screen recording. The sequence itself is committed as data in
+What has to be true before a camera is switched on, the ten shots the submission
+video is cut from, the procedure for recording them, and the separate Bazantic
+screen recording. The sequence itself is committed as data in
 `apps/api/scripts/testnet/demo-seed/scenario.ts` and printed by `pnpm demo:seed
 scenario`, so the table below and the code cannot drift apart without a test
 failing.
@@ -18,7 +18,7 @@ from the API, and a demonstration that needs that label is not a demonstration.
 | Artefact | Length | Where it goes |
 |---|---|---|
 | The submission video | 2:00 to 4:00, cut to 3:50 | The ETHGlobal submission form. The only mandatory one. |
-| The showcase cut | 3:38 | The same take with the harness beat dropped. Linked from the README. |
+| The showcase cut | 3:40 | The same take with the harness beat dropped. Linked from the README. |
 | The Bazantic screen recording | about 2:00 | The Bazantic prize field and docs/SUBMISSION.md. |
 | The harness clip | 30 to 60 seconds | The harness pull request and the Hedera prize field. |
 
@@ -38,46 +38,84 @@ broken a take somewhere.
         skipping seed and pay" inside the investors stage. That is a skip, not
         a failure, and the run still exits 0
     [ ] pnpm demo:seed status prints "202605 is unspent"
+    [ ] the api account 0.0.10366450 holds well over 20 HBAR
     [ ] the two policies it printed are active and carry no claim yet
-    [ ] the reserve is at least one cover limit, or shot 5 runs before shot 6
+    [ ] the reserve is at least one cover limit, or shot 6 runs before shot 7
     [ ] both letters fingerprint to the hashes the seed printed
     [ ] pnpm oracle:preflight shows the oracle with HBAR to spend
-    [ ] the api account holds more than about 5 HBAR, or payClaim refuses
+    [ ] offer 5 on the venue is still open and investor-1 still holds no KYC on
+        the arts note, which is shot 5 and is spent the moment the grant is made
     [ ] the fourth wallet that buys live on camera is funded and associated
-    [ ] the Android phone has World ID (Sandbox) signed in, and the sandbox
-        account has not yet used the eligibility action for this occupation
+    [ ] the World check has been decided: either an Android phone with World ID
+        (Sandbox) signed in and a face to put in front of it, or the demo check
     [ ] scrcpy mirrors the phone at a readable size and the phone stays awake
     [ ] HashScan tabs pre opened: CoverPool, CollateralVault, the note, the
-        index topic, the claims topic. Never type a HashScan URL on camera.
+        market, the index topic, the claims topic. Never type a HashScan URL on
+        camera.
     [ ] a scratch tab holds the seed's id block, so no id is typed from memory
     [ ] the replay has not been started
     [ ] one full rehearsal has been done, timed, with the numbers written down
 
-Two of these deserve their own sentence. The reserve is what a payout is paid
-out of, and `pnpm demo:seed verify` refuses to finish if the reserve is under one
-cover limit and the month that would top it up has already been spent. And the
-Adjuster only reads a document when `ANTHROPIC_API_KEY` is set; without it every
-claim that needs a document read is referred to the review queue rather than
-declined, so shot 6 goes through the reviewer's Approve button on `/admin/claims`
-instead of finishing by itself. Both paths are real and both are worth showing;
-decide which one the take uses before the take, not during it.
+Four of these deserve their own sentence, because each one has stopped a take
+dead rather than degraded it.
 
-## The nine shots
+**The month.** Shot 6 opens a month live and a month can be submitted to
+CoverPool once. `pnpm demo:seed status` reads the chain and prints a `top-up
+month` line saying either that `202605 is unspent` or that it `is already
+observed, so the reserve cannot be topped up again`. If it says the second
+thing, shot 6 has no live opening left in it and the take has to be replanned
+before the camera goes on, not after. Related: `pnpm demo:seed verify` refuses
+to finish if the reserve is under one cover limit and the month that would top
+it up has already been spent.
+
+**The api account.** `0.0.10366450` holds BINDER_ROLE and CLAIMS_ROLE and is
+what signs every contract write this product makes. Hedera reserves the gas
+limit up front, so each of those writes puts about 1.92 HBAR out of reach while
+it runs and actually costs about 0.19. It ran dry on 12 September 2026 and
+binding stopped working for everybody, silently, because a bind that cannot pay
+its own fee looks from the outside like a bind that failed. Read it before the
+take and do not start one under about 20 HBAR:
+
+    curl -s https://testnet.mirrornode.hedera.com/api/v1/accounts/0.0.10366450
+
+`balance.balance` is in tinybars, a hundred million to the HBAR. It read
+169.17 HBAR at 14:32 UTC on 12 September 2026.
+
+**The World check.** The staging simulator offers Orb, Secure Document,
+Document and Device and has no Selfie or Face option, so a Selfie Check cannot
+be completed without a real Sandbox App on a real phone in front of a real face.
+Without one, both the purchase in shot 2 and the claim in shot 7 go through the
+demo check, which the screen names on its own face: press **Verify with World
+ID**, let the check be refused or abandoned, and **Use the demo check** appears
+under the line "Demo check. Testnet only. This issues the eligibility credential
+without running a World Selfie Check, because a camera cannot be automated."
+That is an honest shot and the screen says what it is, so it can be filmed
+rather than worked around. Decide which path the take uses before the take.
+
+**The Adjuster.** It only reads a document when `ANTHROPIC_API_KEY` is set.
+Without it every claim that needs a document read is referred to the review
+queue rather than declined, so shot 7 goes through the reviewer's Approve button
+on `/admin/claims` instead of finishing by itself. Both paths are real and both
+are worth showing; decide which one the take uses before the take, not during
+it.
+
+## The ten shots
 
 | # | In | Out | Length | Shot | On camera |
 |---|---|---|---|---|---|
 | 1 | 0:00 | 0:18 | 18s | The problem and the structure | slide |
-| 2 | 0:18 | 1:00 | 42s | The worker buys cover | browser, phone |
-| 3 | 1:00 | 1:38 | 38s | The Steward buys for its principal | terminal |
-| 4 | 1:38 | 2:12 | 34s | The investor and the note | browser, terminal |
-| 5 | 2:12 | 2:44 | 32s | The replay opens a month and the vault reserves | browser, terminal |
-| 6 | 2:44 | 3:14 | 30s | The claim that pays | browser, phone, terminal |
-| 7 | 3:14 | 3:26 | 12s | The claim that does not pay | browser |
-| 8 | 3:26 | 3:38 | 12s | The money closes the loop | browser, terminal |
-| 9 | 3:38 | 3:50 | 12s | The harness improvement and the close | terminal, slide |
+| 2 | 0:18 | 0:52 | 34s | The worker buys cover, on one page | browser, phone |
+| 3 | 0:52 | 1:26 | 34s | The Steward buys for its principal | terminal |
+| 4 | 1:26 | 1:52 | 26s | The investor board and the note | browser, terminal |
+| 5 | 1:52 | 2:18 | 26s | The note refuses a trade, then settles it | browser, terminal |
+| 6 | 2:18 | 2:48 | 30s | The replay opens a month and the vault reserves | browser, terminal |
+| 7 | 2:48 | 3:16 | 28s | The claim that pays | browser, phone, terminal |
+| 8 | 3:16 | 3:28 | 12s | The claim that does not pay | browser |
+| 9 | 3:28 | 3:40 | 12s | The money closes the loop | browser, terminal |
+| 10 | 3:40 | 3:50 | 10s | The harness improvement and the close | terminal, slide |
 
 DESIGN.md section 7 gives the demo clock sixty seconds and the whole video three
-hundred. The replay alone is longer than sixty seconds of real time, so shot 5
+hundred. The replay alone is longer than sixty seconds of real time, so shot 6
 is recorded continuously and the dwell between ticks is cut in the edit. That is
 removing waiting, which is allowed. The total moves from five minutes to 3:50
 because ETHGlobal's own limit is four. The reasoning is in docs/DECISIONS.md.
@@ -93,33 +131,56 @@ Do not explain Hedera, World or the index arithmetic here. Each of them arrives
 later attached to something moving on screen, which is the only way any of it
 lands in eighteen seconds.
 
-### Shot 2, the worker buys cover
+### Shot 2, the worker buys cover, on one page
 
 Browser at 1280 by 800 with the phone mirrored in the corner, full width only
 for the Selfie Check. Run `pnpm dev` before the take and leave it running.
 
-    click   /start, Get a quote
-    click   /occupation, type "computer", pick Computer and mathematical
-    hold    /amount, drag the slider once and put it back, so the premium
-            recomputes on camera
-    read    the sentence that says what the cover pays out on
-    click   Continue, then /verify, Verify with World ID
-    cut     to the phone, full width: World ID (Sandbox), the Selfie Check
-    cut     back to the browser: You are verified
-    click   /pay, then the pay button
-    hold    the card sliding into /home and the amount counting up. This is
-            the one animation in the product. Let it finish.
-    hold    /home: the pill Covered, the next payment date, the reading
+There is no `/start`. The whole purchase is the hero card on the landing page
+turning over: press "Get a quote" and the question arrives on the face that
+comes round, and each answer turns it again. The standalone routes still exist
+and still hold the same session, so a link already shared opens the step it
+names, but nothing in this shot needs one.
+
+    click   Get a quote, in the hero. The card turns.
+    hold    What do you do?, the search field and the fifteen rows under
+            "Open to buy". Type "computer", pick Computer and mathematical.
+    click   Continue. The card turns to Cover amount.
+    hold    drag the slider once and put it back, so the premium recomputes
+            on camera
+    read    the sentence under it that says what the cover pays out on
+    click   Continue. The card turns to the quote, laid out the way the card
+            lays out a policy: the occupation, the cover, the monthly payment.
+    click   Continue, then Verify with World ID
+    cut     to the phone, full width: World ID (Sandbox), the Selfie Check.
+            Without a device, let the check be refused and press Use the demo
+            check, and read its line out loud rather than over it.
+    cut     back to the browser: the payment step, then the pay button
+    hold    the card settling into the covered state and the amount counting
+            up. This is the one animation in the product. Let it finish.
+    hold    the covered card: the pill Covered, the next payment date, the
+            reading
 
 Name Selfie Check once out loud and say what it is for: one live person, one
 cover, and the same person has to come back to claim it. Do not name the policy
 NFT or the HCS receipt here. DESIGN.md section 7 puts them in this shot and the
 copy deck forbids those words on this surface; they get their proof in shot 3
-and shot 6, where a terminal is already on screen.
+and shot 7, where a terminal is already on screen.
+
+**The experience band, if it is worth the seconds.** Cover is priced off the
+capital that has committed to a length of experience, and one occupation has no
+capital left outside its bands: pick **Legal** instead of Computer and
+mathematical and Continue hands the purchase to `/experience`, headed "How long
+have you been working?", where **0 to 5 years** reads "Nobody has funded this
+one yet" and the other two carry a price each. Picking one carries on to
+`/amount` and the rest of the purchase on the routes. It is the clearest proof
+in the product that a price comes from capital rather than from a table, and it
+costs the card turn, so it is a choice and not an addition. Checked on the live
+site on 12 September 2026.
 
 If the sandbox proof fails, retry once. If it fails twice, stop the take and use
-the clean Selfie Check recorded separately as an inset. A second attempt on
-camera reads as broken even when it is a network hiccup.
+the clean Selfie Check recorded separately as an inset, or take the demo check.
+A second attempt on camera reads as broken even when it is a network hiccup.
 
 ### Shot 3, the Steward buys for its principal
 
@@ -145,59 +206,112 @@ Transaction with its schedule id.
 Say the sentence that stops the obvious objection: the agent never does the
 selfie, it presents a credential the person earned.
 
-### Shot 4, the investor and the note
+### Shot 4, the investor board and the note
 
 The note was issued and both noteholders were KYC granted and minted long before
-the take; `pnpm demo:seed` leaves all of it in place and changes none of it. What
-is live on camera is the compliance pair and the coupon.
+the take; `pnpm demo:seed` leaves all of it in place and changes none of it.
+What this shot does is show where a buyer of the paper looks, and prove the
+coupon.
 
-    show    /invest/ODI-COMP-2026-01: principal, coupon, term, capacity,
-            principal at risk
-    cut     to a terminal or HashScan: the note address and its compliance
-            configuration
-    run     a transfer to an account with no KYC. It fails compliance, and the
-            failure is on screen in words.
-    run     the KYC grant, then the same transfer. It succeeds.
-    show    the coupon distribution on HashScan, executed by a Scheduled
+    show    /invest: the featured occupation at the top with its guide rate and
+            its rate history back to May 2021, then "All occupations", every
+            series with its index distance, its premium rate, its capacity and
+            what it last traded at
+    click   the Computer and mathematical row, which opens
+            /invest?series=ODI-COMP-2026-01
+    hold    principal, coupon, term, capacity used, principal at risk, and the
+            coupon history with what has been paid to each holder
+    cut     to HashScan: the coupon distribution executed by a Scheduled
             Transaction
+    show    /activity: every action this product has taken on chain, newest
+            first, a run of identical actions rolled into one line with its
+            count, each line linking to the record
 
-Keep the failing transfer to about six seconds. The interesting thing is that it
-failed, not the stack trace. The sentence that makes the two halves one product
-is that the coupons are paid out of the premiums the workers in shots 2 and 3
-are paying.
+The series lives at `/invest?series=ODI-COMP-2026-01`. There is no
+`/invest/ODI-COMP-2026-01` and there has not been since the board was built;
+typing one on camera gets a 404.
 
-### Shot 5, the replay opens a month and the vault reserves
+The sentence that makes the two halves one product is that the coupons are paid
+out of the premiums the workers in shots 2 and 3 are paying.
+
+### Shot 5, the note refuses a trade, then settles it
+
+This is the compliance gate doing its job at a price, which is the thing the
+Hedera tokenization track calls a stretch item, and it is the strongest single
+thing in the cut. It is filmed in the product rather than in a terminal, because
+the refusal is a sentence a person can read.
+
+The offer standing on the venue is offer 5: one note of `ODI-ARTS-2026-01` at
+1,000 TUSD, from `0.0.10362512`. The demo wallet on the investor screens is
+investor-1, `0.0.10366460`, and it holds no granted KYC record on that note.
+**Do not grant it in advance.** The grant is the second half of this shot and
+making it early spends the refusal, which cannot be got back without revoking a
+grant, which would be arranging the evidence rather than showing it.
+
+    show    /invest?series=ODI-ARTS-2026-01, "On the market": 1 note at 1,000
+            each, from 0.0.10362512, and beside it "Not approved" with the
+            reason, "This note keeps its own register of who may hold it, and
+            your account is not on it"
+    click   Take
+    hold    the answer, which is the note's and not the app's: "The note
+            refused the transfer. It keeps its own register of who may hold it
+            and your account is not on it, so nothing was signed and no money
+            moved."
+    cut     to the terminal, and grant the KYC through the operator path:
+
+    pnpm ats:issue kyc1 arts_design_ent_media
+
+    hold    the credential being signed and `grantKyc` sent, with
+            getKycStatusFor reading 1
+    cut     back to the browser, reload, and press Take again
+    hold    it settling, and the row now reading what it changed hands for
+    cut     to HashScan: one transaction carrying both legs, the note out of
+            the seller and the settlement token back to it
+
+The two presses are the same call, by the same account, against the same offer,
+with the same allowances already in place. The only thing that changed between
+them is the KYC record. Say that, and say the other half: the venue never holds
+a note unit and never holds a settlement token, so there is no state in which
+one side has been paid and the other has not.
+
+`pnpm market:demo` is the same thing without a browser, and docs/ATS.md section
+18 has a link for every transaction if a still is wanted instead of a take.
+
+### Shot 6, the replay opens a month and the vault reserves
 
 Start the replay before the shot begins and record continuously.
 
     pnpm oracle:preflight
     pnpm oracle:replay --from 2026-01 --to 2026-05
 
-The index topic already carries 2025-01 to 2026-04 from the proof run of 5
-September, and the oracle asks the topic what has settled, so those months tick
-past on the replay bar without being published twice. May 2026 has never been
-published and has never been submitted. It opens on the level form, the vault
-reserves the exposed limits and the series stays in a claim window. That is a
-real month of published data opening a real reserve, on camera, once.
+Read the state before the take rather than trusting this paragraph. On 12
+September 2026 the index topic already carried every month from 2025-01 to
+2026-06 for computer and mathematical, while CoverPool read `lastObservedMonth`
+2026-04 and `openMonths` `[202604]`. So 2026-05 is published and unsettled: the
+replay will not write a second message for it, because the first value published
+for a period is the settlement value forever, and it makes the contract call
+from the message already on the topic. That call is what opens the month, and it
+is the thing on camera. Everything before it ticks past without sending
+anything.
 
     the sticky replay bar on /index advancing a month at a time, with computer
             and mathematical picked
-    2026-05 publishing and opening, with the provenance block naming the topic
-            and the sequence number
+    2026-05 opening on the level form, with the provenance block naming the
+            topic and the sequence number
     the reserve rising, printed by the run and readable on /invest
     /home flipping to Claims open with the date a separation has to be on or
             after
 
 Two things have to be said out loud or a judge will assume the worst. Replay is
 on screen and in the voice: these are real months of history walked at one month
-per ten seconds so that a year fits a video. And two months are open, April and
-May 2026, so never say "the month claims opened".
+per ten seconds so that a year fits a video. And two months are open afterwards,
+April and May 2026, so never say "the month claims opened".
 
 Expect a second occupation group to light up on the index list. That is correct
 behaviour and it is a good answer: the index runs for every bindable occupation,
 not only the one the demonstration bought.
 
-### Shot 6, the claim that pays
+### Shot 7, the claim that pays
 
 The cover is the one `pnpm demo:seed` bound on policyholder-1, claimable from
 2026-01-30, and the packet is packet A, the redundancy letter from Northgate
@@ -211,7 +325,8 @@ fingerprint on the claims topic can be recomputed from this repository with
     fill    C2, pre filled from the seed. Typing it costs twenty seconds.
     click   C3, upload the letter, and hold on the hash being computed
     cut     to the phone: the second Selfie Check, action
-            occupation-cover-claim, with user presence
+            occupation-cover-claim, with user presence. Without a device this
+            is the demo check again, with its line on screen.
     cut     back: C5, the attestation signed by the policy wallet
     click   Submit, and hold C6 for a few seconds only
     show    the decision arriving with its reasons
@@ -222,7 +337,8 @@ fingerprint on the claims topic can be recomputed from this repository with
 
 The narration is the product in three clauses: the index said the occupation is
 being displaced, this person shows they were actually made redundant, and the
-same World ID that bought the cover came back to collect it.
+same World ID that bought the cover came back to collect it. Where the demo
+check stood in for the Selfie Check, say that instead and say why.
 
 Without `ANTHROPIC_API_KEY` the Adjuster refers rather than approves, and the
 approval comes from the reviewer's screen at `/admin/claims`. Run `pnpm
@@ -230,7 +346,7 @@ adjuster:run` again afterwards so the reviewer's decision hash reaches the claim
 topic. If the wait is longer than about eight seconds, cut it. Do not fill it
 with narration about how fast it is.
 
-### Shot 7, the claim that does not pay
+### Shot 8, the claim that does not pay
 
 A second browser profile, policyholder-3, packet B, the resignation
 acknowledgement from Calder & Finch LLP. Submit it and hold on C9 with the
@@ -244,7 +360,7 @@ Twelve seconds, and not optional. A demonstration that only shows the happy path
 invites "what stops anyone claiming", and answering that live costs more than
 showing it.
 
-### Shot 8, the money closes the loop
+### Shot 9, the money closes the loop
 
 This shot has two halves because the demo series cannot close inside the event
 and the video should say so rather than work around it.
@@ -268,14 +384,14 @@ opened to compress the clock, in the same breath as the sentence about not
 cutting a claimant off. Maturity is shown the same way, on the short dated series
 `pnpm coupons:mature` opens.
 
-Then show `/invest/ODI-COMP-2026-01` with principal at risk already down by the
-claim that was paid in shot 6. That number is the paid claim subtracted from the
-principal. It is not a fee and it is not a haircut.
+Then show `/invest?series=ODI-COMP-2026-01` with principal at risk already down
+by the claim that was paid in shot 7. That number is the paid claim subtracted
+from the principal. It is not a fee and it is not a haircut.
 
-### Shot 9, the harness improvement and the close
+### Shot 10, the harness improvement and the close
 
-Ten seconds of the harness improvement running, then a two second end card with
-the name, the network and the repository URL.
+Eight seconds of the harness improvement running, then a two second end card
+with the name, the network and the repository URL.
 
 The last line of narration is the honesty line: the index does not attribute
 cause, a shock that has nothing to do with AI opens claims too, and this is a
@@ -285,13 +401,16 @@ testnet prototype and not an offer of insurance.
 
 DESIGN.md asks for a main video of five minutes or less and a separate showcase
 cut of two to four minutes. ETHGlobal accepts only two to four minutes, so the
-two collapse into one artefact and the showcase cut is the same take with shot 9
-dropped, which lands at 3:38 and stays inside the gate. If it has to come down
-further, cut in this order: shot 4's transfer pair down to the coupon alone,
-then shot 3's premium schedule, then shot 1 down to ten seconds. That reaches
-about 3:00 and still carries every prize critical beat. Below that the only shot
-that can go is shot 7, the declined claim, and it costs more than the twelve
-seconds it saves.
+two collapse into one artefact and the showcase cut is the same take with shot
+10 dropped, which lands at 3:40 and stays inside the gate. If it has to come
+down further, cut in this order: shot 4's coupon beat down to the board alone,
+then shot 3's premium schedule, then shot 1 down to ten seconds. That takes
+about twenty five seconds out and still carries every prize critical beat,
+comfortably clear of the two minute floor. Below that the only
+shots that can go are shot 8, the declined claim, and shot 5's second half, and
+each costs more than the seconds it saves: shot 8 is the answer to "what stops
+anyone claiming", and shot 5's second half is the half that proves the gate is a
+gate and not a wall.
 
 ## Recording it
 
@@ -322,6 +441,11 @@ rather than planning to fix it in the edit. Keep a take log: shot number, take
 number, good or bad, one word why. After any shot that produces a transaction,
 paste the id into docs/SUBMISSION.md while it is on screen; reconstructing which
 link belongs to which moment afterwards costs an hour.
+
+Shot 5 and shot 6 are the two that cannot be redone. Shot 5's refusal is gone
+once the grant is made, and shot 6's month is gone once it reaches the chain.
+Rehearse both without pressing the last button, and record them first if the
+schedule allows it.
 
 Assemble the picture, cut the waiting, get to about 3:45 of picture, record the
 voice to it, then trim to 3:50 with the voice in place. Export H.264 in mp4 at
@@ -370,17 +494,18 @@ video description and in a message to a judge.
 
     https://creance.co/home/demo
 
-It holds two kinds of thing and keeps them apart in words. The covers at the top
-are real: `pnpm demo:seed` bound each one on testnet, the page prints the cover
-key that opens it, and opening one opens the same dashboard a buyer reaches, with
+It holds three real covers and keeps them apart from the fixtures in words. The
+three at the top are real, one running, one with claims open and one that paid
+out: `pnpm demo:seed` bound each one on testnet, the page prints the cover key
+that opens it, and opening one opens the same dashboard a buyer reaches, with
 the same figures read from the same API and every one of them resolving on
-HashScan. The states underneath are fixtures, and are there because a cover only
-lapses when a premium goes unpaid and only pays out when a claim is decided, and
-neither can be arranged for a visitor. Each one says on its face that nothing on
-it came from the API.
+HashScan. The states under "See other examples" are fixtures, and are there
+because a cover only lapses when a premium goes unpaid and only pays out when a
+claim is decided, and neither can be arranged for a visitor. Each one says on its
+face that nothing on it came from the API.
 
-The front door and the way back in both offer the page under one link, "See a
-live cover", so nobody has to be told a URL on camera. A deployment that
+The front door and the way back in both offer the page under one link, "See an
+example of cover", so nobody has to be told a URL on camera. A deployment that
 publishes nothing has no page there at all.
 
 Two things about it are worth knowing before a take.
@@ -401,11 +526,12 @@ printed on the page rather than only posted by the button.
 `pnpm demo:seed` prints an id block at the end and writes it to `var/demo/seed.json`.
 That block is what the operator keeps open in a scratch tab: the series, the
 contracts, the four topics, the two tokens, the two claimable policies and the
-published one with their holders and bind transactions, and the two noteholders. What it created on the
-run this document was written against is in docs/HEDERA.md under the T24 heading.
+published ones with their holders and bind transactions, and the two noteholders.
+What it created on the run this document was written against is in docs/HEDERA.md
+under the T24 heading.
 
-It also binds the cover the published link opens, on the one holder that carries
-no packet, and captures that cover's key. It has to capture it there: the key is
+It also binds the covers the published links open, on the holders that carry
+no packet, and captures each cover's key. It has to capture it there: the key is
 issued once at bind and the database keeps only a digest of it, so no command can
 print the key of a cover that is already bound. At the end of a run the seed
 prints the `WEB_DEMO_COVERS` line to paste into the environment the web process

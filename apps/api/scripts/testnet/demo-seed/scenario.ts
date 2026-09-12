@@ -14,7 +14,7 @@
 export type Surface = 'slide' | 'browser' | 'terminal' | 'phone';
 
 export interface Beat {
-  /** 1 to 9, the shot number in the take log. */
+  /** 1 to 10, the shot number in the take log. */
   shot: number;
   /** Seconds from the start of the cut. */
   from: number;
@@ -53,27 +53,28 @@ export const SCENARIO: Beat[] = [
   {
     shot: 2,
     from: 18,
-    to: 60,
-    title: 'The worker buys cover',
+    to: 52,
+    title: 'The worker buys cover, on one page',
     surface: ['browser', 'phone'],
     before: [
       'a fourth wallet funded, associated with TUSD and holding ten times the premium',
-      'the Sandbox App signed in and the eligibility action unused for this occupation',
+      'the whole purchase is on the landing page: /start has not been a route since T35',
       'the API and the web app running, X402_ENABLED as it is in production',
+      'the World check settled in advance: the Sandbox App on a mirrored phone, or the demo check',
     ],
     commands: ['pnpm dev'],
     watch: [
-      '/occupation, the row Computer and mathematical',
-      '/amount, the premium recomputing when the slider moves and returning to the seeded amount',
-      'the Selfie Check running on the mirrored phone and the browser saying You are verified',
-      '/home, the pill Covered and the next payment date',
+      'the hero card turning over on "Get a quote", with "What do you do?" on the face that comes round',
+      'the premium recomputing when the slider moves and returning to the seeded amount',
+      'the World check, and the line naming the demo check where the check is the demo one',
+      'the card settling into the covered state, with the cover and the next payment date',
     ],
     showcase: true,
   },
   {
     shot: 3,
-    from: 60,
-    to: 98,
+    from: 52,
+    to: 86,
     title: 'The Steward buys for its principal',
     surface: ['terminal'],
     before: [
@@ -92,38 +93,58 @@ export const SCENARIO: Beat[] = [
   },
   {
     shot: 4,
-    from: 98,
-    to: 132,
-    title: 'The investor and the note',
+    from: 86,
+    to: 112,
+    title: 'The investor board and the note',
     surface: ['browser', 'terminal'],
     before: [
       'the note issued and both noteholders KYC granted and minted, which pnpm demo:seed leaves in place',
       'the coupon settled, so there is a distribution to point at',
     ],
-    commands: ['pnpm ats:issue status', 'pnpm coupons:pay status'],
+    commands: ['pnpm coupons:pay status'],
     watch: [
-      '/invest/ODI-COMP-2026-01, principal, coupon, term and principal at risk',
-      'the transfer to a non KYC account failing compliance, in words',
-      'the same transfer succeeding after the KYC grant',
+      '/invest, the featured occupation with its rate history and the fifteen series under it',
+      '/invest?series=ODI-COMP-2026-01, principal, coupon, capacity and principal at risk',
       'the coupon distribution executed by a Scheduled Transaction on HashScan',
+      '/activity, every action this product has taken on chain, rolled up and newest first',
     ],
     showcase: true,
   },
   {
     shot: 5,
-    from: 132,
-    to: 164,
+    from: 112,
+    to: 138,
+    title: 'The note refuses a trade, then settles it',
+    surface: ['browser', 'terminal'],
+    before: [
+      'offer 5 on the venue standing open and unfilled: 1 note of ODI-ARTS-2026-01 at 1,000 TUSD',
+      'investor-1 holding no granted KYC record on that note, which is what makes the refusal real',
+      'the grant NOT made in advance, because making it in advance spends the refusal',
+    ],
+    commands: ['pnpm ats:issue kyc1 arts_design_ent_media'],
+    watch: [
+      'the offer on /invest, with "Not approved" beside it before anything is pressed',
+      'Take, and the note refusing the transfer in words, with nothing signed and no money moved',
+      'the KYC grant running in the terminal against the arts note',
+      'the same Take settling, both legs in one transaction, on HashScan',
+    ],
+    showcase: true,
+  },
+  {
+    shot: 6,
+    from: 138,
+    to: 168,
     title: 'The replay opens a month and the vault reserves',
     surface: ['browser', 'terminal'],
     before: [
-      'the index topic already carries 2025-01 to 2026-04 from the proof run',
-      '2026-05 is not yet on the topic and not yet submitted, which pnpm demo:seed checks',
+      '2026-05 is on the index topic already but has never reached CoverPool, which pnpm demo:seed checks',
+      'the series reading lastObservedMonth 2026-04 and openMonths [202604]',
       'the replay started before the shot and recording continuous from the first tick',
     ],
     commands: ['pnpm oracle:preflight', 'pnpm oracle:replay --from 2026-01 --to 2026-05'],
     watch: [
-      'the sticky replay bar advancing a month at a time on /index/ODI-COMP-2026-01',
-      '2026-05 publishing for the first time and opening on the level form',
+      'the sticky replay bar advancing a month at a time on /index with computer and mathematical picked',
+      '2026-05 making its chain call for the first time and opening on the level form',
       'the reserve rising in the vault, printed by the run and readable on /invest',
       '/home flipping to Claims open with the date a separation has to be on or after',
     ],
@@ -131,9 +152,9 @@ export const SCENARIO: Beat[] = [
     showcase: true,
   },
   {
-    shot: 6,
-    from: 164,
-    to: 194,
+    shot: 7,
+    from: 168,
+    to: 196,
     title: 'The claim that pays',
     surface: ['browser', 'phone', 'terminal'],
     before: [
@@ -144,7 +165,7 @@ export const SCENARIO: Beat[] = [
     commands: ['pnpm adjuster:run'],
     watch: [
       'C2 pre-filled with Northgate Systems Ltd and the last day of work 13 March 2026',
-      'the second Selfie Check, action occupation-cover-claim, with user presence',
+      'the second check, action occupation-cover-claim, with user presence',
       'the packet hash and the decision hash on the claims topic',
       'payClaim on HashScan and /home reading Paid out',
     ],
@@ -152,9 +173,9 @@ export const SCENARIO: Beat[] = [
     showcase: true,
   },
   {
-    shot: 7,
-    from: 194,
-    to: 206,
+    shot: 8,
+    from: 196,
+    to: 208,
     title: 'The claim that does not pay',
     surface: ['browser'],
     before: [
@@ -172,13 +193,13 @@ export const SCENARIO: Beat[] = [
     showcase: true,
   },
   {
-    shot: 8,
-    from: 206,
-    to: 218,
+    shot: 9,
+    from: 208,
+    to: 220,
     title: 'The money closes the loop',
     surface: ['browser', 'terminal'],
     before: [
-      'the paid claim from shot 6 settled, so the principal has already moved',
+      'the paid claim from shot 7 settled, so the principal has already moved',
       'the release proved on a short window series, run before the take',
     ],
     commands: [
@@ -186,7 +207,7 @@ export const SCENARIO: Beat[] = [
       'pnpm --filter @creance/contracts demo:release',
     ],
     watch: [
-      '/invest, principal at risk down by the paid claim',
+      '/invest?series=ODI-COMP-2026-01, principal at risk down by the paid claim',
       'the demo series refusing to close, with the date it can, said out loud',
       'the Released event on the short window series on HashScan',
     ],
@@ -194,8 +215,8 @@ export const SCENARIO: Beat[] = [
     showcase: true,
   },
   {
-    shot: 9,
-    from: 218,
+    shot: 10,
+    from: 220,
     to: 230,
     title: 'The harness improvement and the close',
     surface: ['terminal', 'slide'],

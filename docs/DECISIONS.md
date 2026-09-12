@@ -7308,3 +7308,99 @@ the featured occupation opens from its table row and not from the band.
 The heading became "Earn yield" at the same time, which is what the header's
 control says. The page said "Occupations", so the one thing a visitor had just
 pressed for was not on the page they arrived at.
+
+### The product has one vocabulary for its two triggers, and every level is labelled with which one it belongs to
+
+Cover opens claims in two ways, and the product described the two in three
+vocabularies that never met.
+
+The landing ledger answered "When does it pay." with "When the index for your
+occupation rises 2 points above its trend. Full payout at 4.", which is the
+shock attachment. The explorer four inches beneath it was captioned "Pays out
+above 1.32 worse than average", which is the level line, on a different scale.
+`/index` said "Claims open when it reaches 1.3 points worse than average", which
+is the same level line rounded to one decimal. `/amount` repeated the first and
+the ranking chips said "0.7 points away", which is neither and is a distance.
+Every one of those is true. None of them said which question it was answering,
+so a reader trying to work out when they get paid could not.
+
+The vocabulary of record is the worker's Index tab's, which already had it:
+"Claims open in two ways. A sudden jump past this occupation's trigger line, or
+staying worse than anything in the decade before AI." `marginSentences` already
+said "the line for a sudden jump" and "the line for staying worse". So the whole
+product now says **a sudden jump** for the shock form and **staying worse** for
+the level form, and nothing anywhere prints one of their levels without naming
+which of the two it is.
+
+What that changed:
+
+- `payAnswer` names both triggers and both levels, and names the occupation they
+  belong to.
+- `paysOutSentence` on `/amount` and in the landing card names both.
+- `bandLabel`, the chart's red band caption, names the trigger in place of
+  saying "pays out": "Staying 1.32 worse than average", "A sudden jump above
+  3.00". It is an axis label squeezed between two dates in a 350 pixel row, it
+  is drawn in the triggered red, and both screens that render it carry a line of
+  prose under the figure saying the red band is where claims open. Saying it a
+  third time inside the label cost the caption a second line at 390 on most of
+  the fifteen. `bandSentence` is the same band said as a sentence, and it is what
+  the charts hand to their accessible name, where there is no red band and no
+  caption to carry the rest.
+- `positionSentence` says "Staying 1.32 points worse than average opens claims"
+  rather than "Claims open when it reaches", and says a negative line the way the
+  chart says it, through `levelLinePhrase`: claims open when the gap to the
+  average narrows to within so many points, not when the occupation "reaches 0.68
+  points better than average", which said it backwards.
+- The explorer panel carries `formsNote` under the chart, which is the one thing
+  a chart of a single line cannot say for itself: that there are two triggers and
+  that this is whichever one the occupation is nearer.
+
+This supersedes the band label wording recorded earlier in this file under the
+signed threshold decision. The sign rule it set is unchanged and now lives in
+`levelLinePhrase`.
+
+### The landing's "When does it pay." names its occupation rather than following the panel
+
+`exhaustionFor` only answers for ODI-COMP-2026-01, so the landing's answer was
+always computed for LANDING_GROUP, computer and mathematical, while saying "your
+occupation" and while the explorer directly beneath it opened on arts, design,
+entertainment and media, which is the occupation nearest its line. The answer on
+screen was about a different occupation from the panel under it and nothing said
+so.
+
+The answer names the occupation instead of following the panel. The two are
+deliberately separate: LANDING_GROUP is what the hero card, the from price and
+the quote all speak for, and OPENS_ON is what a reader has come to look at.
+Making a server rendered ledger row follow the panel would mean either lifting
+the panel's selection into the page, which gives a control two owners, or
+letting a row of the ledger rewrite itself under the reader's hand as they
+browse fifteen occupations. Naming the occupation costs four words and is true.
+
+### The index explorer prints a reading and its line at two decimals
+
+Arts, design, entertainment and media reads 1.30 against a level line of 1.32,
+and it is the occupation the panel opens on. At one decimal `positionSentence`
+printed "Unemployment in this job sits 1.3 points worse than average. Claims
+open when it reaches 1.3 points worse than average." Both figures were right and
+the sentence read as broken copy.
+
+Neither figure moved. `againstAverage` now formats through `formatIndexValue`,
+which is two decimals and is what the feed publishes and what the chart's band
+caption has always printed, so the sentence says what was published rather than
+inventing a difference or hiding one. The four method steps take the same
+treatment, so the line is one figure wherever it appears.
+
+### The experience screen says why every band costs the same
+
+Twelve of the fifteen occupations have no capital allocated to a particular
+length of experience, and capital that named no band backs all three equally, so
+all three price identically. `/experience` therefore asked a question, gave three
+identical answers and captioned them "This changes the price, not the payout."
+
+The arithmetic is right and was not touched. The screen adds a second sentence
+where every band it can sell costs the same: "They cost the same here because no
+capital has chosen between them yet. Where it has, as in legal, they do not."
+Legal is named because legal is where capital has chosen, and a reader who wants
+the contrast needs somewhere to look for it. The sentence is absent wherever the
+prices differ, so it is a fact about the occupation in hand and never a standing
+caveat.

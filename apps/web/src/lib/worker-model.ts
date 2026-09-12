@@ -59,18 +59,59 @@ export function exhaustionFor(seriesId: string): number | null {
 }
 
 /**
- * The Amount screen's sentence, docs/DESIGN-TOKENS.md section 8, with the group
- * label, the attachment and the exhaustion interpolated as its engineering note
- * requires. The second sentence is dropped when the series has no published
+ * The level line, in the words a person reads it in.
+ *
+ * The product has exactly two triggers and one vocabulary for them: a sudden
+ * jump, which is the shock form against the same occupation a year earlier, and
+ * staying worse, which is the level form against every other occupation. This
+ * is the second one's threshold, and it is the one figure in the product that
+ * cannot be said the same way for every occupation. A positive line is points
+ * worse than average. A negative line belongs to a profession that is usually
+ * unemployed less than average, and there claims open when the gap to the
+ * average narrows to that many points, so it is said that way round: "within
+ * 0.68 points of average", never "above -0.68".
+ *
+ * Two decimals, always, through the app's one index formatter. Level lines are
+ * two decimal figures by nature (12.78, -0.98) and the chart's own band caption
+ * has always printed them that way, so a sentence beside the chart that dropped
+ * a decimal would name a different line from the one drawn. The shock
+ * attachment is the opposite case and keeps `pointsInProse`: it is 1.5 or 2 or
+ * 3, and the copy deck writes "2 points", not "2.00".
+ */
+export function levelLinePhrase(line: string | number): string {
+  const value = Number(line);
+  const points = formatIndexValue(Math.abs(value));
+  return value < 0
+    ? `within ${points} points of average`
+    : `${points} points worse than average`;
+}
+
+/**
+ * The Amount screen's sentence: when this cover pays, in the product's one
+ * vocabulary for it.
+ *
+ * It used to name the attachment alone, "Pays out if the index for Computer and
+ * mathematical rises 2 points above its trend", which is true and is half the
+ * mechanism. Claims open on either trigger, and a screen that names one of them
+ * as though it were the whole answer leaves a buyer unable to reconcile it with
+ * the level line the index tab and the chart both print. So both are here, in
+ * the words the Index tab already uses for them, and each figure is labelled
+ * with the trigger it belongs to.
+ *
+ * The occupation is not named. It stands at the top of both surfaces that print
+ * this sentence, the Amount screen and the landing card's amount step, one line
+ * under the heading, and saying it twice is the kind of over explaining this
+ * product is being cut back.
+ *
+ * The full payout sentence is dropped when the series has no published
  * exhaustion rather than printed with a guess.
  */
 export function paysOutSentence(quote: QuoteView): string {
-  const label = occupationLabel(quote.group);
   const attachment = pointsInProse(quote.attachment_shock);
   const exhaustion = exhaustionFor(quote.series_id);
-  const first = `Pays out if the index for ${label} rises ${attachment} points above its trend.`;
+  const first = `Claims open in two ways: a sudden jump of ${attachment} points above trend, or staying ${levelLinePhrase(quote.level_line)}.`;
   if (exhaustion === null) return first;
-  return `${first} Full payout at ${pointsInProse(exhaustion)} points.`;
+  return `${first} A jump of ${pointsInProse(exhaustion)} pays in full.`;
 }
 
 export type IndexTrend = 'rising' | 'steady' | 'falling';
@@ -175,20 +216,38 @@ export function chartThreshold(index: IndexView): number {
 }
 
 /**
- * The band label, which is the one place the chart would otherwise print a
- * signed threshold.
+ * The band label: which of the two triggers the red band is, and its level. It
+ * is also the one place the chart would otherwise print a signed threshold, and
+ * `levelLinePhrase` above carries the sign rule.
  *
- * The shock form is a change against a year ago and its attachment is positive,
- * so it keeps the copy deck's own string. The level form is an excess against
- * every occupation, and its line is negative for a profession that is usually
- * unemployed less than average. A negative line means claims open when the gap
- * to the average narrows to that many points, so it is said that way round:
- * "within 0.68 of average", not "above -0.68".
+ * A chart draws one line, whichever one this occupation is nearer, and this
+ * used to say only "Pays out above 1.32 worse than average". A reader who had
+ * just met "a sudden jump of 2 points above trend" on the front door could not
+ * reconcile the two: two numbers, two scales, and nothing anywhere saying they
+ * were two different triggers. Naming the trigger is the whole of what was
+ * missing.
+ *
+ * It names the trigger in place of saying "pays out", rather than as well. The
+ * caption is an axis label squeezed between two dates in a 350 pixel row, it is
+ * drawn in the triggered red of the band it labels, and on both screens that
+ * render it the line underneath says in words that the red band is where claims
+ * open. Saying it a third time inside the label cost the caption its second line
+ * at 390 on most of the fifteen. What a reader who has only the words gets is
+ * `bandSentence` below, which the charts hand to their accessible name.
  */
 export function bandLabel(form: 'level' | 'shock', line: number): string {
-  if (form === 'shock') return `Pays out above ${formatIndexValue(line)}`;
-  if (line < 0) return `Pays out within ${formatIndexValue(Math.abs(line))} of average`;
-  return `Pays out above ${formatIndexValue(line)} worse than average`;
+  if (form === 'shock') return `A sudden jump above ${formatIndexValue(line)}`;
+  if (line < 0) return `Staying within ${formatIndexValue(Math.abs(line))} of average`;
+  return `Staying ${formatIndexValue(line)} worse than average`;
+}
+
+/**
+ * The same band said as a sentence, for the chart's accessible name, where
+ * there is no red band and no caption under the picture to carry the rest.
+ */
+export function bandSentence(form: 'level' | 'shock', line: number): string {
+  const label = bandLabel(form, line);
+  return `Claims open on ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
 }
 
 export function bandLabelFor(index: IndexView): string {

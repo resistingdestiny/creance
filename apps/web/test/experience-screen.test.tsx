@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../src/app/purchase-actions', () => ({ chooseBand: vi.fn() }));
 
 const { ExperienceScreen } = await import('../src/app/experience/experience-screen');
-const { BAND_EFFECT, BAND_NOT_FUNDED } = await import('../src/lib/bands');
+const { BAND_EFFECT, BAND_NOT_FUNDED, BAND_SAME_PRICE } = await import('../src/lib/bands');
 
 /// The experience question.
 ///
@@ -18,6 +18,12 @@ const FUNDED = [
   { band: '0_5', label: '0 to 5 years', available: true, reason: 'none', premium: '31.50' },
   { band: '5_25', label: '5 to 25 years', available: true, reason: 'none', premium: '28.00' },
   { band: '25_plus', label: '25 or more', available: true, reason: 'none', premium: '28.00' },
+] as const;
+
+const ALL_ALIKE = [
+  { band: '0_5', label: '0 to 5 years', available: true, reason: 'none', premium: '51.92' },
+  { band: '5_25', label: '5 to 25 years', available: true, reason: 'none', premium: '51.92' },
+  { band: '25_plus', label: '25 or more', available: true, reason: 'none', premium: '51.92' },
 ] as const;
 
 const JUNIOR_UNFUNDED = [
@@ -45,6 +51,30 @@ describe('the experience question', () => {
     for (const row of FUNDED) {
       expect(screen.getByText(row.label)).toBeTruthy();
     }
+  });
+
+  it('says why every band costs the same where nobody has chosen between them', () => {
+    render(
+      <ExperienceScreen
+        bands={[...ALL_ALIKE]}
+        chosen={null}
+        occupation="Computer and mathematical"
+      />,
+    );
+    const text = document.body.textContent ?? '';
+    expect(text).toContain(BAND_EFFECT);
+    expect(text).toContain(BAND_SAME_PRICE);
+  });
+
+  it('says nothing of the kind where capital has chosen and the prices differ', () => {
+    render(
+      <ExperienceScreen
+        bands={[...JUNIOR_UNFUNDED]}
+        chosen={null}
+        occupation="Legal"
+      />,
+    );
+    expect(document.body.textContent ?? '').not.toContain(BAND_SAME_PRICE);
   });
 
   it('says a band changes the price and not the payout, and claims nothing else', () => {

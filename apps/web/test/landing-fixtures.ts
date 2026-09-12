@@ -71,7 +71,7 @@ const TICKER = tickerReadings(OCCUPATIONS, LANDING_GROUP);
  */
 const NOTE: LandingNoteView = {
   investorLine: investorLine('8 percent a year, paid monthly'),
-  figures: noteFigures(SERIES, COUPONS),
+  figures: noteFigures(SERIES, COUPONS, 447_000_000_000n),
 };
 
 /** The same page with nothing read from the note at all. */
@@ -93,6 +93,8 @@ function landing(
       ...landingIndexSection(index, live),
       payLine: payAnswer(
         index === null ? null : index.trigger.attachment_shock,
+        index === null ? null : index.trigger.level_line,
+        LANDING_GROUP,
         index === null ? null : index.series_id,
       ),
       history: historyFigure(index?.as_of ?? null),

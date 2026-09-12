@@ -36,6 +36,34 @@ export const BAND_QUESTION = 'How long have you been working?';
 /** The one sentence that says what a band does. It appears wherever one is chosen. */
 export const BAND_EFFECT = 'This changes the price, not the payout.';
 
+/**
+ * What the screen adds when every band it can sell costs the same.
+ *
+ * It is true of twelve of the fifteen occupations today, and it made the screen
+ * ask a question and give three identical answers under a caption saying the
+ * answer mattered. The prices are right: capital that named no band backs all
+ * three equally, so with nothing allocated between them there is nothing to
+ * tell them apart, and the screen was simply not saying so. Legal is where
+ * capital has chosen, and there they differ, so it is named: a reader who wants
+ * the contrast has somewhere to look for it.
+ */
+export const BAND_SAME_PRICE =
+  'They cost the same here because no capital has chosen between them yet. Where it has, as in legal, they do not.';
+
+/**
+ * Whether every band with a price has the same price, which is the state the
+ * sentence above is for.
+ *
+ * Two or more, because one priced band is not three identical answers and
+ * saying that nobody has chosen between them would be about bands this
+ * occupation cannot sell at all. The premiums are compared as the strings the
+ * screen prints, so what is called equal is what a reader sees as equal.
+ */
+export function bandsPriceAlike(premiums: readonly (string | null)[]): boolean {
+  const priced = premiums.filter((premium): premium is string => premium !== null);
+  return priced.length > 1 && priced.every((premium) => premium === priced[0]);
+}
+
 /** What a row says when capital has not chosen that band yet. */
 export const BAND_NOT_FUNDED = 'Nobody has funded this one yet.';
 

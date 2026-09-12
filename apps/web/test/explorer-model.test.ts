@@ -9,6 +9,7 @@ import {
   chartName,
   clampMonth,
   explorerOccupation,
+  formsNote,
   headlineFor,
   latestMonth,
   latestMonthIndex,
@@ -253,20 +254,38 @@ describe('the distance framing, with no signed value anywhere', () => {
     );
   });
 
-  it('frames a position as points better or worse than average', () => {
-    expect(againstAverage(-1.37)).toBe('1.4 points better than average');
-    expect(againstAverage(0.92)).toBe('0.9 points worse than average');
+  it('frames a position as points better or worse than average, at the published precision', () => {
+    expect(againstAverage(-1.37)).toBe('1.37 points better than average');
+    expect(againstAverage(0.92)).toBe('0.92 points worse than average');
   });
 
-  it('says the level form as a position and the shock form as ground lost', () => {
+  it('says the level form as a position and the shock form as ground lost, each naming its trigger', () => {
     const level = occupationFor('computer_math');
     expect(positionSentence(level, latestMonth(level))).toBe(
-      'Unemployment in this job sits 1.4 points better than average. Claims open when it reaches 0.7 points better than average.',
+      'Unemployment in this job sits 1.37 points better than average. Staying within 0.68 points of average opens claims.',
     );
 
     const shock = occupationFor('service');
     expect(positionSentence(shock, latestMonth(shock))).toContain('Against a year ago');
-    expect(positionSentence(shock, latestMonth(shock))).toContain('Claims open when it has lost');
+    expect(positionSentence(shock, latestMonth(shock))).toContain('A sudden jump of');
+  });
+
+  it('tells a reading apart from its line where one decimal could not', () => {
+    // Arts, design, entertainment and media reads 1.30 against a line of 1.32,
+    // and it is the occupation the panel opens on. At one decimal the sentence
+    // printed both as 1.3 and read as broken copy.
+    const arts = occupationFor('arts_design_ent_media');
+    expect(positionSentence(arts, latestMonth(arts))).toBe(
+      'Unemployment in this job sits 1.30 points worse than average. Staying 1.32 points worse than average opens claims.',
+    );
+  });
+
+  it('says there are two triggers and which one the chart is drawing', () => {
+    const level = occupationFor('computer_math');
+    expect(formsNote(level)).toBe(
+      'Claims open in two ways: a sudden jump, or staying worse than anything in the decade before AI. The chart shows staying worse, which is the one this occupation is nearer.',
+    );
+    expect(formsNote({ ...level, form: 'shock' })).toContain('The chart shows a sudden jump');
   });
 
   it('prints no minus sign on any sentence the page shows', () => {
@@ -277,6 +296,7 @@ describe('the distance framing, with no signed value anywhere', () => {
         positionSentence(occupation, month) ?? '',
         bandCaption(occupation),
         chartName(occupation, month),
+        formsNote(occupation),
         ...methodSteps(occupation, month).map((step) => `${step.title} ${step.body}`),
       ].join(' ');
       expect(said, occupation.key).not.toContain('-');

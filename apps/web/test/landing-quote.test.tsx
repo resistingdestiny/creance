@@ -66,7 +66,7 @@ const PRICE = {
   limit: '5,000',
   premium: '4.25',
   sentence:
-    'Pays out if the index for Computer and mathematical rises 2 points above its trend. Full payout at 4 points.',
+    'Claims open in two ways: a sudden jump of 2 points above trend, or staying within 0.68 points of average. A jump of 4 pays in full.',
   usedPercent: 6,
   full: false,
   error: null,

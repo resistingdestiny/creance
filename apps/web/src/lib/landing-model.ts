@@ -15,8 +15,8 @@
 
 import { rankByDistance, type ExplorerOccupation } from './explorer-model';
 import { formatAmount, formatMoney, formatPeriod, formatWholeMoney } from './format';
-import { OCCUPATIONS } from './occupations';
-import { exhaustionFor, headlineReading, pointsInProse } from './worker-model';
+import { OCCUPATIONS, occupationLabel } from './occupations';
+import { exhaustionFor, headlineReading, levelLinePhrase, pointsInProse } from './worker-model';
 import type { CouponsView, SeriesView } from './investor-api';
 import type { IndexCatalogueView, IndexView } from './worker-api';
 
@@ -63,22 +63,50 @@ export function fromPriceBuys(limit: number): string {
 }
 
 /**
- * "When does it pay." The attachment and the full payout level, interpolated.
+ * "When does it pay." Both triggers, both levels, and the occupation they are
+ * for.
  *
- * The second sentence is dropped when the series publishes no exhaustion, the
- * same rule the Amount screen's sentence follows. When there is no reading and
- * no catalogue either, both figures are gone and the answer says what is still
- * true and says why the level is missing, rather than printing a level from
- * memory.
+ * Two things were wrong with the sentence this replaces, and they were the same
+ * thing twice. It said "When the index for your occupation rises 2 points above
+ * its trend", which is the attachment and is one of the two ways claims open;
+ * the explorer directly beneath it was captioned with the other one, the level
+ * line, on a different scale and with no word anywhere saying they were
+ * different triggers. So the answer now names both, in the vocabulary the Index
+ * tab already uses for them, and each figure is labelled with the trigger it
+ * belongs to.
+ *
+ * The occupation is named rather than left as "your occupation". It said "your
+ * occupation" while being computed for LANDING_GROUP, which is computer and
+ * mathematical: not the reader's occupation, and not the one the explorer four
+ * inches below it opens on either. The two are deliberately separate (see
+ * LANDING_GROUP above and OPENS_ON in src/app/index/explorer-panel.tsx), the
+ * levels are per occupation, and this is a server rendered sentence in a ledger
+ * while the panel's selection is client state the reader moves. Making the
+ * answer chase the panel would mean either lifting that selection into the page
+ * or letting a ledger row rewrite itself under the reader's hand. So the answer
+ * says which occupation it is about instead, which is the honest version and
+ * the cheaper one. Recorded in docs/DECISIONS.md.
+ *
+ * The full payout sentence is dropped when the series publishes no exhaustion,
+ * the same rule the Amount screen's sentence follows. When there is no reading
+ * and no catalogue either, the figures are gone and the answer says what is
+ * still true and says why the levels are missing, rather than printing them
+ * from memory.
  */
-export function payAnswer(attachment: string | number | null, seriesId: string | null): string {
-  if (attachment === null) {
-    return 'When the index for your occupation rises above its trigger line. The live feed is not answering, so the level is not shown.';
+export function payAnswer(
+  attachment: string | number | null,
+  levelLine: string | number | null,
+  group: string,
+  seriesId: string | null,
+): string {
+  const label = occupationLabel(group).toLowerCase();
+  if (attachment === null || levelLine === null) {
+    return `Claims open in two ways for ${label}: a sudden jump past its trigger line, or staying worse than anything in the decade before AI. The live feed is not answering, so the levels are not shown.`;
   }
   const exhaustion = seriesId === null ? null : exhaustionFor(seriesId);
-  const first = `When the index for your occupation rises ${pointsInProse(attachment)} points above its trend.`;
+  const first = `Claims open in two ways for ${label}: a sudden jump of ${pointsInProse(attachment)} points above trend, or staying ${levelLinePhrase(levelLine)}.`;
   if (exhaustion === null) return first;
-  return `${first} Full payout at ${pointsInProse(exhaustion)}.`;
+  return `${first} A jump of ${pointsInProse(exhaustion)} pays in full.`;
 }
 
 /**
@@ -203,6 +231,24 @@ export function attachmentFor(
   return row?.attachment_shock ?? null;
 }
 
+/**
+ * The other trigger's level, read the same way and from the same two places.
+ *
+ * The answer above names both, so both have to come from a record. The
+ * catalogue is free and carries this line frozen at issuance alongside the
+ * attachment, so a deployment whose wallet has run dry prints both levels or
+ * neither and never one with the other invented.
+ */
+export function levelLineFor(
+  group: string,
+  index: IndexView | null,
+  catalogue: IndexCatalogueView | null,
+): string | null {
+  if (index !== null) return index.trigger.level_line;
+  const row = catalogue?.groups.find((candidate) => candidate.group === group) ?? null;
+  return row?.level_line ?? null;
+}
+
 /** The series behind the landing group, for the full payout level. */
 export function seriesFor(
   group: string,
@@ -261,14 +307,28 @@ export function historyFigure(asOf: string | null): LandingFigure | null {
  * The count is the API's own `coupons.settled`. The paid total is the sum of
  * every settled holder row, which is the arithmetic the investor screen's
  * "Earned to date" already does across one holder; here it is across all of
- * them. The principal is what was funded, in the deck's whole-money form.
+ * them.
+ *
+ * The principal is every occupation's, not this note's. It was this note's
+ * funded principal, 100,000, standing on a landing page beside "3 coupons
+ * settled on Hedera" where it reads as the product's capital: it understated
+ * the product 4.5 times while overstating this one series by the 3,000 already
+ * paid out of it. The caller hands in the sum across all fifteen, read from the
+ * same held call the occupation picker already makes, and it is the principal
+ * still standing rather than the principal ever funded, which is the base the
+ * pool binds against. Without it the figure is dropped rather than falling back
+ * to one series, because one series under that label is the bug.
  */
-export function noteFigures(series: SeriesView, coupons: CouponsView): readonly LandingFigure[] {
+export function noteFigures(
+  series: SeriesView,
+  coupons: CouponsView,
+  principalBehindCover: bigint | null,
+): readonly LandingFigure[] {
   const decimals = series.settlement_asset.decimals;
   const paid = coupons.coupons
     .flatMap((coupon) => coupon.holders.filter((holder) => holder.settlement.settled))
     .reduce((sum, holder) => sum + BigInt(holder.amount.amount), 0n);
-  const principal = BigInt(series.vault.principal_funded.amount);
+  const principal = principalBehindCover ?? 0n;
   // A note that has settled nothing yet has no coupon figure rather than a
   // nought, for the reason "Earned to date" is null before a payment: 0.00
   // in a band of achievements reads as a failure, and it is not one.

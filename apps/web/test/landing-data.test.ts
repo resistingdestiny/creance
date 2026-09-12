@@ -309,7 +309,8 @@ describe('a call that fails costs the page its figure and never the page', () =>
 
     expect(index.live).toBe(false);
     expect(index.note).toContain('This is the last reading we published, for July 2026.');
-    expect(index.payLine).toContain('2 points above its trend');
+    expect(index.payLine).toContain('a sudden jump of 2 points above trend');
+    expect(index.payLine).toContain('staying within 0.68 points of average');
   });
 
   it('says there is no reading at all when this process has never had one', async () => {
@@ -371,7 +372,9 @@ describe('the figures under the hero', () => {
   it('come from the same reads the page already makes, and from no new one', async () => {
     const { index, note } = await pageView();
 
-    expect(note.figures.map((figure) => figure.value)).toStrictEqual(['3', '1,994.52', '100,000']);
+    // The principal is every occupation's, summed from the capacity read the
+    // picker already makes, not this one note's.
+    expect(note.figures.map((figure) => figure.value)).toStrictEqual(['3', '1,994.52', '375,000']);
     expect(index.history).toStrictEqual({ value: '16', label: 'years of index history' });
     expect(fetchIndex).toHaveBeenCalledTimes(1);
     expect(fetchCoupons).toHaveBeenCalledTimes(1);

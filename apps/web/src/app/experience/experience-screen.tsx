@@ -6,7 +6,14 @@ import { AppFrame } from '../../components/app-frame';
 import { ListRow } from '../../components/list-row';
 import { PillButton } from '../../components/pill-button';
 import { SurfaceGroup } from '../../components/surface-group';
-import { BAND_EFFECT, BAND_QUESTION, bandCaption, type SeniorityBand } from '../../lib/bands';
+import {
+  BAND_EFFECT,
+  BAND_QUESTION,
+  BAND_SAME_PRICE,
+  bandCaption,
+  bandsPriceAlike,
+  type SeniorityBand,
+} from '../../lib/bands';
 import { chooseBand } from '../purchase-actions';
 
 /**
@@ -25,13 +32,20 @@ import { chooseBand } from '../purchase-actions';
  * almost never shows. The row is simply not selectable, the way an occupation
  * with no series behind it is not selectable on the picker before it.
  *
- * The one sentence under the question is the whole of what a band does. It
- * changes the price, because it changes which capital the cover is written
- * against. It changes nothing about the trigger or the payout, which are the
- * occupation's index and the cover amount and are identical in all three
- * bands. Nothing on this screen may suggest the index knows anything about how
- * long somebody has worked, because it does not: the published data has no
- * occupation-by-age series in it at all.
+ * The sentence under the question is the whole of what a band does. It changes
+ * the price, because it changes which capital the cover is written against. It
+ * changes nothing about the trigger or the payout, which are the occupation's
+ * index and the cover amount and are identical in all three bands. Nothing on
+ * this screen may suggest the index knows anything about how long somebody has
+ * worked, because it does not: the published data has no occupation-by-age
+ * series in it at all.
+ *
+ * It gains a second sentence on an occupation where every band it can sell
+ * costs the same, which is twelve of the fifteen today. Capital that named no
+ * band backs all three equally, so with nothing allocated between them the
+ * three prices are one price, and a screen that asked a question, answered it
+ * three times identically and captioned that with "This changes the price" was
+ * not saying the only thing that made it make sense.
  */
 
 export interface BandChoice {
@@ -54,6 +68,7 @@ export function ExperienceScreen({
 }) {
   const [selected, setSelected] = useState<SeniorityBand | null>(chosen);
   const none = bands.every((row) => !row.available);
+  const alike = bandsPriceAlike(bands.map((row) => row.premium));
 
   return (
     <AppFrame>
@@ -85,7 +100,16 @@ export function ExperienceScreen({
           ))}
         </SurfaceGroup>
 
-        <p className="text-secondary text-ink-2">{BAND_EFFECT}</p>
+        {/* The caption is the whole of what a band does, and where every band
+            on screen costs the same it is not enough on its own: a question
+            with three identical answers under "This changes the price" reads
+            as a screen that has failed rather than as a market nobody has
+            taken a view in yet. The second sentence is that fact, and it is
+            here only while it is true of the occupation in hand. */}
+        <p className="text-secondary text-ink-2">
+          {BAND_EFFECT}
+          {alike ? ` ${BAND_SAME_PRICE}` : ''}
+        </p>
 
         {none ? (
           <p className="text-secondary text-ink-2" role="status">

@@ -19,7 +19,7 @@
 
 import { formatIndexValue, formatMoney, formatPeriod } from './format';
 import { findOccupation, occupationLabel } from './occupations';
-import { bandLabel, marginSentences } from './worker-model';
+import { bandLabel, bandSentence, levelLinePhrase, marginSentences } from './worker-model';
 import type { IndexView } from './worker-api';
 
 import { guideRate, marketRate, monthlyPremium, riskCharge } from '@creance/index-model/src/pricing';
@@ -211,20 +211,41 @@ export function headlineFor(month: ExplorerMonth | null): string {
  * The excess is `u_g - u_all`, so a positive excess is an occupation doing
  * worse than the labour market as a whole. The sign never reaches the screen;
  * the word does.
+ *
+ * Two decimals, through the app's one index formatter. It was one, and one was
+ * a rounding step wider than the gap this page most often has to show: arts,
+ * design, entertainment and media reads 1.30 against a line of 1.32, and the
+ * sentence below printed both as "1.3 points worse than average" in the same
+ * breath, on the occupation the panel opens on. Both figures were right and the
+ * screen read as broken copy. The feed publishes both at two decimals, the
+ * chart's own band caption has always printed the line at two, so this prints
+ * what was published rather than inventing a difference or hiding one.
  */
 export function againstAverage(excess: number): string {
   const direction = excess > 0 ? 'worse' : 'better';
-  return `${Math.abs(excess).toFixed(1)} points ${direction} than average`;
+  return `${formatIndexValue(Math.abs(excess))} points ${direction} than average`;
 }
 
 /**
- * The sentence under the headline: where the occupation sits, and where claims
- * open, both in the same framing.
+ * The sentence under the headline: where the occupation sits, and what would
+ * open claims, both in the same framing.
  *
  * The two forms are different measurements and cannot share a sentence. The
  * level form is a position against every other occupation; the shock form is
  * ground lost against the same occupation a year earlier. Saying either one in
  * the other's words would be false.
+ *
+ * Each names its trigger, because the chart beside it draws one line and the
+ * product has two. "Staying" is the level form and "a sudden jump" is the shock
+ * form, which are the Index tab's own words for them, so a reader who meets the
+ * attachment on the front door and the level line here can tell that they are
+ * two ways into the same cover rather than two answers to one question.
+ *
+ * The level form's threshold goes through `levelLinePhrase` rather than through
+ * `againstAverage`, so that a negative line is said the way the chart says it.
+ * A profession usually unemployed less than average opens claims when the gap
+ * narrows to within so many points of average, and "claims open when it reaches
+ * 0.68 points better than average" said that backwards.
  */
 export function positionSentence(
   occupation: ExplorerOccupation,
@@ -232,10 +253,25 @@ export function positionSentence(
 ): string | null {
   if (month === null || month.value === null) return null;
   if (occupation.form === 'level') {
-    return `Unemployment in this job sits ${againstAverage(month.value)}. Claims open when it reaches ${againstAverage(occupation.line)}.`;
+    return `Unemployment in this job sits ${againstAverage(month.value)}. Staying ${levelLinePhrase(occupation.line)} opens claims.`;
   }
   const moved = month.value >= 0 ? 'lost' : 'gained';
-  return `Against a year ago this job has ${moved} ${Math.abs(month.value).toFixed(1)} points of ground on everyone else. Claims open when it has lost ${Math.abs(occupation.line).toFixed(1)}.`;
+  return `Against a year ago this job has ${moved} ${formatIndexValue(Math.abs(month.value))} points of ground on everyone else. A sudden jump of ${formatIndexValue(Math.abs(occupation.line))} opens claims.`;
+}
+
+/**
+ * That there are two triggers, and which one this chart is drawing.
+ *
+ * The explorer shows whichever form the occupation is nearer, chosen server
+ * side, and said nothing at all about the other one. So the front door could
+ * answer "when does it pay" with the attachment while the panel four inches
+ * below it was captioned with the level line, and nothing on the page connected
+ * them. This is the sentence that connects them, and it is the Index tab's own,
+ * extended by the half a clause that names the form on screen.
+ */
+export function formsNote(occupation: ExplorerOccupation): string {
+  const drawn = occupation.form === 'level' ? 'staying worse' : 'a sudden jump';
+  return `Claims open in two ways: a sudden jump, or staying worse than anything in the decade before AI. The chart shows ${drawn}, which is the one this occupation is nearer.`;
 }
 
 /**
@@ -262,13 +298,19 @@ export function bandCaption(occupation: ExplorerOccupation): string {
   return bandLabel(occupation.form, occupation.line);
 }
 
-/** The chart's accessible reading, in the same unsigned framing as the screen. */
+/**
+ * The chart's accessible reading, in the same unsigned framing as the screen.
+ *
+ * The band goes in as `bandSentence` and not as the caption: a reader with only
+ * the words has neither the red band nor the line of prose under the figure, so
+ * the trigger has to say that it opens claims rather than only naming itself.
+ */
 export function chartName(
   occupation: ExplorerOccupation,
   month: ExplorerMonth | null,
 ): string {
   if (month === null) return `${occupation.label}. No reading yet.`;
-  return `${occupation.label}, ${formatPeriod(month.period)}. ${headlineFor(month)}. ${bandCaption(occupation)}.`;
+  return `${occupation.label}, ${formatPeriod(month.period)}. ${headlineFor(month)}. ${bandSentence(occupation.form, occupation.line)}.`;
 }
 
 export interface RankedOccupation {
@@ -448,10 +490,13 @@ export function methodSteps(
     },
     {
       title: 'The line',
+      // The threshold is worded exactly as the chart's band caption and the
+      // verdict sentence word it, because all three name one frozen number and
+      // a step that rounded it differently would read as a fourth figure.
       body:
         occupation.form === 'level'
-          ? `The line comes from this occupation's own history in the 2010s, so each job is judged against itself. Here it sits at ${againstAverage(occupation.line)}.`
-          : `The line comes from how far this occupation's own index moved in the 2010s, so each job is judged against itself. Here it sits at ${formatIndexValue(Math.abs(occupation.line))} points of ground lost in a year.`,
+          ? `The line comes from this occupation's own history in the 2010s, so each job is judged against itself. Staying ${levelLinePhrase(occupation.line)} opens claims.`
+          : `The line comes from how far this occupation's own index moved in the 2010s, so each job is judged against itself. A sudden jump of ${formatIndexValue(Math.abs(occupation.line))} points in a year opens claims.`,
       line: 'headline',
       against: null,
       threshold: true,

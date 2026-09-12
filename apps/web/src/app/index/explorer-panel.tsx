@@ -12,6 +12,7 @@ import {
   bandCaption,
   chartName,
   clampMonth,
+  formsNote,
   headlineFor,
   latestMonth,
   latestMonthIndex,
@@ -258,6 +259,12 @@ export function ExplorerPanel({
           <p className="text-secondary text-ink-2">
             Up is towards a payout, and the red band is where claims open.
           </p>
+          {/* The exception, and the one thing the chart cannot say for itself:
+              it draws one line and the cover has two triggers. Without this
+              the level line under a reader's eyes here and the attachment in
+              the answer on the front door look like two answers to one
+              question rather than the two ways into one cover. */}
+          <p className="text-secondary text-ink-2">{formsNote(occupation)}</p>
           {occupation.everOpened ? null : (
             <p className="text-secondary text-ink-2">
               This cover has never paid for this occupation since 2010.

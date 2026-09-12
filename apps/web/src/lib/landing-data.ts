@@ -62,6 +62,7 @@ import {
   historyFigure,
   investorLine,
   landingIndexSection,
+  levelLineFor,
   noteFigures,
   payAnswer,
   seriesFor,
@@ -69,6 +70,7 @@ import {
   type LandingFigure,
   type TickerReading,
 } from './landing-model';
+import { readPrincipalBehindCover } from './cover-availability';
 import { recallReading, rememberReading } from './last-reading';
 import { occupationLabel } from './occupations';
 import { DEMO_ACCOUNT } from './wallet';
@@ -333,6 +335,8 @@ async function readIndexSection(group: string): Promise<LandingIndexView> {
   return {
     payLine: payAnswer(
       attachmentFor(group, index, catalogue),
+      levelLineFor(group, index, catalogue),
+      group,
       seriesFor(group, index, catalogue),
     ),
     ...landingIndexSection(index, live),
@@ -423,7 +427,8 @@ async function readNote(): Promise<LandingNoteView> {
   }
   return {
     investorLine: investorLine(note === null ? null : couponLine(note.series)),
-    figures: note === null ? [] : noteFigures(note.series, note.coupons),
+    figures:
+      note === null ? [] : noteFigures(note.series, note.coupons, await readPrincipalBehindCover()),
   };
 }
 

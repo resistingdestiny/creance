@@ -139,20 +139,33 @@ describe('the words this page cut', () => {
 });
 
 describe('the figures come from the feed and never from the page', () => {
-  it('interpolates the attachment and the full payout level', () => {
-    expect(payAnswer(INDEX.trigger.attachment_shock, INDEX.series_id)).toBe(
-      'When the index for your occupation rises 2 points above its trend. Full payout at 4.',
+  it('names both triggers, both levels and the occupation they are for', () => {
+    expect(
+      payAnswer(
+        INDEX.trigger.attachment_shock,
+        INDEX.trigger.level_line,
+        LANDING_GROUP,
+        INDEX.series_id,
+      ),
+    ).toBe(
+      'Claims open in two ways for computer and mathematical: a sudden jump of 2 points above trend, or staying within 0.68 points of average. A jump of 4 pays in full.',
     );
   });
 
   it('drops the full payout sentence for a series with no published exhaustion', () => {
-    expect(payAnswer('2.00', 'ODI-OFFICE-2026-01')).toBe(
-      'When the index for your occupation rises 2 points above its trend.',
+    expect(payAnswer('2.00', '-0.68', LANDING_GROUP, 'ODI-OFFICE-2026-01')).toBe(
+      'Claims open in two ways for computer and mathematical: a sudden jump of 2 points above trend, or staying within 0.68 points of average.',
     );
   });
 
-  it('says the level is not shown rather than remembering one', () => {
-    const answer = payAnswer(null, null);
+  it('says a positive level line as points worse than average', () => {
+    expect(payAnswer('3.00', '1.32', 'arts_design_ent_media', null)).toContain(
+      'staying 1.32 points worse than average',
+    );
+  });
+
+  it('says the levels are not shown rather than remembering them', () => {
+    const answer = payAnswer(null, null, LANDING_GROUP, null);
     expect(answer).toContain('The live feed is not answering');
     expect(answer).not.toMatch(/\d/);
   });
@@ -515,7 +528,7 @@ describe('the figures band (T54)', () => {
 
   it('carries the four figures the reads hold, with their labels, under the hero', () => {
     expect(visibleText(band)).toBe(
-      '16 years of index history 3 coupons settled on Hedera 1,994.52 paid to noteholders 100,000 funding the cover',
+      '16 years of index history 3 coupons settled on Hedera 1,994.52 paid to noteholders 447,000 funding the cover',
     );
     expect(live.indexOf('cover-card-stack')).toBeLessThan(live.indexOf('data-testid="landing-figures"'));
     expect(live.indexOf('data-testid="landing-figures"')).toBeLessThan(live.indexOf('landing-ticker'));
@@ -636,17 +649,29 @@ describe('the figures under the hero are built from records, never typed', () =>
   });
 
   it('takes the band figures from the series and the coupons the API served', () => {
-    expect(noteFigures(SERIES, COUPONS)).toStrictEqual([
+    // The principal is every occupation's, handed in by the caller, not this
+    // note's. One series' principal under the label "funding the cover" read
+    // as the product's capital and was 4.5 times short of it.
+    expect(noteFigures(SERIES, COUPONS, 447_000_000_000n)).toStrictEqual([
       { value: '3', label: 'coupons settled on Hedera' },
       { value: '1,994.52', label: 'paid to noteholders' },
-      { value: '100,000', label: 'funding the cover' },
+      { value: '447,000', label: 'funding the cover' },
     ]);
   });
 
   it('prints no nought for a note that has settled nothing', () => {
     const fresh = { ...SERIES, coupons: { ...SERIES.coupons, settled: 0 } };
-    const figures = noteFigures(fresh, { ...COUPONS, coupons: [] });
-    expect(figures).toStrictEqual([{ value: '100,000', label: 'funding the cover' }]);
+    const figures = noteFigures(fresh, { ...COUPONS, coupons: [] }, 447_000_000_000n);
+    expect(figures).toStrictEqual([{ value: '447,000', label: 'funding the cover' }]);
+  });
+
+  it('drops the principal rather than falling back to one series', () => {
+    // A capacity read that failed used to leave this note's own principal
+    // under a label that says every occupation's, which is the bug itself.
+    expect(noteFigures(SERIES, COUPONS, null).map((figure) => figure.label)).toStrictEqual([
+      'coupons settled on Hedera',
+      'paid to noteholders',
+    ]);
   });
 
   it('gives the badge its number only while the feed is live', () => {

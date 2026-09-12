@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { formatDay } from '../src/lib/format.js';
 import {
   bandLabelFor,
+  bandSentence,
   chartDescription,
   chartPoints,
   chartThreshold,
@@ -55,15 +56,21 @@ describe('money on the worker screens', () => {
 });
 
 describe("the Amount screen's sentence", () => {
-  it('interpolates the group, the attachment and the exhaustion', () => {
+  it('names both triggers, with the attachment and the exhaustion interpolated', () => {
     expect(paysOutSentence(QUOTE)).toBe(
-      'Pays out if the index for Computer and mathematical rises 2 points above its trend. Full payout at 4 points.',
+      'Claims open in two ways: a sudden jump of 2 points above trend, or staying within 0.68 points of average. A jump of 4 pays in full.',
     );
   });
 
-  it('drops the second sentence for a series with no published exhaustion', () => {
+  it('drops the full payout sentence for a series with no published exhaustion', () => {
     expect(paysOutSentence({ ...QUOTE, series_id: 'ODI-NOTHING-2026-01' })).toBe(
-      'Pays out if the index for Computer and mathematical rises 2 points above its trend.',
+      'Claims open in two ways: a sudden jump of 2 points above trend, or staying within 0.68 points of average.',
+    );
+  });
+
+  it('says a positive level line as points worse than average', () => {
+    expect(paysOutSentence({ ...QUOTE, level_line: '1.32' })).toContain(
+      'staying 1.32 points worse than average',
     );
   });
 
@@ -158,17 +165,18 @@ describe('the chart', () => {
     expect(chartPoints(gapped).find((point) => point.period === '2025-09')?.value).toBeNull();
   });
 
-  it('words a negative level line as a distance from average', () => {
-    expect(bandLabelFor(INDEX)).toBe('Pays out within 0.68 of average');
+  it('words a negative level line as a distance from average, and names the trigger', () => {
+    expect(bandLabelFor(INDEX)).toBe('Staying within 0.68 of average');
+    expect(bandSentence('level', -0.68)).toBe('Claims open on staying within 0.68 of average');
     expect(lineIsNegative(INDEX)).toBe(true);
   });
 
-  it('keeps the copy deck string for the shock form, whose attachment is positive', () => {
+  it('names the other trigger on a chart drawing the shock form', () => {
     const shock = {
       ...INDEX,
       headline: { form: 'shock' as const, distance: '2.07', on_the_line: false, open: false },
     };
-    expect(bandLabelFor(shock)).toBe('Pays out above 2.00');
+    expect(bandLabelFor(shock)).toBe('A sudden jump above 2.00');
   });
 
   it('describes itself in the same unsigned framing as the screen', () => {

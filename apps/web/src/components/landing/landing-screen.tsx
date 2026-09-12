@@ -583,9 +583,12 @@ function PayAnswer({ index }: { index: Streamed<LandingIndexView> }) {
  * from the sentence that replaces it, and the row would move by a few pixels as
  * the answer landed.
  *
- * The pay answer takes two lines at both widths. Measured in a browser with the
- * figures in it. It took a `lines` argument while the cost answer beside it
- * took three at 390; that answer is gone (T44) and so is the argument.
+ * The pay answer takes four lines at both widths. Measured in a browser with
+ * the figures in it. It took two while the answer named one of the two ways
+ * claims open and nothing else; it names both now, with the occupation they are
+ * for, so the space it rests in is the space it lands in. It took a `lines`
+ * argument while the cost answer beside it took three at 390; that answer is
+ * gone (T44) and so is the argument.
  */
 function AnswerResting() {
   return (
@@ -594,8 +597,14 @@ function AnswerResting() {
         {'\u00a0'}
         <br />
         {'\u00a0'}
+        <br />
+        {'\u00a0'}
+        <br />
+        {'\u00a0'}
       </span>
       <span className="absolute inset-0 flex flex-col gap-1.5">
+        <Skeleton className="flex-1" />
+        <Skeleton className="flex-1" />
         <Skeleton className="flex-1" />
         <Skeleton className="flex-1 lg:w-2/3 lg:self-end" />
       </span>

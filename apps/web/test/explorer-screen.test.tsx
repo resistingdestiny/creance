@@ -7,6 +7,7 @@ import { CHOOSE_OCCUPATION } from '../src/lib/occupations.js';
 import { ExplorerScreen } from '../src/app/index/explorer-screen.js';
 import {
   bandCaption,
+  formsNote,
   explorerOccupation,
   headlineFor,
   latestMonth,
@@ -282,15 +283,21 @@ describe('the chart', () => {
     expect(caption?.textContent).toContain(bandCaption(opensOn));
   });
 
-  it('carries one line of prose under it and nothing more', () => {
+  it('carries two lines of prose under it and nothing more', () => {
     // The chart used to stand over four paragraphs: how the line is built, a
     // caveat for an occupation that is usually better than average, the never
     // paid note and the margin to each line with the settle sentence. All of
     // it said again what the verdict, the band caption and the four steps say.
+    //
+    // The second line is the one thing none of them says: that the cover has
+    // two triggers and this chart draws whichever one the occupation is
+    // nearer. Without it the front door's answer and this chart's caption are
+    // two unreconcilable answers to "when does it pay".
     render(<ExplorerScreen data={data()} />);
     expect(
       screen.getByText('Up is towards a payout, and the red band is where claims open.'),
     ).toBeDefined();
+    expect(screen.getByText(formsNote(opensOn))).toBeDefined();
     expect(screen.queryByText(/The line rises when unemployment/)).toBeNull();
     expect(screen.queryByText(/usually unemployed less than average/)).toBeNull();
     expect(screen.queryByText(/points short of the line/)).toBeNull();

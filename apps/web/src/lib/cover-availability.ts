@@ -98,6 +98,37 @@ export async function readUtilisation(): Promise<Readonly<Record<string, number>
   return used;
 }
 
+/**
+ * The principal standing behind every occupation, added up, in minor units.
+ *
+ * The landing band said "100,000 funding the cover", which was one series'
+ * funded principal presented as the product's capital. It understated the
+ * product 4.5 times while overstating that series by the 3,000 already paid out
+ * of it, on a page whose whole argument is that the figures are checkable.
+ *
+ * Remaining rather than funded, so a principal that has been paid out to a
+ * policyholder stops being counted as standing behind anything, which is the
+ * same base CoverPool binds against and the same one the market board's
+ * capacity uses. Null rather than a partial sum when the read failed, because
+ * a total that quietly lost a series is worse than no total.
+ *
+ * It reads the same held call readUtilisation does, so the landing pays nothing
+ * for it beyond what the picker already buys.
+ */
+export async function readPrincipalBehindCover(): Promise<bigint | null> {
+  const occupations = await readCapacity();
+  if (occupations === undefined) return null;
+  let total = 0n;
+  for (const occupation of occupations) {
+    try {
+      total += BigInt(occupation.principal_remaining.amount);
+    } catch {
+      return null;
+    }
+  }
+  return total;
+}
+
 /** Tests only. A module level hold outlives a test file otherwise. */
 export function forgetFundedBands(): void {
   hold.forget();

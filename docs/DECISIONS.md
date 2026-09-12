@@ -7404,3 +7404,120 @@ Legal is named because legal is where capital has chosen, and a reader who wants
 the contrast needs somewhere to look for it. The sentence is absent wherever the
 prices differ, so it is a fact about the occupation in hand and never a standing
 caveat.
+
+## The premium is solved from the return capital requires, 12 September 2026
+
+Two changes on one day, on the same argument. The first inverted the price so
+that capital names what it requires and the premium is solved for it. The second
+made what capital requires depend on how near the occupation is to paying, which
+is the half the first change left out.
+
+### The guide rate is a capital charge plus a risk charge, and the floor is the capital charge
+
+Supersedes "Premium is a guide price from the index multiplied by a capacity
+term" above and DESIGN.md 3.4's 3 percent floor.
+
+Priced as expected loss times a load, the demo series charged 1.81 percent a
+year on 86,000 of limit. That is 1,557 of premium income against an 8,000
+coupon, so the coupon was five times the product's entire income and the net
+return to capital came out under one percent a year. No capital funds
+displacement risk on those terms and a judge with a calculator finds it in a
+minute.
+
+The fix is not a bigger load and it is certainly not a steeper hazard. The
+measured hazard runs above the archive in every insurable bucket already, so a
+faithful refit would lower prices. Nothing in it was touched, then or since.
+What changed is the direction of the computation: the required return on
+capital, with a reserve margin, over the utilisation the series is priced to
+clear at, plus expected loss and its expenses. The index keeps the job it can
+do, which is the relative ordering between occupations, and gives up the one it
+never could, which is setting the level.
+
+The collateral is also no longer assumed to earn nothing while it waits. An
+insurer's capital is invested between claims and that income is a real and
+usually dominant part of the return, so the premium funds the spread over a base
+yield rather than the whole coupon. The base yield is an assumption and this
+deployment earns none of it: the collateral sits in a vault on Hedera testnet
+making nothing and no yield source is implemented. Every screen that shows the
+figure says "implied" and "would".
+
+The floor becomes the capital charge, which is derived, rather than the 0.5
+percent the code ran or the 3 percent DESIGN.md 3.4 asks for. The old floor was
+an eighth of what the collateral is assumed to make sitting still, so a policy
+sold at it did not pay for the collateral behind it. The new one never binds
+either, for the same reason the old one did not.
+
+### What capital requires rises with how near the occupation is to paying
+
+The inversion fixed the level and left the shape wrong. The only capital-side
+term was `guide * (1 + utilisation)`, and utilisation measures demand that has
+already arrived, so it was weakest exactly where the risk was worst. Arts,
+design and media sits 0.02 points from its line, the nearest any occupation has
+been, with nothing written against it: utilisation nought, capital term one,
+13.55 percent a year of limit. Farming, fishing and forestry is four and a half
+points out and has not opened claims since 2021: 6.26 percent. Cover on the job
+that might pay this year cost a fifth more than cover on the job that probably
+never will.
+
+Two terms were added, both capital side, both frozen constants, both conditioned
+on the same normalised hazard curve so that no new scale had to be invented.
+
+A selection charge, because the people who buy cover on an occupation whose
+index is about to open are not the population the hazard counted. There is no
+underwriting in this product, no waiting list and no health question, and the
+trigger is published monthly on the front page, so selection is as strong here
+as it gets. The separation rate on written cover runs from the population's
+0.167 far from the line to an assumed 0.75 at it. It has its own charge and its
+own row everywhere a price is broken down, because it is a judgment about who
+buys and the risk charge beside it is a reading of counted months, and a reader
+is entitled to reject one and keep the other.
+
+An imminence spread on the required return, because capital does not want the
+same return for a long wait on a tail as for money that may be called this year
+out of a pool collateralised one for one. It takes the required return from 8
+percent a year far out to 20 percent on the line. The coupon of record stays at
+8 percent: it is a per series term frozen at issuance with three coupons settled
+on chain at it, and the required return is what the price is solved for, of
+which the coupon is the contractual floor and the rest is the residual the note
+holder already receives above it.
+
+Neither is calibrated. The anchor is a capital provider's own statement that
+they would want almost 60 percent a year to fund the worst occupation in the
+book with claims possibly opening inside twelve months, hedged as maybe a bit
+extreme. The result lands at 54.21 percent of limit, deliberately near it rather
+than on it. The reasoning and the arithmetic are in board/PRICING.md, which is
+the assumptions of record.
+
+The effect is confined where it should be. On 5,000 of cover, five of the
+fifteen occupations are unchanged to the penny, five more move by under fifty
+pence a month, and the one sitting on its line goes up four times, from 56.46 to
+225.88.
+
+### Cover is not sold into an occupation whose claims are open
+
+The published hazard table has said so since it was written: its first row is
+the months at or past the line and the note under it reads "cover cannot be
+bought in that state, so the row is here for completeness and no price is quoted
+from it". Nothing enforced it. The public explorer would scrub to a month with
+claims open and quote a premium for it, off a hazard floored at the line, at
+about the price of the month before.
+
+A refusal rather than a very steep price. A policy bound into an open month is
+cover against a loss already running, which is a transfer and not insurance; a
+price implies somebody would take the other side and nobody would; and the
+product already refuses in this shape, because a band with no capital behind it
+says "Nobody has funded this one yet" rather than showing a small number.
+
+`POST /v1/quote` answers 409 `claims_already_open`, which is deliberately not
+`claims_open`: that is already a series and policy status meaning the opposite,
+that a holder may now claim. `GET /v1/cover/bands` reports the
+reason on every band of the occupation, ahead of the capacity reasons, because
+it is the stronger no. The explorer's price block keeps its place and says "Not
+on sale". The market board and the landing's "from" price leave the occupation
+out rather than ranking it. Nothing on the live board is in that state today and
+arts, design and media has been in it in six months since the start of 2025.
+
+The contract still permits what the API now refuses. `CoverPool.bind` accepts a
+policy while a series is in the `claims_open` state and nothing was redeployed
+for this. The refusal is a product decision enforced in the API, the gap is
+stated rather than hidden, and closing it in Solidity needs a redeployed pool.

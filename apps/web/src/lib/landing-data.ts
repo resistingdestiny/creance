@@ -78,7 +78,7 @@ import {
 } from './worker-api';
 import { premiumAmount } from './worker-model';
 
-import { guideRate, marketRate } from '@creance/index-model/src/pricing';
+import { coverIsOffered, guideRate, marketRate } from '@creance/index-model/src/pricing';
 
 /**
  * How long a metered reading stands before it is bought again, and how long
@@ -344,10 +344,16 @@ async function readIndexSection(group: string): Promise<LandingIndexView> {
  * thing that changed is which occupation it is for.
  *
  * The arithmetic is apps/api/src/pricing.ts's own, from the same module: the
- * level form's distance, unfloored, through `guideRate` and `marketRate`. This
- * only ranks. The figure the page prints is whatever the API then quotes for
- * the winner, so a disagreement between this ranking and the API costs the page
- * a slightly dearer occupation and never a price nobody quoted.
+ * level form's distance through `guideRate` and `marketRate`. This only ranks.
+ * The figure the page prints is whatever the API then quotes for the winner, so
+ * a disagreement between this ranking and the API costs the page a slightly
+ * dearer occupation and never a price nobody quoted.
+ *
+ * An occupation whose claims are open is skipped rather than ranked, because
+ * the API will refuse to quote it and a "from" price naming an occupation
+ * nobody can buy would be a front door advertising something that is not for
+ * sale. It could never have won on price anyway; it is skipped so that the two
+ * sides agree on the rule rather than on the outcome.
  *
  * With no capacity read the ranking falls back to the guide rate alone, which
  * is the measured half of the price and the half that differs by occupation.
@@ -364,7 +370,7 @@ async function cheapestGroup(): Promise<string | null> {
     const ebar = reading.reading.ebar;
     if (ebar === null) continue;
     const distance = Number(reading.trigger.level_line) - Number(ebar);
-    if (!Number.isFinite(distance)) continue;
+    if (!Number.isFinite(distance) || !coverIsOffered(distance)) continue;
     const rate = marketRate(guideRate(distance), utilisation[reading.group] ?? 0);
     if (best === null || rate < best.rate) best = { group: reading.group, rate };
   }

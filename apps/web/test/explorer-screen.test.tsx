@@ -6,6 +6,8 @@ import { ExplorerPanel } from '../src/app/index/explorer-panel.js';
 import { CHOOSE_OCCUPATION } from '../src/lib/occupations.js';
 import { ExplorerScreen } from '../src/app/index/explorer-screen.js';
 import {
+  COVER_CLOSED,
+  COVER_CLOSED_HEADLINE,
   PAYOUT_CONDITION,
   bandCaption,
   explorerOccupation,
@@ -323,6 +325,22 @@ describe('the month scrubber', () => {
     expect(screen.getByText(`${DEFAULT_LABEL}, ${formatPeriod(open.period)}`)).toBeDefined();
     expect(screen.getByText('Claims are open')).toBeDefined();
     expect(screen.getAllByText('Claims open').length).toBeGreaterThan(0);
+  });
+
+  it('says a month with claims open is not on sale rather than quoting it', () => {
+    // It used to quote that month off a hazard floored at the line, at about
+    // the price of the month before, on the one screen whose job is to show how
+    // near a payout an occupation is. Nobody would have sold it.
+    render(<ExplorerScreen data={data()} />);
+    const scrub = screen.getByRole('slider', { name: `Month, ${DEFAULT_LABEL}` });
+    const at = opensOn.months.findIndex((month) => month.open);
+    fireEvent.change(scrub, { target: { value: String(at) } });
+
+    const block = screen.getByTestId('explorer-price');
+    expect(within(block).getByText(COVER_CLOSED_HEADLINE)).toBeDefined();
+    expect(within(block).getByText(COVER_CLOSED)).toBeDefined();
+    expect(screen.queryByTestId('explorer-price-build')).toBeNull();
+    expect(screen.queryByText(PAYOUT_CONDITION)).toBeNull();
   });
 });
 

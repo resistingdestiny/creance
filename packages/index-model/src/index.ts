@@ -147,15 +147,22 @@ export {
   SENIORITY_BANDS,
   SENIORITY_BAND_LABELS,
   bandUtilisation,
+  capitalCharge,
+  coverIsOffered,
+  expectedLossOnWrittenCover,
   expectedLossRate,
   fittedHazard,
   guideRate,
   headline,
+  imminence,
   isSeniorityBand,
   marketRate,
   monthlyPremium,
+  requiredReturn,
   returnSplit,
   riskCharge,
+  selectionCharge,
+  separationOnWrittenCover,
 } from './pricing.js';
 export type { Headline, HeadlineForm, ReturnSplit, SeniorityBand } from './pricing.js';
 

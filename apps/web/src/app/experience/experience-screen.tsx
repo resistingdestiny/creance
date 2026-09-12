@@ -52,7 +52,7 @@ export interface BandChoice {
   readonly band: SeniorityBand;
   readonly label: string;
   readonly available: boolean;
-  readonly reason: 'none' | 'no_capital' | 'no_free_capacity';
+  readonly reason: 'none' | 'no_capital' | 'no_free_capacity' | 'claims_already_open';
   /** The monthly premium, already formatted, or null when there is no price. */
   readonly premium: string | null;
 }

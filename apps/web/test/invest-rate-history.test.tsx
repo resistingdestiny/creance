@@ -69,9 +69,11 @@ function visibleText(markup: string): string {
 describe('the risk charge month by month', () => {
   it('is the published pricing over the published distance and nothing else', () => {
     const points = rateHistory([month('2026-06', 0.3), month('2026-07', 1.2)]);
+    // The distance travels with the value, because the build up beside the
+    // chart is struck on it and both of the charges it adds are functions of it.
     expect(points).toEqual([
-      { period: '2026-06', value: riskCharge(0.3) * 100 },
-      { period: '2026-07', value: riskCharge(1.2) * 100 },
+      { period: '2026-06', value: riskCharge(0.3) * 100, distance: 0.3 },
+      { period: '2026-07', value: riskCharge(1.2) * 100, distance: 1.2 },
     ]);
   });
 
@@ -178,7 +180,7 @@ describe('the scale the histories are drawn against', () => {
 
   it('is nothing where nothing was read', () => {
     expect(rateRange([])).toBeNull();
-    expect(rateRange([[{ period: '2026-07', value: null }]])).toBeNull();
+    expect(rateRange([[{ period: '2026-07', value: null, distance: null }]])).toBeNull();
   });
 
   it('says a rate that never moved once rather than twice with a "to" in it', () => {
@@ -192,11 +194,11 @@ describe('the scale the histories are drawn against', () => {
 
 describe('what the chart draws', () => {
   const points: readonly RatePoint[] = [
-    { period: '2026-01', value: 1 },
-    { period: '2026-02', value: 2 },
-    { period: '2026-03', value: null },
-    { period: '2026-04', value: 3 },
-    { period: '2026-05', value: 4 },
+    { period: '2026-01', value: 1, distance: 1.5 },
+    { period: '2026-02', value: 2, distance: 1.2 },
+    { period: '2026-03', value: null, distance: null },
+    { period: '2026-04', value: 3, distance: 0.9 },
+    { period: '2026-05', value: 4, distance: 0.7 },
   ];
 
   it('breaks the line at a month with no reading rather than bridging it', () => {

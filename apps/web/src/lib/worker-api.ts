@@ -36,7 +36,7 @@ export interface BandView {
   readonly band: SeniorityBand;
   readonly label: string;
   readonly available: boolean;
-  readonly reason: 'none' | 'no_capital' | 'no_free_capacity';
+  readonly reason: 'none' | 'no_capital' | 'no_free_capacity' | 'claims_already_open';
   readonly capital: Money;
   readonly exposure: Money;
   readonly free: Money;

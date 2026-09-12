@@ -70,10 +70,22 @@ export const BAND_NOT_FUNDED = 'Nobody has funded this one yet.';
 /** What a row says when the band is funded but has no room for this amount. */
 export const BAND_FULL = 'Full at this amount.';
 
+/**
+ * What a row says when claims are already open for the occupation.
+ *
+ * Not about this band and not about capital. Cover has to be in place before
+ * the index reaches the line, so no band of an open occupation is on sale
+ * however much capital stands behind it.
+ */
+export const BAND_CLAIMS_OPEN = 'Claims are open, so this is not on sale.';
+
 /** The caption under a band row, or undefined when it just has a price. */
-export function bandCaption(reason: 'none' | 'no_capital' | 'no_free_capacity'): string | undefined {
+export function bandCaption(
+  reason: 'none' | 'no_capital' | 'no_free_capacity' | 'claims_already_open',
+): string | undefined {
   if (reason === 'no_capital') return BAND_NOT_FUNDED;
   if (reason === 'no_free_capacity') return BAND_FULL;
+  if (reason === 'claims_already_open') return BAND_CLAIMS_OPEN;
   return undefined;
 }
 

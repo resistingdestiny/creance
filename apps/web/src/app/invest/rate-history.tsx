@@ -102,15 +102,17 @@ export function RateHistorySection({
 /**
  * How the price is built, from the measured risk to what a policy sells at.
  *
- * Four rows and no prose. The steps and their captions are composed in
+ * Rows and no prose. The steps and their captions are composed in
  * src/lib/investor-model.ts so that nothing here is a phrase this file invented
  * and no figure here is a second rounding of one the chart already drew: the
  * risk charge the first row shows is the same number the headline above the
- * chart shows, passed across rather than worked out again.
+ * chart shows, passed across rather than worked out again, and so is the
+ * distance the other two steps are struck on.
  *
  * It draws nothing rather than part of itself. A series with no pool registered
- * has no capacity step and so no price to build, and an index round that did
- * not answer has no risk charge to start from.
+ * has no capacity step and so no price to build, an index round that did not
+ * answer has no risk charge to start from, and an occupation whose claims are
+ * open has no policy to price at all.
  */
 function BuildUp({
   bands,
@@ -123,7 +125,12 @@ function BuildUp({
 }) {
   const points = figureOf(rates);
   const latest = points === null ? null : latestRate(points);
-  const steps = priceBuildUp(figureOf(series), figureOf(bands), latest?.value ?? null);
+  const steps = priceBuildUp(
+    figureOf(series),
+    figureOf(bands),
+    latest?.value ?? null,
+    latest?.distance ?? null,
+  );
   if (steps.length === 0) return null;
 
   return (

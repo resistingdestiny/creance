@@ -59,7 +59,7 @@ describe('the premium', () => {
 
   it('never produces a float on the path from the limit to the amount', () => {
     const price = priceCover({
-      ebar: -0.6,
+      ebar: -1.37,
       levelLine: -0.68,
       limit: 5_000_000_000n,
       exposure: 0n,
@@ -72,14 +72,14 @@ describe('the premium', () => {
 
   it('charges more as the band fills, which is the capacity term', () => {
     const empty = priceCover({
-      ebar: -0.6,
+      ebar: -1.37,
       levelLine: -0.68,
       limit: 5_000_000_000n,
       exposure: 0n,
       capital: 100_000_000_000n,
     });
     const half = priceCover({
-      ebar: -0.6,
+      ebar: -1.37,
       levelLine: -0.68,
       limit: 5_000_000_000n,
       exposure: 50_000_000_000n,
@@ -95,7 +95,7 @@ describe('the premium', () => {
     expect(utilisationOf(0n, 0n)).toBeNull();
     expect(
       priceCover({
-        ebar: -0.6,
+        ebar: -1.37,
         levelLine: -0.68,
         limit: 5_000_000_000n,
         exposure: 0n,

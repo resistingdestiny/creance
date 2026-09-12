@@ -237,7 +237,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '409':
-          description: '`no_capacity_for_group`, `insufficient_capacity` or `series_not_open_for_binding`.'
+          description: >-
+            `no_capacity_for_group`, `insufficient_capacity`, `series_not_open_for_binding`,
+            `band_not_funded`, or `claims_already_open` where claims are already open for the
+            occupation. Cover has to be in place before the index reaches the line, so an occupation
+            past it is not sold rather than priced.
           content:
             application/problem+json:
               schema:
@@ -1241,7 +1245,7 @@ components:
           $ref: '#/components/schemas/Money'
         annual_rate_bps:
           type: integer
-          example: 1246
+          example: 1413
         pricing_basis:
           type: object
           description: Every assumption behind the rate, so nothing has to be taken on trust.

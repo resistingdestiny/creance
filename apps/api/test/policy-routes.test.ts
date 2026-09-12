@@ -478,14 +478,14 @@ describe('the policy endpoints', () => {
       expect(response.statusCode).toBe(200);
       const body = response.json();
       expect(body.as_of).toBe('2026-07');
-      expect(body.reading.ebar).toBe('-0.60');
+      expect(body.reading.ebar).toBe('-1.37');
       expect(body.trigger.level_line).toBe('-0.68');
       expect(body.trigger.attachment_shock).toBe('2.00');
-      expect(body.trigger.level_margin).toBe('0.08');
+      expect(body.trigger.level_margin).toBe('-0.69');
       expect(body.trigger.shock_margin).toBe('-1.70');
       // The nearer form is chosen here so two screens cannot choose differently.
       expect(body.headline.form).toBe('level');
-      expect(body.headline.distance).toBe('-0.08');
+      expect(body.headline.distance).toBe('0.69');
       expect(body.history).toHaveLength(2);
       expect(body.history[0].period).toBe('2026-06');
       expect(body.publication.sequence_number).toBeNull();
@@ -505,7 +505,7 @@ describe('the policy endpoints', () => {
       return Array.from({ length: 30 }, (_unused, offset) => {
         const absolute = july2026 - 29 + offset;
         const period = Math.floor(absolute / 12) * 100 + (absolute % 12) + 1;
-        return observation({ period, ebar: -0.6 - offset / 100 });
+        return observation({ period, ebar: -1.37 - offset / 100 });
       });
     }
 

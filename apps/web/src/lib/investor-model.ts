@@ -33,12 +33,13 @@ import { findOccupation } from './occupations';
 import type { SeriesBandsView } from './worker-api';
 
 import {
-  expectedLossRate,
+  coverIsOffered,
+  expectedLossOnWrittenCover,
   guideRate,
   marketRate,
   returnSplit,
   riskCharge,
-  PRICING,
+  selectionCharge,
   type ReturnSplit,
 } from '@creance/index-model/src/pricing';
 
@@ -411,12 +412,14 @@ export function firstSettledCoupon(
  * product's own pricing function over the product's own published readings, so
  * anybody with the feed can reproduce every point.
  *
- * The risk charge rather than the whole guide rate, because the rest of the
- * guide rate is the cost of the capital held against the cover and it is the
- * same number in every month for every occupation. Adding a constant to all
- * sixteen lines moves none of them relative to each other and flattens the
- * scale they are drawn on. The price a policy is sold at is the board's rate
- * column, which is the whole of it.
+ * The risk charge rather than the whole guide rate, because it is the one part
+ * of the price that is a measurement. The other two are the selection charge
+ * and the capital charge, and both are judgments about what capital wants
+ * rather than readings of anything; drawing them on the same line as the
+ * measured part would lend them its authority. They are shown instead as their
+ * own steps in `priceBuildUp`, where a reader can weigh them separately, and
+ * the price a policy is sold at is the board's rate column, which is the whole
+ * of it.
  *
  * Refused: the market rate, month by month. The market rate is
  * `marketRate(guide, utilisation)` and utilisation is the share of a series'
@@ -446,6 +449,16 @@ export interface RatePoint {
   readonly period: string;
   /** The annual guide rate that month, or null for a month with no reading. */
   readonly value: number | null;
+  /**
+   * The distance to the line the value was computed from, unfloored, or null
+   * for a month with no reading.
+   *
+   * Carried rather than recomputed because two of the three charges in a price
+   * are functions of it and the build up beside this chart needs all three. The
+   * value above cannot be inverted to recover it, and a second read of the feed
+   * to get it back would be a second chance for the two to disagree.
+   */
+  readonly distance: number | null;
 }
 
 /** "2026-07" as a count of months, so a calendar can be walked without dates. */
@@ -487,6 +500,7 @@ export function rateHistory(months: readonly ExplorerMonth[]): readonly RatePoin
     points.push({
       period,
       value: distance === null ? null : riskCharge(Math.max(0, distance)) * 100,
+      distance,
     });
   }
   return points;
@@ -502,12 +516,11 @@ export interface RateRange {
  *
  * This column plots the risk charge and not the guide rate, and the difference
  * matters. The guide rate a policy is actually sold at is the risk charge plus
- * the cost of the capital held against the cover, and that capital charge is
- * identical for every occupation because the pool is collateralised one for
- * one. Drawn against the guide rate, sixteen occupations differ by about half
- * again from end to end and every line looks flat. Drawn against the risk
- * charge they differ by about thirteen times, which is what the index actually
- * measured and the only thing this column is for.
+ * two capital side charges, and those two carry most of the level. Drawn
+ * against the guide rate, sixteen occupations sit on a scale set by whichever
+ * one is nearest its line and every quiet line looks flat on the floor. Drawn
+ * against the risk charge they differ by about thirteen times, which is what
+ * the index actually measured and the only thing this column is for.
  *
  * Both ends come out of the pricing rather than being written down here, so
  * they move if the fit does. The bottom is the charge at any distance far
@@ -569,11 +582,14 @@ export function rateRange(series: readonly (readonly RatePoint[])[]): RateRange 
 /** The newest month that has a rate behind it. */
 export function latestRate(
   points: readonly RatePoint[],
-): { readonly period: string; readonly value: number } | null {
+): { readonly period: string; readonly value: number; readonly distance: number | null } | null {
   for (let at = points.length - 1; at >= 0; at -= 1) {
     const point = points[at];
     if (point !== undefined && point.value !== null) {
-      return { period: point.period, value: point.value };
+      // The distance travels with the value, because the build up beside this
+      // figure is struck on it and a second read of the feed to recover it
+      // would be a second chance for the two to disagree.
+      return { period: point.period, value: point.value, distance: point.distance };
     }
   }
   return null;
@@ -964,12 +980,12 @@ export interface MarketRow {
  * computed rather than read, and it is what makes the board a market rather
  * than a list: it is the price the risk in the column beside it is trading at.
  *
- * The distance is floored at zero for the same reason src/lib/explorer-model.ts
- * floors it: the hazard is an exponential fitted to buckets that begin at the
- * line, it says nothing below zero, and extrapolating it there runs the rate
- * away to numbers no capital would quote. The public explorer prices from the
- * headline form's distance and so does this, so the two public screens cannot
- * disagree about what an occupation costs.
+ * Null at or past the line, which is the same answer src/lib/explorer-model.ts
+ * gives and for the same reason: cover is not written into an occupation whose
+ * claims are already open, so there is no rate to show. Both public screens
+ * price from the headline form's distance and both refuse it in the same place,
+ * so they cannot disagree about what an occupation costs or about whether it is
+ * for sale.
  *
  * Null where the series carries no registered pool to take exposure, or where
  * the occupation has no published reading: an unpriced risk is not a free one.
@@ -978,13 +994,13 @@ export function premiumRatePercent(
   series: SeriesView | null,
   distance: number | null,
 ): number | null {
-  if (series === null || distance === null) return null;
+  if (series === null || distance === null || !coverIsOffered(distance)) return null;
   const pool = series.cover_pool;
   if (pool === null || !pool.registered) return null;
   const remaining = BigInt(series.vault.principal_remaining.amount);
   const exposure = BigInt(pool.active_exposure.amount);
   const utilisation = remaining <= 0n ? 0 : Number(exposure) / Number(remaining);
-  return marketRate(guideRate(Math.max(0, distance)), utilisation) * 100;
+  return marketRate(guideRate(distance), utilisation) * 100;
 }
 
 /** The lowest and the highest annual rate a policy on this series can be sold at. */
@@ -1033,7 +1049,7 @@ export function premiumRange(
   const flat = { low: seriesRate, high: seriesRate };
   if (bands === null) return flat;
 
-  const rates = bandRates(bands, guideRate(Math.max(0, distance)));
+  const rates = bandRates(bands, guideRate(distance));
   if (rates === null) return flat;
   return { low: Math.min(...rates), high: Math.max(...rates) };
 }
@@ -1050,10 +1066,10 @@ export interface PriceStep {
  * The price, one step at a time, from the measured risk to what an investor is
  * paid.
  *
- * There are four numbers in a premium and the product used to show a reader the
- * first and the last of them on two screens with nothing in between. The board
- * said computer and mathematical was 12.46 percent a year; clicking the row
- * opened a chart headed "Risk charge, July 2026: 0.96 percent a year". Both are
+ * There are several numbers in a premium and the product used to show a reader
+ * the first and the last of them on two screens with nothing in between. The
+ * board said computer and mathematical was 14.13 percent a year; clicking the
+ * row opened a chart headed "Risk charge, July 2026: 0.96 percent a year". Both are
  * this occupation's own figures, neither is wrong, and a reader with no way to
  * get from one to the other concludes the page is lying. Nothing was missing
  * from the arithmetic. The arithmetic was simply never shown.
@@ -1061,16 +1077,22 @@ export interface PriceStep {
  * So it is shown:
  *
  *     risk charge      what the index says this occupation's risk is worth
+ *   + selection charge the extra loss expected on the people who buy it here
  *   + capital charge   what capital requires for standing behind the cover
  *   = guide rate       what the series must charge to fund itself
  *   x capacity taken   what capital charges once its room is running out
  *   = premium rate     what a policy sells at, and what the investor is paid on
  *
- * The capital charge is flat across all fifteen occupations, by construction
- * under one for one collateralisation, so the whole of the difference between
- * two occupations is the first line and the whole of the level is the second.
- * That is worth a reader seeing, and it is the answer to why a 0.96 percent
- * risk costs 12.46 percent a year.
+ * Two of those three move with the distance to the line and only the first is a
+ * measurement. The selection charge is a judgment about who buys cover with a
+ * payout in sight, and the capital charge carries the return capital requires,
+ * which is not the same for an occupation that may pay this year as for one
+ * four points from its line. They are separate steps rather than one because a
+ * reader is entitled to weigh them separately.
+ *
+ * The selection step is dropped where it rounds to nothing, which is every
+ * occupation more than about a point from its line. The addition stays exact
+ * either way, because a step worth nothing adds nothing.
  *
  * The last step is a range rather than a figure where capital has split the
  * occupation into experience bands, because then each band has taken a
@@ -1078,24 +1100,41 @@ export interface PriceStep {
  * `premiumRange`.
  *
  * The risk charge is passed in rather than recomputed, so this and the chart
- * above it are the same number and not two roundings of one. Empty where the
- * index round or the chain read is missing: half a build up is worse than none.
+ * above it are the same number and not two roundings of one. The distance comes
+ * with it, because the other two steps are functions of it and nothing else.
+ * Empty where the index round or the chain read is missing, and empty at or
+ * past the line, where there is no policy to build a price for: half a build up
+ * is worse than none, and a build up for cover nobody would sell is worse
+ * still.
  */
 export function priceBuildUp(
   series: SeriesView | null,
   bands: SeriesBandsView | null,
   riskChargePercent: number | null,
+  distance: number | null,
 ): readonly PriceStep[] {
-  if (series === null || riskChargePercent === null) return [];
+  if (series === null || riskChargePercent === null || distance === null) return [];
+  if (!coverIsOffered(distance)) return [];
   const used = capacityPercent(series);
   if (used === null) return [];
 
-  // `guideRate` is the floor or the sum, and the floor is the capital charge
-  // itself, so on any occupation with a risk charge at all the sum is what it
-  // returns. Written out here because a build up that hid a `max` would be a
-  // build up a reader could not reproduce.
-  const capital = PRICING.capitalCharge * 100;
-  const guide = capital + riskChargePercent;
+  // `guideRate` is the floor or the sum, and the floor is the capital charge at
+  // its own smallest, so on any occupation with a risk charge at all the sum is
+  // what it returns. Written out here because a build up that hid a `max` would
+  // be a build up a reader could not reproduce.
+  // Rounded to the hundredth of a point first, and the capital step is then the
+  // guide less the other two rather than its own rounding. Three steps each
+  // rounded on their own are a hundredth out of the fourth about half the time,
+  // and a build up a reader cannot add on the screen is a build up that reads
+  // as broken. The capital step carries the remainder because it is much the
+  // largest of the three.
+  const hundredths = (annual: number) => Math.round(annual * 10_000);
+  const guideHundredths = hundredths(guideRate(distance));
+  const selectionHundredths = hundredths(selectionCharge(distance));
+  const riskHundredths = Math.round(riskChargePercent * 100);
+  const capital = (guideHundredths - selectionHundredths - riskHundredths) / 100;
+  const selection = selectionHundredths / 100;
+  const guide = guideHundredths / 100;
   const rates = bands === null ? null : bandRates(bands, guide / 100);
   const low = rates === null ? marketRate(guide / 100, used / 100) * 100 : Math.min(...rates);
   const high = rates === null ? low : Math.max(...rates);
@@ -1114,17 +1153,26 @@ export function priceBuildUp(
     {
       label: 'Risk charge',
       value: formatPercent(riskChargePercent),
-      caption: 'The only part that differs by occupation',
+      caption: 'What the index measured',
     },
+    ...(formatPercent(selection) === formatPercent(0)
+      ? []
+      : [
+          {
+            label: 'Selection charge',
+            value: formatPercent(selection),
+            caption: 'The extra loss expected on cover bought this close',
+          },
+        ]),
     {
       label: 'Capital charge',
       value: formatPercent(capital),
-      caption: 'The same for every occupation',
+      caption: 'What capital requires for standing behind it',
     },
     {
       label: 'Guide rate',
       value: formatPercent(guide),
-      caption: 'The two added, what the series must charge',
+      caption: 'Those added, what the series must charge',
     },
     {
       label: 'Premium rate',
@@ -1178,7 +1226,12 @@ export function returnSplitFor(
   // from on any series that has paid a claim.
   const principal = Number(BigInt(series.vault.principal_remaining.amount));
   const exposure = Number(BigInt(series.cover_pool!.active_exposure.amount));
-  return returnSplit(rate / 100, exposure, principal, expectedLossRate(Math.max(0, distance)));
+  // The loss on the cover actually written and not the population rate the
+  // index measured. An investor bears the claims of the people who bought, and
+  // near the line those are not the same people; the premium is charged for the
+  // difference in `selectionCharge`, so netting it off here with the smaller
+  // figure would report a return the price was never struck at.
+  return returnSplit(rate / 100, exposure, principal, expectedLossOnWrittenCover(distance));
 }
 
 /**

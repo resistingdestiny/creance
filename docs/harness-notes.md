@@ -1040,16 +1040,17 @@ wrong for the archive's latest month, which is what a clone quotes today. The
 number is not a constant and the copy deck's 28.00 placeholder should stay
 interpolated at runtime, which DESIGN.md already says.
 
-**Superseded on 12 September 2026, and the conclusion inverted.** The table
-above is the old formula, where the rate was an expected loss times a load and
-nothing else. The guide rate is a capital charge plus a risk charge now, so
-every figure in that column is roughly 5.65 percentage points higher and the
-July 2026 quote is 661 bps rather than 96. What is worth keeping is the finding
-underneath it, that the premium is not a constant and moves with the distance
-every month. What is now wrong is the implication that DESIGN's 15 to 30 was
-only right for one month: at the current formula a 5,000 limit quotes between
-26 and 56 a month across all fifteen occupations, so DESIGN's range was closer
-to right than the formula that superseded it was. See docs/DECISIONS.md, "The
+**Superseded on 12 September 2026, twice, and the conclusion inverted.** The
+table above is the oldest formula, where the rate was an expected loss times a
+load and nothing else. The guide rate is a capital charge plus a risk charge
+plus a selection charge now, and the first two of those rise as the occupation
+nears its line, so the July 2026 quote for computer and mathematical is 749 bps
+rather than 96. What is worth keeping is the finding underneath it, that the
+premium is not a constant and moves with the distance every month. That is more
+true than it was: a 5,000 limit quotes 26 a month on an empty pool four points
+from its line and 226 on the occupation sitting on its line, so DESIGN's 15 to
+30 is close for a quiet occupation and nowhere near one about to pay. And no quote at all
+is offered for a month in which claims are open. See docs/DECISIONS.md, "The
 premium is solved from the return capital requires".
 
 ### The Hedera SDK's TokenMintTransaction takes metadata as bytes, and the cap is bytes

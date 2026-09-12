@@ -48,7 +48,7 @@ import { heldRead } from './held-read';
 import { fetchSeries, fetchSeriesList, type SeriesView } from './investor-api';
 import { capacityPercent, returnSplitFor } from './investor-model';
 
-import { guideRate, marketRate } from '@creance/index-model/src/pricing';
+import { coverIsOffered, guideRate, marketRate } from '@creance/index-model/src/pricing';
 
 /**
  * How long the series read stands. The head of GET /v1/series is the same
@@ -174,8 +174,9 @@ export async function readInvestorBand(): Promise<InvestorBandView> {
  * with, and both are behind holds shared with those callers, so this costs
  * nothing.
  *
- * Distance is floored at zero, as every other pricing surface floors it: the
- * hazard is fitted to buckets that begin at the line and says nothing below it.
+ * An occupation whose claims are open is left out, as it is on every other
+ * pricing surface: cover is not written into a loss that is already running, so
+ * there is no rate for it to widen this range with.
  *
  * An occupation with no series behind it cannot be quoted and so is not counted
  * or priced, which is the same rule the landing's own "from" price ranks by.
@@ -192,9 +193,9 @@ export function pricedRange(
   const rates: number[] = [];
   for (const entry of ranked) {
     const distance = entry.month?.distance ?? null;
-    if (distance === null || entry.occupation.seriesId === null) continue;
-    const rate =
-      marketRate(guideRate(Math.max(0, distance)), utilisation[entry.occupation.key] ?? 0) * 100;
+    if (distance === null || !coverIsOffered(distance)) continue;
+    if (entry.occupation.seriesId === null) continue;
+    const rate = marketRate(guideRate(distance), utilisation[entry.occupation.key] ?? 0) * 100;
     if (Number.isFinite(rate)) rates.push(rate);
   }
   if (rates.length === 0) return null;

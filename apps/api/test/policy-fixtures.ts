@@ -299,7 +299,7 @@ export function observation(overrides: Partial<ObservationRow> = {}): Observatio
     uG: 4.1,
     uAll: 4.5,
     e: -0.4,
-    ebar: -0.6,
+    ebar: -1.37,
     odi: 0.3,
     open: false,
     openReason: null,

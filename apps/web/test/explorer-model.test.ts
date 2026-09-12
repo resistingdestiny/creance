@@ -366,25 +366,45 @@ describe('the price block', () => {
     expect(priceFor(0.69, 5)?.addOn).toBe(200);
   });
 
-  it('holds the hazard at the line rather than extrapolating past it', () => {
-    const open = priceFor(-1.5, 0);
-    expect(open?.monthly).toBe(priceFor(0, 0)?.monthly);
+  it('quotes nothing at all for a month in which claims were open', () => {
+    // It used to quote those months off a curve floored at the line, at about
+    // the price of the month before, on the one screen whose job is to show
+    // how near a payout an occupation is. Nobody would have sold it.
+    expect(priceFor(-1.5, 0)).toBeNull();
+    expect(priceFor(0, 0)).toBeNull();
+    expect(priceFor(0.02, 0)).not.toBeNull();
   });
 
   it('builds up to the guide price in labelled rows that add up', () => {
-    // The block was two lines of prose narrating these four figures. As rows
-    // the first two have to add to the third, which the prose never showed.
+    // The block was two lines of prose narrating these figures. As rows the
+    // ones above the guide price have to add to it, which the prose never
+    // showed.
     const price = priceFor(latestMonth(occupationFor('computer_math'))?.distance ?? 0, 0.45);
     if (price === null) throw new Error('no price');
     const rows = priceRows(price);
     expect(rows.map((row) => row.label)).toEqual([
+      "This job's own risk",
+      'Buying with a payout in sight',
+      'The capital behind it',
+      'Guide price',
+      'Capital asks on top',
+    ]);
+    expect(
+      Number(price.risk) + Number(price.selection) + Number(price.capital),
+    ).toBeCloseTo(Number(price.guide), 2);
+    expect(rows.at(-1)?.value).toBe('45 percent');
+  });
+
+  it('drops the selection row on an occupation nowhere near its line, and still adds up', () => {
+    const price = priceFor(4.56, 0);
+    if (price === null) throw new Error('no price');
+    expect(priceRows(price).map((row) => row.label)).toEqual([
       "This job's own risk",
       'The capital behind it',
       'Guide price',
       'Capital asks on top',
     ]);
     expect(Number(price.risk) + Number(price.capital)).toBeCloseTo(Number(price.guide), 2);
-    expect(rows.at(-1)?.value).toBe('45 percent');
   });
 
   it('says in one line why the premium is small beside the cover', () => {

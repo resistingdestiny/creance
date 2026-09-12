@@ -9,7 +9,10 @@ import { StatusPill } from '../../components/status-pill';
 import { TextLink } from '../../components/text-link';
 import type { ExplorerData } from '../../lib/explorer-data';
 import {
+  COVER_CLOSED,
+  COVER_CLOSED_HEADLINE,
   PAYOUT_CONDITION,
+  PRICE_COVER,
   bandCaption,
   chartName,
   clampMonth,
@@ -271,6 +274,7 @@ export function ExplorerPanel({
       <Price
         buyable={occupation.buyable}
         capacity={capacity}
+        closed={state === 'open'}
         live={live}
         onCapacity={setCapacity}
         price={price}
@@ -615,14 +619,19 @@ function Verdict({
 /**
  * The price block. The guide price is what the cover has to charge to fund
  * itself: the risk this occupation carries, which is the part the index
- * measures, plus the cost of the capital held against the cover, which is the
- * same for every occupation and is the larger of the two. The market price is
- * what capital that chose this occupation will take it for on top of that.
+ * measures, the extra loss expected on cover bought with a payout in sight, and
+ * the cost of the capital held against it, which is much the largest of the
+ * three. The market price is what capital that chose this occupation will take
+ * it for on top of that.
  *
- * Both parts are on the screen. The guide price alone would tell a reader
- * comparing two occupations almost nothing, because the capital charge they
- * share swamps the difference between them, and the difference is the whole of
- * what the index has to say.
+ * Every part is on the screen, as its own row. The guide price alone would tell
+ * a reader comparing two occupations almost nothing about which part of it is a
+ * measurement and which part is a judgment, and that distinction is the whole
+ * of what this block is for.
+ *
+ * A month in which claims were open has no price at all, because cover is not
+ * written into a loss that is already running. The block keeps its place and
+ * says so.
  *
  * Capacity is committed per occupation (docs/DECISIONS.md), so an occupation
  * with no series behind it shows the guide price and says plainly that there is
@@ -645,6 +654,7 @@ function Verdict({
 function Price({
   buyable,
   capacity,
+  closed,
   live,
   onCapacity,
   price,
@@ -653,6 +663,8 @@ function Price({
   buyable: boolean;
   /** Where the reader dragged the slider, or null while it is on the live value. */
   capacity: number | null;
+  /** Whether claims were open in the month on screen, so nothing was on sale. */
+  closed: boolean;
   /** The occupation's own utilisation as a fraction, or null when unread. */
   live: number | null;
   onCapacity: (value: number) => void;
@@ -660,6 +672,28 @@ function Price({
   seriesId: string | null;
 }) {
   const capacityId = useId();
+
+  // A month with claims open has no price, and it is the month a reader most
+  // wants an answer for: it is where the premium used to look like a bargain
+  // and was never on offer. The same block in the same place, saying so.
+  if (price === null && closed) {
+    return (
+      <div
+        className="flex flex-col gap-6 rounded-2xl border border-hairline bg-surface p-5 lg:flex-row lg:items-center lg:justify-between lg:gap-14 lg:p-6"
+        data-testid="explorer-price"
+      >
+        <div className="flex flex-col gap-1">
+          <span className="text-secondary text-ink-2">
+            Monthly premium for {formatAmount(PRICE_COVER)} of cover
+          </span>
+          <span className="font-display text-title font-semibold tracking-title tabular-nums text-ink">
+            {COVER_CLOSED_HEADLINE}
+          </span>
+          <span className="text-caption text-ink-2">{COVER_CLOSED}</span>
+        </div>
+      </div>
+    );
+  }
   if (price === null) return null;
 
   // A market price needs a utilisation. Without one the block shows the guide

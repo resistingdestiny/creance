@@ -2,6 +2,7 @@ import { money, type Money } from '@creance/client';
 import {
   SENIORITY_BANDS,
   SENIORITY_BAND_LABELS,
+  coverIsOffered,
   type SeniorityBand,
 } from '@creance/index-model';
 import type { FastifyPluginAsync } from 'fastify';
@@ -48,8 +49,16 @@ export interface BandView {
   label: string;
   /** Whether cover can be written in this band right now. */
   available: boolean;
-  /** `no_capital`, `no_free_capacity`, or `none` when it is available. */
-  reason: 'none' | 'no_capital' | 'no_free_capacity';
+  /**
+   * `no_capital`, `no_free_capacity`, `claims_already_open`, or `none` when it
+   * is available.
+   *
+   * The first two are about capital and the third is about the index: claims
+   * are already open for the occupation, so no band of it is on sale however
+   * much capital stands behind it. Cover has to be in place before the line is
+   * reached.
+   */
+  reason: 'none' | 'no_capital' | 'no_free_capacity' | 'claims_already_open';
   /** Capital committed to the band, its exposure, and what is left. */
   capital: Money;
   exposure: Money;
@@ -272,7 +281,17 @@ function bandView(input: {
   amount: (value: bigint) => Money;
 }): BandView {
   const { capacity, amount } = input;
-  const reason = input.limit === null ? capacityReason(capacity, 1n) : capacityReason(capacity, input.limit);
+  // Claims answered before capacity, because it is the stronger no: a band that
+  // is both full and open is not a band that would sell if somebody left, and
+  // reporting the capacity reason would invite a caller to wait for room that
+  // will not help them. `ebar` null is an occupation with no reading rather
+  // than an open one, and it keeps the capacity reason it always had.
+  const open = input.ebar !== null && !coverIsOffered(input.levelLine - input.ebar);
+  const reason: BandView['reason'] = open
+    ? 'claims_already_open'
+    : input.limit === null
+      ? capacityReason(capacity, 1n)
+      : capacityReason(capacity, input.limit);
   const price =
     input.limit === null || input.ebar === null || reason !== 'none'
       ? null

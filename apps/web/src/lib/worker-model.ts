@@ -505,6 +505,18 @@ export function priceFailure(limit: number, cause: unknown): PriceResult {
   if (cause instanceof ApiError && cause.code === 'no_capacity_for_group') {
     return noCoverForGroup(limit);
   }
+  // Claims are open for the occupation, so it is not on sale at any price.
+  // Cover is bought against a payout that has not happened yet, and this one
+  // has started. The sentence says that rather than dressing it as a capacity
+  // problem, because waiting will not help and choosing a smaller amount will
+  // not either.
+  if (cause instanceof ApiError && cause.code === 'claims_already_open') {
+    return {
+      ...empty,
+      full: true,
+      error: CLAIMS_OPEN_LINE,
+    };
+  }
   // Capital can move between the band being chosen and the price being taken,
   // and the band the person picked can lose the capital behind it. It is not an
   // error on their part and the sentence does not treat it as one; it sends
@@ -534,6 +546,17 @@ export function priceFailure(limit: number, cause: unknown): PriceResult {
  * of experience and nobody has said theirs yet. Two sentences because they are
  * two different facts, not one fact worded twice.
  */
+/**
+ * What a worker is told when their occupation's claims are already open.
+ *
+ * One sentence, used by the price and by the bind, so the two cannot come to
+ * say it differently. It is not an apology and it is not a capacity message: it
+ * is the one rule of the product that a person has to understand before they
+ * buy, which is that cover goes in front of the risk and not behind it.
+ */
+export const CLAIMS_OPEN_LINE =
+  'Claims are already open for this job, so cover is not on sale for it. Cover has to be in place before the index reaches the line.';
+
 export const BAND_NEEDED_LINE =
   'Cover for this occupation is sold by how long you have worked. Answer one more question and we can price it.';
 
@@ -569,6 +592,8 @@ export function bindMessage(cause: unknown): string {
       return 'Nobody is funding that length of experience any more. Choose another.';
     case 'series_not_open_for_binding':
       return 'This series is not taking new cover.';
+    case 'claims_already_open':
+      return CLAIMS_OPEN_LINE;
     case 'credential_expired':
     case 'credential_consumed':
       return 'That check has expired. Verify again and the price is unchanged.';

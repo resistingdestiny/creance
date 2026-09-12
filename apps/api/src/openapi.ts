@@ -202,7 +202,7 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
               '`series_not_found`: a `series_id` was sent and it does not cover that occupation.',
             ),
             '409': problemResponse(
-              '`no_capacity_for_group`, `insufficient_capacity` or `series_not_open_for_binding`.',
+              '`no_capacity_for_group`, `insufficient_capacity`, `series_not_open_for_binding`, `band_not_funded`, or `claims_already_open` where claims are already open for the occupation. Cover has to be in place before the index reaches the line, so an occupation past it is not sold rather than priced.',
             ),
             '503': problemResponse(
               '`index_unavailable`: no reading for that occupation, so cover cannot be priced.',
@@ -843,7 +843,7 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
             wallet: { type: 'string', example: '0.0.10366453' },
             limit: { $ref: '#/components/schemas/Money' },
             premium: { $ref: '#/components/schemas/Money' },
-            annual_rate_bps: { type: 'integer', example: 1246 },
+            annual_rate_bps: { type: 'integer', example: 1413 },
             pricing_basis: {
               type: 'object',
               description: 'Every assumption behind the rate, so nothing has to be taken on trust.',

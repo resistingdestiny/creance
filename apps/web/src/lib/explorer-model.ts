@@ -23,11 +23,12 @@ import { bandLabel, bandSentence, levelLinePhrase, marginSentences } from './wor
 import type { IndexView } from './worker-api';
 
 import {
-  PRICING,
+  coverIsOffered,
   guideRate,
   marketRate,
   monthlyPremium,
   riskCharge,
+  selectionCharge,
 } from '@creance/index-model/src/pricing';
 
 export type IndexForm = 'level' | 'shock';
@@ -373,17 +374,30 @@ export interface ExplorerPrice {
   /**
    * The part of the guide price that is this occupation's own risk.
    *
-   * The rest of it is the cost of holding capital against the cover, which is
-   * the same for every occupation because the pool is collateralised one for
-   * one. Published beside the guide price rather than folded into it, because
-   * the risk part is the only part the index has anything to say about and a
-   * reader comparing two occupations is comparing these.
+   * Published beside the guide price rather than folded into it, because this
+   * is the only part of the price the index measured and the other two are
+   * judgments about what capital wants. A reader who disbelieves those can
+   * still read this one.
    */
   readonly risk: string;
   /**
+   * The part of the guide price that is the book's own selection: the extra
+   * loss expected on cover bought when a payout is already in sight, over the
+   * population risk in the row above.
+   *
+   * Its own row and not folded into the risk, because they are different kinds
+   * of claim. The risk is read off a curve fitted to counted months. This is a
+   * judgment about who buys, and a reader should be able to weigh it on its
+   * own. It is nothing at all on an occupation far from its line, and a row
+   * that rounds to nothing is not drawn.
+   */
+  readonly selection: string;
+  /**
    * The rest of the guide price: what the capital standing behind the cover
-   * costs. Flat across occupations, because the pool is collateralised one for
-   * one and a unit of limit locks the same capital whatever the job is.
+   * costs. The pool is collateralised one for one, so a unit of limit locks the
+   * same unit of capital whatever the job is, but capital does not require the
+   * same return for locking it: an occupation that may pay this year is asked
+   * more for than one four points from its line.
    */
   readonly capital: string;
   /** What capital adds over the guide price, as whole percent. */
@@ -401,20 +415,43 @@ export interface PriceRow {
 /**
  * How the premium is built, as labelled rows rather than as a sentence.
  *
- * It was two lines of prose narrating the same four figures, which is the form
- * a price build up should never take: the series page has carried this as rows
+ * It was two lines of prose narrating the same figures, which is the form a
+ * price build up should never take: the series page has carried this as rows
  * since it was written, and rows are read where a sentence about arithmetic is
- * not. The first two rows add to the third, and the fourth is what capital that
- * chose this occupation asks over it.
+ * not. The rows above the guide price add to it, and the last is what capital
+ * that chose this occupation asks over it.
+ *
+ * The selection row is dropped where it rounds to nothing, which is every
+ * occupation more than about a point from its line, so the eleven quiet ones
+ * read exactly as they did. Dropping it keeps the addition exact rather than
+ * breaking it: a row worth less than a penny contributes nothing to the sum it
+ * would have been part of.
  */
 export function priceRows(price: ExplorerPrice): readonly PriceRow[] {
   return [
     { label: "This job's own risk", value: price.risk },
+    ...(price.selection === money(0)
+      ? []
+      : [{ label: 'Buying with a payout in sight', value: price.selection }]),
     { label: 'The capital behind it', value: price.capital },
     { label: 'Guide price', value: price.guide },
     { label: 'Capital asks on top', value: `${String(price.addOn)} percent` },
   ];
 }
+
+/**
+ * What the price block says in a month when claims were open.
+ *
+ * Cover is not sold in that state, so there is no price to print and the block
+ * says why rather than quietly disappearing. A reader scrubbing an occupation's
+ * history lands on those months, and they are the ones that most need an
+ * answer: this is exactly where a premium looked like a bargain and was not on
+ * offer at all.
+ */
+export const COVER_CLOSED_HEADLINE = 'Not on sale';
+
+export const COVER_CLOSED =
+  'Claims were open this month, so no new cover was sold. Cover has to be in place before the index reaches the line.';
 
 /**
  * Why the premium is small beside the cover: two things have to happen, not
@@ -424,32 +461,49 @@ export const PAYOUT_CONDITION =
   'Pays when the index opens and you lose the job involuntarily.';
 
 /**
- * The price of a month, from the index model's own pricing functions.
+ * The price of a month, from the index model's own pricing functions, or null
+ * where there is no price because none is on offer.
  *
- * The distance is floored at zero before it reaches the hazard. `fittedHazard`
- * is an exponential fitted to buckets that start at the line, and the bucket at
- * or past the line is one bucket: the fit says nothing about a distance below
- * zero and extrapolating it there runs the rate away to numbers no capital
- * would ever quote. The API prices only the current month of a group that has
- * capacity behind it and does not floor; the explorer prices sixty months of
- * fifteen groups and does. docs/DECISIONS.md.
+ * Null in a month at or past the line. This block used to quote those months
+ * off a curve floored at zero, and it quoted them at roughly the price of the
+ * month before, on the one screen whose whole job is to show how close an
+ * occupation is to paying. A person could scrub to a month in which claims were
+ * open and read a premium for it. Nobody would have sold it: cover written into
+ * an open month is cover against a loss that is already running, and the
+ * published hazard table has said as much since it was written. The explorer
+ * says so now instead of pricing it, which is why the floor at zero is gone
+ * from this function rather than kept as a guard.
  */
 export function priceFor(
   distance: number | null,
   utilisation: number,
   cover: number = PRICE_COVER,
 ): ExplorerPrice | null {
-  if (distance === null) return null;
-  const guide = guideRate(Math.max(0, distance));
+  if (distance === null || !coverIsOffered(distance)) return null;
+  const guide = guideRate(distance);
   const rate = marketRate(guide, utilisation);
+
+  // Rounded to the penny first, and the capital row is then the guide less the
+  // other two rather than its own rounding.
+  //
+  // The rows are an addition a reader can do on the screen, so they have to
+  // add on the screen. Three figures each rounded on their own are a penny out
+  // of the fourth about half the time, and a build up that is a penny out is a
+  // build up that looks wrong on the one block whose whole job is to show that
+  // the price is not arbitrary. The capital charge carries the remainder
+  // because it is the largest of the three and a penny is invisible in it,
+  // where the same penny in the selection row would be a tenth of it.
+  const pence = (annual: number) => Math.round(monthlyPremium(annual, cover) * 100);
+  const guidePence = pence(guide);
+  const riskPence = pence(riskCharge(distance));
+  const selectionPence = pence(selectionCharge(distance));
+
   return {
     monthly: money(monthlyPremium(rate, cover)),
-    guide: money(monthlyPremium(guide, cover)),
-    risk: money(monthlyPremium(riskCharge(Math.max(0, distance)), cover)),
-    // The guide rate is the capital charge plus the risk charge wherever the
-    // floor is not binding, and the floor is the capital charge itself, so the
-    // two rows of the build up add to the third exactly rather than nearly.
-    capital: money(monthlyPremium(PRICING.capitalCharge, cover)),
+    guide: money(guidePence / 100),
+    risk: money(riskPence / 100),
+    selection: money(selectionPence / 100),
+    capital: money((guidePence - riskPence - selectionPence) / 100),
     addOn: Math.round((rate / guide - 1) * 100),
     cover,
   };

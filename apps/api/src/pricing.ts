@@ -1,43 +1,56 @@
 import {
   PRICING,
   bandUtilisation,
+  capitalCharge,
+  coverIsOffered,
+  expectedLossOnWrittenCover,
   expectedLossRate,
   guideRate,
+  imminence,
   marketRate,
+  requiredReturn,
   riskCharge,
+  selectionCharge,
+  separationOnWrittenCover,
 } from '@creance/index-model';
 
 /// The price of a policy, in minor units.
 ///
 /// The formula of record:
 ///
-///     capital charge = (0.08 - 0.04) * 1.20 / 0.85
-///     risk charge    = h(d) * 0.167 * 0.60 * 1.30
-///     guide rate     = capital charge + risk charge
-///     market rate    = guide * (1 + utilisation), capped at three times guide
-///
-/// The 0.04 subtracted from the coupon is the implied base yield: what the
-/// collateral would make in tokenised treasuries while it waits, so the premium
-/// only has to fund the spread over it rather than the whole coupon. It is an
-/// assumption and this deployment does not deploy its collateral. Omitting it
-/// here, which this comment did, stated the capital charge at exactly twice
-/// what the code computes, in the one place a reader checks the pricing.
-///
-/// The guide rate is a sum, not a floor over a sum. The risk charge cannot be
-/// negative, so `max(capital, capital + risk)` was always the second branch.
+///     imminence        = exp(-d / 0.22)
+///     required return  = 0.08 + 0.12 * imminence
+///     capital charge   = (required return - 0.04) * 1.20 / 0.85
+///     risk charge      = h(d) * 0.167 * 0.60 * 1.30
+///     selection charge = h(d) * (sep(d) - 0.167) * 0.60 * 1.30
+///     sep(d)           = 0.167 + (0.75 - 0.167) * imminence
+///     guide rate       = capital charge + risk charge + selection charge
+///     market rate      = guide * (1 + utilisation), capped at three times guide
 ///
 /// where `d` is the distance in percentage points from the group's smoothed
-/// excess to its level line and `h` is the fitted hazard. DESIGN.md 3.4 prices
-/// from the backtest frequency of open months instead, which puts thirteen of
-/// the fifteen offered occupations exactly on the floor; that version is
-/// superseded and the deviation is recorded.
+/// excess to its level line and `h` is the fitted hazard.
 ///
-/// The capital charge is the coupon a series owes, with 3.4's own 20 percent
-/// reserve margin, over the utilisation the series is priced to clear at. It is
-/// flat across occupations because `CoverPool.bind` will not let exposure pass
+/// The 0.04 subtracted is the implied base yield: what the collateral would
+/// make in tokenised treasuries while it waits, so the premium only has to fund
+/// the spread over it rather than the whole return. It is an assumption and
+/// this deployment does not deploy its collateral.
+///
+/// The guide rate is a sum, not a floor over a sum. No charge in it can be
+/// negative, so `max(floor, sum)` was always the second branch.
+///
+/// DESIGN.md 3.4 prices from the backtest frequency of open months instead,
+/// which puts thirteen of the fifteen offered occupations exactly on the floor;
+/// that version is superseded and the deviation is recorded.
+///
+/// Two of the three charges move with the distance to the line, and that is the
+/// change of 12 September 2026. The capital charge moves because capital does
+/// not require the same return to stand behind an occupation four points from
+/// its line and one sitting on it, and the selection charge exists because the
+/// people who buy cover with a payout in sight are not the population the
+/// hazard measured. The fitted hazard itself is untouched. What stays flat is
+/// the collateralisation: `CoverPool.bind` will not let exposure pass
 /// principal, so every unit of limit locks the same unit of capital whatever
-/// the job is. The index sets the risk charge and therefore the whole of the
-/// difference between occupations. It does not set the level.
+/// the job is, and no occupation can lever its way to a cheaper price.
 ///
 /// Utilisation is per experience band. The guide rate is not: the index has no
 /// occupation-by-age series to measure a seniority difference with, so the
@@ -81,14 +94,24 @@ export interface Price {
     capital: string;
     exposure: string;
     guide_rate_bps: number;
-    /** The two halves of the guide rate, so a reader can see which is which. */
+    /** The three parts of the guide rate, so a reader can see which is which. */
     capital_charge_bps: number;
     risk_charge_bps: number;
+    selection_charge_bps: number;
     expected_loss_bps: number;
+    /** The loss expected on cover written at this distance, after selection. */
+    expected_loss_written_bps: number;
     separation_given_open: string;
+    /** The separation rate the selection charge is struck on. */
+    separation_on_written_cover: string;
     expected_share_of_limit: string;
     load: string;
     coupon_rate: string;
+    /** The return capital requires here, which is the coupon plus imminence. */
+    required_return: string;
+    imminence: string;
+    selection_ceiling: string;
+    imminence_spread: string;
     reserve_margin: string;
     target_utilisation: string;
     floor_rate: string;
@@ -123,14 +146,20 @@ export function monthlyPremiumMinor(annualRateBps: number, limit: bigint): bigin
 }
 
 /**
- * The price, or null when no capital stands behind what is being priced.
+ * The price, or null when no capital stands behind what is being priced, or
+ * when claims on the occupation are already open.
  *
  * Null rather than a floor price, for the reason `utilisationOf` gives: an
  * unfunded band has no price at all and the caller has to say so rather than
- * quote one.
+ * quote one. The second null is the same answer to a different question. At or
+ * past the line the level form has opened, so a policy written now would be
+ * cover against a loss already running, and no rate makes that a trade. The
+ * published hazard table has said cover cannot be bought in that state since it
+ * was written; this is the first version in which anything enforces it.
  */
 export function priceCover(input: PriceInput): Price | null {
   const distance = input.levelLine - input.ebar;
+  if (!coverIsOffered(distance)) return null;
   const utilisation = utilisationOf(input.exposure, input.capital);
   if (utilisation === null) return null;
   const guide = guideRate(distance);
@@ -148,13 +177,20 @@ export function priceCover(input: PriceInput): Price | null {
       capital: input.capital.toString(),
       exposure: input.exposure.toString(),
       guide_rate_bps: Math.round(guide * 10_000),
-      capital_charge_bps: Math.round(PRICING.capitalCharge * 10_000),
+      capital_charge_bps: Math.round(capitalCharge(distance) * 10_000),
       risk_charge_bps: Math.round(riskCharge(distance) * 10_000),
+      selection_charge_bps: Math.round(selectionCharge(distance) * 10_000),
       expected_loss_bps: Math.round(expectedLossRate(distance) * 10_000),
+      expected_loss_written_bps: Math.round(expectedLossOnWrittenCover(distance) * 10_000),
       separation_given_open: PRICING.separationGivenOpen.toFixed(3),
+      separation_on_written_cover: separationOnWrittenCover(distance).toFixed(4),
       expected_share_of_limit: PRICING.expectedShareOfLimit.toFixed(2),
       load: PRICING.load.toFixed(2),
       coupon_rate: PRICING.couponRate.toFixed(2),
+      required_return: requiredReturn(distance).toFixed(4),
+      imminence: imminence(distance).toFixed(4),
+      selection_ceiling: PRICING.selectionCeiling.toFixed(2),
+      imminence_spread: PRICING.imminenceSpread.toFixed(2),
       reserve_margin: PRICING.reserveMargin.toFixed(2),
       target_utilisation: PRICING.targetUtilisation.toFixed(2),
       floor_rate: PRICING.floorRate.toFixed(4),

@@ -170,20 +170,23 @@ describe('where the yield comes from', () => {
 describe('the price of an occupation', () => {
   it('is the published pricing at the reading and the committed exposure', () => {
     // 100,000 remaining and nothing committed, so the market term is one and
-    // the rate is the guide rate for a point from the line: the capital charge
-    // of 5.65 percent plus a risk charge of 0.70.
-    expect(premiumRatePercent(SERIES, 1)).toBeCloseTo(6.344_044, 5);
+    // the rate is the guide rate for a point from the line: a capital charge of
+    // 5.83 percent, a risk charge of 0.70 and a selection charge of 0.03.
+    expect(premiumRatePercent(SERIES, 1)).toBeCloseTo(6.549_709, 5);
   });
 
   it('rises with the share of the principal already committed', () => {
     // 86,000 of 100,000 remaining, which is the demo series on testnet.
-    expect(premiumRatePercent(committedSeries('86000000000'), 1)).toBeCloseTo(11.799_921, 3);
+    expect(premiumRatePercent(committedSeries('86000000000'), 1)).toBeCloseTo(12.182_459, 3);
   });
 
-  it('floors the distance at the line rather than extrapolating past it', () => {
-    // The hazard is fitted to buckets that begin at the line and says nothing
-    // below zero. An occupation with claims open prices at the line's rate.
-    expect(premiumRatePercent(SERIES, -0.5)).toBe(premiumRatePercent(SERIES, 0));
+  it('has no price at all for an occupation whose claims are open', () => {
+    // It used to quote the line's own rate for a month past the line, off a
+    // curve floored there. Cover is not written into a loss already running,
+    // so there is no rate to print and the board prints none.
+    expect(premiumRatePercent(SERIES, -0.5)).toBeNull();
+    expect(premiumRatePercent(SERIES, 0)).toBeNull();
+    expect(premiumRatePercent(SERIES, 0.02)).not.toBeNull();
   });
 
   it('prices nothing without a reading, and nothing without a pool', () => {
@@ -233,31 +236,60 @@ describe('the price across the experience bands', () => {
 describe('how the price is built', () => {
   it('walks from the measured risk to what a policy sells at', () => {
     const series = committedSeries('86000000000');
-    const steps = priceBuildUp(series, null, 0.96);
+    // Computer and mathematical, 0.69 points from its line, which is the
+    // distance the 0.96 risk charge was struck at.
+    const steps = priceBuildUp(series, null, 0.96, 0.69);
+    expect(steps.map((step) => step.label)).toEqual([
+      'Risk charge',
+      'Selection charge',
+      'Capital charge',
+      'Guide rate',
+      'Premium rate',
+    ]);
+    expect(steps[0]!.value).toBe('0.96 percent');
+    expect(steps[1]!.value).toBe('0.15 percent');
+    expect(steps[2]!.value).toBe('6.38 percent');
+    // The guide rate is the three added, to the rounding the screen shows.
+    expect(steps[3]!.value).toBe('7.49 percent');
+    // And the premium is the guide raised by the capacity taken: 86,000 of
+    // 100,000 remaining here, so 7.49 times 1.86.
+    expect(steps[4]!.value).toBe('13.93 percent');
+  });
+
+  it('drops the selection step on an occupation nowhere near its line', () => {
+    // Four and a half points out there is nothing to select on, the charge
+    // rounds to nothing, and the build up reads as it always did.
+    const steps = priceBuildUp(committedSeries('86000000000'), null, 0.61, 4.56);
     expect(steps.map((step) => step.label)).toEqual([
       'Risk charge',
       'Capital charge',
       'Guide rate',
       'Premium rate',
     ]);
-    expect(steps[0]!.value).toBe('0.96 percent');
-    expect(steps[1]!.value).toBe('5.65 percent');
-    // The guide rate is the two added, to the rounding the screen shows.
-    expect(steps[2]!.value).toBe('6.61 percent');
-    // And the premium is the guide raised by the capacity taken: 86,000 of
-    // 100,000 remaining here, so 6.61 times 1.86.
-    expect(steps[3]!.value).toBe('12.29 percent');
   });
 
   it('ends on a range where capital has split the occupation into bands', () => {
-    const steps = priceBuildUp(committedSeries('5000000000'), bandsView([null, 0.5, 0]), 0.96);
-    expect(steps.at(-1)!.value).toBe('6.61 to 9.91 percent');
+    const steps = priceBuildUp(
+      committedSeries('5000000000'),
+      bandsView([null, 0.5, 0]),
+      0.96,
+      0.69,
+    );
+    expect(steps.at(-1)!.value).toBe('7.49 to 11.24 percent');
   });
 
   it('builds nothing at all rather than half of itself', () => {
-    expect(priceBuildUp(SERIES, null, null)).toEqual([]);
-    expect(priceBuildUp(null, null, 0.96)).toEqual([]);
-    expect(priceBuildUp({ ...SERIES, cover_pool: null }, null, 0.96)).toEqual([]);
+    expect(priceBuildUp(SERIES, null, null, 0.69)).toEqual([]);
+    expect(priceBuildUp(null, null, 0.96, 0.69)).toEqual([]);
+    expect(priceBuildUp({ ...SERIES, cover_pool: null }, null, 0.96, 0.69)).toEqual([]);
+    expect(priceBuildUp(SERIES, null, 0.96, null)).toEqual([]);
+  });
+
+  it('builds nothing for an occupation whose claims are open', () => {
+    // There is no policy to price. Cover is not written into a loss that is
+    // already running, so a build up here would be arithmetic for a trade
+    // nobody would make.
+    expect(priceBuildUp(committedSeries('86000000000'), null, 8.6, -0.28)).toEqual([]);
   });
 });
 
@@ -501,7 +533,7 @@ describe('the market board', () => {
   it('prints the premium rate and the declared coupon, and nothing where neither exists', () => {
     const text = visibleText(boardMarkup());
     // 0.3 points from the line with nothing committed, and the declared coupon.
-    expect(text).toContain('8.3 percent');
+    expect(text).toContain('15 percent');
     expect(text).toContain('8 percent');
     // The maturity demonstration row was read from neither, so it carries the
     // name and the identifier and no figure at all. What follows it is the

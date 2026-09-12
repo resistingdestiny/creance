@@ -67,7 +67,7 @@ describe('the capacity behind a band', () => {
     expect(capacityReason(junior, 5_000_000_000n)).toBe('no_capital');
     expect(
       priceCover({
-        ebar: -0.6,
+        ebar: -1.37,
         levelLine: -0.68,
         limit: 5_000_000_000n,
         exposure: junior.exposure,

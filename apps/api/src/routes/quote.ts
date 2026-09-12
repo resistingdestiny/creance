@@ -157,6 +157,22 @@ export async function quote(
     );
   }
 
+  // Cover is not written into an occupation whose claims are already open.
+  // `latest.open` is the published flag and covers both forms, so a shock form
+  // that has opened refuses here even where the level form has not; the level
+  // form's own distance is refused a second time inside `priceCover`, which is
+  // the guard no caller can skip. A policy bound now would be cover against a
+  // loss that is already running, which is a transfer rather than insurance,
+  // and the published hazard table has said so since it was written.
+  if (latest.open || state.levelLine - latest.ebar <= 0) {
+    throw new AppError(
+      409,
+      'claims_already_open',
+      'Not on sale',
+      `Claims are open for ${group.label}, so new cover is not being sold for it. Cover has to be in place before the index reaches the line.`,
+    );
+  }
+
   const price = priceCover({
     ebar: latest.ebar,
     // The frozen level line of record for the series is the one on chain: it is
@@ -167,10 +183,10 @@ export async function quote(
     exposure: capacity.exposure,
     capital: capacity.capital,
   });
-  // Unreachable: the band was refused above when it had no capital. The guard
-  // is here because `priceCover` returns null rather than a floor price for an
-  // unfunded band, and a null that reached the quote row would be a premium of
-  // nothing.
+  // Unreachable: the band was refused above when it had no capital, and an
+  // open occupation was refused a line above that. The guard is here because
+  // `priceCover` returns null rather than a price in both cases, and a null
+  // that reached the quote row would be a premium of nothing.
   if (price === null) throw bandNotFunded(band, group.label);
 
   await services.repository.upsertSeries(seriesRowFrom(seriesConfig, state, services.config));

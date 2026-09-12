@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { SeriesChooser } from '../src/app/invest/series-chooser.js';
+import { CHOOSE_OCCUPATION } from '../src/lib/occupations.js';
 import type { SeriesListEntry } from '../src/lib/investor-api.js';
 
 /**
@@ -41,10 +42,19 @@ describe('the series chooser', () => {
   );
 
   it('is a native disclosure, shut, with no script of its own', () => {
-    expect(markup).toMatch(/^<details class="group relative mt-6 lg:w-fit">/);
+    // The details stands inside a labelled wrapper: anything in a details that
+    // is not the summary is the disclosed content, so the label has to be
+    // outside it or it is hidden until the disclosure is open.
+    expect(markup).toMatch(/^<div class="mt-6 lg:w-fit">/);
+    expect(markup).toContain('<details class="group relative lg:w-fit">');
     expect(markup).not.toContain(' open');
     expect(markup).not.toContain('onClick');
     expect(markup).toContain('<summary');
+  });
+
+  it('says above it what choosing it does', () => {
+    expect(markup).toContain(`>${CHOOSE_OCCUPATION}</p>`);
+    expect(markup.indexOf(CHOOSE_OCCUPATION)).toBeLessThan(markup.indexOf('<details'));
   });
 
   it('names the series on screen in the row, by what it covers', () => {

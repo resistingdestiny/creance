@@ -1,6 +1,7 @@
 import { Suspense, use, type ReactNode } from 'react';
 
 import { DataTable, type TableRowData } from '../../components/table';
+import { ChevronRight } from '../../components/icons';
 import { CoverCardShell } from '../../components/cover-card';
 import { DesktopFrame } from '../../components/desktop-frame';
 import { ListRow } from '../../components/list-row';
@@ -131,21 +132,32 @@ export function InvestorOverview({
   // in hand before either chain read is, so the name is on the first byte.
   const listed = choices.find((choice) => choice.series_id === seriesId);
   const name = listed === undefined ? null : seriesName(listed);
-  // The first series in the list is the route's own default, so it needs no
-  // query string. Anything else does.
-  const head = seriesId === choices[0]?.series_id;
+  // Bare /invest is the market board now, so this screen always names its
+  // series in the query string. Nothing here reaches the board's address.
   const query = `?series=${encodeURIComponent(seriesId)}`;
-  const subscribeHref = head ? '/invest/subscribe' : `/invest/subscribe${query}`;
-  const retryHref = head ? '/invest' : `/invest${query}`;
+  const subscribeHref = `/invest/subscribe${query}`;
+  const retryHref = `/invest${query}`;
 
   return (
     <DesktopFrame current="invest">
       {/* The occupation leads and the identifier is reference information
           under it (T52). A person came for "Computer and mathematical";
           `ODI-COMP-2026-01` is what they quote afterwards. A series this
-          bundle cannot name keeps the identifier as its heading. */}
+          bundle cannot name keeps the identifier as its heading.
+
+          Above it, the way back to the board this series was picked from. It
+          is the first thing in the markup because it is the first thing a
+          person reaches with a keyboard, and one series is a detail view of a
+          list of sixteen, not a destination of its own. */}
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-hairline pb-6">
         <div className="flex flex-col gap-1">
+          <a
+            className="mb-1 inline-flex w-fit items-center gap-1 text-secondary text-ink-2 underline-offset-[3px] hover:underline"
+            href="/invest"
+          >
+            <ChevronRight className="shrink-0 rotate-180" />
+            All occupations
+          </a>
           <h1 className="text-title font-display font-semibold tracking-title text-ink lg:text-landing-head lg:tracking-display">
             {name ?? seriesId}
           </h1>
@@ -309,6 +321,12 @@ function RestingBar({ className }: { className?: string }) {
  * nought. A series that could not be read leaves the next payment out, which
  * is the T47 rule that an unknown next payment renders as no row and never as
  * "no further payments".
+ *
+ * A note that has paid nothing and declared nothing says so here, under the
+ * heading the statement belongs to. It used to say it under the table instead,
+ * which left the "Coupon history" heading standing over an empty half of the
+ * screen on every series but the demo one. Only a history that was read and
+ * came back empty is worded: a read that failed is the table's own sentence.
  */
 function Position({
   coupons,
@@ -325,11 +343,14 @@ function Position({
   const next = view === null ? null : nextPayment(view);
 
   if (earned === null) {
-    return next === null ? null : (
-      <SurfaceGroup className="mb-6 max-w-[520px]">
-        <NextPaymentRow next={next} />
-      </SurfaceGroup>
-    );
+    if (next !== null) {
+      return (
+        <SurfaceGroup className="mb-6 max-w-[520px]">
+          <NextPaymentRow next={next} />
+        </SurfaceGroup>
+      );
+    }
+    return history !== null && history.coupons.length === 0 ? <NoCoupons /> : null;
   }
   return (
     <NoteCertificate
@@ -374,14 +395,10 @@ function History({
   if (history === null) return <CannotLoad retryHref={retryHref} what="the coupon history" />;
 
   const rows = couponHistory(history);
-  if (rows.length === 0) {
-    return (
-      <div className="flex flex-col gap-1">
-        <p className="text-body text-ink">No coupons yet.</p>
-        <p className="text-secondary text-ink-2">Coupons are paid monthly from the premium account.</p>
-      </div>
-    );
-  }
+  // The position block above has already said that nothing has been paid, in
+  // the place a reader looks for it. A second saying of it here was the whole
+  // of the section on a series with no coupons.
+  if (rows.length === 0) return null;
 
   return (
     <>
@@ -647,6 +664,18 @@ function NoteCertificate({
         )}
       </div>
     </CoverCardShell>
+  );
+}
+
+/** A note that has paid nothing yet, and what will change that. */
+function NoCoupons() {
+  return (
+    <div className="mb-6 flex flex-col gap-1">
+      <p className="text-body text-ink">No coupons yet.</p>
+      <p className="text-secondary text-ink-2">
+        Coupons are paid monthly from the premium account.
+      </p>
+    </div>
   );
 }
 

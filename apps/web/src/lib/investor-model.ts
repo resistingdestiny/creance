@@ -17,8 +17,11 @@ import {
   formatPercent,
   formatWholeMoney,
 } from './format';
-import type { CouponsView, HolderView, SeriesListEntry, SeriesView } from './investor-api';
+import type { ExplorerState, RankedOccupation } from './explorer-model';
+import type { CouponsView, HolderView, SeriesKind, SeriesListEntry, SeriesView } from './investor-api';
 import { findOccupation } from './occupations';
+
+import { guideRate, marketRate } from '@creance/index-model/src/pricing';
 
 /** RFC 3339 in UTC to the date-only string the formatters take. */
 export function isoDay(timestamp: string): string {
@@ -327,4 +330,250 @@ export function firstSettledCoupon(
     (row) => row.settled && row.address.toLowerCase() === wanted,
   );
   return settled.at(-1) ?? null;
+}
+
+/* ---------------------------------------------------------------------------
+ * The market board
+ *
+ * One series is a position. Fifteen series side by side is the decision, and
+ * until now the investor route could only draw one of them at a time: to weigh
+ * transportation against legal you changed the chooser and lost the first. The
+ * board is every series the API lists as one row each, so the comparison an
+ * investor actually makes is on one screen.
+ *
+ * A row is composed of three reads and nothing else: the series entry from
+ * GET /v1/series, the chain state from GET /v1/series/:id, and the occupation's
+ * newest published index reading, which is the same round the public index
+ * explorer buys. A field that none of the three answers is null here and is a
+ * cell that does not render, never a placeholder.
+ *
+ * How near the line an occupation is, and the words for it, are not worked out
+ * again here. `rankByDistance` in src/lib/explorer-model.ts already orders the
+ * occupations and words the gap, and one phrasing of a distance across the
+ * product is the point of that module.
+ * ------------------------------------------------------------------------- */
+
+/** What this account holds of one series, from the series' own holder list. */
+export interface MarketPosition {
+  /** Whole notes held, as the note reports them. */
+  readonly units: string;
+  /** What was subscribed for them, in the settlement asset's minor units. */
+  readonly subscription: bigint;
+  readonly decimals: number;
+  readonly accountId: string;
+  /** Coupons settled to this account so far, or null where none have. */
+  readonly earned: EarnedToDate | null;
+}
+
+export interface MarketRow {
+  readonly seriesId: string;
+  readonly kind: SeriesKind;
+  /** The API's group key, which is what an index reading is matched on. */
+  readonly group: string;
+  /** What the series covers, or null where this bundle cannot name the group. */
+  readonly name: string | null;
+  /** Covered, close to opening, or claims open. Null with no index reading. */
+  readonly state: ExplorerState | null;
+  /** "0.7 points away", in the explorer's own words. Null with no reading. */
+  readonly gap: string | null;
+  /** Points still to travel to a payout, negative past the line. */
+  readonly distance: number | null;
+  /** The annual rate cover on this occupation is priced at today, in percent. */
+  readonly premiumPercent: number | null;
+  /** How much of the series' capacity is committed, in percent. */
+  readonly capacityPercent: number | null;
+  /** The principal behind the series, in minor units. Null where unread. */
+  readonly funded: bigint | null;
+  /** What claims have already taken out of it. Null where unread. */
+  readonly paid: bigint | null;
+  readonly decimals: number;
+  /** The coupon the note has declared, in percent, where it has declared one. */
+  readonly couponPercent: number | null;
+  /** The vault on HashScan, so a row's figures can be read off the chain. */
+  readonly hashscan: string | null;
+  readonly position: MarketPosition | null;
+}
+
+/**
+ * The annual rate cover on an occupation is priced at, as a percentage.
+ *
+ * This is the product's own published pricing, `marketRate(guideRate(d), u)`
+ * from packages/index-model/src/pricing.ts, applied to two live figures: the
+ * distance from the occupation's newest published reading to its line, and the
+ * share of this series' remaining principal that is already committed as
+ * exposure. Both come off the wire. It is the one number on the board that is
+ * computed rather than read, and it is what makes the board a market rather
+ * than a list: it is the price the risk in the column beside it is trading at.
+ *
+ * The distance is floored at zero for the same reason src/lib/explorer-model.ts
+ * floors it: the hazard is an exponential fitted to buckets that begin at the
+ * line, it says nothing below zero, and extrapolating it there runs the rate
+ * away to numbers no capital would quote. The public explorer prices from the
+ * headline form's distance and so does this, so the two public screens cannot
+ * disagree about what an occupation costs.
+ *
+ * Null where the series carries no registered pool to take exposure, or where
+ * the occupation has no published reading: an unpriced risk is not a free one.
+ */
+export function premiumRatePercent(
+  series: SeriesView | null,
+  distance: number | null,
+): number | null {
+  if (series === null || distance === null) return null;
+  const pool = series.cover_pool;
+  if (pool === null || !pool.registered) return null;
+  const remaining = BigInt(series.vault.principal_remaining.amount);
+  const exposure = BigInt(pool.active_exposure.amount);
+  const utilisation = remaining <= 0n ? 0 : Number(exposure) / Number(remaining);
+  return marketRate(guideRate(Math.max(0, distance)), utilisation) * 100;
+}
+
+/**
+ * One row of the board, from the three reads behind it.
+ *
+ * Every argument but the entry is allowed to be null, because each read fails
+ * on its own: a series the chain could not answer for keeps its name and its
+ * link and loses its figures, and an occupation with no published reading keeps
+ * its figures and loses its risk. Neither costs the board a row, because a row
+ * that vanished would read as a series that does not exist.
+ */
+export function marketRow(input: {
+  readonly entry: SeriesListEntry;
+  readonly series: SeriesView | null;
+  readonly ranked: RankedOccupation | null;
+  readonly coupons: CouponsView | null;
+  readonly address: string;
+}): MarketRow {
+  const { entry, series, ranked, coupons, address } = input;
+  const distance = ranked?.month?.distance ?? null;
+  const rate = series?.coupons.rate_percent ?? null;
+  const coupon = rate === null ? null : Number(rate);
+  const holder = series === null ? null : holderFor(series, address);
+
+  return {
+    seriesId: entry.series_id,
+    kind: entry.kind,
+    group: entry.group,
+    name: seriesName(entry),
+    state: ranked?.state ?? null,
+    gap: ranked?.gap ?? null,
+    distance,
+    premiumPercent: premiumRatePercent(series, distance),
+    capacityPercent:
+      series?.cover_pool?.registered === true ? series.cover_pool.capacity_used_percent : null,
+    funded: series === null ? null : BigInt(series.vault.principal_funded.amount),
+    paid: series === null ? null : BigInt(series.vault.principal_paid.amount),
+    decimals: series?.vault.principal_funded.decimals ?? 6,
+    couponPercent: coupon !== null && Number.isFinite(coupon) ? coupon : null,
+    hashscan: series?.vault.hashscan ?? null,
+    position:
+      holder === null || BigInt(holder.note_balance) <= 0n
+        ? null
+        : {
+            units: holder.note_units,
+            subscription: BigInt(holder.subscription.amount),
+            decimals: holder.subscription.decimals,
+            accountId: holder.account_id,
+            earned: coupons === null ? null : earnedToDate(coupons, address),
+          },
+  };
+}
+
+/** The columns a person can put the board in order by. */
+export const MARKET_SORTS = [
+  'risk',
+  'premium',
+  'capacity',
+  'principal',
+  'paid',
+  'coupon',
+  'name',
+] as const;
+
+export type MarketSort = (typeof MARKET_SORTS)[number];
+export type MarketDirection = 'asc' | 'desc';
+
+/**
+ * Which way round a column starts.
+ *
+ * Risk ascends, because the whole board is about which occupation is nearest
+ * its line and the nearest is the smallest distance. Name ascends because that
+ * is what alphabetical means. Every figure descends, because the question a
+ * person clicking "Premium rate" is asking is which one pays most.
+ */
+const SORT_DEFAULT_DIRECTION: Record<MarketSort, MarketDirection> = {
+  risk: 'asc',
+  premium: 'desc',
+  capacity: 'desc',
+  principal: 'desc',
+  paid: 'desc',
+  coupon: 'desc',
+  name: 'asc',
+};
+
+/** The sort a query string asked for, or the default. Never throws on rubbish. */
+export function marketSort(value: string | undefined): MarketSort {
+  return MARKET_SORTS.includes(value as MarketSort) ? (value as MarketSort) : 'risk';
+}
+
+export function marketDirection(sort: MarketSort, value: string | undefined): MarketDirection {
+  if (value === 'asc' || value === 'desc') return value;
+  return SORT_DEFAULT_DIRECTION[sort];
+}
+
+/** What pressing a column header should ask for next: its own order, then the reverse. */
+export function nextDirection(
+  column: MarketSort,
+  sort: MarketSort,
+  direction: MarketDirection,
+): MarketDirection {
+  if (column !== sort) return SORT_DEFAULT_DIRECTION[column];
+  return direction === 'asc' ? 'desc' : 'asc';
+}
+
+function valueOf(row: MarketRow, sort: MarketSort): number | null {
+  switch (sort) {
+    case 'risk':
+      return row.distance;
+    case 'premium':
+      return row.premiumPercent;
+    case 'capacity':
+      return row.capacityPercent;
+    case 'principal':
+      return row.funded === null ? null : Number(row.funded);
+    case 'paid':
+      return row.paid === null ? null : Number(row.paid);
+    case 'coupon':
+      return row.couponPercent;
+    case 'name':
+      return null;
+  }
+}
+
+/**
+ * The board in order.
+ *
+ * A row with nothing to sort by sinks to the bottom whichever way the column
+ * points, which is `rankByDistance`'s rule kept: nothing known about a figure is
+ * not the smallest value of it, and putting an unread row above a measured one
+ * would be a claim. Ties break on the name so that two views of the same data
+ * are in the same order.
+ */
+export function sortMarketRows(
+  rows: readonly MarketRow[],
+  sort: MarketSort,
+  direction: MarketDirection,
+): readonly MarketRow[] {
+  const sign = direction === 'asc' ? 1 : -1;
+  const label = (row: MarketRow): string => row.name ?? row.seriesId;
+  return [...rows].sort((left, right) => {
+    if (sort !== 'name') {
+      const a = valueOf(left, sort);
+      const b = valueOf(right, sort);
+      if (a === null && b !== null) return 1;
+      if (b === null && a !== null) return -1;
+      if (a !== null && b !== null && a !== b) return (a - b) * sign;
+    }
+    return label(left).localeCompare(label(right), 'en-GB') * (sort === 'name' ? sign : 1);
+  });
 }

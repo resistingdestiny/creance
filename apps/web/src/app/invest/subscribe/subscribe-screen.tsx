@@ -72,12 +72,9 @@ export function SubscribeScreen({
   const [confirmed, setConfirmed] = useState(false);
 
   const holder = holderFor(series, investor.evmAddress);
-  // The first series in the list is the route's own default, so it needs no
-  // query string. Anything else does.
-  const seriesHref =
-    series.series_id === choices[0]?.series_id
-      ? '/invest'
-      : `/invest?series=${encodeURIComponent(series.series_id)}`;
+  // Bare /invest is the market board, so a way back to the series this screen
+  // is subscribing to always names it.
+  const seriesHref = `/invest?series=${encodeURIComponent(series.series_id)}`;
 
   if (confirmed) {
     return (

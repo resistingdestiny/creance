@@ -394,7 +394,7 @@ describe('the series a screen offers a choice from', () => {
     expect(markup).toContain('title="ODI-OFFC-2026-01"');
   });
 
-  it('sends the head of the list to the route with no query string', () => {
+  it('names its own series on every link out, because bare /invest is the board', () => {
     const markup = renderToStaticMarkup(
       <InvestorOverview
         choices={CHOICES}
@@ -404,7 +404,9 @@ describe('the series a screen offers a choice from', () => {
         seriesId={SERIES.series_id}
       />,
     );
-    expect(markup).toContain('href="/invest/subscribe"');
+    expect(markup).toContain('href="/invest/subscribe?series=ODI-COMP-2026-01"');
+    // And a way back to the board the series was picked from.
+    expect(markup).toContain('href="/invest"');
   });
 
   it('says what the chooser is for, in the words the index explorer uses', () => {
@@ -627,18 +629,22 @@ describe('the investor overview screen', () => {
     expect(named).toContain('Computer and mathematical');
   });
 
-  it('says so plainly when a series has no coupons yet', () => {
+  it('says so plainly when a series has no coupons yet, under the heading it belongs to', () => {
+    // The shape of the fifteen series that have paid nothing: an empty
+    // history and no coupon declared, so there is no next payment either.
     const empty = visibleText(
       renderToStaticMarkup(
         <InvestorOverview
           coupons={{ ...COUPONS, coupons: [] }}
           investor={DEMO_ACCOUNTS['investor-1']}
-          series={SERIES}
-        seriesId={SERIES.series_id}
-      />,
+          series={{ ...SERIES, coupons: { ...SERIES.coupons, rate_percent: null, next: null } }}
+          seriesId={SERIES.series_id}
+        />,
       ),
     );
-    expect(empty).toContain('No coupons yet.');
+    expect(empty).toContain('Coupon history No coupons yet.');
+    // And it is said once, not again under the table.
+    expect(empty.match(/No coupons yet\./g)).toHaveLength(1);
     // Nothing earned is nothing, not 0.00.
     expect(empty).not.toContain('Earned to date');
   });

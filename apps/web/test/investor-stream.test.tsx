@@ -138,7 +138,7 @@ describe('the shell', () => {
     expect(shell).toContain('Coupon history');
     expect(shell).toContain('Principal at risk');
     expect(shell).toContain('You earn coupons from premiums.');
-    expect(shell).toContain('href="/invest/subscribe"');
+    expect(shell).toContain('href="/invest/subscribe?series=ODI-COMP-2026-01"');
     expect(shell).toContain('Demo wallet. Testnet only.');
 
     // And not one figure, because not one of them has been read.
@@ -232,7 +232,7 @@ describe('a read that fails costs the page its figure and never the page', () =>
     // The page is still the page.
     expect(text).toContain('Principal at risk');
     expect(text).toContain('You earn coupons from premiums.');
-    expect(whole).toContain('href="/invest/subscribe"');
+    expect(whole).toContain('href="/invest/subscribe?series=ODI-COMP-2026-01"');
   });
 
   it('says the coupon history could not be loaded and keeps the series', async () => {
@@ -266,7 +266,7 @@ describe('a read that fails costs the page its figure and never the page', () =>
     expect(text).toContain("We can't load the coupon history right now.");
     expect(text).not.toContain('Next payment');
     expect(text).not.toContain('Earned to date');
-    expect(whole).toContain('href="/invest/subscribe"');
+    expect(whole).toContain('href="/invest/subscribe?series=ODI-COMP-2026-01"');
     expect(text).not.toMatch(/[\u2013\u2014]/);
   });
 });

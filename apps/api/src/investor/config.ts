@@ -57,7 +57,10 @@ export interface SeriesConfig {
   maturityAt: number;
   vault: { address: string; contractId?: string };
   coverPool?: { address: string; contractId?: string };
-  note?: { address: string; contractId?: string };
+  /// The note issued for this series. `symbol` is the ticker the note itself
+  /// carries, kept here so a screen can name an instrument without a chain
+  /// read; it is absent on a record written before it was recorded.
+  note?: { address: string; contractId?: string; symbol?: string };
   settlementToken: { tokenId: string; address: string; decimals: number; symbol: string };
   holders: HolderConfig[];
   coupons: CouponSettlementConfig[];
@@ -84,7 +87,7 @@ interface DeploymentFile {
     label: string;
     seriesId: string;
     maturityAt: number;
-    note?: { address: string; contractId?: string };
+    note?: { address: string; contractId?: string; symbol?: string };
   };
   series?: SeriesFile[];
 }
@@ -94,7 +97,7 @@ interface SeriesFile {
   label: string;
   group: string;
   maturityAt: number;
-  ats?: { note?: { address: string; contractId?: string } };
+  ats?: { note?: { address: string; contractId?: string; symbol?: string } };
   couponSettlements?: Record<string, CouponSettlementConfig>;
   subscriptions?: { role: string }[];
 }
@@ -221,6 +224,7 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
   const series: SeriesConfig[] = recorded.map((entry, index) => {
     const noteAddress = (index === 0 ? noteOverride : undefined) ?? entry.ats?.note?.address;
     const contractId = entry.ats?.note?.contractId;
+    const symbol = entry.ats?.note?.symbol;
     return {
       label: entry.label,
       seriesId: entry.id,
@@ -235,6 +239,7 @@ export function loadInvestorConfig(options: { recordPath?: string; resourcesPath
             note: {
               address: noteAddress,
               ...(contractId === undefined ? {} : { contractId }),
+              ...(symbol === undefined ? {} : { symbol }),
             },
           }),
       settlementToken,

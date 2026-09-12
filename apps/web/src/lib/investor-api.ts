@@ -232,3 +232,247 @@ export function fetchCoupons(id: string): Promise<CouponsView> {
 export function fetchSeriesList(): Promise<SeriesListView> {
   return read<SeriesListView>('/v1/series');
 }
+
+// ---------------------------------------------------------- the market
+
+/**
+ * The secondary market, as the web app sees it.
+ *
+ * The routes live in `apps/api/src/market`. Reading the book is free and so is
+ * reading a position; making and taking an offer are writes, and the API signs
+ * them with the demo account named in the body, which is the same posture the
+ * purchase flow uses. Nothing here holds a key.
+ *
+ * Every amount is the money envelope, and note units are integers in the note's
+ * own six decimals. `units_whole` is the same figure rounded down to whole
+ * units, which is what a screen shows; `units` is what a call takes.
+ */
+export type OfferStatus = 'open' | 'filled' | 'cancelled' | 'unknown';
+
+export interface MarketParty {
+  readonly role: string | null;
+  readonly account_id: string | null;
+  readonly address: string;
+  readonly hashscan: string;
+}
+
+export interface OfferView {
+  readonly offer_id: string;
+  readonly status: OfferStatus;
+  readonly series_id: string | null;
+  readonly series_key: string | null;
+  readonly group: string | null;
+  readonly note: {
+    readonly address: string;
+    readonly contract_id: string | null;
+    readonly symbol: string | null;
+    readonly decimals: number;
+    readonly hashscan: string;
+  };
+  readonly seller: MarketParty;
+  /** Null while the offer is open. */
+  readonly buyer: MarketParty | null;
+  readonly units: string;
+  readonly units_whole: string;
+  readonly price: Money;
+  readonly price_per_unit: Money;
+  readonly opened_at: string;
+  readonly closed_at: string | null;
+  /**
+   * What stands between an open offer and a fill, read off the chain. Null on a
+   * closed offer. None of it is a compliance verdict: that is the note's, and
+   * it is `buyer_eligibility`.
+   */
+  readonly readiness: {
+    readonly open: boolean;
+    readonly seller_holds: boolean;
+    readonly seller_approved: boolean;
+  } | null;
+  /**
+   * Whether the account named in the request may hold this note at all. Present
+   * only when the request named a buyer. A screen greys its take button on
+   * this; the note is what actually refuses.
+   */
+  readonly buyer_eligibility: {
+    readonly address: string;
+    readonly role: string | null;
+    readonly kyc_granted: boolean;
+    readonly reason: string | null;
+  } | null;
+  readonly hashscan: string;
+}
+
+/** An offer with the transactions the call that changed it sent. */
+export interface OfferResultView extends OfferView {
+  readonly transactions: {
+    readonly approve?: string | null;
+    readonly offer?: string;
+    readonly fill?: string;
+    readonly cancel?: string;
+  };
+  readonly gas_used?: number;
+}
+
+export interface OrderBookView {
+  readonly network: string;
+  readonly market: {
+    readonly address: string;
+    readonly contract_id: string | null;
+    readonly hashscan: string;
+  } | null;
+  readonly settlement_asset: {
+    readonly token_id: string;
+    readonly address: string;
+    readonly decimals: number;
+    readonly symbol: string;
+  };
+  readonly offers: readonly OfferView[];
+  readonly counts: {
+    readonly total: number;
+    readonly open: number;
+    readonly filled: number;
+    readonly cancelled: number;
+  };
+}
+
+export interface MarketPositionView {
+  readonly series_id: string;
+  readonly series_key: string;
+  readonly group: string;
+  readonly note: {
+    readonly address: string;
+    readonly contract_id: string | null;
+    readonly symbol: string | null;
+    readonly decimals: number;
+    readonly hashscan: string;
+  };
+  readonly units: string;
+  readonly units_frozen: string;
+  readonly units_position: string;
+  readonly units_whole: string;
+  readonly kyc: { readonly status: number; readonly granted: boolean };
+}
+
+export interface PositionsView {
+  readonly network: string;
+  readonly holder: MarketParty;
+  readonly settlement_balance: Money;
+  readonly positions: readonly MarketPositionView[];
+  readonly offers: readonly OfferView[];
+}
+
+/**
+ * A write the API refused, with the problem document it answered.
+ *
+ * `code` is the thing to switch on. The one worth a screen of its own is
+ * `fill_refused`, which means the note itself would not accept the buyer as a
+ * holder, and `detail` says why in a sentence.
+ */
+export class MarketApiError extends Error {
+  constructor(
+    readonly url: string,
+    readonly status: number | null,
+    readonly code: string | null,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'MarketApiError';
+  }
+}
+
+async function write<T>(path: string, body: unknown): Promise<T> {
+  const url = `${apiBaseUrl()}${path}`;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { accept: 'application/json', 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (cause) {
+    throw new MarketApiError(url, null, null, cause instanceof Error ? cause.message : 'no response');
+  }
+  const answer = (await response.json().catch(() => null)) as
+    | { code?: string; detail?: string }
+    | null;
+  if (!response.ok) {
+    throw new MarketApiError(
+      url,
+      response.status,
+      answer?.code ?? null,
+      answer?.detail ?? `the API answered ${response.status}`,
+    );
+  }
+  return answer as T;
+}
+
+/**
+ * The order book.
+ *
+ * Every offer ever made, newest first, filled ones included: a filled offer is
+ * the only record of what a unit of a note last changed hands for. Pass
+ * `status: 'open'` for what can be taken now. Pass `buyer` to have each offer
+ * carry `buyer_eligibility` for that account, which is what a take button is
+ * enabled on.
+ */
+export function fetchOrderBook(
+  options: { status?: OfferStatus | 'all'; series?: string; holder?: string; buyer?: string } = {},
+): Promise<OrderBookView> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(options)) {
+    if (value !== undefined && value !== '') query.set(key, value);
+  }
+  const suffix = query.size === 0 ? '' : `?${query.toString()}`;
+  return read<OrderBookView>(`/v1/market/offers${suffix}`);
+}
+
+/** One offer. `buyer` adds that account's eligibility for the note. */
+export function fetchOffer(offerId: string, buyer?: string): Promise<OfferView> {
+  const suffix = buyer === undefined ? '' : `?buyer=${encodeURIComponent(buyer)}`;
+  return read<OfferView>(`/v1/market/offers/${encodeURIComponent(offerId)}${suffix}`);
+}
+
+/**
+ * What an account holds and what it is a party to.
+ *
+ * `holder` is a demo role, an account id or an EVM address. Only series the
+ * account holds a unit of are returned, because a note with a zero balance is
+ * not a position.
+ */
+export function fetchPositions(holder: string): Promise<PositionsView> {
+  return read<PositionsView>(`/v1/market/positions/${encodeURIComponent(holder)}`);
+}
+
+/**
+ * Offer a lot of note units at a price.
+ *
+ * `units` and `price` are integers in minor units, six decimals both. The API
+ * raises the seller's allowance on the note first where it has to, so the
+ * result can carry two transactions.
+ */
+export function makeOffer(request: {
+  seller: string;
+  series: string;
+  units: string;
+  price: string;
+}): Promise<OfferResultView> {
+  return write<OfferResultView>('/v1/market/offers', request);
+}
+
+/**
+ * Take an offer whole.
+ *
+ * Throws `MarketApiError` with code `fill_refused` when the note will not
+ * accept the buyer as a holder, and nothing is signed in that case.
+ */
+export function fillOffer(offerId: string, buyer: string): Promise<OfferResultView> {
+  return write<OfferResultView>(`/v1/market/offers/${encodeURIComponent(offerId)}/fill`, { buyer });
+}
+
+/** Withdraw an offer. Only the account that made it can. */
+export function cancelOffer(offerId: string, seller: string): Promise<OfferResultView> {
+  return write<OfferResultView>(`/v1/market/offers/${encodeURIComponent(offerId)}/cancel`, {
+    seller,
+  });
+}

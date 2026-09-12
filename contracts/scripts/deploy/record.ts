@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { AtsRecord } from '../../ats/record.js';
+import type { SecondaryMarketRecord } from '../../market/record.js';
 import type {
   CouponSettlementRecord,
   MaturityDemoRecord,
@@ -38,6 +39,9 @@ export interface DeploymentRecord {
   /// camera. The demo series' window runs to 5 October, past the event. Not the
   /// demo series, and nothing else reads it.
   demoRelease?: DemoReleaseRecord;
+  /// The NoteMarket venue and every trade settled on it. One venue serves every
+  /// note, so it sits here rather than under a series.
+  secondaryMarket?: SecondaryMarketRecord;
 }
 
 /// What `pnpm --filter @creance/contracts demo:release` proved on testnet.

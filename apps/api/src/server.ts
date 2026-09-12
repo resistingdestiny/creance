@@ -4,6 +4,7 @@ import { adminClaimRoutes } from './claims/index.js';
 import { claimReadRoutes, claimRoutes } from './claims/submit.js';
 import { registerErrorHandling } from './errors.js';
 import { investorRoutes } from './investor/index.js';
+import { marketRoutes } from './market/index.js';
 import { replayRoutes } from './replay/index.js';
 import { agentDocsRoutes } from './routes/agent-docs.js';
 import { attributionRoutes } from './routes/attribution.js';
@@ -70,6 +71,7 @@ export async function buildServer(
   await app.register(agentDocsRoutes);
   await app.register(attributionRoutes);
   await app.register(investorRoutes);
+  await app.register(marketRoutes);
   await app.register(replayRoutes);
   await app.register(opsRoutes, { services });
   await app.register(indexHealthRoutes, { services });

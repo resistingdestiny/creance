@@ -1878,7 +1878,8 @@
   ],
   "verification": {
     "CollateralVault": "https://hashscan.io/testnet/contract/0xD0473d355ECB299F2ECc0d92124bc8CF63554e60",
-    "CoverPool": "https://hashscan.io/testnet/contract/0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09"
+    "CoverPool": "https://hashscan.io/testnet/contract/0x6358ddd5AA2e1797ddA949D7d82eA86C9F89ff09",
+    "NoteMarket": "https://hashscan.io/testnet/contract/0xe0c2b9e65AB57Bb8b86E0fd152C56Cf9499B6FCf"
   },
   "testnetRunthrough": {
     "series": "T04-SMOKE-1788546334",
@@ -1981,5 +1982,142 @@
       "payClaim": "https://hashscan.io/testnet/transaction/0x33c8d25757afacbbf33e547f1a13c9e642f15498f5493a02f50746dc38bcdbdf",
       "closeWindow": "https://hashscan.io/testnet/transaction/0xeea998bc033793c0ba038a65541eb090b0791d6777207c9c81980a9cee20ca99"
     }
+  },
+  "secondaryMarket": {
+    "market": {
+      "address": "0xe0c2b9e65AB57Bb8b86E0fd152C56Cf9499B6FCf",
+      "contractId": "0.0.10495570",
+      "settlementToken": "0x00000000000000000000000000000000009e2dff",
+      "deployTx": "0x93bb9bab956221a1dd91bf6dfe4680ca3e05de38f2af77d5d025727b8204ae5e",
+      "gasUsed": 653945
+    },
+    "trades": [
+      {
+        "key": "placement",
+        "purpose": "the first lot out of the issuing account, at par",
+        "series": "ODI-OFFC-2026-01",
+        "note": "0x508ef4e5639e99f76F74ec56B488Ebaec78ABb75",
+        "noteSymbol": "CDBN02",
+        "seller": {
+          "role": "operator",
+          "accountId": "0.0.10362512",
+          "address": "0x639444758B987b4D938c57169a1F61A62b2d009C"
+        },
+        "buyer": {
+          "role": "investor-1",
+          "accountId": "0.0.10366460",
+          "address": "0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931"
+        },
+        "units": "5000000",
+        "unitsWhole": "5",
+        "price": "5000000000",
+        "pricePerUnit": "1000000000",
+        "before": {
+          "sellerUnits": "25000000",
+          "buyerUnits": "0",
+          "sellerMoney": "119940273334",
+          "buyerMoney": "200997260273"
+        },
+        "approveNoteTx": "0x2775a47f1a8b8337f707714d34fabf80197d79748421962213b14c88c0018d67",
+        "offerId": "1",
+        "offerTx": "0x0e309f22d10bd3028f8daee9daca8eb41fb76fab3d9ebb7400472aabab2aef6d",
+        "approveTokenTx": "0x14e0ee4a59de3a3f23d91f9ce133377806eb7f7a62dbfc789cf474f95ff96a2f",
+        "refusedRevert": "InvalidKycStatus",
+        "refusedTx": "0xc03a61253bb6e7daefcc19826cb5c534ed0239cff6181b051216da8d00751fba",
+        "kycTx": "0xe86b793fb8c66b5aad85a1c8c1415b2526f04e4c2a1b1f0689242a0db37ef154",
+        "kycVcId": "urn:uuid:b9611a15-881a-4670-b9a4-3f84325891e3",
+        "fillTx": "0x24da9a9afb08a4905f658a289a249399110b197735de029659b69ca24a793be1",
+        "fillGasUsed": 564330,
+        "after": {
+          "sellerUnits": "20000000",
+          "buyerUnits": "5000000",
+          "sellerMoney": "124940273334",
+          "buyerMoney": "195997260273"
+        },
+        "at": "2026-09-12T07:24:10.243Z"
+      },
+      {
+        "key": "secondary",
+        "purpose": "one investor selling to another, at 1,050 a unit",
+        "series": "ODI-OFFC-2026-01",
+        "note": "0x508ef4e5639e99f76F74ec56B488Ebaec78ABb75",
+        "noteSymbol": "CDBN02",
+        "seller": {
+          "role": "investor-1",
+          "accountId": "0.0.10366460",
+          "address": "0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931"
+        },
+        "buyer": {
+          "role": "investor-2",
+          "accountId": "0.0.10366462",
+          "address": "0xcaa1184cd59b9296f757efc7303a10ecec6ce51e"
+        },
+        "units": "2000000",
+        "unitsWhole": "2",
+        "price": "2100000000",
+        "pricePerUnit": "1050000000",
+        "before": {
+          "sellerUnits": "5000000",
+          "buyerUnits": "0",
+          "sellerMoney": "195997260273",
+          "buyerMoney": "200997260273"
+        },
+        "approveNoteTx": "0x7b2c6ab7586607728826a2701193442296ccfa0b03ad1feafb479f0de3ee7a9e",
+        "offerId": "2",
+        "offerTx": "0x01f51a3f83085a4b7999c8687ce70f7f9fb479c7a255926721d1932791a3bfda",
+        "approveTokenTx": "0x4bbd3fab0021ddc6735cf73412e794226f34b212a43f082ff6b15e731f97d1cc",
+        "refusedRevert": "InvalidKycStatus",
+        "refusedTx": "0x066a6e9ddcda9a822a4f7e3e0a672596b96bc9822afe09c4afb441050b57ce03",
+        "kycTx": "0x917ac631f8121e9fa80524b00881f0edca05af1921244765c4891d9780e43a9a",
+        "kycVcId": "urn:uuid:19f470d2-97e6-4259-8237-62744a5d2f8b",
+        "fillTx": "0x9590f2f83ae00cb2462eeacff8293552726778d0f26d29e7f298f21244c21c2b",
+        "fillGasUsed": 564330,
+        "after": {
+          "sellerUnits": "3000000",
+          "buyerUnits": "2000000",
+          "sellerMoney": "198097260273",
+          "buyerMoney": "198897260273"
+        },
+        "at": "2026-09-12T07:24:42.202Z"
+      }
+    ],
+    "api": [
+      {
+        "offerId": "3",
+        "route": "POST /v1/market/offers",
+        "seller": "investor-2",
+        "buyer": "investor-1",
+        "units": "1000000",
+        "unitsWhole": "1",
+        "price": "1100000000",
+        "pricePerUnit": "1100000000",
+        "approveTx": "0xd7e6f9007a0a5c408be7c9eebb84fd26dcdfff329c370186b13fe72d5cb17574",
+        "offerTx": "0xccbcb6e8ec100b1194910e0af8d4d6c3a4de675e1a1ca89e2e868fb5f277626d",
+        "fillTx": "0xff89d610085f42bd3926fed786b1f0e0dc4f7796cd58f5bf3e4b70993db7c415",
+        "gasUsed": 354701,
+        "refused": {
+          "route": "POST /v1/market/offers/3/fill",
+          "buyer": "policyholder-3",
+          "status": 409,
+          "code": "fill_refused",
+          "reason": "The note would not settle this transfer: InvalidKycStatus. policyholder-3 holds no granted KYC record on this note."
+        },
+        "status": "filled",
+        "at": "2026-09-12T07:35:12Z"
+      },
+      {
+        "offerId": "4",
+        "route": "POST /v1/market/offers",
+        "seller": "investor-1",
+        "units": "1000000",
+        "unitsWhole": "1",
+        "price": "1150000000",
+        "pricePerUnit": "1150000000",
+        "approveTx": "0xa1b22cbf01f1250114f3ba7c3097f9a181273ef46cc5b9cdc55c7ae232077432",
+        "offerTx": "0x05bb01be5c9101ee24f070fb94ef60e3a42c394a98621833afb6ad68f0c502d0",
+        "status": "open",
+        "at": "2026-09-12T07:35:48Z"
+      }
+    ]
   }
 }

@@ -33,6 +33,7 @@
     "ats:issue": "pnpm --filter @creance/contracts run ats:issue",
     "coupons:pay": "pnpm --filter @creance/contracts run coupons:pay",
     "coupons:mature": "pnpm --filter @creance/contracts run coupons:mature",
+    "market:demo": "pnpm --filter @creance/contracts run market:demo",
     "api:dev": "pnpm --filter @creance/api run dev",
     "demo:seed": "pnpm --filter @creance/api run demo:seed"
   },

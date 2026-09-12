@@ -543,6 +543,122 @@ Three reads matter for anything that walks the schedule:
 The transactions, the schedules, the topic sequence numbers and what the two
 periods cost are in docs/HEDERA.md, "The coupons after the first".
 
+### 18. The secondary market
+
+Sections 7 and 8 proved that the note refuses a transfer to an account it holds
+no KYC for and settles the same transfer once it does. That is the primitive.
+What it is not is a market: there was no way for a holder to say what a lot was
+worth and no way for anyone else to take it.
+
+`NoteMarket` is that venue, and it is ours rather than ATS's.
+
+| Field | Value |
+|---|---|
+| Contract id | [0.0.10495570](https://hashscan.io/testnet/contract/0.0.10495570) |
+| EVM address | `0xe0c2b9e65AB57Bb8b86E0fd152C56Cf9499B6FCf` |
+| Deploy transaction | [0x93bb9bab...8204ae5e](https://hashscan.io/testnet/transaction/0x93bb9bab956221a1dd91bf6dfe4680ca3e05de38f2af77d5d025727b8204ae5e) |
+| Gas used | 653,945 |
+| Settlement asset | TUSD [0.0.10366463](https://hashscan.io/testnet/token/0.0.10366463) |
+| Source | `contracts/contracts/NoteMarket.sol`, [Sourcify exact match](https://sourcify.dev/server/repo-ui/296/0xe0c2b9e65AB57Bb8b86E0fd152C56Cf9499B6FCf) |
+| Run through | `pnpm market:demo` |
+
+**It custodies nothing.** It never holds a note unit and it never holds a
+settlement token. An offer is a standing instruction backed by an allowance the
+seller granted on the note; a fill is one transaction that moves both legs:
+
+    note.transferFrom(seller, buyer, units)
+    settlementToken.transferFrom(buyer, seller, price)
+
+Both are in the same call, so either both happen or neither does and there is
+no state in which one side has been paid and the other has not.
+
+An escrow was the other way to reach that and it was rejected. A note is a
+security whose transfers are refused unless both parties hold KYC on it, so an
+escrow would have had to be granted KYC and would then sit in the holder
+register as a noteholder that is not an investor. And an escrow holding the
+settlement asset would have to associate an HTS token and would become one more
+place money can be stranded. Allowances and one atomic call have neither
+problem. The market needs no KYC of its own, which was checked in the ATS
+source before anything was deployed: `isAbleToTransferFromByPartition` runs the
+identity check on `from` and `to` only, and the operator is checked against the
+control list and the compliance module, neither of which this note registers.
+
+**The compliance gate is the note's.** The note leg is deliberately first. A
+buyer the note will not accept reverts inside the ATS bond with the bond's own
+error, and the whole fill reverts with it before any money has moved. The
+market does not re-implement, wrap or soften that check and it has no allow
+list of its own.
+
+#### The series it runs on, and why it is not the demo series
+
+`ODI-OFFC-2026-01`, the office and administrative support note
+[0.0.10455865](https://hashscan.io/testnet/contract/0.0.10455865) `CDBN02`, not
+`ODI-COMP-2026-01`.
+
+The reason is section 13. `getCouponFor` reads a holder's entitlement from the
+balance the holder has **now** when the coupon carries no snapshot, and this
+note's coupons carry none: `snapshotId` stays `0`. Moving a unit of
+`ODI-COMP-2026-01` would therefore change what `getCouponFor(1, investor-1)`
+reports today, and the settled amounts in docs/HEDERA.md would stop reconciling
+with the note. The office series is the right place instead: its whole supply
+sat with the operator, it has declared no coupon, and neither investor held KYC
+on it, so the refusal below is a refusal and not one arranged by revoking a
+grant.
+
+#### The run through
+
+Two trades. The first moves a lot out of the operator, which is the account
+whose settlement tokens are in the vault for this series; the second is the one
+the market exists for, an investor selling to another investor at a price of
+its own choosing.
+
+| Step | Trade 1, operator to investor-1 | Trade 2, investor-1 to investor-2 |
+|---|---|---|
+| Lot | 5 units, 5,000 TUSD, 1,000 a unit | 2 units, 2,100 TUSD, 1,050 a unit |
+| Seller approves the note | [0x2775a47f...c0018d67](https://hashscan.io/testnet/transaction/0x2775a47f1a8b8337f707714d34fabf80197d79748421962213b14c88c0018d67), 182,670 gas | [0x7b2c6ab7...e3ee7a9e](https://hashscan.io/testnet/transaction/0x7b2c6ab7586607728826a2701193442296ccfa0b03ad1feafb479f0de3ee7a9e), 162,781 gas |
+| `offer` | [0x0e309f22...ab2aef6d](https://hashscan.io/testnet/transaction/0x0e309f22d10bd3028f8daee9daca8eb41fb76fab3d9ebb7400472aabab2aef6d), 160,774 gas, offer id 1 | [0x01f51a3f...91a3bfda](https://hashscan.io/testnet/transaction/0x01f51a3f83085a4b7999c8687ce70f7f9fb479c7a255926721d1932791a3bfda), 143,662 gas, offer id 2 |
+| Buyer approves the settlement asset | [0x14e0ee4a...5ff96a2f](https://hashscan.io/testnet/transaction/0x14e0ee4a59de3a3f23d91f9ce133377806eb7f7a62dbfc789cf474f95ff96a2f), 729,787 gas | [0x4bbd3fab...1f97d1cc](https://hashscan.io/testnet/transaction/0x4bbd3fab0021ddc6735cf73412e794226f34b212a43f082ff6b15e731f97d1cc), 729,775 gas |
+| **`fill`, refused** | [0xc03a6125...8d00751fba](https://hashscan.io/testnet/transaction/0xc03a61253bb6e7daefcc19826cb5c534ed0239cff6181b051216da8d00751fba), reverted `InvalidKycStatus` | [0x066a6e9d...050b57ce03](https://hashscan.io/testnet/transaction/0x066a6e9ddcda9a822a4f7e3e0a672596b96bc9822afe09c4afb441050b57ce03), reverted `InvalidKycStatus` |
+| `grantKyc` | [0xe86b793f...b37ef154](https://hashscan.io/testnet/transaction/0xe86b793fb8c66b5aad85a1c8c1415b2526f04e4c2a1b1f0689242a0db37ef154), 256,805 gas | [0x917ac631...80e43a9a](https://hashscan.io/testnet/transaction/0x917ac631f8121e9fa80524b00881f0edca05af1921244765c4891d9780e43a9a), 256,805 gas |
+| **`fill`, settled** | [0x24da9a9a...4a793be1](https://hashscan.io/testnet/transaction/0x24da9a9afb08a4905f658a289a249399110b197735de029659b69ca24a793be1), 564,330 gas | [0x9590f2f8...44c21c2b](https://hashscan.io/testnet/transaction/0x9590f2f83ae00cb2462eeacff8293552726778d0f26d29e7f298f21244c21c2b), 564,330 gas |
+
+The refused fill and the settled one are the same call, by the same account,
+against the same offer, with the same allowances already in place on both
+sides. The only thing that changed between them is the KYC record, exactly as
+in sections 7 and 8, and this time what it gated was a trade at a price.
+
+What moved, read back off the chain after each fill rather than assumed:
+
+| | Note units | TUSD |
+|---|---|---|
+| operator | 25 to 20 | +5,000 |
+| investor-1 | 0 to 5, then 5 to 3 | -5,000, then +2,100 |
+| investor-2 | 0 to 2 | -2,100 |
+
+#### What it is not
+
+- **Whole lot fills.** An offer is taken entire or not at all. A holder selling
+  part of a holding makes an offer for that part, and there is no partial fill
+  and so no price rounding to argue about.
+- **No fee.** Nothing is skimmed off either leg and there is no treasury
+  address in the contract to skim it to.
+- **The vault's subscription ledger does not follow the note.** A trade moves
+  the paper. `CollateralVault` still records the 25,000 TUSD for this series
+  against the operator, because the vault has no transfer of a subscription and
+  it is deployed, verified and holding real balances; giving it one would mean
+  redeploying a contract that holds money, which is not a trade we would make
+  for a demonstration. So at maturity the vault returns principal to the
+  subscriber of record and not to whoever holds the note. On a live instrument
+  the two registers have to be the same register, and saying which one is
+  authoritative is a design decision this build has not had to make because
+  nothing has matured on a traded series.
+- **An offer is not a promise.** Nothing is escrowed, so a seller can move the
+  units elsewhere or revoke the allowance and the offer stays on the book until
+  it is taken or withdrawn. `fillable(offerId)` reports whether the seller still
+  holds the lot and whether the allowance is still in place, which is what the
+  API and the screens above it read rather than guessing.
+
+
 ## The test ISIN
 
 `ZZODIC55S1Q6` is a **structurally valid test identifier, not a registered

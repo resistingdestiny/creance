@@ -1379,3 +1379,85 @@ same reason the demo series' own window is thirty days from the observation.
 The first `demo:seed` binds what is missing; the second run of it prints
 "nothing bound", which is the check that it is idempotent. `demo:release` opens a
 new series every time it runs and never touches the demo series.
+
+## The secondary market, 12 September 2026
+
+A holder can now sell a note position to another holder, on chain, with the
+compliance gate in front of it. The venue is `NoteMarket`, a contract of ours,
+and the run through is `pnpm market:demo`. The design and the full step by step
+are docs/ATS.md section 18; what follows is the record of what is on testnet.
+
+### The venue
+
+| Field | Value |
+|---|---|
+| Contract id | [0.0.10495570](https://hashscan.io/testnet/contract/0.0.10495570) |
+| EVM address | `0xe0c2b9e65AB57Bb8b86E0fd152C56Cf9499B6FCf` |
+| Deploy transaction | [0x93bb9bab...8204ae5e](https://hashscan.io/testnet/transaction/0x93bb9bab956221a1dd91bf6dfe4680ca3e05de38f2af77d5d025727b8204ae5e), 653,945 gas |
+| Verification | [Sourcify exact match](https://sourcify.dev/server/repo-ui/296/0xe0c2b9e65AB57Bb8b86E0fd152C56Cf9499B6FCf) |
+| Settlement asset | TUSD [0.0.10366463](https://hashscan.io/testnet/token/0.0.10366463) |
+| Note traded | `ODI-OFFC-2026-01` [0.0.10455865](https://hashscan.io/testnet/contract/0.0.10455865), `CDBN02` |
+
+It custodies nothing. A fill is one transaction carrying both legs, the note
+first and the money second, so either the units and the money both move or
+neither does. The note leg is first on purpose: a buyer the note will not
+accept is refused by the note itself, before any money has moved.
+
+The traded series is deliberately not the demo series. `getCouponFor` on an ATS
+bond reads a holder's entitlement off the balance the holder has now where the
+coupon carries no snapshot, and the demo note's coupons carry none, so moving a
+unit of `ODI-COMP-2026-01` would change what its three settled coupons read
+back as. The demo note is untouched: investor-1 and investor-2 still hold 50
+units each and the coupon evidence above still reconciles.
+
+### Refused, then settled
+
+| Step | Trade 1, operator to investor-1 | Trade 2, investor-1 to investor-2 |
+|---|---|---|
+| Lot | 5 units for 5,000 TUSD | 2 units for 2,100 TUSD |
+| Offer | [0x0e309f22...ab2aef6d](https://hashscan.io/testnet/transaction/0x0e309f22d10bd3028f8daee9daca8eb41fb76fab3d9ebb7400472aabab2aef6d) | [0x01f51a3f...91a3bfda](https://hashscan.io/testnet/transaction/0x01f51a3f83085a4b7999c8687ce70f7f9fb479c7a255926721d1932791a3bfda) |
+| Fill, refused `InvalidKycStatus` | [0xc03a6125...8d00751fba](https://hashscan.io/testnet/transaction/0xc03a61253bb6e7daefcc19826cb5c534ed0239cff6181b051216da8d00751fba) | [0x066a6e9d...050b57ce03](https://hashscan.io/testnet/transaction/0x066a6e9ddcda9a822a4f7e3e0a672596b96bc9822afe09c4afb441050b57ce03) |
+| KYC granted | [0xe86b793f...b37ef154](https://hashscan.io/testnet/transaction/0xe86b793fb8c66b5aad85a1c8c1415b2526f04e4c2a1b1f0689242a0db37ef154) | [0x917ac631...80e43a9a](https://hashscan.io/testnet/transaction/0x917ac631f8121e9fa80524b00881f0edca05af1921244765c4891d9780e43a9a) |
+| Fill, settled | [0x24da9a9a...4a793be1](https://hashscan.io/testnet/transaction/0x24da9a9afb08a4905f658a289a249399110b197735de029659b69ca24a793be1), 564,330 gas | [0x9590f2f8...44c21c2b](https://hashscan.io/testnet/transaction/0x9590f2f83ae00cb2462eeacff8293552726778d0f26d29e7f298f21244c21c2b), 564,330 gas |
+
+The refused call and the settled one are the same call, by the same account,
+against the same offer, with both allowances already in place. The only thing
+that changed between them is the KYC record.
+
+### The same thing again, through the API
+
+`GET /v1/market/offers`, `GET /v1/market/offers/:id`, `GET
+/v1/market/positions/:holder`, `POST /v1/market/offers` and `POST
+/v1/market/offers/:id/fill` in `apps/api/src/market`. None of them is x402
+gated: what this build meters is the index reading it sells and the premium,
+and this venue charges no fee to skim.
+
+| Call | Result |
+|---|---|
+| `POST /v1/market/offers`, investor-2, 1 unit for 1,100 TUSD | offer id 3, [approve](https://hashscan.io/testnet/transaction/0xd7e6f9007a0a5c408be7c9eebb84fd26dcdfff329c370186b13fe72d5cb17574) and [offer](https://hashscan.io/testnet/transaction/0xccbcb6e8ec100b1194910e0af8d4d6c3a4de675e1a1ca89e2e868fb5f277626d) |
+| `POST /v1/market/offers/3/fill`, buyer policyholder-3 | 409 `fill_refused`, "The note would not settle this transfer: InvalidKycStatus". Nothing was signed: the note's KYC register is read before anything is sent, so a doomed fill costs the buyer nothing |
+| `POST /v1/market/offers/3/fill`, buyer investor-1 | [0xff89d610...93db7c415](https://hashscan.io/testnet/transaction/0xff89d610085f42bd3926fed786b1f0e0dc4f7796cd58f5bf3e4b70993db7c415), 354,701 gas |
+| `POST /v1/market/offers`, investor-1, 1 unit for 1,150 TUSD | offer id 4, [approve](https://hashscan.io/testnet/transaction/0xa1b22cbf01f1250114f3ba7c3097f9a181273ef46cc5b9cdc55c7ae232077432) and [offer](https://hashscan.io/testnet/transaction/0x05bb01be5c9101ee24f070fb94ef60e3a42c394a98621833afb6ad68f0c502d0). Left open, so the book is not empty |
+
+The book after all of it: four offers, three filled and one open, at 1,000,
+1,050, 1,100 and 1,150 TUSD a unit. Balances read back off the chain: the
+operator holds 20 units of `CDBN02` and 124,940.273334 TUSD, investor-1 holds 4
+units and 196,997.260273, investor-2 holds 1 unit and 199,997.260273.
+
+### The one thing a reader should know
+
+A trade moves the note and not the vault's subscription ledger.
+`CollateralVault` still records this series' 25,000 TUSD against the operator,
+because it has no transfer of a subscription and it is a deployed, verified
+contract holding real balances. At maturity the vault pays the subscriber of
+record rather than the current noteholder. On a live instrument those two
+registers have to be one register; nothing in this build has matured on a
+traded series, so the question has not had to be answered here.
+
+### Reproducing it
+
+    pnpm market:demo status
+    pnpm market:demo
+
+Every step is guarded by what the chain already says, so a second run deploys
+nothing, offers nothing and fills nothing.

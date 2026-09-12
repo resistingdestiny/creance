@@ -19,6 +19,7 @@
     "ats:issue": "tsx --env-file-if-exists=../.env ats/issue.ts",
     "coupons:pay": "tsx --env-file-if-exists=../.env coupons/settle.ts",
     "coupons:mature": "tsx --env-file-if-exists=../.env coupons/mature.ts",
+    "market:demo": "tsx --env-file-if-exists=../.env market/run.ts",
     "demo:release": "tsx --env-file-if-exists=../.env scripts/testnet/release.ts"
   },
   "devDependencies": {

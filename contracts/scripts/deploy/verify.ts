@@ -20,9 +20,18 @@ function verify(name: string, address: string, args: string[]): boolean {
 }
 
 const record = readRecord();
+const market = record.secondaryMarket?.market;
 const targets: Array<[string, { address: string; constructorArgs: string[] } | undefined]> = [
   ['CollateralVault', record.collateralVault],
   ['CoverPool', record.coverPool],
+  // The market takes the settlement token and nothing else, so its constructor
+  // arguments are not on the record the way the other two are.
+  [
+    'NoteMarket',
+    market === undefined
+      ? undefined
+      : { address: market.address, constructorArgs: [market.settlementToken] },
+  ],
 ];
 
 const verification: Record<string, string> = { ...record.verification };

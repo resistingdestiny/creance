@@ -56,16 +56,12 @@ import {
 import { couponLine } from './investor-model';
 import {
   LANDING_GROUP,
-  attachmentFor,
   fromPriceBuys,
   fromPriceLine,
   historyFigure,
   investorLine,
   landingIndexSection,
-  levelLineFor,
   noteFigures,
-  payAnswer,
-  seriesFor,
   tickerReadings,
   type LandingFigure,
   type TickerReading,
@@ -76,10 +72,8 @@ import { occupationLabel } from './occupations';
 import { DEMO_ACCOUNT } from './wallet';
 import {
   fetchIndex,
-  fetchIndexCatalogue,
   requestQuote,
   toMinorUnits,
-  type IndexCatalogueView,
   type IndexView,
 } from './worker-api';
 import { premiumAmount } from './worker-model';
@@ -136,8 +130,6 @@ export interface LandingIndexView {
   readonly live: boolean;
   /** The badge above the headline, worded for this render (T54). */
   readonly badge: string;
-  /** "When does it pay." */
-  readonly payLine: string;
   /** Null while the feed answers, the honest note when it does not. */
   readonly note: string | null;
   /** "16 years of index history", counted to the month served, or null with none. */
@@ -331,14 +323,7 @@ async function readIndexSection(group: string): Promise<LandingIndexView> {
     live = false;
   }
 
-  const catalogue = index === null ? await readCatalogue() : null;
   return {
-    payLine: payAnswer(
-      attachmentFor(group, index, catalogue),
-      levelLineFor(group, index, catalogue),
-      group,
-      seriesFor(group, index, catalogue),
-    ),
     ...landingIndexSection(index, live),
     history: historyFigure(index?.as_of ?? null),
   };
@@ -467,11 +452,3 @@ async function readExplorerSection(group: string): Promise<LandingExplorerView> 
   };
 }
 
-async function readCatalogue(): Promise<IndexCatalogueView | null> {
-  try {
-    return await fetchIndexCatalogue();
-  } catch (cause) {
-    reportUnreachable('the landing trigger line', cause);
-    return null;
-  }
-}

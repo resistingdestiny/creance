@@ -9,7 +9,6 @@ import {
   investorLine,
   landingIndexSection,
   noteFigures,
-  payAnswer,
   tickerReadings,
 } from '../src/lib/landing-model.js';
 import type { ExplorerData } from '../src/lib/explorer-data.js';
@@ -91,12 +90,6 @@ function landing(
     occupation: occupationLabel(LANDING_GROUP),
     index: {
       ...landingIndexSection(index, live),
-      payLine: payAnswer(
-        index === null ? null : index.trigger.attachment_shock,
-        index === null ? null : index.trigger.level_line,
-        LANDING_GROUP,
-        index === null ? null : index.series_id,
-      ),
       history: historyFigure(index?.as_of ?? null),
     },
     price: {

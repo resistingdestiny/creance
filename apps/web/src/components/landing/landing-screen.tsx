@@ -1,4 +1,4 @@
-import { Suspense, use, type ReactNode } from 'react';
+import { Fragment, Suspense, use, type ReactNode } from 'react';
 
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
 import type {
@@ -151,7 +151,7 @@ export function LandingScreen({
               and the change of ground is an edge that was drawn rather than
               a seam where one colour stopped. */}
           <div className="rounded-[20px] bg-canvas lg:rounded-hero">
-            <Questions index={data.index} />
+            <Questions />
             <IndexSection explorer={data.explorer} index={data.index} />
             {/* Who funds the cover, and the way to hear when there is news.
                 A visitor who never presses "Earn yield" never learns there is
@@ -562,76 +562,76 @@ function HeroCard({ occupation }: { occupation: string }) {
  * fault the band was cut for in the first place. The space above stays: it is
  * the top of the sheet and the corner needs it.
  */
-function Questions({ index }: { index: Streamed<LandingIndexView> }) {
+/**
+ * When it pays, as a sum rather than a sentence.
+ *
+ * This row read "Two ways, for computer and mathematical: a sudden jump of 2
+ * points above trend, or staying within 0.68 points of average. A jump of 4
+ * pays in full." Every figure in it was real and read live, and Root's answer
+ * on reading it was that he did not know what it meant. He is right: it is the
+ * trigger's mechanism, written for somebody who already knows the product, on
+ * the one row of the front door that has to be understood by somebody who does
+ * not.
+ *
+ * His own words for it are the copy: levels of job loss rise in your industry,
+ * and you lose your job, and you get paid. Two conditions and a result, which
+ * is a sum, so it is drawn as one.
+ *
+ * Deliberately not said here: that the rise is caused by AI. The index fires on
+ * any cause and cannot tell them apart, so the hero's promise is the framing
+ * and this is the mechanism, and the mechanism may not claim something it does
+ * not measure. It is also the only claim on this page that would be checkable
+ * and wrong.
+ *
+ * It carries no figure at all, so it reads nothing, suspends on nothing and
+ * rests at nothing. The levels it used to name are on /index, one press away,
+ * for a reader who wants them. That is where the chart, the two forms and the
+ * distance to each already live.
+ */
+function Questions() {
+  const steps = [
+    'Job losses rise in your occupation',
+    'You lose your job',
+    'You get paid',
+  ] as const;
   return (
     <section className="mx-5 pb-8 pt-16 lg:mx-10 lg:pb-10 lg:pt-20">
-      <dl className={`flex flex-col ${CONTENT}`}>
-        <Question
-          answer={
-            <Suspense fallback={<AnswerResting />}>
-              <PayAnswer index={index} />
-            </Suspense>
-          }
-          question="When does it pay."
-        />
-      </dl>
+      <div className={`flex flex-col gap-6 ${CONTENT}`}>
+        <h2 className="font-display text-title font-semibold tracking-title text-ink lg:text-landing-ledger lg:tracking-landing-ledger">
+          When does it pay.
+        </h2>
+        {/* A sum: two conditions and a result. The operators are aria-hidden
+            and the list carries the meaning for a reader who is not seeing
+            it, which is why the steps are an ordered list rather than three
+            divs with symbols between them. */}
+        <ol className="flex flex-col items-stretch gap-3 lg:flex-row lg:items-center lg:gap-4">
+          {steps.map((step, index) => (
+            <Fragment key={step}>
+              {index === 0 ? null : (
+                <li
+                  aria-hidden="true"
+                  className="flex shrink-0 justify-center font-display text-title text-ink-3 lg:text-headline"
+                >
+                  {index === steps.length - 1 ? '=' : '+'}
+                </li>
+              )}
+              <li
+                className={`flex flex-1 items-center rounded-group px-5 py-5 text-body-lg lg:min-h-[132px] lg:text-landing-lead ${
+                  index === steps.length - 1
+                    ? 'bg-ink font-medium text-canvas'
+                    : 'bg-surface text-ink'
+                }`}
+              >
+                {step}
+              </li>
+            </Fragment>
+          ))}
+        </ol>
+      </div>
     </section>
   );
 }
 
-function Question({ question, answer }: { question: string; answer: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-3 border-b border-hairline py-8 last:border-b-0 lg:flex-row lg:items-baseline lg:justify-between lg:gap-12 lg:py-11">
-      <dt className="font-display text-title font-semibold tracking-title text-ink lg:whitespace-nowrap lg:text-landing-ledger lg:tracking-landing-ledger">
-        {question}
-      </dt>
-      <dd className="m-0 w-full max-w-[400px] text-body-lg text-ink-2 lg:text-right">{answer}</dd>
-    </div>
-  );
-}
-
-function PayAnswer({ index }: { index: Streamed<LandingIndexView> }) {
-  return <>{figureOf(index).payLine}</>;
-}
-
-/**
- * The answer before its figure has been read.
- *
- * The space is kept by the answer's own empty lines rather than by a height
- * this file would have to keep in step with the type scale, and the bars are
- * laid over them. The ledger aligns its two columns on the baseline of the
- * answer, so a block of bars with no line in it would sit at a different height
- * from the sentence that replaces it, and the row would move by a few pixels as
- * the answer landed.
- *
- * The pay answer takes four lines at both widths. Measured in a browser with
- * the figures in it. It took two while the answer named one of the two ways
- * claims open and nothing else; it names both now, with the occupation they are
- * for, so the space it rests in is the space it lands in. It took a `lines`
- * argument while the cost answer beside it took three at 390; that answer is
- * gone (T44) and so is the argument.
- */
-function AnswerResting() {
-  return (
-    <div className="relative" data-testid="landing-resting">
-      <span aria-hidden="true" className="invisible">
-        {'\u00a0'}
-        <br />
-        {'\u00a0'}
-        <br />
-        {'\u00a0'}
-        <br />
-        {'\u00a0'}
-      </span>
-      <span className="absolute inset-0 flex flex-col gap-1.5">
-        <Skeleton className="flex-1" />
-        <Skeleton className="flex-1" />
-        <Skeleton className="flex-1" />
-        <Skeleton className="flex-1 lg:w-2/3 lg:self-end" />
-      </span>
-    </div>
-  );
-}
 
 function Ticker({ explorer }: { explorer: Streamed<LandingExplorerView> }) {
   return <IndexTicker readings={figureOf(explorer).ticker} />;

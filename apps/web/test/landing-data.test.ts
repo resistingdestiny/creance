@@ -309,8 +309,6 @@ describe('a call that fails costs the page its figure and never the page', () =>
 
     expect(index.live).toBe(false);
     expect(index.note).toContain('This is the last reading we published, for July 2026.');
-    expect(index.payLine).toContain('a sudden jump of 2 points above trend');
-    expect(index.payLine).toContain('staying within 0.68 points of average');
   });
 
   it('says there is no reading at all when this process has never had one', async () => {
@@ -333,7 +331,6 @@ describe('a call that fails costs the page its figure and never the page', () =>
     const { index, price, explorer, note } = await pageView();
 
     expect(index.note).toBe('The live feed is not answering, so there is no reading to show.');
-    expect(index.payLine).toContain('The live feed is not answering');
     expect(index.history).toBeNull();
     expect(price.priceLine).toBeNull();
     expect(explorer.round).toBeNull();

@@ -130,7 +130,6 @@ describe('the shell', () => {
     expect(whole).toContain('From 4.25 a month');
     expect(whole).toContain(LIVE.index.badge);
     expect(whole).toContain('landing-ticker__item');
-    expect(whole).toContain(LIVE.index.payLine);
     expect(whole).toContain(LIVE.note.investorLine);
     expect(whole).toContain('years of index history');
     expect(whole).toContain('coupons settled on Hedera');

@@ -193,6 +193,11 @@ describe('the picker', () => {
     expect(chooserRow().getAttribute('aria-expanded')).toBe('false');
   });
 
+  // 20s rather than the default 5. This renders the whole explorer and then
+  // drives eleven keyboard events through it, and under the full suite it was
+  // spending its budget on the work rather than failing an assertion: it passes
+  // alone and timed out once in a loaded run. Same cause as the metadata tests,
+  // which were given a warm-up hook for it.
   it('is walked by the keyboard: arrows through the options, Enter picks, Escape closes', () => {
     render(<ExplorerScreen data={data()} />);
     fireEvent.click(chooserRow());
@@ -219,7 +224,7 @@ describe('the picker', () => {
     });
     expect(chooserRow().getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(chooserRow());
-  });
+  }, 20_000);
 });
 
 describe('the occupation another page names', () => {

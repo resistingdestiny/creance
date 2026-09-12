@@ -2,6 +2,7 @@ import { Suspense, use, type ReactNode } from 'react';
 
 import { ChevronRight } from '../../components/icons';
 import { DesktopFrame } from '../../components/desktop-frame';
+import { RateChart } from '../../components/rate-chart';
 import { Skeleton } from '../../components/skeleton';
 import { StatusPill } from '../../components/status-pill';
 import { SurfaceGroup } from '../../components/surface-group';
@@ -19,7 +20,10 @@ import type { Streamed } from '../../lib/investor-data';
 import {
   isoDay,
   nextDirection,
+  rateRange,
+  rateRangeCaption,
   sortMarketRows,
+  RATE_BOUNDS,
   type MarketDirection,
   type MarketOutcome,
   type MarketRow,
@@ -260,7 +264,7 @@ function Holding({ holding }: { holding: BoardHolding }) {
   );
 }
 
-/** The board itself. Four columns fold away below the landing breakpoint. */
+/** The board itself. Five columns fold away below the landing breakpoint. */
 function MarketTable({
   direction,
   rows,
@@ -294,6 +298,10 @@ function MarketTable({
             <SortableTh column="premium" direction={direction} numeric sort={sort}>
               Premium rate
             </SortableTh>
+            {/* Not sortable, because there is no one number in it to sort by.
+                It is a shape, and the two columns either side of it are the
+                figures a person orders a board by. */}
+            <Th wide>Rate history</Th>
             <SortableTh column="capacity" direction={direction} numeric sort={sort} wide>
               Capacity
             </SortableTh>
@@ -319,6 +327,9 @@ function MarketTable({
               </Td>
               <Td numeric>
                 {row.premiumPercent === null ? null : formatPercent(row.premiumPercent)}
+              </Td>
+              <Td wide>
+                <Sparkline row={row} />
               </Td>
               <Td numeric wide>
                 {row.capacityPercent === null ? null : formatPercent(row.capacityPercent)}
@@ -389,6 +400,40 @@ function Traded({ row }: { row: MarketRow }) {
           {formatWholeMoney(BigInt(quote.bestAsk.amount), quote.bestAsk.decimals)}
         </span>
       )}
+    </span>
+  );
+}
+
+/**
+ * Five years of the occupation's guide rate, in one cell.
+ *
+ * The row said what the risk costs today and nothing about how it got there,
+ * which is the comparison a person came to a board of sixteen to make. The
+ * line is the published index put through the product's own pricing, month by
+ * month, and it is the guide rate alone: what the market rate beside it was in
+ * a past month is not recorded anywhere, so it is not drawn. See `rateHistory`
+ * in src/lib/investor-model.ts.
+ *
+ * Every row is drawn against the whole range a guide rate can take, which is
+ * the ruler the series pages use too, so a flat line means an occupation that
+ * stayed where it was rather than one scaled to look busy. Its own high and
+ * low are in the accessible name, because the shape is the whole of what the
+ * cell shows and a shape cannot be read aloud.
+ */
+function Sparkline({ row }: { row: MarketRow }) {
+  if (row.rates.length === 0) return null;
+  const caption = rateRangeCaption(rateRange([row.rates]));
+  return (
+    <span className="block h-5 w-18">
+      <RateChart
+        height={20}
+        high={RATE_BOUNDS.high}
+        label={caption === null ? 'Guide rate over five years' : `Guide rate, ${caption}`}
+        low={RATE_BOUNDS.low}
+        points={row.rates}
+        strokeWidth={1.25}
+        width={72}
+      />
     </span>
   );
 }
@@ -627,7 +672,8 @@ function Provenance({ view }: { view: BoardView }) {
       {priced ? (
         <p>
           The premium rate is the published pricing applied to each occupation&apos;s newest reading
-          and its own committed exposure, the same formula that prices a policy.{' '}
+          and its own committed exposure, the same formula that prices a policy. The rate history
+          beside it is the guide rate alone, month by month, every row on one scale.{' '}
           <TextLink href="/index">How the index works</TextLink>
         </p>
       ) : null}

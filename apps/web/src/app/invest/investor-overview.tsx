@@ -36,8 +36,10 @@ import {
   seriesName,
   termLine,
   type MarketOutcome,
+  type RatePoint,
 } from '../../lib/investor-model';
 import { DEMO_WALLET_LABEL, type WalletAccount } from '../../lib/wallet';
+import { RateHistorySection } from './rate-history';
 import { SeriesChooser } from './series-chooser';
 import { MarketOutcomeBanner, OfferBook } from './trading';
 
@@ -130,6 +132,13 @@ export interface InvestorOverviewProps {
   market?: Streamed<Market | null>;
   /** What a trade the person just made did, where they just made one. */
   outcome?: MarketOutcome | null;
+  /**
+   * The guide rate month by month for the occupation this series covers.
+   * Undefined for a series that covers no occupation, which has no index
+   * behind it and so no rate history section at all; null where the round
+   * could not be read.
+   */
+  rates?: Streamed<readonly RatePoint[] | null>;
 }
 
 /** The two market reads this screen needs, made together by the route. */
@@ -146,6 +155,7 @@ export function InvestorOverview({
   choices = [],
   market = null,
   outcome = null,
+  rates,
 }: InvestorOverviewProps) {
   // An identifier is not a name. What the series covers comes from the group
   // the API lists it under, through src/lib/occupations.ts, and the list is
@@ -205,6 +215,22 @@ export function InvestorOverview({
       {outcome === null ? null : <MarketOutcomeBanner outcome={outcome} />}
 
       <SeriesChooser base="/invest" choices={choices} current={seriesId} />
+
+      {/* How the occupation got to the rate it is at, before anything about
+          this particular note. The page answered "what does it pay today" and
+          nothing else, which is the one question an investor choosing between
+          occupations cannot stop at. Whether the section exists at all is
+          decided by the route, on the first byte, from the group the series is
+          listed under: a series that covers no occupation has no index behind
+          it and draws nothing rather than a box that empties itself. */}
+      {rates === undefined ? null : (
+        <RateHistorySection
+          coupons={coupons}
+          market={market}
+          rates={rates}
+          seriesId={seriesId}
+        />
+      )}
 
       {/* The page uses its width at 1440 (T52). The certificate and the
           series terms sit together on the first row; the coupon table takes

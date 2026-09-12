@@ -14,8 +14,10 @@ import {
   type MarketDirection,
   type MarketSort,
 } from '../../lib/investor-model';
+import { findOccupation } from '../../lib/occupations';
 import { demoInvestorAccount, type WalletAccount } from '../../lib/wallet';
 import { readBoard } from './board-data';
+import { readRateHistory } from './rate-data';
 import { InvestorOverview, type Market } from './investor-overview';
 import { MarketBoard } from './market-board';
 import { InvestorUnavailable } from './unavailable';
@@ -95,15 +97,21 @@ export default async function InvestPage({
   // would be a hold per string a crawler sends. The screen is handed nothing
   // for both figures and says it cannot load that series rather than silently
   // showing a different one.
-  const listed = listing.series.some((entry) => entry.series_id === requested);
-  const data = listed ? readInvestor(requested) : UNLISTED;
+  const listed = listing.series.find((entry) => entry.series_id === requested) ?? null;
+  const data = listed === null ? UNLISTED : readInvestor(requested);
+  // Whether the series covers an occupation is known from the list, before any
+  // read, so the rate history section is on the page or off it from the first
+  // byte and never appears or vanishes underneath a reader. The maturity
+  // demonstration covers none, so it has no index and no history.
+  const occupation = listed === null ? null : findOccupation(listed.group);
   return (
     <InvestorOverview
       choices={listing.series}
       coupons={data.coupons}
       investor={investor}
-      market={listed ? readMarket(investor) : null}
+      market={listed === null ? null : readMarket(investor)}
       outcome={outcome}
+      rates={occupation === null ? undefined : readRateHistory(occupation.key)}
       series={data.series}
       seriesId={requested}
     />

@@ -17,7 +17,7 @@ import {
   formatPercent,
   formatWholeMoney,
 } from './format';
-import type { ExplorerState, RankedOccupation } from './explorer-model';
+import type { ExplorerMonth, ExplorerState, RankedOccupation } from './explorer-model';
 import type {
   CouponsView,
   HolderView,
@@ -342,6 +342,281 @@ export function firstSettledCoupon(
 }
 
 /* ---------------------------------------------------------------------------
+ * The rate history
+ *
+ * An investor weighing one occupation against another wants to know how it got
+ * to the rate it is at, and the screens had nothing to say about that: they
+ * printed today and stopped. Three different things could fill that gap and
+ * only two of them exist, so this is what is drawn and what is refused.
+ *
+ * Drawn: the guide rate, month by month. Every month in the published index
+ * carries a distance to the line, `guideRate` turns a distance into the annual
+ * rate the risk was worth, and the feed serves five years of them per
+ * occupation. Nothing is fitted, smoothed or interpolated here; it is the
+ * product's own pricing function over the product's own published readings, so
+ * anybody with the feed can reproduce every point.
+ *
+ * Refused: the market rate, month by month. The market rate is
+ * `marketRate(guide, utilisation)` and utilisation is the share of a series'
+ * principal committed as exposure, read off the chain as it stands now.
+ * Nothing anywhere records what it was in March 2024. Running today's
+ * utilisation back over past distances would draw a curve of prices nobody was
+ * ever quoted, and it would look exactly like a record of one, so it is not
+ * drawn at all.
+ *
+ * Also drawn, beside the line rather than on it: what has actually settled and
+ * what has actually traded. Those are real money and they are records. They
+ * are not points on this chart because they did not happen in the months it
+ * covers: the index runs to the newest published month and every coupon and
+ * every fill on this deployment is later than that. A mark on the line would
+ * put them in a month they did not happen in.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * One month of the guide rate.
+ *
+ * The field is `value` and not `rate` so that a rate series is a series the
+ * chart primitives in src/components/index-chart.ts already draw: the same
+ * gap handling, the same path builder, no second shape to convert between.
+ * The number is an annual rate as a percentage, so 0.61 is 0.61 percent.
+ */
+export interface RatePoint {
+  readonly period: string;
+  /** The annual guide rate that month, or null for a month with no reading. */
+  readonly value: number | null;
+}
+
+/** "2026-07" as a count of months, so a calendar can be walked without dates. */
+function monthNumber(period: string): number {
+  return Number(period.slice(0, 4)) * 12 + Number(period.slice(5, 7)) - 1;
+}
+
+function periodOf(count: number): string {
+  const year = Math.floor(count / 12);
+  const month = (count % 12) + 1;
+  return `${String(year)}-${String(month).padStart(2, '0')}`;
+}
+
+/**
+ * The guide rate for every month between the oldest reading and the newest.
+ *
+ * The feed answers with the months it has and simply omits the ones it does
+ * not, so a run of uncollected months arrives as a shorter array rather than
+ * as holes in it. Drawn from that array directly, a quarter nobody published
+ * would be one straight segment between the months either side of it, which is
+ * a claim about readings that do not exist. So the calendar is walked here and
+ * an uncollected month is a null, which is the one thing every chart in this
+ * app already knows how to draw: a break in the line.
+ *
+ * The distance is floored at zero before it reaches the hazard, for the reason
+ * src/lib/explorer-model.ts gives: the fit begins at the line and says nothing
+ * below it.
+ */
+export function rateHistory(months: readonly ExplorerMonth[]): readonly RatePoint[] {
+  const first = months[0];
+  const last = months.at(-1);
+  if (first === undefined || last === undefined) return [];
+
+  const distances = new Map(months.map((month) => [month.period, month.distance]));
+  const points: RatePoint[] = [];
+  for (let at = monthNumber(first.period); at <= monthNumber(last.period); at += 1) {
+    const period = periodOf(at);
+    const distance = distances.get(period) ?? null;
+    points.push({
+      period,
+      value: distance === null ? null : guideRate(Math.max(0, distance)) * 100,
+    });
+  }
+  return points;
+}
+
+export interface RateRange {
+  readonly low: number;
+  readonly high: number;
+}
+
+/**
+ * The whole range the guide rate can take.
+ *
+ * Both ends come out of the pricing rather than being written down here, so
+ * they move if the fit does. The bottom is the rate at any distance far enough
+ * from the line for the hazard's exponential to have died, which is the
+ * hazard's own floor; the top is the rate at the line, which is the most the
+ * guide rate is ever worth because the distance is floored there.
+ *
+ * It is what the board's column is drawn against. Sixteen sparklines each
+ * scaled to its own readings would say that an occupation whose rate never
+ * left the floor moved as much as one that went to eight percent, and a column
+ * that says that is not a comparison.
+ */
+export const RATE_BOUNDS: RateRange = {
+  low: guideRate(Number.POSITIVE_INFINITY) * 100,
+  high: guideRate(0) * 100,
+};
+
+/**
+ * The narrowest span a chart standing on its own is drawn over: a tenth of the
+ * whole range a guide rate can take.
+ *
+ * Thirteen of the fifteen occupations sit where the fitted hazard is flat, so
+ * five years of their rate is thousandths of a point of movement. Scaled to
+ * itself that draws a mountain over an occupation whose rate did not move,
+ * which is the same mistake `meterFraction` in src/lib/explorer-model.ts
+ * floors its own span to avoid.
+ */
+export const MIN_RATE_SPAN = (RATE_BOUNDS.high - RATE_BOUNDS.low) / 10;
+
+/**
+ * What one chart is drawn over: the occupation's own range, widened about its
+ * middle where that range is too narrow to be worth a chart's full height.
+ *
+ * A chart that stands alone uses this rather than `RATE_BOUNDS`, because a
+ * page-wide chart drawn against the full range is a flat line under a hand's
+ * width of empty paper for most occupations. Nothing is hidden by it: the
+ * caption under the chart carries the two ends the occupation actually
+ * reached, in percent, so the height says the shape and the words say the
+ * size.
+ */
+export function rateDomain(range: RateRange | null): RateRange | null {
+  if (range === null) return null;
+  if (range.high - range.low >= MIN_RATE_SPAN) return range;
+  const middle = (range.high + range.low) / 2;
+  return { low: middle - MIN_RATE_SPAN / 2, high: middle + MIN_RATE_SPAN / 2 };
+}
+
+/**
+ * The lowest and highest rate one series, or several, actually reached.
+ *
+ * This is what the caption under a chart says, not what the chart is drawn
+ * against: the shape is read off `RATE_BOUNDS` and the magnitude is read off
+ * the words, so a flat line is a flat rate and the reader is told the level
+ * rather than left to guess it from the height.
+ */
+export function rateRange(series: readonly (readonly RatePoint[])[]): RateRange | null {
+  const rates = series
+    .flatMap((points) => points.map((point) => point.value))
+    .filter((value): value is number => value !== null);
+  if (rates.length === 0) return null;
+  return { low: Math.min(...rates), high: Math.max(...rates) };
+}
+
+/** The newest month that has a rate behind it. */
+export function latestRate(
+  points: readonly RatePoint[],
+): { readonly period: string; readonly value: number } | null {
+  for (let at = points.length - 1; at >= 0; at -= 1) {
+    const point = points[at];
+    if (point !== undefined && point.value !== null) {
+      return { period: point.period, value: point.value };
+    }
+  }
+  return null;
+}
+
+/**
+ * A rate without the word, at whatever precision `formatPercent` rounds to.
+ * Taken from the formatter rather than written again, so the two ends of a
+ * range cannot round differently from the figure above the chart.
+ */
+function rateFigure(value: number): string {
+  return formatPercent(value).replace(' percent', '');
+}
+
+/**
+ * The caption between the two dates under the chart: what the line spans.
+ * An occupation whose rate never moved says so, rather than printing the same
+ * figure twice with a "to" between them.
+ */
+export function rateRangeCaption(range: RateRange | null): string | null {
+  if (range === null) return null;
+  const low = rateFigure(range.low);
+  if (low === rateFigure(range.high)) return `${formatPercent(range.low)} a year throughout`;
+  return `${low} to ${formatPercent(range.high)} a year`;
+}
+
+export interface SeriesRealised {
+  /** Everything that has settled on the note, across every holder. */
+  readonly paid: {
+    readonly amount: string;
+    readonly coupons: number;
+    /** The day the newest of them settled. */
+    readonly day: string;
+  } | null;
+  /** What a note of this series last actually changed hands for. */
+  readonly traded: { readonly amount: string; readonly day: string } | null;
+  /** What is missing, worded from the reads that answered. Null where neither is. */
+  readonly nothingYet: string | null;
+}
+
+/**
+ * What this series has actually paid and actually traded.
+ *
+ * Both are records: a settled coupon moved money out of the premium account
+ * and a filled offer moved a note between two accounts, and both resolve on
+ * HashScan from the sections further down this page. Neither is modelled.
+ *
+ * Absence is worded rather than printed as nought. Fifteen of the sixteen
+ * notes have paid no coupon and fifteen have never traded, and a 0.00 against
+ * either would read as a note that pays nothing rather than as one that has
+ * not paid yet. A read that failed says nothing at all, because "no coupon has
+ * settled" is a fact about the note and not about the read.
+ */
+export function seriesRealised(
+  coupons: CouponsView | null,
+  book: OrderBookView | null,
+  seriesId: string,
+): SeriesRealised {
+  const settled =
+    coupons === null
+      ? []
+      : coupons.coupons.filter((coupon) =>
+          coupon.holders.some((holder) => holder.settlement.settled),
+        );
+  const holders = settled.flatMap((coupon) =>
+    coupon.holders.filter((holder) => holder.settlement.settled),
+  );
+  const newest = holders
+    .map((holder) => holder.settlement.paid_at)
+    .filter((paidAt): paidAt is string => paidAt !== null)
+    .sort()
+    .at(-1);
+
+  const paid =
+    holders.length === 0 || newest === undefined
+      ? null
+      : {
+          amount: formatMoney(
+            holders.reduce((sum, holder) => sum + BigInt(holder.amount.amount), 0n),
+            holders[0]!.amount.decimals,
+          ),
+          coupons: settled.length,
+          day: formatDayWithYear(isoDay(newest)),
+        };
+
+  // Newest first, which is the order the book answers in.
+  const fill = offersForSeries(book, seriesId).filled[0] ?? null;
+  const traded =
+    fill === null || fill.closed_at === null
+      ? null
+      : {
+          amount: formatMoney(BigInt(fill.price_per_unit.amount), fill.price_per_unit.decimals),
+          day: formatDayWithYear(isoDay(fill.closed_at)),
+        };
+
+  const missing: string[] = [];
+  if (coupons !== null && paid === null) missing.push('no coupon has settled');
+  if (book !== null && traded === null) missing.push('no note has changed hands');
+  const joined = missing.join(' and ');
+
+  return {
+    paid,
+    traded,
+    nothingYet:
+      joined === '' ? null : `${joined.slice(0, 1).toUpperCase()}${joined.slice(1)} yet.`,
+  };
+}
+
+/* ---------------------------------------------------------------------------
  * The market board
  *
  * One series is a position. Fifteen series side by side is the decision, and
@@ -567,6 +842,8 @@ export interface MarketRow {
   readonly gap: string | null;
   /** Points still to travel to a payout, negative past the line. */
   readonly distance: number | null;
+  /** The guide rate month by month, oldest first. Empty with no reading. */
+  readonly rates: readonly RatePoint[];
   /** The annual rate cover on this occupation is priced at today, in percent. */
   readonly premiumPercent: number | null;
   /** How much of the series' capacity is committed, in percent. */
@@ -650,6 +927,7 @@ export function marketRow(input: {
     state: ranked?.state ?? null,
     gap: ranked?.gap ?? null,
     distance,
+    rates: ranked === null ? [] : rateHistory(ranked.occupation.months),
     premiumPercent: premiumRatePercent(series, distance),
     capacityPercent:
       series?.cover_pool?.registered === true ? series.cover_pool.capacity_used_percent : null,

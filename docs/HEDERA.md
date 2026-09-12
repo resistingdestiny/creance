@@ -1439,7 +1439,7 @@ and this venue charges no fee to skim.
 | `POST /v1/market/offers/3/fill`, buyer investor-1 | [0xff89d610...93db7c415](https://hashscan.io/testnet/transaction/0xff89d610085f42bd3926fed786b1f0e0dc4f7796cd58f5bf3e4b70993db7c415), 354,701 gas |
 | `POST /v1/market/offers`, investor-1, 1 unit for 1,150 TUSD | offer id 4, [approve](https://hashscan.io/testnet/transaction/0xa1b22cbf01f1250114f3ba7c3097f9a181273ef46cc5b9cdc55c7ae232077432) and [offer](https://hashscan.io/testnet/transaction/0x05bb01be5c9101ee24f070fb94ef60e3a42c394a98621833afb6ad68f0c502d0). Left open, so the book is not empty |
 
-The book after all of it: four offers, three filled and one open, at 1,000,
+The book after all of it: four offers, three filled and one open. It has grown since, and the summary is deliberately not chased on every trade: what this section cites is the four offers below and their transactions, each of which still reads back exactly as written, at 1,000,
 1,050, 1,100 and 1,150 TUSD a unit. Balances read back off the chain: the
 operator holds 20 units of `CDBN02` and 124,940.273334 TUSD, investor-1 holds 4
 units and 196,997.260273, investor-2 holds 1 unit and 199,997.260273.

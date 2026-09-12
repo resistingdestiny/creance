@@ -365,9 +365,10 @@ describe('the metal finish and its rainbow shimmer', () => {
     // unchanged. The modifier adds an edge colour and one new layer, and it
     // reopens neither pseudo-element the base rule positions.
     const metal = blocksMatching(/^\.cover-card--metal$/)[0]?.[1] ?? '';
-    // #b3bac4 since T52: the deeper, cooler edge of a machined object. It is
-    // still the one property the modifier sets.
-    expect(metal).toMatch(/border-color:\s*#b3bac4/);
+    // #cfd4dc, the cooler grey a milled metal edge catches. T52 deepened it to
+    // #b3bac4 and that went back with the rest of T52's metal. It is still the
+    // one property the modifier sets.
+    expect(metal).toMatch(/border-color:\s*#cfd4dc/);
     expect(metal).not.toContain('background');
     for (const [selector] of blocksMatching(/\.cover-card--metal/)) {
       expect(selector).toBe('.cover-card--metal');
@@ -410,24 +411,21 @@ describe('the metal finish and its rainbow shimmer', () => {
     expect(selector).toContain('.cover-card-face[data-facing="away"] .cover-card__shimmer::before');
   });
 
-  it('is a soft reflection crossing the face, with no white core in it', () => {
-    // Two things are asserted, because the finish has been wrong in both
-    // directions. No white stop: a white core is what turns a reflection in
-    // the metal into a highlight drawn on top of it, which is how T52 read.
-    // And the colour crosses the face rather than filling it: the band is on
-    // an element 220 percent of the card wide, so a coloured span much past a
-    // sixth of it is a wash over most of the card at mid travel, which is how
-    // T34 read at every moment except the one it was screenshotted in.
+  it('is the wide soft reflection of the finish of record, with no white in it', () => {
+    // This rule is T34's and Root has asked for it back twice, so what is
+    // asserted is that it is still T34's. Five pale hues, none of them white,
+    // at 16 percent, spanning 40 to 60 percent of a band 220 percent of the
+    // card wide. Two attempts to improve on it were rejected: T52's white core
+    // reads as a streak laid over the card, and narrowing the band to hold one
+    // phase of the travel loses the wash that is the look.
     const rule = blocksMatching(/^\.cover-card__shimmer::before$/)[0]?.[1] ?? '';
     const stops = [...rule.matchAll(/(transparent|rgba\([^)]*\))\s*([\d.]+)%/g)].map((stop) => ({
       colour: stop[1] ?? '',
       at: Number(stop[2]),
     }));
     const coloured = stops.filter((stop) => stop.colour !== 'transparent');
-    expect(coloured.length).toBeGreaterThan(4);
-    const span = Math.max(...coloured.map((s) => s.at)) - Math.min(...coloured.map((s) => s.at));
-    expect(span).toBeGreaterThanOrEqual(8);
-    expect(span).toBeLessThanOrEqual(18);
+    expect(coloured.map((stop) => stop.at)).toStrictEqual([40, 45, 50, 55, 60]);
+    for (const stop of coloured) expect(stop.colour, stop.colour).toContain(', 0.16)');
     expect(coloured.filter((stop) => /^rgba\(255,\s*255,\s*255/.test(stop.colour))).toStrictEqual(
       [],
     );

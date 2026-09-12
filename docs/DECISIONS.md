@@ -7153,3 +7153,25 @@ primary below the fold by exactly that much, on `/amount`, `/pay`, `/verify`,
 
 The two frames are one construction again. What differs between them is the
 measure, 480 for a worker column and the sheet's 1280 for a desktop page.
+
+### The metal goes back to T34, twice asked for and twice restored
+
+T52 read T34's shimmer as iridescent plastic and rebuilt it as a machined
+object: the band cut to a fifth of its width around a white core, the edge
+deepened from #cfd4dc to #b3bac4, the thickness behind the face darker again.
+Root asked for "the original card" and then, when that did not arrive, for
+"the old card style we had like two days ago with the metallic thing". Two days
+was 9 September, which is T34.
+
+The first restore took only the shimmer gradient and left T52's edge and
+thickness in place, so the card was still not the one he meant. The second
+narrowed T34's own band, reasoning that the frame he had screenshotted was one
+phase of a nine second travel and a narrower band would hold that phase at
+every moment. Both were wrong in the same way: they treated a look he named as
+a problem to be solved rather than as a decision already made.
+
+All three properties are T34's again and built-css.test.ts pins each one to its
+value rather than to a range, so the next hand that finds the wash too wide has
+to argue with Root rather than with a tolerance. What stays from the two
+rebuilds is everything that was not about how it looks: the pause when the card
+is off screen or turned away, and the shift the turn writes into the travel.

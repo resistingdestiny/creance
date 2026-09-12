@@ -336,9 +336,7 @@
     opacity: 0.8;
   }
 
-  /* The card's own thickness, behind its face, seen only as it turns. Deeper
-     than the face by more than it was (T52), so the turn shows an edge and
-     not a second, paler face. */
+  /* The card's own thickness, behind its face, seen only as it turns. */
   .cover-card__edge {
     position: absolute;
     inset: 0;
@@ -346,7 +344,7 @@
     border-radius: inherit;
     pointer-events: none;
     transform: translateZ(-14px);
-    background: linear-gradient(118deg, #aeb5bf, #7d858f);
+    background: linear-gradient(118deg, #c3c8d0, #9fa6b0);
   }
 
   /* The depth planes the contents sit on, so they move against each other as
@@ -523,14 +521,11 @@
      the gradient, the sheen and the brushing under it are untouched and only
      the edge colour and one new light layer are added.
 
-     The edge is the cooler, deeper grey a milled metal edge catches. It is a
-     border colour on the modifier, so the base rule's one pixel hairline is
-     what carries it and no second element is introduced. T52 took it from
-     #cfd4dc to #b3bac4: against the night ground the lighter edge vanished
-     into the face and the card read as a pastel sheet, and a real edge is the
-     first thing that says an object has thickness. */
+     The edge is the cooler grey a milled metal edge catches. It is a border
+     colour on the modifier, so the base rule's one pixel hairline is what
+     carries it and no second element is introduced. */
   .cover-card--metal {
-    border-color: #b3bac4;
+    border-color: #cfd4dc;
   }
 
   /* The shimmer. z-index 2 puts it over the pointer glare at 1 and under
@@ -550,44 +545,39 @@
     overflow: hidden;
   }
 
-  /* The reflection: five pale hues at a low alpha, and no white anywhere in
-     the band.
+  /* The reflection: five pale hues at 16 percent across a third of a band two
+     and a bit cards wide, which is the finish T34 drew on 9 September and the
+     one Root asked for back by name.
 
-     There were two wrong answers before this one and they were wrong in
-     opposite directions. T34 drew the hues across a band whose fade spans
-     about seventy percent of the face; T52 pulled that to a fifth of the width
-     around a white core at 55 percent, reasoning that real metal has a narrow
-     specular highlight. T52's reads as a hard white streak laid over the card,
-     and Root asked for the original card back.
+     Two attempts to improve on it were both rejected. T52 pulled the band to a
+     fifth of its width around a white core at 55 percent, reasoning that real
+     metal has a narrow specular highlight; that reads as a hard white streak
+     laid over the card rather than as a surface catching light. A later pass
+     kept T34's colours and narrowed the band anyway, on the theory that the
+     frame Root liked was one phase of the travel and a narrower band would
+     hold it at every phase. It does, and he did not want it: the wide soft
+     wash is the look, and the card is a signature object rather than a
+     restrained one. This rule is T34's, byte for byte, and it stays that way.
 
-     The original turned out to be the same band caught at a different moment.
-     The band travels, and the frame Root liked is one phase of it: colour
-     gathered at an edge with the rest of the face clean silver. At mid travel
-     the same band is a pastel wash over most of the card, because it is wide
-     enough to be. So this is the T34 band, T34's softness and none of T52's
-     white, narrowed until the phase Root liked is the only phase there is.
-     Colour crosses about a quarter of the face and the fade about two fifths,
-     so most of the metal is neutral at every moment of the loop.
-
-     Every stop being a pale colour at a low alpha is also what keeps the
-     darkest composite over the darkest gradient stop of any treatment far
-     above the 4.5:1 floor for black text. built-css.test.ts computes that from
-     this rule rather than taking it on trust. With the animation off the band
-     stands at the centre of the card, which is where a still frame and a
-     reduced motion reader see it. */
+     Every hue being a pale colour at a low alpha is what keeps the darkest
+     composite over the darkest gradient stop of any treatment far above the
+     4.5:1 floor for black text. built-css.test.ts computes that from this rule
+     rather than taking it on trust. With the animation off the band stands at
+     the centre of the card, which is where a still frame and a reduced motion
+     reader see it. */
   .cover-card__shimmer::before {
     content: "";
     position: absolute;
     inset: -25% -60%;
     background: linear-gradient(
       118deg,
-      transparent 41%,
-      rgba(255, 122, 182, 0.18) 44%,
-      rgba(255, 209, 122, 0.18) 47%,
-      rgba(138, 230, 172, 0.18) 50%,
-      rgba(122, 186, 255, 0.18) 53%,
-      rgba(186, 148, 255, 0.18) 56%,
-      transparent 59%
+      transparent 34%,
+      rgba(255, 122, 182, 0.16) 40%,
+      rgba(255, 209, 122, 0.16) 45%,
+      rgba(138, 230, 172, 0.16) 50%,
+      rgba(122, 186, 255, 0.16) 55%,
+      rgba(186, 148, 255, 0.16) 60%,
+      transparent 66%
     );
     animation: cover-card-shimmer 9s linear infinite;
   }

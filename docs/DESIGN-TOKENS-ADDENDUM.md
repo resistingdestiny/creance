@@ -159,15 +159,22 @@ navigation, body copy, and any error, declined, under review or waiting state.
 A failure state is not the place for a moving light. The coupon history stays a
 table and the series terms stay rows in a surface group.
 
-How it reads (T52). Machined, not iridescent. The edge is a deeper, cooler
-grey (#b3bac4) and the card's thickness behind the face is darker still, so
-the object has an edge before it has a colour. The shimmer is a reflection
-and not a fill: a white core at 55 percent with the five pale hues fringing
-it at 20 percent, across a fifth of the width T34 gave it, so the base
-gradient's silver is what most of the face shows and the rainbow is the light
-crossing it. The base gradient, the sheen and the brushing are the sheet's own
-and are unchanged. With the animation off, the band stands at the centre of
-the card, which is how a still frame and a reduced motion reader see it.
+How it reads. T34's, and T34's exactly: five pale hues at 16 percent across a
+third of a band two and a bit cards wide, a #cfd4dc edge, and the thickness
+behind the face a shade under it. Wide and soft, so the colour washes across
+most of the face rather than crossing it in a line.
+
+T52 replaced all three, calling the result machined rather than iridescent: a
+deeper #b3bac4 edge, a darker thickness, and the band pulled to a fifth of its
+width around a white core at 55 percent. Root asked for T34 back by name and
+none of the three survives. A later pass kept T34's hues and narrowed the band
+anyway, on the theory that the frame he liked was one phase of the travel; that
+went back too. The wash is the look, and the card is the product's signature
+object rather than a restrained one.
+
+The base gradient, the sheen and the brushing are the sheet's own and have
+never changed. With the animation off, the band stands at the centre of the
+card, which is how a still frame and a reduced motion reader see it.
 
 At landing size the occupation label and the "Cover" caption step up one
 size, to body-lg and body (T52): a 14px label wrapping over two lines in the

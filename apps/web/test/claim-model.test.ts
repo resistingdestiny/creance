@@ -4,6 +4,7 @@ import {
   EXCLUDED_NOTE,
   SEPARATION_OPTIONS,
   claimCheckCopy,
+  claimSubmitRefusal,
   claimDay,
   claimIsDecided,
   claimReference,
@@ -21,6 +22,7 @@ import {
   separationLabel,
   waitingPeriodDays,
 } from '../src/lib/claim-model.js';
+import { ApiError } from '../src/lib/api.js';
 import { verifyCopy } from '../src/lib/worker-model.js';
 import { SEPARATION_TYPES } from '@creance/client/src/claim';
 import {
@@ -280,5 +282,63 @@ describe('the replay badge', () => {
         badge: { show: true, label: 'SCENARIO: sharp displacement' },
       }),
     ).toBe('SCENARIO: sharp displacement');
+  });
+});
+
+/**
+ * The half of a refusal that decides whether C5 keeps its button.
+ *
+ * "We couldn't send your claim. Try again." under a cover that has already been
+ * claimed on is the screen telling somebody to do the one thing that cannot
+ * work, so every code says which of the two it is.
+ */
+describe('what a refused packet says, and whether another press could work', () => {
+  function refused(code: string, status = 409) {
+    return claimSubmitRefusal(new ApiError('/v1/claims', status, code, code));
+  }
+
+  it('keeps the offer when nothing answered at all', () => {
+    const refusal = claimSubmitRefusal(new Error('fetch failed'));
+    expect(refusal.retry).toBe(true);
+    expect(refusal.message).toBe("We couldn't send your claim. Try again.");
+  });
+
+  it('keeps the offer when this side had a bad minute', () => {
+    expect(refused('database_unavailable', 503).retry).toBe(true);
+  });
+
+  it('withdraws the offer on every refusal another press cannot get past', () => {
+    for (const code of [
+      'already_claimed',
+      'claims_not_open',
+      'policy_not_claimable',
+      'evidence_missing',
+      'evidence_unreadable',
+      'unsupported_media_type',
+      'credential_expired',
+      'credential_consumed',
+      'credential_wrong_policy',
+      'evidence_key_missing',
+    ]) {
+      expect(refused(code).retry, code).toBe(false);
+    }
+  });
+
+  it('never tells a person to try again on a refusal that cannot change', () => {
+    for (const code of ['already_claimed', 'claims_not_open', 'evidence_key_missing']) {
+      expect(refused(code).message.toLowerCase(), code).not.toContain('try again');
+    }
+  });
+
+  /**
+   * A deployment with no evidence key refuses every packet with a 503 at the
+   * last step of the flow. Nothing about the claim is wrong, so the sentence
+   * says whose problem it is rather than sending a person round the loop.
+   */
+  it('says whose problem it is when this deployment cannot store a document', () => {
+    const refusal = refused('evidence_key_missing', 503);
+    expect(refusal.retry).toBe(false);
+    expect(refusal.message).toContain("your claim hasn't been sent");
+    expect(refusal.message).toContain('This is our problem, not yours.');
   });
 });

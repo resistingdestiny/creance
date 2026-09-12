@@ -23,7 +23,7 @@ import {
   MAX_EVIDENCE_FILES,
   type ClaimEvidence,
 } from '../lib/claim-session';
-import { evidenceKind, separationOption } from '../lib/claim-model';
+import { claimSubmitRefusal, evidenceKind, separationOption } from '../lib/claim-model';
 import { fetchPolicy, type WorldRequestContextView } from '../lib/worker-api';
 
 /**
@@ -42,6 +42,12 @@ import { fetchPolicy, type WorldRequestContextView } from '../lib/worker-api';
 export interface ClaimStepResult {
   readonly ok: boolean;
   readonly error: string | null;
+  /**
+   * Whether the same action, repeated, could succeed. False on a refusal the
+   * caller cannot argue with, so a screen can stop offering a button that
+   * cannot work. See claimSubmitRefusal in src/lib/claim-model.ts.
+   */
+  readonly retry: boolean;
 }
 
 /**
@@ -80,13 +86,13 @@ export async function saveJob(formData: FormData): Promise<ClaimStepResult> {
   const separationType = text(formData.get('separation_type'));
 
   if (fullName === '' || employer === '' || jobTitle === '') {
-    return { ok: false, error: 'Fill in your name, your employer and your job title.' };
+    return { ok: false, error: 'Fill in your name, your employer and your job title.', retry: true };
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(lastDayOfWork)) {
-    return { ok: false, error: 'Give the last day you worked, as a date.' };
+    return { ok: false, error: 'Give the last day you worked, as a date.', retry: true };
   }
   if (separationOption(separationType) === null) {
-    return { ok: false, error: 'Choose how the job ended.' };
+    return { ok: false, error: 'Choose how the job ended.', retry: true };
   }
 
   await updateClaim({ fullName, employer, jobTitle, lastDayOfWork, separationType });
@@ -110,10 +116,10 @@ export async function addEvidence(formData: FormData): Promise<ClaimStepResult> 
   for (const file of chosen) {
     if (file.size === 0) continue;
     if (file.size > MAX_EVIDENCE_BYTES) {
-      return { ok: false, error: `${file.name} is over 4 MB. Send a smaller file.` };
+      return { ok: false, error: `${file.name} is over 4 MB. Send a smaller file.`, retry: true };
     }
     if (session.evidence.length + files.length >= MAX_EVIDENCE_FILES) {
-      return { ok: false, error: 'Four files is the most a claim can carry.' };
+      return { ok: false, error: 'Four files is the most a claim can carry.', retry: true };
     }
     files.push({
       filename: file.name,
@@ -122,10 +128,10 @@ export async function addEvidence(formData: FormData): Promise<ClaimStepResult> 
       contentBase64: Buffer.from(await file.arrayBuffer()).toString('base64'),
     });
   }
-  if (files.length === 0) return { ok: false, error: 'Choose a file to add.' };
+  if (files.length === 0) return { ok: false, error: 'Choose a file to add.', retry: true };
 
   await updateClaim({ evidence: [...session.evidence, ...files] });
-  return { ok: true, error: null };
+  return { ok: true, error: null, retry: true };
 }
 
 /** C3, "Continue". At least one document, which is the API's own rule. */
@@ -133,7 +139,7 @@ export async function continueToConfirm(): Promise<ClaimStepResult> {
   const session = await readClaim();
   if (session === null) redirect('/home');
   if (session.evidence.length === 0) {
-    return { ok: false, error: 'Add at least one document.' };
+    return { ok: false, error: 'Add at least one document.', retry: true };
   }
   redirect('/claim/confirm');
 }
@@ -166,9 +172,12 @@ export async function completeClaimCheck(result: unknown): Promise<ClaimCheckRes
       credentialExpiresAt: issued.expires_at,
       credentialIssuer: issued.issuer,
     });
-    return { ok: true, error: null, wrongCheck: false };
+    return { ok: true, error: null, retry: true, wrongCheck: false };
   } catch (cause) {
-    return { ok: false, error: checkFailure(cause), wrongCheck: wrongKind(cause) };
+    // A check of a kind this deployment does not accept returns the same kind
+    // on the same device every time, so that one refusal is not worth repeating.
+    const wrongCheck = wrongKind(cause);
+    return { ok: false, error: checkFailure(cause), retry: !wrongCheck, wrongCheck };
   }
 }
 
@@ -189,9 +198,12 @@ export async function useDemoPresence(): Promise<ClaimCheckResult> {
       credentialExpiresAt: issued.expires_at,
       credentialIssuer: issued.issuer,
     });
-    return { ok: true, error: null, wrongCheck: false };
+    return { ok: true, error: null, retry: true, wrongCheck: false };
   } catch (cause) {
-    return { ok: false, error: checkFailure(cause), wrongCheck: wrongKind(cause) };
+    // A check of a kind this deployment does not accept returns the same kind
+    // on the same device every time, so that one refusal is not worth repeating.
+    const wrongCheck = wrongKind(cause);
+    return { ok: false, error: checkFailure(cause), retry: !wrongCheck, wrongCheck };
   }
 }
 
@@ -261,7 +273,12 @@ export async function submitPacket(): Promise<ClaimStepResult> {
     // process stops holding a copy of somebody's documents.
     await updateClaim({ claimId: receipt.claim_id, credential: null, evidence: [] });
   } catch (cause) {
-    return { ok: false, error: submitFailure(cause) };
+    // The reason is logged here because the screen deliberately never prints a
+    // code, and a refusal a person cannot act on is one somebody on this side
+    // has to be able to find.
+    console.error(`[web] the claim packet was refused. ${String(cause)}`);
+    const refusal = claimSubmitRefusal(cause);
+    return { ok: false, error: refusal.message, retry: refusal.retry };
   }
   redirect('/claim/status');
 }
@@ -330,36 +347,4 @@ function checkFailure(cause: unknown): string {
     }
   }
   return "We couldn't verify you. Try again, or use a different device.";
-}
-
-
-/**
- * What a refused packet says, switched on the problem document's own code.
- *
- * Only three things are refused at the door, and every one of them is
- * something a person can fix on the screen they are still looking at
- * (docs/CLAIMS.md, "The submission"). Everything else is adjudication and
- * arrives as a decision, not as an error.
- */
-function submitFailure(cause: unknown): string {
-  if (!(cause instanceof ApiError)) {
-    return "We couldn't send your claim. Try again.";
-  }
-  switch (cause.code) {
-    case 'claims_not_open':
-    case 'policy_not_claimable':
-      return "Claims aren't open for this cover.";
-    case 'already_claimed':
-      return 'You have already claimed on this cover.';
-    case 'evidence_missing':
-      return 'Add at least one document.';
-    case 'evidence_unreadable':
-    case 'unsupported_media_type':
-      return 'One of your files is not a PDF or a photo. Add it again as a PDF, a JPEG or a PNG.';
-    case 'credential_expired':
-    case 'credential_consumed':
-      return 'That check has expired. Confirm it is you again.';
-    default:
-      return "We couldn't send your claim. Try again.";
-  }
 }

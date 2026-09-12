@@ -8,7 +8,7 @@ import { ListRow } from '../../../components/list-row';
 import { PillButton } from '../../../components/pill-button';
 import { SurfaceGroup } from '../../../components/surface-group';
 import { TextLink } from '../../../components/text-link';
-import { submitPacket } from '../../claim-actions';
+import { backToCover, submitPacket } from '../../claim-actions';
 import { ClaimSteps } from '../claim-steps';
 
 /**
@@ -46,13 +46,24 @@ export function ReviewScreen({
 }) {
   const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Set when the refusal is one another press cannot get past: the cover has
+   * already been claimed on, claims are shut, the check has expired, or this
+   * deployment cannot take a document at all. The button goes with it, because
+   * a button that says "Submit claim" under a sentence saying the claim cannot
+   * be submitted is the screen telling a person to do the one thing that
+   * cannot work. See claimSubmitRefusal in src/lib/claim-model.ts.
+   */
+  const [blocked, setBlocked] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const submit = () => {
     setError(null);
     startTransition(async () => {
       const result = await submitPacket();
-      if (!result.ok) setError(result.error);
+      if (result.ok) return;
+      setError(result.error);
+      setBlocked(!result.retry);
     });
   };
 
@@ -94,14 +105,22 @@ export function ReviewScreen({
         </div>
 
         <div className="flex flex-col items-center gap-5">
-          <PillButton
-            className="w-full"
-            disabled={!accepted}
-            loading={pending}
-            onClick={submit}
-          >
-            Submit claim
-          </PillButton>
+          {blocked ? (
+            <form action={backToCover} className="w-full">
+              <PillButton className="w-full" type="submit">
+                Back to cover
+              </PillButton>
+            </form>
+          ) : (
+            <PillButton
+              className="w-full"
+              disabled={!accepted}
+              loading={pending}
+              onClick={submit}
+            >
+              Submit claim
+            </PillButton>
+          )}
           <TextLink href="/claim/confirm">Back</TextLink>
         </div>
       </main>

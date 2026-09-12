@@ -12,6 +12,7 @@
  * "parametric" or "nullifier" anywhere a worker can read them.
  */
 
+import { ApiError } from './api';
 import { formatDay, formatDayWithYear, formatPeriodShort } from './format';
 import type { Surface } from './surface';
 import type { ClaimStatusView, ReplayView } from './claim-api';
@@ -281,6 +282,71 @@ export function claimCheckCopy(
     line: 'The same person who bought the cover has to claim it.',
     button: state === 'verified' ? 'Continue' : 'Verify with World ID',
   };
+}
+
+/**
+ * What a refused packet says, and whether pressing the button again could work.
+ *
+ * The second half is the part that matters. A screen that answers every refusal
+ * with "Try again" is lying in most of them: a cover that has already been
+ * claimed on, a cover whose claims are shut, a check that has expired and a
+ * deployment that cannot store a document all answer the same way to the
+ * hundredth attempt. So every code says which of the two it is, and C5 offers
+ * the button only where the answer is yes.
+ *
+ * The codes are the API's own (apps/api/src/claims/submit.ts, and
+ * docs/CLAIMS.md, "The submission"). Anything with no case of its own is split
+ * on the status: a 5xx is this deployment having a bad minute and is worth
+ * another press, and a 4xx is something about the claim that another press will
+ * not change.
+ */
+export interface ClaimSubmitRefusal {
+  /** One sentence, in the addendum's voice, with no code in it. */
+  readonly message: string;
+  /** True when submitting the same packet again could succeed. */
+  readonly retry: boolean;
+}
+
+export function claimSubmitRefusal(cause: unknown): ClaimSubmitRefusal {
+  if (!(cause instanceof ApiError)) {
+    // No response at all: the network dropped or the server never answered.
+    // That is the one failure where trying again is exactly the right advice.
+    return { message: "We couldn't send your claim. Try again.", retry: true };
+  }
+  switch (cause.code) {
+    case 'claims_not_open':
+    case 'policy_not_claimable':
+      return { message: "Claims aren't open for this cover.", retry: false };
+    case 'already_claimed':
+      return { message: 'You have already claimed on this cover.', retry: false };
+    case 'evidence_missing':
+      return { message: 'Add at least one document, then submit again.', retry: false };
+    case 'evidence_unreadable':
+    case 'unsupported_media_type':
+      return {
+        message:
+          'One of your files is not a PDF or a photo. Go back and add it again as a PDF, a JPEG or a PNG.',
+        retry: false,
+      };
+    case 'credential_expired':
+    case 'credential_consumed':
+      return { message: 'That check has expired. Confirm it is you again.', retry: false };
+    case 'credential_wrong_policy':
+      return { message: 'That check was made for a different cover.', retry: false };
+    case 'evidence_key_missing':
+      // The deployment cannot store a document at all. Nothing about the claim
+      // is wrong and nothing a person does on this screen will change it, so
+      // the screen says so rather than sending them round the loop again.
+      return {
+        message:
+          "We can't take documents right now, so your claim hasn't been sent. This is our problem, not yours. Nothing you filled in is lost.",
+        retry: false,
+      };
+    default:
+      return cause.status !== null && cause.status >= 500
+        ? { message: "Something went wrong at our end. Your claim hasn't been sent.", retry: true }
+        : { message: "We couldn't send your claim.", retry: false };
+  }
 }
 
 /** Which of C6 to C9 a claim is on. The decision replaces C6 when it arrives. */

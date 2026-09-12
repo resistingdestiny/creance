@@ -72,6 +72,19 @@ export function ConfirmScreen({
   const refused = useRef(false);
   /** One silent retry per attempt on an expired or malformed signature. */
   const retried = useRef(false);
+  /**
+   * True once the widget has been opened and left without a credential, for
+   * any reason at all.
+   *
+   * It exists because the widget can close without reporting anything: a person
+   * who opens it, finds their app cannot finish the check and shuts the sheet
+   * leaves `waiting` on screen with a spinner in the button and no way on. That
+   * is the dead end this screen must not have, and it is the likeliest one on a
+   * deployment whose check cannot be completed on every device. So an abandoned
+   * attempt counts as an attempt: the screen goes back to a pressable state and
+   * offers the demo check beside it, exactly as a refusal does.
+   */
+  const [attempted, setAttempted] = useState(false);
 
   const demoCheck = () => {
     startTransition(async () => {
@@ -89,6 +102,7 @@ export function ConfirmScreen({
     startTransition(async () => {
       const fresh = await startClaimCheck();
       if (fresh === null) {
+        setAttempted(true);
         setState('failed');
         return;
       }
@@ -96,6 +110,18 @@ export function ConfirmScreen({
       setState('waiting');
       setOpen(true);
     });
+  };
+
+  /**
+   * The widget closing. Success and failure have already moved the screen on by
+   * the time this runs, so the only case left is the sheet being shut with
+   * nothing decided, and that has to leave a pressable button behind.
+   */
+  const onOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next) return;
+    setAttempted(true);
+    setState((current) => (current === 'waiting' ? 'idle' : current));
   };
 
   const start = () => {
@@ -116,6 +142,7 @@ export function ConfirmScreen({
 
   const onError = (code: string) => {
     setOpen(false);
+    setAttempted(true);
     if (refused.current) return;
     if (CANCELLED.has(code)) {
       setState('idle');
@@ -132,8 +159,12 @@ export function ConfirmScreen({
   const copy = claimCheckCopy(state, surface);
   // Both refusals offer the demo check the same way. A check of a kind this
   // deployment does not accept is the case that needs the fallback most, since
-  // the same device answers with the same kind every time. T42.
-  const refusedCheck = state === 'failed' || state === 'wrong-check';
+  // the same device answers with the same kind every time. T42. An attempt that
+  // was abandoned rather than refused is offered it too: the person shut the
+  // sheet because the check could not be finished, which is the same dead end
+  // arrived at by a quieter road.
+  const refusedCheck =
+    state !== 'verified' && (state === 'failed' || state === 'wrong-check' || attempted);
 
   return (
     <AppFrame>
@@ -194,7 +225,7 @@ export function ConfirmScreen({
           <WorldCheck
             context={context}
             open={open}
-            onOpenChange={setOpen}
+            onOpenChange={onOpenChange}
             handleVerify={handleVerify}
             onSuccess={() => setState('verified')}
             onError={onError}

@@ -63,7 +63,9 @@ const { ReviewerSignIn } = await import('../src/app/admin/claims/sign-in.js');
 const { HomeScreen } = await import('../src/app/home/home-screen.js');
 const { OfflineNotice } = await import('../src/app/home/offline-notice.js');
 const { decide, signIn } = await import('../src/app/admin/claims/actions.js');
-const { completeClaimCheck, startClaimCheck } = await import('../src/app/claim-actions.js');
+const { completeClaimCheck, startClaimCheck, submitPacket } = await import(
+  '../src/app/claim-actions.js'
+);
 const { claimDay, claimsOpenLine, homeStatus, lapsedCopy } = await import(
   '../src/lib/claim-model.js'
 );
@@ -240,6 +242,31 @@ describe('C4, confirm it is you', () => {
   });
 
   /**
+   * The dead end this screen must not have. The widget reports no code when the
+   * sheet is simply shut, so the screen used to sit on `waiting` with a spinner
+   * in the only button and no way on. Closing it has to give the button back,
+   * and it has to offer the check that does not need a camera: somebody who
+   * shut the sheet did it because the check could not be finished.
+   */
+  it('gives the button back when the widget is closed with nothing decided', async () => {
+    widgetProps.length = 0;
+    vi.mocked(startClaimCheck).mockResolvedValue(CONTEXT);
+    render(<ConfirmScreen alreadyVerified={false} demo={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Verify with World ID' }));
+    await waitFor(() => expect(widgetProps.length).toBeGreaterThan(0));
+
+    const onOpenChange = widgetProps.at(-1)?.['onOpenChange'] as (open: boolean) => void;
+    await act(async () => {
+      onOpenChange(false);
+    });
+
+    const again = screen.getByRole('button', { name: 'Verify with World ID' });
+    expect(again.hasAttribute('disabled')).toBe(false);
+    expect(screen.queryByTestId('claim-check-state')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Use the demo check' })).toBeTruthy();
+  });
+
+  /**
    * The second failure, the purchase screen's words, and the demo check still
    * offered underneath: a check of a kind this deployment does not accept is
    * the case that needs the fallback most, because the same device returns the
@@ -251,6 +278,7 @@ describe('C4, confirm it is you', () => {
     vi.mocked(completeClaimCheck).mockResolvedValue({
       ok: false,
       error: "That check isn't the one we asked for.",
+      retry: false,
       wrongCheck: true,
     });
     render(<ConfirmScreen alreadyVerified={false} demo={false} />);
@@ -321,6 +349,50 @@ describe('C5, review and submit', () => {
     expect(screen.getByRole('button', { name: 'Submit claim' }).hasAttribute('disabled')).toBe(
       false,
     );
+  });
+
+  /**
+   * The refusal a person can do something about keeps the button, because
+   * pressing it again is the something.
+   */
+  it('offers the button again when another press could work', async () => {
+    vi.mocked(submitPacket).mockResolvedValue({
+      ok: false,
+      error: "Something went wrong at our end. Your claim hasn't been sent.",
+      retry: true,
+    });
+    renderReview();
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit claim' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Something went wrong at our end. Your claim hasn't been sent."),
+      ).toBeTruthy(),
+    );
+    expect(screen.getByRole('button', { name: 'Submit claim' })).toBeTruthy();
+  });
+
+  /**
+   * The refusal a person cannot do anything about takes the button away. A
+   * "Submit claim" button under a sentence saying the claim cannot be submitted
+   * is the screen telling somebody to do the one thing that cannot work.
+   */
+  it('takes the button away when another press cannot work', async () => {
+    vi.mocked(submitPacket).mockResolvedValue({
+      ok: false,
+      error: 'You have already claimed on this cover.',
+      retry: false,
+    });
+    renderReview();
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit claim' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('You have already claimed on this cover.')).toBeTruthy(),
+    );
+    expect(screen.queryByRole('button', { name: 'Submit claim' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Back to cover' })).toBeTruthy();
   });
 });
 

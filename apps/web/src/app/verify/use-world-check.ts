@@ -154,11 +154,27 @@ export function useWorldCheck({
     setState('failed');
   };
 
+  /**
+   * The widget closing.
+   *
+   * Success and failure have both moved the state on before this runs, so the
+   * only case left is the sheet being shut with nothing decided: somebody
+   * opened it, found their app could not finish the check, and closed it. The
+   * widget reports no code for that, so handing `setOpen` straight to it left
+   * the screen on `waiting` with a spinner in the button and no way forward.
+   * Closing has to give the button back.
+   */
+  const onOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next) return;
+    setState((current) => (current === 'waiting' ? 'idle' : current));
+  };
+
   return {
     state,
     context,
     open,
-    setOpen,
+    setOpen: onOpenChange,
     pending,
     start,
     handleVerify,

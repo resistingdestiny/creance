@@ -319,9 +319,11 @@ describe('what has actually been paid and actually been traded', () => {
   it('totals every settled coupon across every holder, and dates the newest', () => {
     const realised = seriesRealised(COUPONS, null, 'ODI-COMP-2026-01');
     // Three coupons to two holders: 328.767123 twice, 339.726027 twice and
-    // 328.767123 twice, which is what settled on testnet.
+    // 328.767123 twice, which is what settled on testnet. At the asset's own
+    // precision, because the coupon table on the same page is a column of
+    // those six figures and it has to reach this total.
     expect(realised.paid).toEqual({
-      amount: '1,994.52',
+      amount: '1,994.520546',
       coupons: 3,
       day: '10 September 2026',
     });
@@ -506,6 +508,9 @@ function boardOf(): BoardView {
     settlementBalance: null,
     market: null,
     counts: null,
+    forSale: [],
+    vault: null,
+    coverPool: null,
   };
 }
 

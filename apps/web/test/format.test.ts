@@ -4,6 +4,7 @@ import {
   formatAmount,
   formatDay,
   formatDayWithYear,
+  formatExactMoney,
   formatIndexValue,
   formatMoney,
   formatPercent,
@@ -124,5 +125,32 @@ describe('formatWholeMoney', () => {
 
   it('uses the ASCII hyphen-minus for a negative', () => {
     expect(formatWholeMoney(-5_000_000_000n)).toBe('-5,000');
+  });
+});
+
+describe('formatExactMoney', () => {
+  it('writes a coupon at the settlement asset\'s own precision', () => {
+    expect(formatExactMoney(328_767_123n)).toBe('328.767123');
+    expect(formatExactMoney(339_726_027n)).toBe('339.726027');
+  });
+
+  it('adds up: every row of the coupon table reaches the total over it', () => {
+    const rows = [328_767_123n, 328_767_123n, 339_726_027n, 339_726_027n, 328_767_123n, 328_767_123n];
+    const total = rows.reduce((sum, row) => sum + row, 0n);
+    const added = rows
+      .map((row) => Number(formatExactMoney(row).replace(/,/g, '')))
+      .reduce((sum, row) => sum + row, 0);
+    expect(formatExactMoney(total)).toBe('1,994.520546');
+    expect(added.toFixed(6)).toBe('1994.520546');
+  });
+
+  it('keeps two decimals and no more where the money is whole cents', () => {
+    expect(formatExactMoney(100_000_000_000n)).toBe('100,000.00');
+    expect(formatExactMoney(92_500_250_000n)).toBe('92,500.25');
+    expect(formatExactMoney(0n)).toBe('0.00');
+  });
+
+  it('uses the ASCII hyphen-minus for a negative', () => {
+    expect(formatExactMoney(-328_767_123n)).toBe('-328.767123');
   });
 });

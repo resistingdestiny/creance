@@ -20,7 +20,9 @@ import {
   marketSort,
   nextDirection,
   offersForSeries,
+  premiumRange,
   premiumRatePercent,
+  priceBuildUp,
   sortMarketRows,
   takeState,
   yieldLine,
@@ -28,6 +30,8 @@ import {
 } from '../src/lib/investor-model.js';
 import { demoInvestorAccount } from '../src/lib/wallet.js';
 import { COUPONS, INVESTOR_1, INVESTOR_2, SERIES, money } from './investor-fixtures.js';
+import { SENIORITY_BANDS } from '../src/lib/bands.js';
+import type { SeriesBandsView } from '../src/lib/worker-api.js';
 
 /** Everything a person reads, with the markup taken out. */
 function visibleText(markup: string): string {
@@ -87,6 +91,34 @@ function rankedAt(distance: number, key = 'computer_math') {
     margins: { period: '2026-07', level: null, shock: null },
   };
   return rankByDistance([occupation])[0]!;
+}
+
+/**
+ * What the bands endpoint says about a series, as the board needs it: only the
+ * utilisation of each band is priced from, and null is a band nothing funded.
+ */
+function bandsView(utilisations: readonly (number | null)[]): SeriesBandsView {
+  return {
+    series_id: 'ODI-COMP-2026-01',
+    group: 'computer_math',
+    principal_remaining: money('100000000000'),
+    active_exposure: money('0'),
+    unallocated: money('0'),
+    unbanded_exposure: money('0'),
+    bands: SENIORITY_BANDS.map((band, at) => ({
+      band,
+      label: band,
+      available: utilisations[at] !== null,
+      reason: utilisations[at] === null ? ('no_capital' as const) : ('none' as const),
+      capital: money(utilisations[at] === null ? '0' : '10000000000'),
+      exposure: money('0'),
+      free: money('0'),
+      utilisation: utilisations[at] === null ? null : utilisations[at]!.toFixed(4),
+      premium: null,
+      annual_rate_bps: null,
+      guide_rate_bps: null,
+    })),
+  };
 }
 
 /** The same series with a share of its principal committed as exposure. */
@@ -164,6 +196,75 @@ describe('the price of an occupation', () => {
   });
 });
 
+describe('the price across the experience bands', () => {
+  it('is one price where capital has not split the occupation', () => {
+    const series = committedSeries('86000000000');
+    const flat = premiumRange(series, bandsView([0.86, 0.86, 0.86]), 1);
+    expect(flat?.low).toBeCloseTo(premiumRatePercent(series, 1)!, 6);
+    expect(flat?.high).toBeCloseTo(flat!.low, 6);
+  });
+
+  it('is the range the funded bands are quoted at where it has', () => {
+    // Legal on testnet: 10,000 behind the five to twenty five year band with
+    // half of it written, 15,000 behind twenty five or more with none of it
+    // written, and nothing at all behind the first five years. The series as a
+    // whole is a fifth committed, which is a rate nothing sells at.
+    const legal = committedSeries('5000000000');
+    const range = premiumRange(legal, bandsView([null, 0.5, 0]), 1);
+    const guide = premiumRange(legal, bandsView([null, 0, 0]), 1)!.low;
+    expect(range?.low).toBeCloseTo(guide, 6);
+    expect(range?.high).toBeCloseTo(guide * 1.5, 6);
+    expect(range!.high).toBeGreaterThan(premiumRatePercent(legal, 1)!);
+    expect(range!.low).toBeLessThan(premiumRatePercent(legal, 1)!);
+  });
+
+  it('falls back to the series rate where the bands could not be read', () => {
+    const series = committedSeries('86000000000');
+    expect(premiumRange(series, null, 1)?.low).toBeCloseTo(premiumRatePercent(series, 1)!, 6);
+  });
+
+  it('leaves a band nobody has funded out rather than pricing it at the floor', () => {
+    const legal = committedSeries('5000000000');
+    // The unfunded first band would quote the guide rate if it were counted at
+    // nought, which is the same figure the twenty five or more band quotes, so
+    // the range is unchanged by its absence. What it must never do is widen it.
+    expect(premiumRange(legal, bandsView([null, 0.5, 0]), 1)).toEqual(
+      premiumRange(legal, bandsView([null, 0.5, 0]), 1),
+    );
+  });
+});
+
+describe('how the price is built', () => {
+  it('walks from the measured risk to what a policy sells at', () => {
+    const series = committedSeries('86000000000');
+    const steps = priceBuildUp(series, null, 0.96);
+    expect(steps.map((step) => step.label)).toEqual([
+      'Risk charge',
+      'Capital charge',
+      'Guide rate',
+      'Premium rate',
+    ]);
+    expect(steps[0]!.value).toBe('0.96 percent');
+    expect(steps[1]!.value).toBe('5.65 percent');
+    // The guide rate is the two added, to the rounding the screen shows.
+    expect(steps[2]!.value).toBe('6.61 percent');
+    // And the premium is the guide raised by the capacity taken: 86,000 of
+    // 100,000 remaining here, so 6.61 times 1.86.
+    expect(steps[3]!.value).toBe('12.29 percent');
+  });
+
+  it('ends on a range where capital has split the occupation into bands', () => {
+    const steps = priceBuildUp(committedSeries('5000000000'), bandsView([null, 0.5, 0]), 0.96);
+    expect(steps.at(-1)!.value).toBe('6.61 to 9.91 percent');
+  });
+
+  it('builds nothing at all rather than half of itself', () => {
+    expect(priceBuildUp(SERIES, null, null)).toEqual([]);
+    expect(priceBuildUp(null, null, 0.96)).toEqual([]);
+    expect(priceBuildUp({ ...SERIES, cover_pool: null }, null, 0.96)).toEqual([]);
+  });
+});
+
 describe('a row of the board', () => {
   it('composes the three reads into one row', () => {
     const row = marketRow({
@@ -181,9 +282,9 @@ describe('a row of the board', () => {
     expect(row.funded).toBe(100_000_000_000n);
     expect(row.paid).toBe(0n);
     expect(row.couponPercent).toBe(8);
-    expect(row.hashscan).toBe('https://hashscan.io/testnet/contract/0.0.10367194');
+    expect(row.noteHashscan).toBe('https://hashscan.io/testnet/contract/0.0.10368240');
     expect(row.position?.units).toBe('50');
-    expect(row.position?.earned?.amount).toBe('997.26');
+    expect(row.position?.earned?.amount).toBe('997.260273');
   });
 
   it('keeps a series the chain could not answer for, and drops its figures', () => {
@@ -362,6 +463,15 @@ function board(patch: Partial<BoardView> = {}): BoardView {
       hashscan: 'https://hashscan.io/testnet/contract/0.0.10495570',
     },
     counts: { total: 4, open: 1, filled: 3, cancelled: 0 },
+    forSale: [],
+    vault: {
+      contractId: '0.0.10367194',
+      hashscan: 'https://hashscan.io/testnet/contract/0.0.10367194',
+    },
+    coverPool: {
+      contractId: '0.0.10367199',
+      hashscan: 'https://hashscan.io/testnet/contract/0.0.10367199',
+    },
     ...patch,
   };
 }
@@ -450,6 +560,44 @@ describe('the market board', () => {
   it('says so when the round could not be bought rather than leaving a blank column', () => {
     const text = visibleText(boardMarkup(board({ provenance: null })));
     expect(text).toContain('The index readings could not be read');
+  });
+
+  it('names the shared vault and pool once, and a row opens its own note', () => {
+    const markup = boardMarkup();
+    const text = visibleText(markup);
+    expect(text).toContain('one collateral vault');
+    expect(text).toContain('one cover pool');
+    expect(text).toContain('0.0.10367194');
+    expect(text).toContain('0.0.10367199');
+    // The row's identifier is its note, not the vault every row shares.
+    expect(markup).toContain('href="https://hashscan.io/testnet/contract/0.0.10368240"');
+  });
+
+  it('puts the notes on offer above the table, with what a note is', () => {
+    const text = visibleText(
+      boardMarkup(
+        board({
+          forSale: [
+            {
+              offerId: '6',
+              seriesId: 'ODI-LEGL-2026-01',
+              name: 'Legal',
+              units: '3',
+              pricePerUnit: money('1020000000'),
+              total: money('3060000000'),
+            },
+          ],
+        }),
+      ),
+    );
+    expect(text).toContain('Notes for sale');
+    expect(text).toContain('A note is one unit of an occupation');
+    expect(text).toContain('3 notes, 3,060 for the lot');
+    expect(text).toContain('1,020 a note');
+  });
+
+  it('says nothing about a market with nothing in it', () => {
+    expect(visibleText(boardMarkup(board({ forSale: [] })))).not.toContain('Notes for sale');
   });
 
   it('offers one order for every column and no more', () => {

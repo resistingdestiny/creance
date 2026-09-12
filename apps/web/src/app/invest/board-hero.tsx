@@ -172,7 +172,14 @@ function FeaturedCard({ row }: { row: MarketRow }) {
           <p className="font-display text-display-l font-semibold tracking-display tabular-nums text-ink lg:text-display-xl">
             {row.premiumPercent === null ? null : rateFigure(row.premiumPercent)}
           </p>
-          <p className="text-secondary text-ink">percent a year for cover on this occupation</p>
+          {/* "and up" where capital has split the occupation into experience
+              bands and there is no one price. The figure above is the cheapest
+              band, which is what cover on this occupation starts at; the board
+              and the series page carry both ends. */}
+          <p className="text-secondary text-ink">
+            percent a year{row.premiumTopPercent === null ? '' : ' and up'} for cover on this
+            occupation
+          </p>
           {/* Where that rate goes, which is the question a coupon on its own
               cannot answer. Three parts and not one netted figure, because the
               first of the three is the one this deployment does not earn and a
@@ -234,7 +241,9 @@ function MarketCard({ row }: { row: MarketRow }) {
         <span className="font-display text-headline font-semibold tracking-title tabular-nums text-ink">
           {row.premiumPercent === null ? null : rateFigure(row.premiumPercent)}
         </span>
-        <span className="text-secondary text-ink-2">percent a year</span>
+        <span className="text-secondary text-ink-2">
+          percent a year{row.premiumTopPercent === null ? '' : ' and up'}
+        </span>
       </span>
       {/* Every card is drawn against the same ruler the table's column uses,
           so a flat line here is a rate that stayed where it was rather than

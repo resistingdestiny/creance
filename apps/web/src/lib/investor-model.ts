@@ -13,6 +13,7 @@
 import {
   formatDay,
   formatDayWithYear,
+  formatExactMoney,
   formatMoney,
   formatPercent,
   formatWholeMoney,
@@ -29,6 +30,7 @@ import type {
   SeriesView,
 } from './investor-api';
 import { findOccupation } from './occupations';
+import type { SeriesBandsView } from './worker-api';
 
 import {
   expectedLossRate,
@@ -36,6 +38,7 @@ import {
   marketRate,
   returnSplit,
   riskCharge,
+  PRICING,
 } from '@creance/index-model/src/pricing';
 
 /** RFC 3339 in UTC to the date-only string the formatters take. */
@@ -162,14 +165,56 @@ export function termLine(series: SeriesView): string | null {
 }
 
 /**
- * "Capacity used", the rule from DESIGN.md 3.2: the sum of the active cover
- * limits over the principal. Null where there is no CoverPool to ask, because
- * an unknown capacity is not the same as an unused one.
+ * How much of a series' capacity is committed, as a percentage.
+ *
+ * The sum of the active cover limits over the principal that actually stands
+ * behind them, which is what is funded less what claims have already taken.
+ * That denominator is the chain's and not a choice: `CoverPool.bind` refuses
+ * any policy that would take `activeExposure` past `vault.principalRemaining`,
+ * and `CoverPool.quoteCapacity` answers with `principalRemaining` less the
+ * exposure already written. Capacity measured against anything else is
+ * capacity against a limit nothing enforces.
+ *
+ * It is worked out here rather than read from the API's own
+ * `capacity_used_percent`, which divides by the principal as funded. On every
+ * series that has paid nothing the two agree. On the one that has paid a claim
+ * they did not, and the row said so out loud: 86,000 of exposure read as 86
+ * percent of 100,000 in one column while the premium rate beside it was priced
+ * off 86,000 of 97,000, so a reader could derive two different utilisations
+ * from one row. The chain has one.
+ *
+ * Null where there is no CoverPool to ask, because an unknown capacity is not
+ * the same as an unused one.
  */
-export function capacityLine(series: SeriesView): string | null {
+export function capacityPercent(series: SeriesView): number | null {
   const pool = series.cover_pool;
   if (pool === null || !pool.registered) return null;
-  return formatPercent(pool.capacity_used_percent);
+  const remaining = BigInt(series.vault.principal_remaining.amount);
+  if (remaining <= 0n) return null;
+  const exposure = BigInt(pool.active_exposure.amount);
+  return (Number(exposure) / Number(remaining)) * 100;
+}
+
+/** "88.66 percent", or null where there is no pool to ask. */
+export function capacityLine(series: SeriesView): string | null {
+  const percent = capacityPercent(series);
+  return percent === null ? null : formatPercent(percent);
+}
+
+/**
+ * The two figures the capacity percentage is the ratio of, so it can be checked
+ * rather than believed: "86,000 covered of 97,000".
+ *
+ * Null on a series nobody has bought cover from, where the percentage beside it
+ * already says nought and "0 covered of 25,000" is the same fact written twice.
+ */
+export function capacityCaption(series: SeriesView): string | null {
+  const pool = series.cover_pool;
+  if (pool === null || !pool.registered) return null;
+  const remaining = BigInt(series.vault.principal_remaining.amount);
+  const exposure = BigInt(pool.active_exposure.amount);
+  if (remaining <= 0n || exposure <= 0n) return null;
+  return `${formatWholeMoney(exposure, pool.active_exposure.decimals)} covered of ${formatWholeMoney(remaining, series.vault.principal_remaining.decimals)}`;
 }
 
 /**
@@ -240,7 +285,10 @@ export function couponHistory(coupons: CouponsView): CouponHistoryRow[] {
       accountId: holder.account_id,
       role: holder.role,
       settled: holder.settlement.settled,
-      amount: formatMoney(BigInt(holder.amount.amount), holder.amount.decimals),
+      // At the asset's own precision, not rounded to cents. See
+      // `formatExactMoney`: this column is added up by the people it is for,
+      // and it has to reach the total printed over it.
+      amount: formatExactMoney(BigInt(holder.amount.amount), holder.amount.decimals),
       transaction: holder.settlement.hashscan.transaction,
     })),
   );
@@ -250,7 +298,7 @@ export function couponHistory(coupons: CouponsView): CouponHistoryRow[] {
 export interface EarnedToDate {
   /** The settled total, in the settlement asset's minor units. */
   readonly total: bigint;
-  /** "986.30", the same two decimals as every other coupon figure. */
+  /** "997.260273", at the same precision as the rows it is the sum of. */
   readonly amount: string;
   /** How many coupons that total is made of. */
   readonly coupons: number;
@@ -279,7 +327,7 @@ export function earnedToDate(coupons: CouponsView, address: string): EarnedToDat
   const total = settled.reduce((sum, holder) => sum + BigInt(holder.amount.amount), 0n);
   return {
     total,
-    amount: formatMoney(total, settled[0]!.amount.decimals),
+    amount: formatExactMoney(total, settled[0]!.amount.decimals),
     coupons: settled.length,
   };
 }
@@ -607,7 +655,9 @@ export function seriesRealised(
     holders.length === 0 || newest === undefined
       ? null
       : {
-          amount: formatMoney(
+          // The same precision the coupon table under it is written at, so the
+          // one figure and the column it totals are the same arithmetic.
+          amount: formatExactMoney(
             holders.reduce((sum, holder) => sum + BigInt(holder.amount.amount), 0n),
             holders[0]!.amount.decimals,
           ),
@@ -866,21 +916,37 @@ export interface MarketRow {
   readonly distance: number | null;
   /** The guide rate month by month, oldest first. Empty with no reading. */
   readonly rates: readonly RatePoint[];
-  /** The annual rate cover on this occupation is priced at today, in percent. */
+  /** What cover on this occupation starts at today, in percent. */
   readonly premiumPercent: number | null;
+  /**
+   * The dearest band, in percent, or null where every funded band prices alike
+   * and the row has one price rather than a range.
+   */
+  readonly premiumTopPercent: number | null;
   /** How much of the series' capacity is committed, in percent. */
   readonly capacityPercent: number | null;
   /** The principal behind the series, in minor units. Null where unread. */
   readonly funded: bigint | null;
   /** What claims have already taken out of it. Null where unread. */
   readonly paid: bigint | null;
+  /** What is left standing behind the cover, which is `funded` less `paid`. */
+  readonly remaining: bigint | null;
   readonly decimals: number;
   /** The coupon the note has declared, in percent, where it has declared one. */
   readonly couponPercent: number | null;
   /** Where the return to capital comes from, in one sentence. See `yieldLine`. */
   readonly yieldLine: string | null;
-  /** The vault on HashScan, so a row's figures can be read off the chain. */
-  readonly hashscan: string | null;
+  /**
+   * This series' own note contract on HashScan.
+   *
+   * The note and not the vault, which is what the row used to link to. One
+   * CollateralVault holds the principal of every series, so sixteen rows linked
+   * to one contract while saying "contract by contract", and a reader who
+   * opened two of them found the same page twice. The note is the contract that
+   * is this series and nobody else's; the vault and the pool are named once, in
+   * the provenance block, where a thing that is shared belongs.
+   */
+  readonly noteHashscan: string | null;
   readonly position: MarketPosition | null;
   /** What the secondary market has done on this series, or null where nothing. */
   readonly quote: MarketQuote | null;
@@ -920,6 +986,162 @@ export function premiumRatePercent(
   return marketRate(guideRate(Math.max(0, distance)), utilisation) * 100;
 }
 
+/** The lowest and the highest annual rate a policy on this series can be sold at. */
+export interface PremiumRange {
+  /** What cover on this occupation starts at, in percent. */
+  readonly low: number;
+  /** The dearest band, in percent. Equal to `low` where every band prices alike. */
+  readonly high: number;
+}
+
+/**
+ * Every price cover on this series is actually quoted at, across the experience
+ * bands capital has funded.
+ *
+ * The board used to print `premiumRatePercent` and call it the price, and on a
+ * series capital has split into bands that is a rate nothing sells at. Legal is
+ * the one such series today: 25,000 of principal, 10,000 of it behind the five
+ * to twenty five year band and 15,000 behind twenty five or more, nothing
+ * behind the first five years. The series as a whole is a fifth committed, so
+ * the series-level figure came out at 7.51 percent, while the two bands a
+ * worker can actually buy in quote 9.39 and 6.26. Nobody was ever offered 7.51.
+ *
+ * The price is band-level because `marketRate` moves with utilisation and
+ * utilisation is measured per band, against the capital that chose that band.
+ * `guideRate` is band blind by construction and stays series-level: it is the
+ * measured half of the price and the index has no occupation-by-age series to
+ * split it with. So one guide rate, and as many market rates as there are
+ * funded bands.
+ *
+ * A band with no capital behind it is left out rather than priced at the floor,
+ * which is `bandUtilisation`'s own rule: capital declining a risk is not capital
+ * offering it cheaply.
+ *
+ * With no band read the range collapses to the series-level rate, which is what
+ * the board showed before and is exactly right for the fourteen series capital
+ * has not split: the bands endpoint hands all three of their bands the whole of
+ * the series, so all three quote the series figure.
+ */
+export function premiumRange(
+  series: SeriesView | null,
+  bands: SeriesBandsView | null,
+  distance: number | null,
+): PremiumRange | null {
+  const seriesRate = premiumRatePercent(series, distance);
+  if (seriesRate === null || distance === null) return null;
+  const flat = { low: seriesRate, high: seriesRate };
+  if (bands === null) return flat;
+
+  const rates = bandRates(bands, guideRate(Math.max(0, distance)));
+  if (rates === null) return flat;
+  return { low: Math.min(...rates), high: Math.max(...rates) };
+}
+
+/** One line of the price, as it is written on the screen. */
+export interface PriceStep {
+  readonly label: string;
+  /** Already formatted, so the screen cannot round a step differently. */
+  readonly value: string;
+  readonly caption: string | null;
+}
+
+/**
+ * The price, one step at a time, from the measured risk to what an investor is
+ * paid.
+ *
+ * There are four numbers in a premium and the product used to show a reader the
+ * first and the last of them on two screens with nothing in between. The board
+ * said computer and mathematical was 12.46 percent a year; clicking the row
+ * opened a chart headed "Risk charge, July 2026: 0.96 percent a year". Both are
+ * this occupation's own figures, neither is wrong, and a reader with no way to
+ * get from one to the other concludes the page is lying. Nothing was missing
+ * from the arithmetic. The arithmetic was simply never shown.
+ *
+ * So it is shown:
+ *
+ *     risk charge      what the index says this occupation's risk is worth
+ *   + capital charge   what capital requires for standing behind the cover
+ *   = guide rate       what the series must charge to fund itself
+ *   x capacity taken   what capital charges once its room is running out
+ *   = premium rate     what a policy sells at, and what the investor is paid on
+ *
+ * The capital charge is flat across all fifteen occupations, by construction
+ * under one for one collateralisation, so the whole of the difference between
+ * two occupations is the first line and the whole of the level is the second.
+ * That is worth a reader seeing, and it is the answer to why a 0.96 percent
+ * risk costs 12.46 percent a year.
+ *
+ * The last step is a range rather than a figure where capital has split the
+ * occupation into experience bands, because then each band has taken a
+ * different share of its own capacity and there is no one price. See
+ * `premiumRange`.
+ *
+ * The risk charge is passed in rather than recomputed, so this and the chart
+ * above it are the same number and not two roundings of one. Empty where the
+ * index round or the chain read is missing: half a build up is worse than none.
+ */
+export function priceBuildUp(
+  series: SeriesView | null,
+  bands: SeriesBandsView | null,
+  riskChargePercent: number | null,
+): readonly PriceStep[] {
+  if (series === null || riskChargePercent === null) return [];
+  const used = capacityPercent(series);
+  if (used === null) return [];
+
+  // `guideRate` is the floor or the sum, and the floor is the capital charge
+  // itself, so on any occupation with a risk charge at all the sum is what it
+  // returns. Written out here because a build up that hid a `max` would be a
+  // build up a reader could not reproduce.
+  const capital = PRICING.capitalCharge * 100;
+  const guide = capital + riskChargePercent;
+  const rates = bands === null ? null : bandRates(bands, guide / 100);
+  const low = rates === null ? marketRate(guide / 100, used / 100) * 100 : Math.min(...rates);
+  const high = rates === null ? low : Math.max(...rates);
+  // "6.61 to 9.91 percent", with the word once. `rateFigure` is the same
+  // rounding as `formatPercent` with the word taken off, so the two ends of a
+  // range can never round differently from each other.
+  const priced =
+    formatPercent(low) === formatPercent(high)
+      ? formatPercent(low)
+      : `${rateFigure(low)} to ${formatPercent(high)}`;
+
+  return [
+    {
+      label: 'Risk charge',
+      value: formatPercent(riskChargePercent),
+      caption: 'What the index says this occupation is worth, and the only part of the price that differs by occupation',
+    },
+    {
+      label: 'Capital charge',
+      value: formatPercent(capital),
+      caption: 'What capital requires for standing behind the cover. The same for every occupation',
+    },
+    {
+      label: 'Guide rate',
+      value: formatPercent(guide),
+      caption: 'The two added. What the series has to charge to fund itself',
+    },
+    {
+      label: 'Premium rate',
+      value: priced,
+      caption:
+        rates !== null && formatPercent(low) !== formatPercent(high)
+          ? 'The guide rate, raised by the share of its own capacity each experience band has taken'
+          : `The guide rate, raised by the ${formatPercent(used)} of capacity already taken`,
+    },
+  ];
+}
+
+/** The market rate of every band capital has funded, at one guide rate. */
+function bandRates(bands: SeriesBandsView, guide: number): number[] | null {
+  const rates = bands.bands
+    .filter((band) => band.utilisation !== null)
+    .map((band) => marketRate(guide, Number(band.utilisation)) * 100)
+    .filter((rate) => Number.isFinite(rate));
+  return rates.length === 0 ? null : rates;
+}
+
 /**
  * Where this series' return to capital comes from, in one sentence.
  *
@@ -943,7 +1165,11 @@ export function yieldLine(series: SeriesView | null, distance: number | null): s
   if (series === null || distance === null) return null;
   const rate = premiumRatePercent(series, distance);
   if (rate === null) return null;
-  const principal = Number(BigInt(series.vault.principal_funded.amount));
+  // The principal still standing behind the series, which is the base the rate
+  // above was priced off. Dividing the split by what was funded instead would
+  // have printed a share of premium that does not reconcile to the rate it came
+  // from on any series that has paid a claim.
+  const principal = Number(BigInt(series.vault.principal_remaining.amount));
   const exposure = Number(BigInt(series.cover_pool!.active_exposure.amount));
   const split = returnSplit(
     rate / 100,
@@ -1001,6 +1227,8 @@ export function marketRow(input: {
   readonly ranked: RankedOccupation | null;
   readonly coupons: CouponsView | null;
   readonly quote?: MarketQuote | null;
+  /** What capital has committed to each experience band, where it was read. */
+  readonly bands?: SeriesBandsView | null;
   readonly address: string;
 }): MarketRow {
   const { entry, series, ranked, coupons, address } = input;
@@ -1008,6 +1236,7 @@ export function marketRow(input: {
   const rate = series?.coupons.rate_percent ?? null;
   const coupon = rate === null ? null : Number(rate);
   const holder = series === null ? null : holderFor(series, address);
+  const premium = premiumRange(series, input.bands ?? null, distance);
 
   return {
     seriesId: entry.series_id,
@@ -1018,15 +1247,22 @@ export function marketRow(input: {
     gap: ranked?.gap ?? null,
     distance,
     rates: ranked === null ? [] : rateHistory(ranked.occupation.months),
-    premiumPercent: premiumRatePercent(series, distance),
+    premiumPercent: premium?.low ?? null,
+    // Compared as they are written rather than as they are held: two band
+    // rates that round to the same two decimals are one price on screen, and a
+    // range whose two ends read alike is a rendering fault.
+    premiumTopPercent:
+      premium === null || formatPercent(premium.high) === formatPercent(premium.low)
+        ? null
+        : premium.high,
     yieldLine: yieldLine(series, distance),
-    capacityPercent:
-      series?.cover_pool?.registered === true ? series.cover_pool.capacity_used_percent : null,
+    capacityPercent: series === null ? null : capacityPercent(series),
     funded: series === null ? null : BigInt(series.vault.principal_funded.amount),
     paid: series === null ? null : BigInt(series.vault.principal_paid.amount),
+    remaining: series === null ? null : BigInt(series.vault.principal_remaining.amount),
     decimals: series?.vault.principal_funded.decimals ?? 6,
     couponPercent: coupon !== null && Number.isFinite(coupon) ? coupon : null,
-    hashscan: series?.vault.hashscan ?? null,
+    noteHashscan: series?.note?.hashscan ?? null,
     quote: input.quote ?? null,
     position:
       holder === null || BigInt(holder.note_balance) <= 0n

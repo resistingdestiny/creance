@@ -479,4 +479,26 @@ describe('a time on the page', () => {
     expect(formatAge('2026-09-12T06:00:00.000Z', now)).toBe('3 hours ago');
     expect(formatAge('2026-09-06T09:00:00.000Z', now)).toBe('6 days ago');
   });
+
+  it('gives two records from one day the same age, whatever hour they fell in', () => {
+    // The old rule floored the elapsed hours, so these two read "1 day ago"
+    // and "2 days ago" one above the other, both captioned 10 September.
+    const now = Date.parse('2026-09-12T09:00:00.000Z');
+    expect(formatAge('2026-09-10T22:50:00.000Z', now)).toBe('2 days ago');
+    expect(formatAge('2026-09-10T08:32:00.000Z', now)).toBe('2 days ago');
+    expect(formatAge('2026-09-05T23:59:00.000Z', now)).toBe('7 days ago');
+    expect(formatAge('2026-09-05T00:01:00.000Z', now)).toBe('7 days ago');
+  });
+
+  it('keeps the hour for today and calls the day before it yesterday', () => {
+    const now = Date.parse('2026-09-12T00:30:00.000Z');
+    expect(formatAge('2026-09-12T00:00:00.000Z', now)).toBe('30 minutes ago');
+    // Thirty five minutes old, and on yesterday's date. The minute stands,
+    // because the one thing worse than a day that reads two ages is half an
+    // hour that reads as a day.
+    expect(formatAge('2026-09-11T23:55:00.000Z', now)).toBe('35 minutes ago');
+    // Past the hour, the day is the day it happened on, top to bottom.
+    expect(formatAge('2026-09-11T22:00:00.000Z', now)).toBe('yesterday');
+    expect(formatAge('2026-09-11T00:05:00.000Z', now)).toBe('yesterday');
+  });
 });

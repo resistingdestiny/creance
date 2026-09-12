@@ -1,7 +1,7 @@
 /**
  * What the market board reads before it can draw a row.
  *
- * Four sources, and no fifth.
+ * Five sources, and no sixth.
  *
  * `GET /v1/series` says which series exist. It is already awaited by the route
  * above this, because it decides whether the page is the board or one series.
@@ -28,12 +28,21 @@
  * from a cache would still show units that have left the account. They are the
  * one thing on this page that must be current to the request.
  *
+ * `GET /v1/cover/bands` is what capital has committed to each experience band.
+ * It is one free call for all fifteen occupations, and it is here because a
+ * price is quoted against a band's own utilisation and not against the series'.
+ * On a series capital has split into bands, the series-level rate is a number
+ * no policy sells at; see `premiumRange` in src/lib/investor-model.ts. It fails
+ * to null and the board falls back to the series-level rate, which is what the
+ * fourteen unsplit series quote anyway.
+ *
  * Nothing is composed that a read did not answer. A series the chain could not
  * answer for keeps its name and loses its figures; an occupation the feed had
  * no reading for keeps its figures and loses its risk; the index round failing
- * costs the board its risk and price columns; and the market failing costs it
- * the traded column and falls the holdings back on what each series' own holder
- * list says. None of the four costs the board.
+ * costs the board its risk and price columns; the market failing costs it the
+ * traded column and falls the holdings back on what each series' own holder
+ * list says; and the bands failing costs a split series its range and leaves it
+ * the series rate. None of the five costs the board.
  */
 
 import { readExplorer, type ExplorerProvenance } from '../../lib/explorer-data';
@@ -59,6 +68,7 @@ import {
   type MarketRow,
 } from '../../lib/investor-model';
 import type { WalletAccount } from '../../lib/wallet';
+import { fetchAllBands, type SeriesBandsView } from '../../lib/worker-api';
 
 /**
  * One note this account holds, with everything the screen says about it.
@@ -83,6 +93,31 @@ export interface BoardHolding {
   readonly offers: readonly OfferView[];
 }
 
+/** A contract every row shares, as the board names and links it. */
+export interface BoardContract {
+  readonly contractId: string;
+  readonly hashscan: string;
+}
+
+/**
+ * One lot of notes somebody is offering to sell, as the board lists it.
+ *
+ * The board had a secondary market and no way to find it: the only sign of one
+ * was a caption in the last column of a row, which folds away below the landing
+ * breakpoint, so on a phone the venue did not exist and on a desktop it was a
+ * line of small type in the corner of one row out of sixteen. These are the
+ * open offers, named and priced, above the table.
+ */
+export interface BoardOffer {
+  readonly offerId: string;
+  readonly seriesId: string;
+  readonly name: string | null;
+  /** Whole note units in the lot. */
+  readonly units: string;
+  readonly pricePerUnit: Money;
+  readonly total: Money;
+}
+
 export interface BoardView {
   readonly rows: readonly MarketRow[];
   /** Where the index readings came from, or null when the round could not be had. */
@@ -90,8 +125,19 @@ export interface BoardView {
   /** Group keys the feed had no reading for, so the board can say how many. */
   readonly missing: readonly string[];
   readonly holdings: readonly BoardHolding[];
+  /** Every lot on offer now, cheapest a unit first. Empty where nothing is. */
+  readonly forSale: readonly BoardOffer[];
   /** What this account can settle a purchase with, from the market read. */
   readonly settlementBalance: Money | null;
+  /**
+   * The one collateral vault the principal of every series sits in, and the one
+   * cover pool that holds their exposure, where every series that answered
+   * named the same contract. Null where they did not, because the sentence the
+   * board writes beside these says there is one of each and it must not say so
+   * on a deployment where there is more than one.
+   */
+  readonly vault: BoardContract | null;
+  readonly coverPool: BoardContract | null;
   /** The venue itself, so the board can point at the contract the offers live in. */
   readonly market: OrderBookView['market'];
   /** How many offers have ever been made, filled and withdrawn. */
@@ -102,11 +148,12 @@ export async function readBoard(
   listing: SeriesListView,
   investor: WalletAccount,
 ): Promise<BoardView> {
-  const [explorer, series, book, positions] = await Promise.all([
+  const [explorer, series, book, positions, bands] = await Promise.all([
     readExplorerRound(),
     Promise.all(listing.series.map((entry) => readInvestor(entry.series_id).series)),
     readBook(investor.evmAddress),
     readHoldings(investor.evmAddress),
+    readBands(),
   ]);
 
   const ranked = new Map<string, RankedOccupation>(
@@ -124,6 +171,7 @@ export async function readBoard(
       ranked: ranked.get(entry.group) ?? null,
       coupons: null,
       quote: quotes.get(entry.series_id) ?? null,
+      bands: bands.get(entry.series_id) ?? null,
       address: investor.evmAddress,
     }),
   );
@@ -133,6 +181,19 @@ export async function readBoard(
     provenance: explorer?.provenance ?? null,
     missing: explorer?.missing ?? [],
     holdings: await holdingsOf(listing, series, rows, positions, book, investor.evmAddress),
+    forSale: offersForSale(listing, book),
+    vault: sharedContract(series, (view) =>
+      view.vault.contract_id === null
+        ? null
+        : { contractId: view.vault.contract_id, hashscan: view.vault.hashscan },
+    ),
+    coverPool: sharedContract(series, (view) =>
+      view.cover_pool === null ||
+      !view.cover_pool.registered ||
+      view.cover_pool.contract_id === null
+        ? null
+        : { contractId: view.cover_pool.contract_id, hashscan: view.cover_pool.hashscan },
+    ),
     settlementBalance: positions?.settlement_balance ?? null,
     market: book?.market ?? null,
     counts: book?.counts ?? null,
@@ -161,6 +222,81 @@ async function readBook(address: string): Promise<OrderBookView | null> {
     return await fetchOrderBook({ buyer: address });
   } catch {
     return null;
+  }
+}
+
+/**
+ * Every lot standing open on the venue, cheapest a unit first.
+ *
+ * From the book the board already reads, so it costs no further call. An offer
+ * the book cannot attribute to a listed series is left out rather than shown
+ * under its identifier: a row a reader cannot open is a row that only raises a
+ * question.
+ */
+function offersForSale(listing: SeriesListView, book: OrderBookView | null): readonly BoardOffer[] {
+  if (book === null) return [];
+  return book.offers
+    .filter((offer) => offer.status === 'open' && offer.series_id !== null)
+    .flatMap((offer) => {
+      const entry = listing.series.find((one) => one.series_id === offer.series_id);
+      if (entry === undefined) return [];
+      return [
+        {
+          offerId: offer.offer_id,
+          seriesId: entry.series_id,
+          name: seriesName(entry),
+          units: offer.units_whole,
+          pricePerUnit: offer.price_per_unit,
+          total: offer.price,
+        },
+      ];
+    })
+    .sort((left, right) =>
+      BigInt(left.pricePerUnit.amount) < BigInt(right.pricePerUnit.amount) ? -1 : 1,
+    );
+}
+
+/**
+ * A contract named identically by every series that answered, or null.
+ *
+ * It is derived and not assumed. This deployment puts all sixteen series in one
+ * CollateralVault and one CoverPool, which is the whole reason the board can
+ * name them once instead of sixteen times, but a deployment that did not would
+ * make that sentence false. So the agreement is checked, and where the reads
+ * disagree the board says nothing rather than naming the first one it saw.
+ *
+ * A series with nothing to say is not a disagreement. The maturity
+ * demonstration has never registered with the CoverPool, so it names no pool at
+ * all, and counting that as a second answer would have cost the other fifteen
+ * their link.
+ */
+function sharedContract(
+  series: readonly (SeriesView | null)[],
+  pick: (view: SeriesView) => BoardContract | null,
+): BoardContract | null {
+  const found = series.flatMap((view) => {
+    const one = view === null ? null : pick(view);
+    return one === null ? [] : [one];
+  });
+  const first = found[0] ?? null;
+  if (first === null) return null;
+  return found.every((one) => one.contractId === first.contractId) ? first : null;
+}
+
+/**
+ * What capital has committed to each band, by series id.
+ *
+ * An empty map where the read failed, which every caller treats as no band
+ * split rather than as no capital: the row then quotes the series-level rate it
+ * quoted before, which is the right answer for every series capital has not
+ * split and the closest honest one for the series it has.
+ */
+async function readBands(): Promise<ReadonlyMap<string, SeriesBandsView>> {
+  try {
+    const { occupations } = await fetchAllBands();
+    return new Map(occupations.map((occupation) => [occupation.series_id, occupation]));
+  } catch {
+    return new Map();
   }
 }
 

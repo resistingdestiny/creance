@@ -139,25 +139,51 @@ function clockOf(at: Date): string {
   }).format(at);
 }
 
+/** Whole UTC calendar days from one instant's date to another's. */
+function utcDaysBetween(from: Date, to: Date): number {
+  const midnight = (at: Date): number =>
+    Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate());
+  return Math.max(0, Math.round((midnight(to) - midnight(from)) / 86_400_000));
+}
+
 /**
  * How long ago an instant was: "just now", "4 minutes ago", "3 hours ago",
- * "6 days ago".
+ * "yesterday", "6 days ago".
  *
  * The moment it is measured against is passed in rather than read from the
  * clock, so the server renders one consistent age for every line on a page and
  * a test can state what it expects. Anything under a minute is "just now": a
  * count of seconds on a page that is not going to update itself would be wrong
  * by the time it is read.
+ *
+ * Past today the count is calendar days and not elapsed hours divided by
+ * twenty four, which is the whole of the difference between this and what it
+ * used to do. Flooring the hours made the age depend on the clock time inside
+ * the day, so on 12 September a record from 10 September at 22:50 read "1 day
+ * ago" and one from 10 September at 08:32 read "2 days ago", one above the
+ * other, both captioned with the same date. Every arithmetic step of that was
+ * right and the column was unreadable. A day is the day it happened on, so two
+ * records from one day are the same age however far apart in it they fell.
+ *
+ * Hours are kept for today alone, where they are what a reader wants and where
+ * there is no day boundary for them to disagree across. The day before today is
+ * "yesterday" rather than "1 day ago" for the same reason the rest of this
+ * changed: a record from 23:55 read half an hour later is not a day old, and
+ * saying so would be the old fault the other way round.
  */
 export function formatAge(iso: string, now: number): string {
-  const seconds = Math.max(0, Math.round((now - parseInstant(iso).getTime()) / 1000));
+  const at = parseInstant(iso);
+  const seconds = Math.max(0, Math.round((now - at.getTime()) / 1000));
   if (seconds < 60) return 'just now';
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${String(minutes)} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${String(hours)} ${hours === 1 ? 'hour' : 'hours'} ago`;
-  const days = Math.floor(hours / 24);
-  return `${String(days)} ${days === 1 ? 'day' : 'days'} ago`;
+  const days = utcDaysBetween(at, new Date(now));
+  if (days === 0) {
+    const hours = Math.floor(minutes / 60);
+    return `${String(hours)} ${hours === 1 ? 'hour' : 'hours'} ago`;
+  }
+  if (days === 1) return 'yesterday';
+  return `${String(days)} days ago`;
 }
 
 /**
@@ -184,6 +210,44 @@ export function formatMoney(minorUnits: bigint | number, decimals = 6): string {
 
   const grouped = new Intl.NumberFormat(LOCALE, { useGrouping: true }).format(units);
   return `${negative ? MINUS : ''}${grouped}.${cents.toString().padStart(2, '0')}`;
+}
+
+/**
+ * The same money at the settlement asset's own precision, so a column of these
+ * adds up to the total printed over it: "328.767123", "1,994.520546", "3,000.00".
+ *
+ * `formatMoney` rounds to two decimals, and a coupon is not a two decimal
+ * number. A month's coupon on this note is 328.767123, because it is a year's
+ * interest cut by the days in the month, and rounding it for display while
+ * totalling the minor units is what made the investor screen disagree with
+ * itself: six settled rows read 328.77 and 339.73 and summed to 1,994.54 under
+ * a headline that said 1,994.52. Both figures were right, which is worse than
+ * one of them being wrong, on the one page whose argument is that its figures
+ * reconcile to the chain.
+ *
+ * Allocating the rounding so the rows add to the total was the other way out
+ * and is not taken. It would print 339.72 against a row whose HashScan receipt
+ * says 339.726027, and the receipt is beside it on the same line. So the rows
+ * say what actually moved, the total says the sum of what actually moved, and
+ * the column adds up because there is nothing left over to lose.
+ *
+ * Trailing zeros past the second decimal are dropped, so money that is whole
+ * cents is written as whole cents and the precision appears only where there is
+ * something in it. Never fewer than two decimals: money is written with cents
+ * even when the cents are nought.
+ */
+export function formatExactMoney(minorUnits: bigint | number, decimals = 6): string {
+  const minor = typeof minorUnits === 'bigint' ? minorUnits : BigInt(Math.round(minorUnits));
+  const negative = minor < 0n;
+  const magnitude = negative ? -minor : minor;
+  const scale = 10n ** BigInt(decimals);
+
+  let fraction = (magnitude % scale).toString().padStart(Math.max(0, decimals), '0');
+  while (fraction.length > 2 && fraction.endsWith('0')) fraction = fraction.slice(0, -1);
+  fraction = fraction.padEnd(2, '0');
+
+  const grouped = new Intl.NumberFormat(LOCALE, { useGrouping: true }).format(magnitude / scale);
+  return `${negative ? MINUS : ''}${grouped}.${fraction}`;
 }
 
 /**

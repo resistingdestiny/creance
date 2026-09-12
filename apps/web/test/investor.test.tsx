@@ -6,6 +6,7 @@ import { CHOOSE_OCCUPATION } from '../src/lib/occupations.js';
 import { PrincipalBar } from '../src/components/principal-bar.js';
 import type { CouponsView } from '../src/lib/investor-api.js';
 import {
+  capacityCaption,
   capacityLine,
   couponHistory,
   couponLine,
@@ -22,7 +23,7 @@ import {
   termLine,
 } from '../src/lib/investor-model.js';
 import { DEMO_ACCOUNTS, demoInvestorAccount, readDemoInvestor } from '../src/lib/wallet.js';
-import { COUPONS, INVESTOR_1, SERIES, claimsOpenSeries } from './investor-fixtures.js';
+import { COUPONS, INVESTOR_1, SERIES, claimsOpenSeries, money } from './investor-fixtures.js';
 
 /** Everything a person reads, with the markup taken out. */
 function visibleText(markup: string): string {
@@ -157,14 +158,36 @@ describe('the series rows', () => {
     expect(termLine(SERIES)).toBe('12 months');
   });
 
-  it('measures capacity used against the principal', () => {
+  it('measures capacity used against the principal still standing, as the CoverPool does', () => {
     expect(capacityLine(SERIES)).toBe('0 percent');
     expect(
       capacityLine({
         ...SERIES,
-        cover_pool: { ...SERIES.cover_pool!, capacity_used_percent: 45 },
+        cover_pool: { ...SERIES.cover_pool!, active_exposure: money('45000000000') },
       }),
     ).toBe('45 percent');
+  });
+
+  it('divides by what is left after a claim, not by what was funded', () => {
+    // The chain's own rule: CoverPool.bind refuses a policy that would take
+    // the exposure past principalRemaining, so 86,000 of 97,000 is 88.66 and
+    // not the 86 percent the same exposure is of the principal as funded.
+    const paid = {
+      ...SERIES,
+      vault: {
+        ...SERIES.vault,
+        principal_paid: money('3000000000'),
+        principal_remaining: money('97000000000'),
+        principal_free: money('97000000000'),
+      },
+      cover_pool: {
+        ...SERIES.cover_pool!,
+        active_exposure: money('86000000000'),
+        capacity_used_percent: 86,
+      },
+    };
+    expect(capacityLine(paid)).toBe('88.66 percent');
+    expect(capacityCaption(paid)).toBe('86,000 covered of 97,000');
   });
 
   it('has nothing to say about a series the CoverPool never registered', () => {
@@ -199,7 +222,7 @@ describe('the coupon history', () => {
     const row = couponHistory(COUPONS).at(-1)!;
     expect(row.day).toBe('4 September 2026');
     expect(row.period).toBe('4 September to 4 October 2026');
-    expect(row.amount).toBe('328.77');
+    expect(row.amount).toBe('328.767123');
     expect(row.settled).toBe(true);
     expect(row.transaction).toBe(
       'https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738',
@@ -250,7 +273,7 @@ describe('the coupon history', () => {
 
   it('finds the first coupon a holder was actually paid', () => {
     const first = firstSettledCoupon(COUPONS, INVESTOR_1);
-    expect(first?.amount).toBe('328.77');
+    expect(first?.amount).toBe('328.767123');
     expect(first?.couponId).toBe('1');
     expect(firstSettledCoupon(COUPONS, '0x0000000000000000000000000000000000000000')).toBeNull();
   });
@@ -261,7 +284,9 @@ describe('earned to date', () => {
     const earned = earnedToDate(COUPONS, INVESTOR_1);
     // 328.767123 plus 339.726027 plus 328.767123.
     expect(earned?.total).toBe(997_260_273n);
-    expect(earned?.amount).toBe('997.26');
+    // At the asset's own precision, so the three rows in the table under it
+    // add to exactly this and a reader with a calculator agrees with the page.
+    expect(earned?.amount).toBe('997.260273');
     expect(earned?.coupons).toBe(3);
   });
 
@@ -564,7 +589,7 @@ describe('the investor overview screen', () => {
   });
 
   it('puts the coupon settlement in the table with a link to its transaction', () => {
-    expect(text).toContain('328.77');
+    expect(text).toContain('328.767123');
     expect(text).toContain('Settled');
     expect(markup).toContain(
       'https://hashscan.io/testnet/transaction/0.0.10366450-1788556746-724064738',

@@ -22,6 +22,7 @@ import type {
 import type { Streamed } from '../../lib/investor-data';
 import {
   type NextPayment,
+  capacityCaption,
   capacityLine,
   couponHistory,
   couponLine,
@@ -39,6 +40,7 @@ import {
   type RatePoint,
 } from '../../lib/investor-model';
 import { DEMO_WALLET_LABEL, type WalletAccount } from '../../lib/wallet';
+import type { SeriesBandsView } from '../../lib/worker-api';
 import { RateHistorySection } from './rate-history';
 import { SeriesChooser } from './series-chooser';
 import { MarketOutcomeBanner, OfferBook } from './trading';
@@ -139,6 +141,12 @@ export interface InvestorOverviewProps {
    * could not be read.
    */
   rates?: Streamed<readonly RatePoint[] | null>;
+  /**
+   * What capital has committed to each experience band on this series, for the
+   * last step of the price. Null where it could not be read, which costs the
+   * step its range and leaves it the series' own rate.
+   */
+  bands?: Streamed<SeriesBandsView | null>;
 }
 
 /** The two market reads this screen needs, made together by the route. */
@@ -156,6 +164,7 @@ export function InvestorOverview({
   market = null,
   outcome = null,
   rates,
+  bands = null,
 }: InvestorOverviewProps) {
   // An identifier is not a name. What the series covers comes from the group
   // the API lists it under, through src/lib/occupations.ts, and the list is
@@ -229,9 +238,11 @@ export function InvestorOverview({
           it and draws nothing rather than a box that empties itself. */}
       {rates === undefined ? null : (
         <RateHistorySection
+          bands={bands}
           coupons={coupons}
           market={market}
           rates={rates}
+          series={series}
           seriesId={seriesId}
         />
       )}
@@ -576,7 +587,18 @@ function Terms({
       {coupon === null ? null : <ListRow label="Coupon" value={coupon} />}
       {term === null ? null : <ListRow label="Term" value={term} />}
       <ListRow label="Matures" value={formatDayWithYear(isoDay(view.vault.matures_at))} />
-      {capacity === null ? null : <ListRow label="Capacity used" value={capacity} />}
+      {/* The two figures the percentage is the ratio of, so the row can be
+          checked against the principal rows above it rather than believed.
+          Capacity is measured against the principal still standing, which is
+          what the CoverPool itself measures it against, and on a series that
+          has paid a claim that is not the principal as funded. */}
+      {capacity === null ? null : (
+        <ListRow
+          caption={capacityCaption(view) ?? undefined}
+          label="Capacity used"
+          value={capacity}
+        />
+      )}
     </SurfaceGroup>
   );
 }

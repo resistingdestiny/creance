@@ -30,7 +30,7 @@ import {
   type MarketSort,
 } from '../../lib/investor-model';
 import { DEMO_WALLET_LABEL, type WalletAccount } from '../../lib/wallet';
-import type { BoardHolding, BoardView } from './board-data';
+import type { BoardHolding, BoardOffer, BoardView } from './board-data';
 import { BoardHero, MarketCards, featuredRows } from './board-hero';
 import { SellNotes, MarketOutcomeBanner, WithdrawButton } from './trading';
 
@@ -191,6 +191,7 @@ function Board({
     <>
       {/* The first is the band's, so the cards carry the three behind it. */}
       <MarketCards rows={featuredRows(view.rows).slice(1, 4)} />
+      <ForSale offers={view.forSale} />
       <section className="mt-10">
         <h2 className="mb-4 text-body-lg font-medium text-ink">All occupations</h2>
         <MarketTable direction={direction} rows={rows} sort={sort} />
@@ -198,6 +199,67 @@ function Board({
       {view.holdings.length === 0 ? null : <Positions investor={investor} view={view} />}
       <Provenance view={view} />
     </>
+  );
+}
+
+/** What a note is, for a reader who has never held one. */
+const NOTE_LINE =
+  "A note is one unit of an occupation's cover. It earns that series' coupon while you hold it and its principal comes back at maturity. These are the lots somebody is offering to sell right now, at the price they are asking. Taking one moves the note and the money in a single transaction, or neither moves.";
+
+/**
+ * The notes on offer now.
+ *
+ * The venue was real and unfindable. Every open offer lived in a caption in the
+ * last column of one row of the table, which folds away below the landing
+ * breakpoint, so a reader on a phone had no way to learn a secondary market
+ * existed and a reader on a desktop had to know which row to look at. It is
+ * above the table instead, named, priced, and one tap from the screen that
+ * takes it.
+ *
+ * A lot links to its own series rather than carrying a take button of its own.
+ * The form that takes an offer needs the note's verdict on the buyer, which is
+ * a read per series, and the series page already makes it: a second copy here
+ * would be sixteen reads for a section that is usually two lines long.
+ *
+ * Nothing at all where the book is empty or could not be read. An empty
+ * "For sale" heading reads as a market with no sellers, and on a board whose
+ * whole argument is that its figures are records, a heading over nothing is the
+ * one thing that looks like a mock up.
+ */
+function ForSale({ offers }: { offers: readonly BoardOffer[] }) {
+  if (offers.length === 0) return null;
+  return (
+    <section className="mt-10">
+      <h2 className="mb-1 text-body-lg font-medium text-ink">Notes for sale</h2>
+      <p className="mb-4 max-w-[720px] text-secondary text-ink-2">{NOTE_LINE}</p>
+      <SurfaceGroup>
+        {offers.map((offer) => (
+          <a
+            /* The whole row is the door, at the sheet's tap minimum, because
+               the thing a reader wants from this list is the screen that takes
+               the offer and there is nothing else on the row to press. */
+            className="flex min-h-[72px] w-full items-center justify-between gap-4 py-3 underline-offset-[3px] hover:underline"
+            href={`/invest?series=${encodeURIComponent(offer.seriesId)}`}
+            key={offer.offerId}
+          >
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-body text-ink">{offer.name ?? offer.seriesId}</span>
+              <span className="text-caption tabular-nums text-ink-2">
+                {offer.units} note{offer.units === '1' ? '' : 's'},{' '}
+                {formatWholeMoney(BigInt(offer.total.amount), offer.total.decimals)} for the lot
+              </span>
+            </span>
+            <span className="flex items-center gap-1 text-body text-ink">
+              <span className="tabular-nums whitespace-nowrap">
+                {formatWholeMoney(BigInt(offer.pricePerUnit.amount), offer.pricePerUnit.decimals)} a
+                note
+              </span>
+              <ChevronRight className="shrink-0 text-ink-3" />
+            </span>
+          </a>
+        ))}
+      </SurfaceGroup>
+    </section>
   );
 }
 
@@ -397,7 +459,7 @@ function MarketTable({
                 <Risk row={row} />
               </Td>
               <Td numeric>
-                {row.premiumPercent === null ? null : formatPercent(row.premiumPercent)}
+                <Premium row={row} />
               </Td>
               <Td wide>
                 <Sparkline row={row} />
@@ -423,21 +485,57 @@ function MarketTable({
 }
 
 /**
- * The principal behind the series, and what claims have already taken out of it.
+ * What cover on this occupation costs a year.
+ *
+ * One figure where every funded band prices the same, which is every series
+ * capital has not split. Where it has split one, the cell is the range those
+ * bands are quoted at, because the series as a whole is then priced at a rate
+ * no policy sells at: the reasoning is on `premiumRange`.
+ *
+ * The range is a figure and a caption rather than one line reading "6.26 to
+ * 9.39 percent". The board's own principal cell already stacks a figure over
+ * the fact that qualifies it, this column is on the screen at every width, and
+ * a one line range is half as wide again as the heading over it.
+ */
+function Premium({ row }: { row: MarketRow }) {
+  if (row.premiumPercent === null) return null;
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span>{formatPercent(row.premiumPercent)}</span>
+      {row.premiumTopPercent === null ? null : (
+        <span className="text-caption text-ink-2">to {formatPercent(row.premiumTopPercent)}</span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * The principal behind the series, and what is left of it standing behind the
+ * cover.
  *
  * The two were columns of their own until the market gave the board something
  * to say. Claims have taken nothing from fifteen of the sixteen, so a column of
  * noughts was buying a seventh of the width to say almost nothing; as a caption
  * it renders only where there is something to report.
+ *
+ * What the caption says changed with the capacity column beside it. Capacity is
+ * exposure over the principal still standing, which is what the CoverPool
+ * itself measures it against, so on the one series that has paid a claim the
+ * percentage is a share of 97,000 while this cell said 100,000 and nothing said
+ * where the difference went. Now it does, in the series page's own words.
  */
 function Principal({ row }: { row: MarketRow }) {
   if (row.funded === null) return null;
+  const paid = row.paid === null || row.paid === 0n ? null : row.paid;
   return (
     <span className="flex flex-col gap-0.5">
       <span>{formatWholeMoney(row.funded, row.decimals)}</span>
-      {row.paid === null || row.paid === 0n ? null : (
+      {paid === null ? null : (
         <span className="text-caption text-ink-2">
-          {formatWholeMoney(row.paid, row.decimals)} paid out
+          {formatWholeMoney(paid, row.decimals)} paid out
+          {row.remaining === null
+            ? null
+            : `, ${formatWholeMoney(row.remaining, row.decimals)} left`}
         </span>
       )}
     </span>
@@ -514,10 +612,13 @@ function Sparkline({ row }: { row: MarketRow }) {
  * the risk.
  *
  * The name opens the series' own page, which is the detail view this board is
- * the index to. The identifier opens the vault on HashScan, so every figure on
- * the row can be read off the chain without trusting this page: that is what
- * the public explorer's provenance block does for the index, and a board of
- * money deserves the same.
+ * the index to. The identifier opens this series' own note contract on
+ * HashScan, which is the one contract on the chain that is this series and
+ * nothing else. It used to open the vault, and the vault is shared: sixteen
+ * identifiers were sixteen links to one page, under a sentence promising
+ * contract by contract. The vault and the pool are still a click away, named
+ * once each in the provenance block under the table, which is where a thing
+ * every row shares belongs.
  *
  * On a phone the second line is the risk pill instead. The reasoning is on
  * `MarketTable`: three figures do not fit 350px as three columns, the risk and
@@ -549,14 +650,14 @@ function SeriesName({ row }: { row: MarketRow }) {
       <span className="empty:hidden lg:hidden">
         <Risk row={row} />
       </span>
-      {row.hashscan === null ? (
+      {row.noteHashscan === null ? (
         <span className="hidden text-caption tabular-nums whitespace-nowrap text-ink-2 lg:block">
           {row.seriesId}
         </span>
       ) : (
         <a
           className="hidden w-fit text-caption tabular-nums whitespace-nowrap text-ink-2 underline-offset-[3px] hover:underline lg:block"
-          href={row.hashscan}
+          href={row.noteHashscan}
           rel="noreferrer"
           target="_blank"
         >
@@ -714,17 +815,44 @@ function Td({
  *
  * It is the index explorer's provenance block for the same reason that page has
  * one: a figure a reader cannot check is a figure they have to take on trust.
- * The month, the source and the topic are what the feed itself said, and the
- * per row link to each vault on HashScan is in the rows above.
+ * The month, the source and the topic are what the feed itself said.
+ *
+ * The first line names the contracts and it is precise about which is which,
+ * because it was not. It said the figures were read contract by contract and
+ * that each row's identifier opened its vault, and all sixteen identifiers
+ * opened the same vault, because there is one. Every word of that was true and
+ * a reader who clicked two rows had been told they would see two contracts. So
+ * the shared pair are named once here, with their identifiers, and a row's own
+ * link is its note, which is the contract that belongs to that series alone.
  */
 function Provenance({ view }: { view: BoardView }) {
-  const { provenance } = view;
+  const { coverPool, provenance, vault } = view;
   const priced = view.rows.some((row) => row.premiumPercent !== null);
+  const banded = view.rows.some((row) => row.premiumTopPercent !== null);
   return (
     <div className="mt-10 flex flex-col gap-2 border-t border-hairline pt-6 text-caption text-ink-2">
       <p>
         The principal, the exposure, the coupons and every holding above are read from Hedera
-        testnet, contract by contract. Each row&apos;s identifier opens its vault on HashScan.
+        testnet. Every series keeps its principal in one collateral vault
+        {vault === null ? null : (
+          <>
+            {', '}
+            <TextLink href={vault.hashscan} rel="noreferrer" target="_blank">
+              {vault.contractId}
+            </TextLink>
+          </>
+        )}
+        , and the cover written on it in one cover pool
+        {coverPool === null ? null : (
+          <>
+            {', '}
+            <TextLink href={coverPool.hashscan} rel="noreferrer" target="_blank">
+              {coverPool.contractId}
+            </TextLink>
+          </>
+        )}
+        . Each series has a note contract of its own, and that is what a row&apos;s identifier
+        opens.
       </p>
       {provenance === null ? (
         <p>The index readings could not be read, so no row carries a risk or a premium rate.</p>
@@ -760,10 +888,14 @@ function Provenance({ view }: { view: BoardView }) {
       )}
       {priced ? (
         <p>
-          The premium rate is the published pricing applied to each occupation&apos;s newest reading
-          and its own committed exposure, the same formula that prices a policy. The rate history
-          beside it is the risk charge alone, month by month, every row on one scale.{' '}
-          <TextLink href="/index">How the index works</TextLink>
+          The premium rate is what a policy sells at: the risk the newest index reading measures,
+          plus what capital requires for standing behind the cover, raised by the capacity already
+          taken. Opening a row shows those steps with this occupation&apos;s own figures in them.
+          {banded
+            ? ' Where capital has split an occupation into experience bands, the column is the range those bands are quoted at, because the series as a whole is then priced at a rate no policy sells at.'
+            : ''}{' '}
+          The rate history beside it is the risk charge alone, month by month, every row on one
+          scale. <TextLink href="/index">How the index works</TextLink>
         </p>
       ) : null}
     </div>

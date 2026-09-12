@@ -74,7 +74,11 @@ describe('the subscribe screen', () => {
     // 50,000 is what `subscriptionOf` returns for this noteholder on testnet.
     // The 25,000 on the slider is never reported as having moved.
     expect(text).toContain('Subscribed 50,000');
-    expect(text).toContain('First coupon 4 September 2026, 328.77');
+    // The settlement asset's own precision, not two decimals. Coupon amounts
+    // are shown exactly everywhere now: a figure rounded for display sat
+    // beside a HashScan receipt that disagreed with it, and six rows rounded
+    // up summed to more than the total above them.
+    expect(text).toContain('First coupon 4 September 2026, 328.767123');
     expect(text).toContain('View the series');
   });
 

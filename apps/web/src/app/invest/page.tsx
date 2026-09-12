@@ -16,6 +16,7 @@ import {
 } from '../../lib/investor-model';
 import { findOccupation } from '../../lib/occupations';
 import { demoInvestorAccount, type WalletAccount } from '../../lib/wallet';
+import { fetchAllBands, type SeriesBandsView } from '../../lib/worker-api';
 import { readBoard } from './board-data';
 import { readRateHistory } from './rate-data';
 import { InvestorOverview, type Market } from './investor-overview';
@@ -111,11 +112,28 @@ export default async function InvestPage({
       investor={investor}
       market={listed === null ? null : readMarket(investor)}
       outcome={outcome}
+      bands={readSeriesBands(requested)}
       rates={occupation === null ? undefined : readRateHistory(occupation.key)}
       series={data.series}
       seriesId={requested}
     />
   );
+}
+
+/**
+ * What capital has put behind each experience band on one series.
+ *
+ * `GET /v1/cover/bands` answers for all fifteen occupations in one free call,
+ * which is why the whole of it is asked for and one series taken out of it
+ * rather than asking per series: the same read serves the board, and the API
+ * charges nothing for either. It is the last step of the price on the series
+ * page, and it fails to null, which costs that step its range and leaves it the
+ * series' own rate.
+ */
+function readSeriesBands(seriesId: string): Promise<SeriesBandsView | null> {
+  return fetchAllBands()
+    .then(({ occupations }) => occupations.find((one) => one.series_id === seriesId) ?? null)
+    .catch(() => null);
 }
 
 /**

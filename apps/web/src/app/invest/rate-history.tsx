@@ -9,12 +9,15 @@ import type { CouponsView, OrderBookView, PositionsView } from '../../lib/invest
 import type { Streamed } from '../../lib/investor-data';
 import {
   latestRate,
+  priceBuildUp,
   rateDomain,
   rateRange,
   rateRangeCaption,
   seriesRealised,
   type RatePoint,
 } from '../../lib/investor-model';
+import type { SeriesView } from '../../lib/investor-api';
+import type { SeriesBandsView } from '../../lib/worker-api';
 
 /**
  * How this occupation got to the rate it is at.
@@ -50,6 +53,10 @@ export interface RateHistorySectionProps {
   readonly rates: Streamed<readonly RatePoint[] | null>;
   readonly coupons: Streamed<CouponsView | null>;
   readonly market: Streamed<Market | null>;
+  /** The chain state, for the capacity step of the price. */
+  readonly series?: Streamed<SeriesView | null>;
+  /** What capital has put behind each experience band, where it was read. */
+  readonly bands?: Streamed<SeriesBandsView | null>;
   readonly seriesId: string;
 }
 
@@ -61,8 +68,10 @@ interface Market {
 
 export function RateHistorySection({
   rates,
+  bands = null,
   coupons,
   market,
+  series = null,
   seriesId,
 }: RateHistorySectionProps) {
   return (
@@ -73,11 +82,74 @@ export function RateHistorySection({
         <Suspense fallback={<ChartResting />}>
           <Chart rates={rates} />
         </Suspense>
-        <Suspense fallback={<RealisedResting />}>
-          <Realised coupons={coupons} market={market} seriesId={seriesId} />
-        </Suspense>
+        {/* The chart's headline and the board's headline are two different
+            numbers about one occupation, and the four steps between them used
+            to be nowhere on the product. They are here, in the column beside
+            the figure a reader arrives confused by. */}
+        <div className="flex flex-col gap-8">
+          <Suspense fallback={<BuildUpResting />}>
+            <BuildUp bands={bands} rates={rates} series={series} />
+          </Suspense>
+          <Suspense fallback={<RealisedResting />}>
+            <Realised coupons={coupons} market={market} seriesId={seriesId} />
+          </Suspense>
+        </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * How the price is built, from the measured risk to what a policy sells at.
+ *
+ * Four rows and no prose. The steps and their captions are composed in
+ * src/lib/investor-model.ts so that nothing here is a phrase this file invented
+ * and no figure here is a second rounding of one the chart already drew: the
+ * risk charge the first row shows is the same number the headline above the
+ * chart shows, passed across rather than worked out again.
+ *
+ * It draws nothing rather than part of itself. A series with no pool registered
+ * has no capacity step and so no price to build, and an index round that did
+ * not answer has no risk charge to start from.
+ */
+function BuildUp({
+  bands,
+  rates,
+  series,
+}: {
+  bands: Streamed<SeriesBandsView | null>;
+  rates: Streamed<readonly RatePoint[] | null>;
+  series: Streamed<SeriesView | null>;
+}) {
+  const points = figureOf(rates);
+  const latest = points === null ? null : latestRate(points);
+  const steps = priceBuildUp(figureOf(series), figureOf(bands), latest?.value ?? null);
+  if (steps.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h3 className="text-secondary text-ink-2">How the price is built</h3>
+      <SurfaceGroup>
+        {steps.map((step) => (
+          <ListRow
+            caption={step.caption ?? undefined}
+            key={step.label}
+            label={step.label}
+            value={<span className="tabular-nums whitespace-nowrap">{step.value}</span>}
+          />
+        ))}
+      </SurfaceGroup>
+    </div>
+  );
+}
+
+/** The heading and four rows of the group, which is what every priced series has. */
+function BuildUpResting() {
+  return (
+    <div className="flex flex-col gap-3" data-testid="investor-resting">
+      <Skeleton className="h-5 w-40" />
+      <Skeleton className="h-[304px] w-full rounded-group" />
+    </div>
   );
 }
 

@@ -12,7 +12,13 @@ import { StatusPill } from '../../components/status-pill';
 import { SurfaceGroup } from '../../components/surface-group';
 import { TextLink } from '../../components/text-link';
 import { formatDayWithYear, formatWholeMoney, shortenAddress } from '../../lib/format';
-import type { CouponsView, SeriesListEntry, SeriesView } from '../../lib/investor-api';
+import type {
+  CouponsView,
+  OrderBookView,
+  PositionsView,
+  SeriesListEntry,
+  SeriesView,
+} from '../../lib/investor-api';
 import type { Streamed } from '../../lib/investor-data';
 import {
   type NextPayment,
@@ -29,9 +35,11 @@ import {
   recordDatesBroughtForward,
   seriesName,
   termLine,
+  type MarketOutcome,
 } from '../../lib/investor-model';
 import { DEMO_WALLET_LABEL, type WalletAccount } from '../../lib/wallet';
 import { SeriesChooser } from './series-chooser';
+import { MarketOutcomeBanner, OfferBook } from './trading';
 
 /**
  * The investor overview, desktop, from the "Investor" block of the copy deck in
@@ -118,6 +126,16 @@ export interface InvestorOverviewProps {
   investor: WalletAccount;
   /** Every series the API serves, so the screen can offer a choice. */
   choices?: readonly SeriesListEntry[];
+  /** The whole order book, for the market section. Null when it could not be read. */
+  market?: Streamed<Market | null>;
+  /** What a trade the person just made did, where they just made one. */
+  outcome?: MarketOutcome | null;
+}
+
+/** The two market reads this screen needs, made together by the route. */
+export interface Market {
+  readonly book: OrderBookView | null;
+  readonly positions: PositionsView | null;
 }
 
 export function InvestorOverview({
@@ -126,6 +144,8 @@ export function InvestorOverview({
   coupons,
   investor,
   choices = [],
+  market = null,
+  outcome = null,
 }: InvestorOverviewProps) {
   // An identifier is not a name. What the series covers comes from the group
   // the API lists it under, through src/lib/occupations.ts, and the list is
@@ -171,11 +191,18 @@ export function InvestorOverview({
             on the first byte with the heading. */}
         <div className="flex flex-wrap items-center gap-4">
           <Suspense fallback={<KycResting />}>
-            <KycPill investor={investor} series={series} />
+            <KycPill
+              investor={investor}
+              market={market}
+              series={series}
+              seriesId={seriesId}
+            />
           </Suspense>
           <PillLink href={subscribeHref}>{INVEST_ACTION}</PillLink>
         </div>
       </header>
+
+      {outcome === null ? null : <MarketOutcomeBanner outcome={outcome} />}
 
       <SeriesChooser base="/invest" choices={choices} current={seriesId} />
 
@@ -232,6 +259,14 @@ export function InvestorOverview({
         </div>
       </section>
 
+      {/* The venue, under the note it trades. It renders only where the book
+          has an offer on this series or this account holds one of its notes,
+          because a heading over an empty market is a market that does not
+          exist. */}
+      <Suspense fallback={null}>
+        <SeriesMarket investor={investor} market={market} seriesId={seriesId} />
+      </Suspense>
+
       <Suspense fallback={<HashScanResting />}>
         <HashScanLinks series={series} />
       </Suspense>
@@ -265,17 +300,31 @@ function isPromised<T>(value: Streamed<T>): value is Promise<T> {
  * read has no register to consult, and the pill says nothing rather than
  * "Verification needed", which would be a claim about an account the note was
  * never asked about.
+ *
+ * The market's position route is asked first where it answered, because it
+ * reads the register off the note for whatever the account holds, and a unit
+ * that arrived by transfer is a holding the series view's configured holder
+ * list does not carry. Without it this pill said "Verification needed" over a
+ * series whose notes the account had just bought and sold.
  */
 function KycPill({
   investor,
+  market,
   series,
+  seriesId,
 }: {
   investor: WalletAccount;
+  market: Streamed<Market | null>;
   series: Streamed<SeriesView | null>;
+  seriesId: string;
 }) {
   const view = figureOf(series);
+  const trading = figureOf(market);
   if (view === null) return null;
-  const granted = holderFor(view, investor.evmAddress)?.kyc.granted === true;
+  const onTheNote =
+    trading?.positions?.positions.find((position) => position.series_id === seriesId)?.kyc
+      .granted ?? null;
+  const granted = onTheNote ?? holderFor(view, investor.evmAddress)?.kyc.granted === true;
   return (
     <StatusPill state={granted ? 'covered' : 'watch'}>
       {granted ? 'KYC approved' : 'Verification needed'}
@@ -548,6 +597,34 @@ function PrincipalResting() {
       <Skeleton className="h-6 w-64 max-w-full" />
       <Skeleton className="h-6 w-40 max-w-full" />
     </div>
+  );
+}
+
+/**
+ * The secondary market for this series.
+ *
+ * The book is read whole and filtered here rather than asked for per series,
+ * because the route reads it once for the page and because the fills of a
+ * series are as much a part of its record as its coupons are. What this account
+ * holds decides whether it is offered a way to sell; the note itself decides
+ * whether it may buy.
+ */
+function SeriesMarket({
+  investor,
+  market,
+  seriesId,
+}: {
+  investor: WalletAccount;
+  market: Streamed<Market | null>;
+  seriesId: string;
+}) {
+  const view = figureOf(market);
+  if (view === null) return null;
+  const held =
+    view.positions?.positions.find((position) => position.series_id === seriesId)?.units_whole ??
+    null;
+  return (
+    <OfferBook address={investor.evmAddress} book={view.book} held={held} seriesId={seriesId} />
   );
 }
 

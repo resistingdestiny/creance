@@ -4,19 +4,28 @@ import { describe, expect, it } from 'vitest';
 import type { BoardView } from '../src/app/invest/board-data.js';
 import { MarketBoard } from '../src/app/invest/market-board.js';
 import { rankByDistance, type ExplorerOccupation } from '../src/lib/explorer-model.js';
-import type { SeriesListEntry, SeriesView } from '../src/lib/investor-api.js';
+import type {
+  OfferView,
+  OrderBookView,
+  SeriesListEntry,
+  SeriesView,
+} from '../src/lib/investor-api.js';
 import {
   MARKET_SORTS,
   marketDirection,
+  marketOutcome,
+  marketQuotes,
   marketRow,
   marketSort,
   nextDirection,
+  offersForSeries,
   premiumRatePercent,
   sortMarketRows,
+  takeState,
   type MarketRow,
 } from '../src/lib/investor-model.js';
 import { demoInvestorAccount } from '../src/lib/wallet.js';
-import { COUPONS, INVESTOR_1, SERIES, money } from './investor-fixtures.js';
+import { COUPONS, INVESTOR_1, INVESTOR_2, SERIES, money } from './investor-fixtures.js';
 
 /** Everything a person reads, with the markup taken out. */
 function visibleText(markup: string): string {
@@ -282,6 +291,29 @@ function board(patch: Partial<BoardView> = {}): BoardView {
       seriesHash: null,
     },
     missing: [],
+    holdings: [
+      {
+        seriesId: 'ODI-COMP-2026-01',
+        name: 'Computer and mathematical',
+        units: '50',
+        subscription: { amount: 50_000_000_000n, decimals: 6 },
+        earned: { total: 997_260_273n, amount: '997.26', coupons: 3 },
+        kycGranted: true,
+        offers: [],
+      },
+    ],
+    settlementBalance: {
+      amount: '196997260273',
+      asset: '0.0.10366463',
+      decimals: 6,
+      display: '196997.260273',
+    },
+    market: {
+      address: '0xe0c2b9e65AB57Bb8b86E0fd152C56Cf9499B6FCf',
+      contract_id: '0.0.10495570',
+      hashscan: 'https://hashscan.io/testnet/contract/0.0.10495570',
+    },
+    counts: { total: 4, open: 1, filled: 3, cancelled: 0 },
     ...patch,
   };
 }
@@ -326,9 +358,12 @@ describe('the market board', () => {
     expect(visibleText(boardMarkup())).not.toMatch(/[\u2013\u2014%]/);
   });
 
-  it('invents no market it cannot read: no book, no bid, no ask, no volume', () => {
+  it('invents no market it cannot read: no bid, no depth, no volume', () => {
+    // The venue holds offers to sell and fills of them. There is no bid side
+    // and no depth to read, so none is drawn. A last traded price is not on
+    // this list: it is a filled offer, which is a record.
     const text = visibleText(boardMarkup()).toLowerCase();
-    for (const word of ['order book', 'bid', 'ask', 'volume', 'last traded', 'spread']) {
+    for (const word of ['order book', 'bid', 'depth', 'volume', 'spread', 'mid price']) {
       expect(text).not.toContain(word);
     }
   });
@@ -352,9 +387,7 @@ describe('the market board', () => {
     expect(text).toContain('Your notes');
     expect(text).toContain('997.26');
 
-    const none = visibleText(
-      boardMarkup(board({ rows: board().rows.map((row) => ({ ...row, position: null })) })),
-    );
+    const none = visibleText(boardMarkup(board({ holdings: [] })));
     expect(none).not.toContain('Your notes');
   });
 
@@ -374,5 +407,213 @@ describe('the market board', () => {
     for (const column of MARKET_SORTS) {
       expect(markup).toContain(`href="/invest?sort=${column}&amp;dir=`);
     }
+  });
+});
+
+/**
+ * The order book as the venue answered it on 12 September 2026: four offers on
+ * ODI-OFFC-2026-01, three of them filled at 1,000, 1,050 and 1,100 a unit and
+ * one still open at 1,150. Trimmed to the fields these screens read.
+ */
+function offer(patch: Partial<OfferView> & { offer_id: string }): OfferView {
+  const price = patch.price ?? money('1000000000');
+  return {
+    status: 'filled',
+    series_id: 'ODI-OFFC-2026-01',
+    series_key: '0x4f44492d4f4646432d323032362d303100000000000000000000000000000000',
+    group: 'office_admin_support',
+    note: {
+      address: '0x508ef4e5639e99f76F74ec56B488Ebaec78ABb75',
+      contract_id: '0.0.10455865',
+      symbol: 'CDBN02',
+      decimals: 6,
+      hashscan: 'https://hashscan.io/testnet/contract/0.0.10455865',
+    },
+    seller: {
+      role: 'investor-2',
+      account_id: '0.0.10366462',
+      address: INVESTOR_2,
+      hashscan: 'https://hashscan.io/testnet/account/0.0.10366462',
+    },
+    buyer: null,
+    units: '1000000',
+    units_whole: '1',
+    price,
+    price_per_unit: price,
+    opened_at: '2026-09-12T07:33:42Z',
+    closed_at: '2026-09-12T07:35:12Z',
+    readiness: null,
+    buyer_eligibility: null,
+    hashscan: 'https://hashscan.io/testnet/contract/0.0.10495570',
+    ...patch,
+  };
+}
+
+/** Newest first, which is the order the route answers in. */
+function orderBook(offers: readonly OfferView[]): OrderBookView {
+  return {
+    network: 'testnet',
+    market: {
+      address: '0xe0c2b9e65AB57Bb8b86E0fd152C56Cf9499B6FCf',
+      contract_id: '0.0.10495570',
+      hashscan: 'https://hashscan.io/testnet/contract/0.0.10495570',
+    },
+    settlement_asset: {
+      token_id: '0.0.10366463',
+      address: '0x00000000000000000000000000000000009e2dff',
+      decimals: 6,
+      symbol: 'TUSD',
+    },
+    offers,
+    counts: {
+      total: offers.length,
+      open: offers.filter((row) => row.status === 'open').length,
+      filled: offers.filter((row) => row.status === 'filled').length,
+      cancelled: 0,
+    },
+  };
+}
+
+const BOOK = orderBook([
+  offer({ offer_id: '4', status: 'open', price: money('1150000000'), closed_at: null }),
+  offer({ offer_id: '3', price: money('1100000000') }),
+  offer({
+    offer_id: '2',
+    units: '2000000',
+    units_whole: '2',
+    price: money('2100000000'),
+    price_per_unit: money('1050000000'),
+  }),
+  offer({
+    offer_id: '1',
+    units: '5000000',
+    units_whole: '5',
+    price: money('5000000000'),
+    price_per_unit: money('1000000000'),
+  }),
+]);
+
+describe('what the market says about a series', () => {
+  it('reads the newest fill as what a unit last changed hands for', () => {
+    const quote = marketQuotes(BOOK).get('ODI-OFFC-2026-01');
+    expect(quote?.lastTraded?.amount).toBe('1100000000');
+    expect(quote?.fills).toBe(3);
+  });
+
+  it('reads the cheapest open offer as what a unit can be bought for', () => {
+    const quote = marketQuotes(BOOK).get('ODI-OFFC-2026-01');
+    expect(quote?.bestAsk?.amount).toBe('1150000000');
+    expect(quote?.unitsForSale).toBe(1);
+  });
+
+  it('says nothing about a series nobody has traded', () => {
+    expect(marketQuotes(BOOK).get('ODI-COMP-2026-01')).toBeUndefined();
+    expect(marketQuotes(null).size).toBe(0);
+  });
+
+  it('puts what can be taken cheapest first and what happened newest first', () => {
+    const { open, filled } = offersForSeries(BOOK, 'ODI-OFFC-2026-01');
+    expect(open.map((row) => row.offer_id)).toEqual(['4']);
+    expect(filled.map((row) => row.offer_id)).toEqual(['3', '2', '1']);
+  });
+});
+
+describe('whether an offer can be taken', () => {
+  const open = offer({ offer_id: '4', status: 'open', closed_at: null });
+
+  it('lets an approved account that is not the seller take it', () => {
+    const eligible = {
+      ...open,
+      buyer_eligibility: { address: INVESTOR_1, role: 'investor-1', kyc_granted: true, reason: null },
+    };
+    expect(takeState(eligible, INVESTOR_1)).toBe('take');
+  });
+
+  it('is the note refusing, not the app, when the register has not approved the buyer', () => {
+    const refused = {
+      ...open,
+      buyer_eligibility: {
+        address: INVESTOR_1,
+        role: 'investor-1',
+        kyc_granted: false,
+        reason: 'no kyc',
+      },
+    };
+    expect(takeState(refused, INVESTOR_1)).toBe('blocked');
+  });
+
+  it('offers the seller a way out rather than a refusal', () => {
+    expect(takeState(open, INVESTOR_2)).toBe('own');
+  });
+
+  it('takes nothing that is not open', () => {
+    expect(takeState(offer({ offer_id: '3' }), INVESTOR_1)).toBe('closed');
+  });
+});
+
+describe('what a trade did', () => {
+  it('takes only codes it knows how to word', () => {
+    expect(marketOutcome('fill_refused')).toBe('fill_refused');
+    expect(marketOutcome('<script>')).toBeNull();
+    expect(marketOutcome(undefined)).toBeNull();
+  });
+});
+
+describe('the market on the board', () => {
+  function traded(): BoardView {
+    const base = board();
+    const quotes = marketQuotes(BOOK);
+    return {
+      ...base,
+      rows: base.rows.map((row) =>
+        row.seriesId === 'ODI-COMP-2026-01'
+          ? { ...row, quote: quotes.get('ODI-OFFC-2026-01') ?? null }
+          : row,
+      ),
+    };
+  }
+
+  it('prints what a note last changed hands for and what is on offer now', () => {
+    const text = visibleText(boardMarkup(traded()));
+    expect(text).toContain('1,100');
+    expect(text).toContain('1 for sale at 1,150');
+  });
+
+  it('leaves the column empty on a series the venue has never seen', () => {
+    const text = visibleText(boardMarkup());
+    expect(text).toContain('Last traded');
+    expect(text).not.toContain('for sale at');
+  });
+
+  it("says what a trade just did, in the product's own words and not the wire's", () => {
+    const markup = renderToStaticMarkup(
+      <MarketBoard
+        board={board()}
+        direction="asc"
+        investor={demoInvestorAccount('investor-1')}
+        outcome="fill_refused"
+        sort="risk"
+      />,
+    );
+    expect(visibleText(markup)).toContain('The note refused the transfer');
+    expect(markup).toContain('data-testid="market-outcome"');
+  });
+
+  it('gives a holding a way on to the market and a way off it', () => {
+    const withOffer = board({
+      holdings: [
+        {
+          ...board().holdings[0]!,
+          seriesId: 'ODI-OFFC-2026-01',
+          name: 'Office and administrative support',
+          units: '4',
+          offers: [offer({ offer_id: '4', status: 'open', price: money('1150000000'), closed_at: null })],
+        },
+      ],
+    });
+    const text = visibleText(boardMarkup(withOffer));
+    expect(text).toContain('On the market');
+    expect(text).toContain('Withdraw');
+    expect(text).toContain('Sell');
   });
 });

@@ -1,16 +1,22 @@
 import type { Metadata } from 'next';
 
-import { fetchSeriesList, type SeriesListView } from '../../lib/investor-api';
+import {
+  fetchOrderBook,
+  fetchPositions,
+  fetchSeriesList,
+  type SeriesListView,
+} from '../../lib/investor-api';
 import { readInvestor, type InvestorData } from '../../lib/investor-data';
 import {
   marketDirection,
+  marketOutcome,
   marketSort,
   type MarketDirection,
   type MarketSort,
 } from '../../lib/investor-model';
-import { demoInvestorAccount } from '../../lib/wallet';
+import { demoInvestorAccount, type WalletAccount } from '../../lib/wallet';
 import { readBoard } from './board-data';
-import { InvestorOverview } from './investor-overview';
+import { InvestorOverview, type Market } from './investor-overview';
 import { MarketBoard } from './market-board';
 import { InvestorUnavailable } from './unavailable';
 
@@ -23,14 +29,15 @@ import { InvestorUnavailable } from './unavailable';
  * could only be made one series at a time.
  *
  * With `?series=` it is that series on its own: the coupon receipts, the terms,
- * the principal at risk and the way in to subscribing. The board is the index
- * to it and every row links here.
+ * the principal at risk, the secondary market for its notes, and the way in to
+ * subscribing. The board is the index to it and every row links here.
  *
- * `?sort=` and `?dir=` put the board in order. They are in the address rather
- * than in a component's state because the screens are server rendered, so the
- * sort costs no client JavaScript, works before hydration and can be sent to
- * somebody. Rubbish in either falls back to the default order rather than
- * erroring: they come off a query string.
+ * `?sort=` and `?dir=` put the board in order, and `?market=` carries what a
+ * trade just did. All three are in the address rather than in a component's
+ * state because the screens are server rendered: the sort costs no client
+ * JavaScript, the trading forms work before hydration, and a sorted board can
+ * be sent to somebody. Rubbish in any of them falls back rather than erroring,
+ * because they come off a query string.
  *
  * The series list is the one read awaited here. It answers in under two
  * milliseconds and it decides which of the two screens this is, so nothing can
@@ -42,20 +49,20 @@ import { InvestorUnavailable } from './unavailable';
 export const metadata: Metadata = {
   title: 'Invest',
   description:
-    'Every occupation side by side: what its cover is priced at, how near its index is to a payout, and what its note has paid. Displacement Bond Notes fund the payouts and noteholders earn the premiums as coupons.',
+    'Every occupation side by side: what its cover is priced at, how near its index is to a payout, what its note has paid, and what a note last changed hands for. Displacement Bond Notes fund the payouts and noteholders earn the premiums as coupons.',
   alternates: { canonical: '/invest' },
 };
 
-// The principal, the reserve and the coupons are live chain state. There is
-// nothing here to prerender.
+// The principal, the reserve, the coupons and the order book are live chain
+// state. There is nothing here to prerender.
 export const dynamic = 'force-dynamic';
 
 export default async function InvestPage({
   searchParams,
 }: {
-  searchParams: Promise<{ series?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{ series?: string; sort?: string; dir?: string; market?: string }>;
 }) {
-  const { series: requested, sort: sortParam, dir } = await searchParams;
+  const { series: requested, sort: sortParam, dir, market } = await searchParams;
   const retryHref =
     requested === undefined ? '/invest' : `/invest?series=${encodeURIComponent(requested)}`;
 
@@ -67,6 +74,7 @@ export default async function InvestPage({
   }
 
   const investor = demoInvestorAccount();
+  const outcome = marketOutcome(market);
 
   if (requested === undefined) {
     const sort: MarketSort = marketSort(sortParam);
@@ -76,6 +84,7 @@ export default async function InvestPage({
         board={readBoard(listing, investor)}
         direction={direction}
         investor={investor}
+        outcome={outcome}
         sort={sort}
       />
     );
@@ -93,10 +102,27 @@ export default async function InvestPage({
       choices={listing.series}
       coupons={data.coupons}
       investor={investor}
+      market={listed ? readMarket(investor) : null}
+      outcome={outcome}
       series={data.series}
       seriesId={requested}
     />
   );
+}
+
+/**
+ * The order book and this account's positions, in flight and not awaited.
+ *
+ * Both are free and both answer in well under a second, and neither is held:
+ * an order book served from a cache would offer a price that has already been
+ * taken. Either failing costs the page its market section and nothing else,
+ * which is what the market routes not being deployed yet looks like.
+ */
+function readMarket(investor: WalletAccount): Promise<Market | null> {
+  return Promise.all([
+    fetchOrderBook({ buyer: investor.evmAddress }).catch(() => null),
+    fetchPositions(investor.evmAddress).catch(() => null),
+  ]).then(([book, positions]) => (book === null ? null : { book, positions }));
 }
 
 /** Both figures absent, which the screen renders as its two cannot-load blocks. */

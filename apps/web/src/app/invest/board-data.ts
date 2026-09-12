@@ -1,7 +1,7 @@
 /**
  * What the market board reads before it can draw a row.
  *
- * Three sources, and no fourth.
+ * Four sources, and no fifth.
  *
  * `GET /v1/series` says which series exist. It is already awaited by the route
  * above this, because it decides whether the page is the board or one series.
@@ -21,18 +21,67 @@
  * the landing page or the explorer pays nothing for its risk column. Buying a
  * second round here would have doubled the cost of the product for one screen.
  *
+ * `GET /v1/market/offers` and `GET /v1/market/positions/:holder` are the
+ * secondary market. Both are free and both answer in well under a second, so
+ * they are read fresh on every view and never held: an order book served from a
+ * cache would offer a price that has already been taken, and a position served
+ * from a cache would still show units that have left the account. They are the
+ * one thing on this page that must be current to the request.
+ *
  * Nothing is composed that a read did not answer. A series the chain could not
  * answer for keeps its name and loses its figures; an occupation the feed had
- * no reading for keeps its figures and loses its risk; and the whole round
- * failing costs the board its risk and price columns and not the board.
+ * no reading for keeps its figures and loses its risk; the index round failing
+ * costs the board its risk and price columns; and the market failing costs it
+ * the traded column and falls the holdings back on what each series' own holder
+ * list says. None of the four costs the board.
  */
 
 import { readExplorer, type ExplorerProvenance } from '../../lib/explorer-data';
 import { rankByDistance, type RankedOccupation } from '../../lib/explorer-model';
-import type { CouponsView, SeriesListView, SeriesView } from '../../lib/investor-api';
+import {
+  fetchOrderBook,
+  fetchPositions,
+  type CouponsView,
+  type Money,
+  type OfferView,
+  type OrderBookView,
+  type PositionsView,
+  type SeriesListView,
+  type SeriesView,
+} from '../../lib/investor-api';
 import { readInvestor } from '../../lib/investor-data';
-import { marketRow, type MarketRow } from '../../lib/investor-model';
+import {
+  earnedToDate,
+  marketQuotes,
+  marketRow,
+  seriesName,
+  type EarnedToDate,
+  type MarketRow,
+} from '../../lib/investor-model';
 import type { WalletAccount } from '../../lib/wallet';
+
+/**
+ * One note this account holds, with everything the screen says about it.
+ *
+ * It is composed here rather than in the screen because it comes from three
+ * reads that fail separately: the units and the note's verdict on the holder
+ * from the market's position route, what was subscribed from the series view,
+ * and what has been paid from the coupon history. A field none of them answered
+ * is null and is a line that does not render.
+ */
+export interface BoardHolding {
+  readonly seriesId: string;
+  readonly name: string | null;
+  /** Whole note units held. */
+  readonly units: string;
+  /** What was subscribed for them, where a series view could be read. */
+  readonly subscription: { readonly amount: bigint; readonly decimals: number } | null;
+  readonly earned: EarnedToDate | null;
+  /** Whether the note's own register has approved this account. Null where unread. */
+  readonly kycGranted: boolean | null;
+  /** This account's own open offers on the series. */
+  readonly offers: readonly OfferView[];
+}
 
 export interface BoardView {
   readonly rows: readonly MarketRow[];
@@ -40,23 +89,24 @@ export interface BoardView {
   readonly provenance: ExplorerProvenance | null;
   /** Group keys the feed had no reading for, so the board can say how many. */
   readonly missing: readonly string[];
+  readonly holdings: readonly BoardHolding[];
+  /** What this account can settle a purchase with, from the market read. */
+  readonly settlementBalance: Money | null;
+  /** The venue itself, so the board can point at the contract the offers live in. */
+  readonly market: OrderBookView['market'];
+  /** How many offers have ever been made, filled and withdrawn. */
+  readonly counts: OrderBookView['counts'] | null;
 }
 
-/**
- * Every row of the board, with its figures.
- *
- * The coupon history is read only for a series that has settled a coupon and
- * that this account holds, which today is one of the sixteen. Reading all of
- * them to find that out would be sixteen calls for fifteen empty answers, and
- * the series view already carries the count that says which is which.
- */
 export async function readBoard(
   listing: SeriesListView,
   investor: WalletAccount,
 ): Promise<BoardView> {
-  const [explorer, series] = await Promise.all([
+  const [explorer, series, book, positions] = await Promise.all([
     readExplorerRound(),
     Promise.all(listing.series.map((entry) => readInvestor(entry.series_id).series)),
+    readBook(investor.evmAddress),
+    readHoldings(investor.evmAddress),
   ]);
 
   const ranked = new Map<string, RankedOccupation>(
@@ -65,21 +115,27 @@ export async function readBoard(
       row,
     ]),
   );
+  const quotes = marketQuotes(book);
 
-  const coupons = await readSettledCoupons(listing, series, investor.evmAddress);
+  const rows = listing.series.map((entry, at) =>
+    marketRow({
+      entry,
+      series: series[at] ?? null,
+      ranked: ranked.get(entry.group) ?? null,
+      coupons: null,
+      quote: quotes.get(entry.series_id) ?? null,
+      address: investor.evmAddress,
+    }),
+  );
 
   return {
-    rows: listing.series.map((entry, at) =>
-      marketRow({
-        entry,
-        series: series[at] ?? null,
-        ranked: ranked.get(entry.group) ?? null,
-        coupons: coupons.get(entry.series_id) ?? null,
-        address: investor.evmAddress,
-      }),
-    ),
+    rows,
     provenance: explorer?.provenance ?? null,
     missing: explorer?.missing ?? [],
+    holdings: await holdingsOf(listing, series, rows, positions, book, investor.evmAddress),
+    settlementBalance: positions?.settlement_balance ?? null,
+    market: book?.market ?? null,
+    counts: book?.counts ?? null,
   };
 }
 
@@ -99,28 +155,111 @@ async function readExplorerRound(): Promise<Awaited<ReturnType<typeof readExplor
   }
 }
 
-async function readSettledCoupons(
+/** The whole book, every status, with this account's eligibility on each offer. */
+async function readBook(address: string): Promise<OrderBookView | null> {
+  try {
+    return await fetchOrderBook({ buyer: address });
+  } catch {
+    return null;
+  }
+}
+
+async function readHoldings(address: string): Promise<PositionsView | null> {
+  try {
+    return await fetchPositions(address);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What this account holds.
+ *
+ * The market's position route is the source where it answered: it reads each
+ * note's balance and its register directly, so it sees a unit that arrived by
+ * transfer, which a series' own configured holder list does not. Where it could
+ * not be read the holdings fall back on that holder list, which is the same
+ * chain state seen from the other end and is what the board showed before there
+ * was a market at all.
+ *
+ * The coupon history is read only for a note that has settled a coupon, which
+ * the series view already says. Reading all sixteen to find that out would be
+ * sixteen calls for fifteen empty answers.
+ */
+async function holdingsOf(
   listing: SeriesListView,
   series: readonly (SeriesView | null)[],
+  rows: readonly MarketRow[],
+  positions: PositionsView | null,
+  book: OrderBookView | null,
   address: string,
-): Promise<Map<string, CouponsView>> {
+): Promise<readonly BoardHolding[]> {
+  interface Held {
+    readonly seriesId: string;
+    readonly units: string;
+    readonly kycGranted: boolean | null;
+  }
+
+  const held: readonly Held[] =
+    positions === null
+      ? rows.flatMap((row) =>
+          row.position === null
+            ? []
+            : [{ seriesId: row.seriesId, units: row.position.units, kycGranted: null }],
+        )
+      : positions.positions.map((position) => ({
+          seriesId: position.series_id,
+          units: position.units_whole,
+          kycGranted: position.kyc.granted,
+        }));
+
+  const viewOf = (id: string): SeriesView | null => {
+    const at = listing.series.findIndex((entry) => entry.series_id === id);
+    return at === -1 ? null : (series[at] ?? null);
+  };
+
+  const coupons = new Map<string, CouponsView>(
+    (
+      await Promise.all(
+        held
+          .filter((holding) => (viewOf(holding.seriesId)?.coupons.settled ?? 0) > 0)
+          .map(async (holding) => {
+            const view = await readInvestor(holding.seriesId).coupons;
+            return [holding.seriesId, view] as const;
+          }),
+      )
+    ).filter((pair): pair is readonly [string, CouponsView] => pair[1] !== null),
+  );
+
   const wanted = address.toLowerCase();
-  const holdsAndHasPaid = listing.series.filter((entry, at) => {
-    const view = series[at] ?? null;
-    if (view === null || view.coupons.settled === 0) return false;
-    return view.holders.some(
-      (holder) => holder.address.toLowerCase() === wanted && BigInt(holder.note_balance) > 0n,
-    );
+  return held.map((holding): BoardHolding => {
+    const view = viewOf(holding.seriesId);
+    const entry = listing.series.find((row) => row.series_id === holding.seriesId) ?? null;
+    const history = coupons.get(holding.seriesId) ?? null;
+    const subscription =
+      view === null
+        ? null
+        : (view.holders.find((row) => row.address.toLowerCase() === wanted)?.subscription ?? null);
+
+    return {
+      seriesId: holding.seriesId,
+      name: entry === null ? null : seriesName(entry),
+      units: holding.units,
+      subscription:
+        subscription === null
+          ? null
+          : { amount: BigInt(subscription.amount), decimals: subscription.decimals },
+      earned: history === null ? null : earnedToDate(history, address),
+      kycGranted: holding.kycGranted,
+      offers:
+        book === null
+          ? []
+          : book.offers.filter(
+              (offer) =>
+                offer.status === 'open' &&
+                offer.series_id === holding.seriesId &&
+                offer.seller.address.toLowerCase() === wanted,
+            ),
+    };
   });
-
-  const read = await Promise.all(
-    holdsAndHasPaid.map(async (entry) => {
-      const view = await readInvestor(entry.series_id).coupons;
-      return [entry.series_id, view] as const;
-    }),
-  );
-
-  return new Map(
-    read.filter((pair): pair is readonly [string, CouponsView] => pair[1] !== null),
-  );
 }

@@ -4,9 +4,12 @@ import { ChevronRight } from '../../components/icons';
 import { DesktopFrame } from '../../components/desktop-frame';
 import { Skeleton } from '../../components/skeleton';
 import { StatusPill } from '../../components/status-pill';
+import { SurfaceGroup } from '../../components/surface-group';
+import { ListRow } from '../../components/list-row';
 import { TextLink } from '../../components/text-link';
 import { stateWord, type ExplorerState } from '../../lib/explorer-model';
 import {
+  formatDayWithYear,
   formatPercent,
   formatPeriod,
   formatPeriodShort,
@@ -14,14 +17,17 @@ import {
 } from '../../lib/format';
 import type { Streamed } from '../../lib/investor-data';
 import {
+  isoDay,
   nextDirection,
   sortMarketRows,
   type MarketDirection,
+  type MarketOutcome,
   type MarketRow,
   type MarketSort,
 } from '../../lib/investor-model';
 import { DEMO_WALLET_LABEL, type WalletAccount } from '../../lib/wallet';
-import type { BoardView } from './board-data';
+import type { BoardHolding, BoardView } from './board-data';
+import { SellNotes, MarketOutcomeBanner, WithdrawButton } from './trading';
 
 /**
  * The market board: every series the API lists, as one row each.
@@ -68,9 +74,17 @@ export interface MarketBoardProps {
   investor: WalletAccount;
   sort: MarketSort;
   direction: MarketDirection;
+  /** What a trade the person just made did, where they just made one. */
+  outcome?: MarketOutcome | null;
 }
 
-export function MarketBoard({ board, investor, sort, direction }: MarketBoardProps) {
+export function MarketBoard({
+  board,
+  investor,
+  sort,
+  direction,
+  outcome = null,
+}: MarketBoardProps) {
   return (
     <DesktopFrame current="invest">
       <header className="flex flex-col gap-1 border-b border-hairline pb-6">
@@ -79,6 +93,8 @@ export function MarketBoard({ board, investor, sort, direction }: MarketBoardPro
         </h1>
         <p className="text-body text-ink-2">{BOARD_LINE}</p>
       </header>
+
+      {outcome === null ? null : <MarketOutcomeBanner outcome={outcome} />}
 
       <Suspense fallback={<BoardResting />}>
         <Board board={board} direction={direction} investor={investor} sort={sort} />
@@ -112,11 +128,10 @@ function Board({
 }) {
   const view = figureOf(board);
   const rows = sortMarketRows(view.rows, sort, direction);
-  const held = view.rows.filter((row) => row.position !== null);
 
   return (
     <>
-      {held.length === 0 ? null : <Positions investor={investor} rows={held} />}
+      {view.holdings.length === 0 ? null : <Positions investor={investor} view={view} />}
       <section className="mt-10">
         <h2 className="mb-4 text-body-lg font-medium text-ink">All occupations</h2>
         <MarketTable direction={direction} rows={rows} sort={sort} />
@@ -127,61 +142,121 @@ function Board({
 }
 
 /**
- * What this account holds, read off each note's own holder list.
+ * What this account holds, and what it can do with it.
  *
  * It stands above the board because a person who already has a position reads
  * it first, and because this is where a secondary market belongs: an offer is
  * made against a holding, and the holdings are here.
+ *
+ * These are blocks and not a table, which is the opposite of the decision the
+ * board itself makes twenty lines down, and for the opposite reason. The board
+ * is sixteen rows of six figures and the question there is a column question.
+ * This is two notes with four figures and two controls each, and a control does
+ * not belong in a cell: a form needs room for its fields and a person needs to
+ * see which holding they are selling out of.
  */
-function Positions({
-  investor,
-  rows,
-}: {
-  investor: WalletAccount;
-  rows: readonly MarketRow[];
-}) {
+function Positions({ investor, view }: { investor: WalletAccount; view: BoardView }) {
   return (
     <section className="mt-10">
       <h2 className="mb-4 text-body-lg font-medium text-ink">Your notes</h2>
-      <div className="overflow-x-auto" role="region" tabIndex={0} aria-label="Your notes">
-        <table className="w-full min-w-[26rem] border-collapse text-body">
-          <caption className="sr-only">Notes held by {investor.accountId}</caption>
-          <thead>
-            <tr className="border-b border-hairline">
-              <Th>Occupation</Th>
-              <Th numeric>Notes</Th>
-              <Th numeric>Subscribed</Th>
-              <Th numeric>Earned</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr className="border-b border-hairline" key={row.seriesId}>
-                <Td>
-                  <SeriesName row={row} />
-                </Td>
-                <Td numeric>{row.position?.units}</Td>
-                <Td numeric>
-                  {row.position === null
-                    ? null
-                    : formatWholeMoney(row.position.subscription, row.position.decimals)}
-                </Td>
-                {/* Nothing settled is not nought: fifteen of the sixteen notes
-                    have paid no coupon at all, and a 0.00 in this column would
-                    read as a note that pays nothing rather than as one that has
-                    not paid yet. */}
-                <Td numeric>{row.position?.earned?.amount ?? null}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {view.holdings.map((holding) => (
+          <Holding holding={holding} key={holding.seriesId} />
+        ))}
       </div>
-      <p className="mt-3 text-secondary text-ink-2">
+      <p className="mt-4 text-secondary text-ink-2">
         <span className="tabular-nums">{investor.accountId}</span>
+        {view.settlementBalance === null ? null : (
+          <>
+            {', '}
+            <span className="tabular-nums">
+              {formatWholeMoney(
+                BigInt(view.settlementBalance.amount),
+                view.settlementBalance.decimals,
+              )}
+            </span>
+            {' to settle with'}
+          </>
+        )}
         {'. '}
         {DEMO_WALLET_LABEL}
       </p>
     </section>
+  );
+}
+
+/**
+ * One note held: the figures, then what can be done with it.
+ *
+ * Every figure is a read. The units and the note's verdict on this account come
+ * from the market's position route, which reads the note itself, so a unit that
+ * arrived by transfer is counted; what was subscribed comes from the series
+ * view; what has been earned comes from the coupon history and is absent rather
+ * than nought where nothing has settled.
+ */
+function Holding({ holding }: { holding: BoardHolding }) {
+  const offer = holding.offers[0] ?? null;
+  return (
+    <div className="flex flex-col gap-4 rounded-2xl border border-hairline p-5">
+      <div className="flex items-start justify-between gap-4">
+        <span className="flex flex-col gap-0.5">
+          <a
+            className="inline-flex w-fit items-center gap-1 text-body font-medium text-ink underline-offset-[3px] hover:underline"
+            href={`/invest?series=${encodeURIComponent(holding.seriesId)}`}
+          >
+            {holding.name ?? holding.seriesId}
+            <ChevronRight className="shrink-0 text-ink-3" />
+          </a>
+          <span className="text-caption tabular-nums text-ink-2">{holding.seriesId}</span>
+        </span>
+        <span className="flex flex-col items-end">
+          <span className="font-display text-title font-semibold tracking-title tabular-nums text-ink">
+            {holding.units}
+          </span>
+          <span className="text-caption text-ink-2">
+            {Number(holding.units) === 1 ? 'note' : 'notes'}
+          </span>
+        </span>
+      </div>
+
+      <SurfaceGroup>
+        {holding.subscription === null ? null : (
+          <ListRow
+            label="Subscribed"
+            value={formatWholeMoney(
+              holding.subscription.amount,
+              holding.subscription.decimals,
+            )}
+          />
+        )}
+        {/* Nothing settled is not nought: fifteen of the sixteen notes have
+            paid no coupon at all, and a 0.00 here would read as a note that
+            pays nothing rather than as one that has not paid yet. */}
+        {holding.earned === null ? null : (
+          <ListRow label="Earned" value={holding.earned.amount} />
+        )}
+        {offer === null ? null : (
+          <ListRow
+            caption={`Offered ${formatDayWithYear(isoDay(offer.opened_at))}`}
+            label="On the market"
+            value={`${offer.units_whole} at ${formatWholeMoney(
+              BigInt(offer.price_per_unit.amount),
+              offer.price_per_unit.decimals,
+            )}`}
+          />
+        )}
+      </SurfaceGroup>
+
+      <div className="flex flex-wrap items-center gap-4">
+        {offer === null ? null : <WithdrawButton back="board" offer={offer} />}
+        <SellNotes
+          back="board"
+          compact={offer !== null}
+          seriesId={holding.seriesId}
+          units={holding.units}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -220,16 +295,16 @@ function MarketTable({
               Premium rate
             </SortableTh>
             <SortableTh column="capacity" direction={direction} numeric sort={sort} wide>
-              Capacity used
+              Capacity
             </SortableTh>
             <SortableTh column="principal" direction={direction} numeric sort={sort} wide>
               Principal
             </SortableTh>
-            <SortableTh column="paid" direction={direction} numeric sort={sort} wide>
-              Paid out
-            </SortableTh>
             <SortableTh column="coupon" direction={direction} numeric sort={sort} wide>
               Coupon
+            </SortableTh>
+            <SortableTh column="traded" direction={direction} numeric sort={sort}>
+              Last traded
             </SortableTh>
           </tr>
         </thead>
@@ -249,19 +324,71 @@ function MarketTable({
                 {row.capacityPercent === null ? null : formatPercent(row.capacityPercent)}
               </Td>
               <Td numeric wide>
-                {row.funded === null ? null : formatWholeMoney(row.funded, row.decimals)}
-              </Td>
-              <Td numeric wide>
-                {row.paid === null ? null : formatWholeMoney(row.paid, row.decimals)}
+                <Principal row={row} />
               </Td>
               <Td numeric wide>
                 {row.couponPercent === null ? null : formatPercent(row.couponPercent)}
+              </Td>
+              <Td numeric>
+                <Traded row={row} />
               </Td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * The principal behind the series, and what claims have already taken out of it.
+ *
+ * The two were columns of their own until the market gave the board something
+ * to say. Claims have taken nothing from fifteen of the sixteen, so a column of
+ * noughts was buying a seventh of the width to say almost nothing; as a caption
+ * it renders only where there is something to report.
+ */
+function Principal({ row }: { row: MarketRow }) {
+  if (row.funded === null) return null;
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span>{formatWholeMoney(row.funded, row.decimals)}</span>
+      {row.paid === null || row.paid === 0n ? null : (
+        <span className="text-caption text-ink-2">
+          {formatWholeMoney(row.paid, row.decimals)} paid out
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * What a note of this series last changed hands for, and what it can be bought
+ * for now.
+ *
+ * A filled offer is the only record of what a unit was worth to somebody, which
+ * is why the book is read with its fills and not only its open side. The
+ * caption is the live half: an offer standing today, at a price a person can
+ * act on by opening the series. A series nobody has ever traded carries neither
+ * and the cell is empty, because there is no price to print.
+ */
+function Traded({ row }: { row: MarketRow }) {
+  const quote = row.quote;
+  if (quote === null || (quote.lastTraded === null && quote.bestAsk === null)) return null;
+  return (
+    <span className="flex flex-col gap-0.5">
+      <span>
+        {quote.lastTraded === null
+          ? null
+          : formatWholeMoney(BigInt(quote.lastTraded.amount), quote.lastTraded.decimals)}
+      </span>
+      {quote.bestAsk === null ? null : (
+        <span className="text-caption whitespace-nowrap text-ink-2">
+          {quote.unitsForSale} for sale at{' '}
+          {formatWholeMoney(BigInt(quote.bestAsk.amount), quote.bestAsk.decimals)}
+        </span>
+      )}
+    </span>
   );
 }
 

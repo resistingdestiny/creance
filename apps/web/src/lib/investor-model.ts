@@ -18,7 +18,16 @@ import {
   formatWholeMoney,
 } from './format';
 import type { ExplorerState, RankedOccupation } from './explorer-model';
-import type { CouponsView, HolderView, SeriesKind, SeriesListEntry, SeriesView } from './investor-api';
+import type {
+  CouponsView,
+  HolderView,
+  Money,
+  OfferView,
+  OrderBookView,
+  SeriesKind,
+  SeriesListEntry,
+  SeriesView,
+} from './investor-api';
 import { findOccupation } from './occupations';
 
 import { guideRate, marketRate } from '@creance/index-model/src/pricing';
@@ -353,6 +362,186 @@ export function firstSettledCoupon(
  * product is the point of that module.
  * ------------------------------------------------------------------------- */
 
+/**
+ * What the secondary market says about one series.
+ *
+ * Two facts, and both are records rather than opinions: the cheapest unit
+ * anybody is asking for today, and what a unit last actually changed hands for.
+ * There is no bid here and no depth, because the venue holds offers to sell and
+ * fills of them and nothing else, and a page that drew a book it does not have
+ * would be drawing a picture.
+ */
+export interface MarketQuote {
+  /** The lowest price per unit on offer now, or null with no open offer. */
+  readonly bestAsk: Money | null;
+  /** Whole note units on offer across every open offer on the series. */
+  readonly unitsForSale: number;
+  /** What a unit last changed hands for, or null where none ever has. */
+  readonly lastTraded: Money | null;
+  /** When that fill settled, as an RFC 3339 instant. */
+  readonly lastTradedAt: string | null;
+  /** How many fills the series has ever had. */
+  readonly fills: number;
+}
+
+/**
+ * The board's market column, one entry per series the book has an offer on.
+ *
+ * The order book arrives newest first and carries every offer ever made, which
+ * is what makes a last traded price readable at all: a filled offer is the only
+ * record of what a unit was worth to somebody. Offers the book cannot attribute
+ * to a series are skipped rather than pooled.
+ */
+export function marketQuotes(book: OrderBookView | null): ReadonlyMap<string, MarketQuote> {
+  const quotes = new Map<string, MarketQuote>();
+  if (book === null) return quotes;
+
+  for (const offer of book.offers) {
+    const id = offer.series_id;
+    if (id === null) continue;
+    const current = quotes.get(id) ?? {
+      bestAsk: null,
+      unitsForSale: 0,
+      lastTraded: null,
+      lastTradedAt: null,
+      fills: 0,
+    };
+
+    if (offer.status === 'open') {
+      const cheaper =
+        current.bestAsk === null ||
+        BigInt(offer.price_per_unit.amount) < BigInt(current.bestAsk.amount);
+      quotes.set(id, {
+        ...current,
+        bestAsk: cheaper ? offer.price_per_unit : current.bestAsk,
+        unitsForSale: current.unitsForSale + Number(offer.units_whole),
+      });
+      continue;
+    }
+
+    if (offer.status !== 'filled') continue;
+    quotes.set(id, {
+      ...current,
+      fills: current.fills + 1,
+      // Newest first, so the first fill seen for a series is the last one made.
+      lastTraded: current.lastTraded ?? offer.price_per_unit,
+      lastTradedAt: current.lastTradedAt ?? offer.closed_at,
+    });
+  }
+  return quotes;
+}
+
+/** The offers on one series, open cheapest first and fills newest first. */
+export function offersForSeries(
+  book: OrderBookView | null,
+  seriesId: string,
+): { readonly open: readonly OfferView[]; readonly filled: readonly OfferView[] } {
+  const mine = book === null ? [] : book.offers.filter((offer) => offer.series_id === seriesId);
+  return {
+    open: mine
+      .filter((offer) => offer.status === 'open')
+      .sort((left, right) =>
+        BigInt(left.price_per_unit.amount) < BigInt(right.price_per_unit.amount) ? -1 : 1,
+      ),
+    // Already newest first, which is the order the book answers in.
+    filled: mine.filter((offer) => offer.status === 'filled'),
+  };
+}
+
+/**
+ * Whether this account may take an offer, and why not where it may not.
+ *
+ * `blocked` is the note's own register speaking, not ours: the API reads the
+ * KYC status off the note and refuses before anything is signed, and the note
+ * reverts the transfer leg with the same answer if a call ever got past it. The
+ * sentence says so, because a person told only "you can't" assumes the app is
+ * broken.
+ *
+ * `own` is not a refusal at all. An account cannot buy from itself, and the
+ * thing to offer it is the way to withdraw the offer instead.
+ */
+export type TakeState = 'take' | 'own' | 'blocked' | 'closed';
+
+export function takeState(offer: OfferView, address: string): TakeState {
+  if (offer.status !== 'open') return 'closed';
+  if (offer.seller.address.toLowerCase() === address.toLowerCase()) return 'own';
+  return offer.buyer_eligibility?.kyc_granted === false ? 'blocked' : 'take';
+}
+
+/**
+ * What a write to the market did, as a code and never as a sentence.
+ *
+ * The trading forms are plain forms and the screens have no client JavaScript,
+ * so the answer to a write comes back in the address. A message in a query
+ * string is a message a stranger can put on somebody else's screen, so what
+ * travels is one of these codes and the words are written here. Two are ours,
+ * the rest are the API's own problem codes, and `failed` is anything else.
+ */
+export const MARKET_OUTCOMES = [
+  'filled',
+  'offered',
+  'withdrawn',
+  'fill_refused',
+  'insufficient_settlement_balance',
+  'offer_not_open',
+  'seller_cannot_fill',
+  'units_not_held',
+  'not_the_seller',
+  'market_writes_unavailable',
+  'invalid',
+  'failed',
+] as const;
+
+export type MarketOutcome = (typeof MARKET_OUTCOMES)[number];
+
+export function marketOutcome(value: string | undefined): MarketOutcome | null {
+  return MARKET_OUTCOMES.includes(value as MarketOutcome) ? (value as MarketOutcome) : null;
+}
+
+export interface MarketOutcomeMessage {
+  /** Whether the thing the person asked for happened. */
+  readonly done: boolean;
+  readonly line: string;
+}
+
+/**
+ * The sentence for an outcome.
+ *
+ * `fill_refused` is the one that matters and it is not worded as a failure of
+ * this app, because it is not one: the note keeps its own register of who may
+ * hold it, the API asks the note before it signs anything, and the note would
+ * revert the transfer on the same rule if a call ever got past. That control
+ * working is the thing the product is demonstrating, so the sentence names the
+ * note as the thing that refused.
+ */
+const OUTCOME_MESSAGES: Record<MarketOutcome, MarketOutcomeMessage> = {
+  filled: { done: true, line: 'Taken. The notes are in your account and the payment has settled.' },
+  offered: { done: true, line: 'Your notes are on the market.' },
+  withdrawn: { done: true, line: 'Offer withdrawn. The notes are yours again.' },
+  fill_refused: {
+    done: false,
+    line: 'The note refused the transfer. It keeps its own register of who may hold it and your account is not on it, so nothing was signed and no money moved.',
+  },
+  insufficient_settlement_balance: {
+    done: false,
+    line: 'Not enough in the account to settle that, so nothing was signed.',
+  },
+  offer_not_open: { done: false, line: 'That offer is no longer open.' },
+  seller_cannot_fill: { done: false, line: 'That is your own offer. Withdraw it instead.' },
+  units_not_held: { done: false, line: 'You do not hold that many notes.' },
+  not_the_seller: { done: false, line: 'Only the account that made an offer can withdraw it.' },
+  market_writes_unavailable: {
+    done: false,
+    line: 'The market cannot take an instruction right now. The book below is still live.',
+  },
+  invalid: { done: false, line: 'That is not something this market can act on.' },
+  failed: { done: false, line: 'That did not go through. Nothing was signed.' },
+};
+
+export function marketOutcomeMessage(outcome: MarketOutcome): MarketOutcomeMessage {
+  return OUTCOME_MESSAGES[outcome];
+}
+
 /** What this account holds of one series, from the series' own holder list. */
 export interface MarketPosition {
   /** Whole notes held, as the note reports them. */
@@ -392,6 +581,8 @@ export interface MarketRow {
   /** The vault on HashScan, so a row's figures can be read off the chain. */
   readonly hashscan: string | null;
   readonly position: MarketPosition | null;
+  /** What the secondary market has done on this series, or null where nothing. */
+  readonly quote: MarketQuote | null;
 }
 
 /**
@@ -442,6 +633,7 @@ export function marketRow(input: {
   readonly series: SeriesView | null;
   readonly ranked: RankedOccupation | null;
   readonly coupons: CouponsView | null;
+  readonly quote?: MarketQuote | null;
   readonly address: string;
 }): MarketRow {
   const { entry, series, ranked, coupons, address } = input;
@@ -466,6 +658,7 @@ export function marketRow(input: {
     decimals: series?.vault.principal_funded.decimals ?? 6,
     couponPercent: coupon !== null && Number.isFinite(coupon) ? coupon : null,
     hashscan: series?.vault.hashscan ?? null,
+    quote: input.quote ?? null,
     position:
       holder === null || BigInt(holder.note_balance) <= 0n
         ? null
@@ -485,8 +678,8 @@ export const MARKET_SORTS = [
   'premium',
   'capacity',
   'principal',
-  'paid',
   'coupon',
+  'traded',
   'name',
 ] as const;
 
@@ -506,8 +699,8 @@ const SORT_DEFAULT_DIRECTION: Record<MarketSort, MarketDirection> = {
   premium: 'desc',
   capacity: 'desc',
   principal: 'desc',
-  paid: 'desc',
   coupon: 'desc',
+  traded: 'desc',
   name: 'asc',
 };
 
@@ -541,13 +734,22 @@ function valueOf(row: MarketRow, sort: MarketSort): number | null {
       return row.capacityPercent;
     case 'principal':
       return row.funded === null ? null : Number(row.funded);
-    case 'paid':
-      return row.paid === null ? null : Number(row.paid);
     case 'coupon':
       return row.couponPercent;
+    case 'traded':
+      // The best ask where there is one, because that is the price a person
+      // could act on today; the last fill otherwise, because that is the only
+      // other real price the series has. A series with neither sorts last.
+      return quotedPrice(row.quote);
     case 'name':
       return null;
   }
+}
+
+function quotedPrice(quote: MarketQuote | null): number | null {
+  if (quote === null) return null;
+  const price = quote.bestAsk ?? quote.lastTraded;
+  return price === null ? null : Number(price.amount);
 }
 
 /**

@@ -99,6 +99,25 @@ describe('the round of fifteen', () => {
     expect(round.readings).toHaveLength(14);
     expect(round.missing).toEqual(['legal']);
   });
+
+  it('refuses to hold a round that read nothing at all', async () => {
+    // One occupation the feed cannot serve costs the page one row, which is the
+    // test above. The cost of catching each of them is that a total failure
+    // also resolves, carrying no readings, and the hold would then keep that
+    // empty answer for its whole window. That is what a deploy produced: the
+    // web app came up against an API still starting, all sixteen reads failed,
+    // and the board served empty columns for ten minutes with the API healthy.
+    fetchIndex.mockRejectedValue(new Error('no answer'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(readExplorerIndex(0)).rejects.toThrow(/could not read any/);
+
+    // Dropped rather than held, so the next read tries again instead of
+    // serving the emptiness back.
+    fetchIndex.mockImplementation((group: string) => Promise.resolve(READINGS.get(group)));
+    const round = await readExplorerIndex(1);
+    expect(round.readings.length).toBeGreaterThan(0);
+  });
 });
 
 describe('the replay badge', () => {

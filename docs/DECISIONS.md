@@ -7175,3 +7175,85 @@ value rather than to a range, so the next hand that finds the wash too wide has
 to argue with Root rather than with a tolerance. What stays from the two
 rebuilds is everything that was not about how it looks: the pause when the card
 is off screen or turned away, and the shift the turn writes into the travel.
+
+### Seniority is a capital decision, not an index measurement
+
+Root asked for cover segmented by seniority: 0 to 5 years of experience, 5 to
+25, and 25 or more.
+
+The index cannot support it. The CPS catalogue this product settles on,
+data/bls/raw/ln.series.gz, carries 739 unemployment rate series with an
+occupation code and 819 unemployed level series with one. Of those, zero also
+carry an age code. There is no published occupation-by-age unemployment rate and
+none can be derived, because the numerator does not exist. The catalogue's own
+experience field is binary, experienced against inexperienced labour force, and
+is not years. Seniority therefore cannot enter the trigger, the settlement or
+the payout, and it does not: all three are identical in every band, and a policy
+in one band pays exactly what a policy in another pays, on exactly the same
+reading of exactly the same index.
+
+What it can honestly enter is the other half of the price. The rate has always
+been two terms that mean different things. `guideRate(distance)` is what the
+risk is measured to be worth, from public files anyone can recompute.
+`marketRate(guide, utilisation)` is what capital will take it for, and
+utilisation was already exposure over the principal behind it, which is an
+expression of appetite rather than a measurement of the world. Segmenting that
+by band claims nothing about unemployment. It says capital's appetite differs by
+band, which is a fact about capital.
+
+So the rule, and it holds everywhere in the product: **a band changes what you
+pay, it never changes whether you are paid.**
+
+**No multiplier exists.** A band is dearer, cheaper or unavailable because real
+capital did or did not commit to it, in exactly the way utilisation has always
+worked. A table of band factors that somebody chose would be a market that does
+not exist dressed as one that does, which is the failure this product is built
+to avoid. The four inputs are the vault's principal and the pool's exposure,
+both read from the chain, and two sums over rows: `band_subscriptions` for the
+capital committed per band, and `policies.band` for the exposure written in
+each. apps/api/src/capacity.ts is the arithmetic and carries the argument.
+
+**Unallocated capital stands behind all three bands.** Capital that named no
+band is capital that will take any band, so it is not divided between them and
+not reserved to one: whichever band sells first draws on it. The consequence
+that matters is that nothing changed the day this shipped. With no band
+subscriptions and no banded policies, every band's utilisation is the series
+utilisation to the last digit, so all three price exactly as this product priced
+before the question existed, and so does a quote that names no band at all. The
+three capital figures then sum to more than the principal, which is not
+overselling: the series total is still the cap and is still checked twice, once
+in `reservePolicy` and once by `CoverPool.bind`.
+
+**An unfunded band is a real state and is shown rather than hidden.** Once
+capital has allocated the whole principal to two bands the third has nothing
+behind it, so it has no utilisation, no price and nothing to sell. It is not an
+error, it is not a zero, and it is not drawn as either: the experience screen
+says so on the band's own row before anything is pressed, in the same register
+as "No cover behind this occupation yet." on the occupation picker. Cover
+existing for one length of experience and not another is capital pricing and
+refusing risk in public, which is what an insurance market does and what almost
+nothing on a screen ever shows.
+
+**Backwards compatibility, decided rather than inherited.** `policies.band` and
+`quotes.band` are nullable and null means "named no band". Every policy bound
+before this, including the published example cover, keeps every term it had: the
+band was never part of its trigger or its payout, and its exposure sits against
+the capital that named no band, which is where it always sat. The same is true
+of the existing vault subscriptions, which named a series and no band and are
+therefore the unallocated capital above. `band` is optional on `POST /v1/quote`
+for the same reason and not as a convenience: a caller that names no band is
+priced against the capital that named none. It stops being priceable only when
+capital has allocated everything to bands, at which point the refusal says so
+and asks for a band, which is the honest answer rather than a stale one.
+
+**What the product may never say.** Nothing in it may imply the index measures
+seniority, or that a band changes eligibility, the trigger or the payout. The
+one sentence on the experience screen is "This changes the price, not the
+payout." The limitation is stated in docs/INDEX.md, which is generated from
+packages/index-model/src/report.ts, and in the pricing module's own comment.
+
+There is a real finding that the best evidence of AI displacement so far is
+concentrated in workers in their early twenties. It is not in this product and
+must not be put there. This build cannot measure it, the index has no age
+breakdown at all, and an unfunded junior band is capital's judgment and not
+this index's.

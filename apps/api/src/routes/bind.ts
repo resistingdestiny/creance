@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 
+import { capacityFor, readSeriesCapacity } from '../capacity.js';
 import { findSeries } from '../config.js';
 import { newCoverKey } from '../cover-key.js';
 import type { PaymentRow, PolicyRow } from '../db/types.js';
@@ -189,6 +190,10 @@ export async function bind(
     policyId,
     seriesId: quote.seriesId,
     groupKey: quote.groupKey,
+    // Carried from the quote, never from the request. The band decided the
+    // price the quote struck, so taking it from anywhere else would let a
+    // caller bind one band's price into another band's book.
+    band: quote.band,
     nullifier: credential.nullifier,
     wallet: credential.wallet,
     walletEvm: credential.wallet_evm,
@@ -241,12 +246,22 @@ export async function bind(
     walletEvm: credential.wallet_evm,
   });
 
+  // The band's capacity is re-read here rather than trusted from the quote: a
+  // quote takes no hold, so the capital behind its band can have been drawn on
+  // by somebody else in the fifteen minutes since the price was struck.
+  const capacity = capacityFor(
+    await readSeriesCapacity(services.repository, quote.seriesId, state),
+    quote.band,
+  );
+
   await services.repository.reservePolicy({
     policy,
     credentialJti: credential.jti,
     quoteId: quote.quoteId,
     activeExposure: state.activeExposure.toString(),
     principalRemaining: state.principalRemaining.toString(),
+    bandExposure: capacity.exposure.toString(),
+    bandCapital: capacity.capital.toString(),
     payment,
   });
 

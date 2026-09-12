@@ -9,6 +9,7 @@ import { replayRoutes } from './replay/index.js';
 import { agentDocsRoutes } from './routes/agent-docs.js';
 import { attributionRoutes } from './routes/attribution.js';
 import { auditRoutes } from './routes/audit.js';
+import { bandRoutes } from './routes/bands.js';
 import { bindRoutes } from './routes/bind.js';
 import { coverRoutes } from './routes/cover.js';
 import { indexRoutes } from './routes/index-feed.js';
@@ -76,6 +77,7 @@ export async function buildServer(
   await app.register(opsRoutes, { services });
   await app.register(indexHealthRoutes, { services });
   await app.register(indexRoutes, { services });
+  await app.register(bandRoutes, { services });
   await app.register(quoteRoutes, { services });
   await app.register(bindRoutes, { services });
   await app.register(policyRoutes, { services });

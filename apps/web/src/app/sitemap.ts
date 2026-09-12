@@ -10,8 +10,8 @@ import type { MetadataRoute } from 'next';
  *
  * - /gallery and /home/demo say noindex themselves, the one because it is a
  *   component sheet and the other because it prints cover keys in its markup.
- * - /amount, /verify and /pay redirect to /occupation without a purchase
- *   session, /claim and everything under it redirects without a cover, and
+ * - /experience, /amount, /verify and /pay redirect to /occupation without a
+ *   purchase session, /claim and everything under it redirects without a cover, and
  *   /cover/index redirects to the front door, so a crawler would never see a
  *   page at any of them.
  * - /receipt/[policyId] and /admin/claims belong to one person.

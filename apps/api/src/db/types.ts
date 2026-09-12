@@ -1,3 +1,5 @@
+import type { SeniorityBand } from '@creance/index-model';
+
 /// The rows the policy endpoints read and write, and the interface behind
 /// which they live.
 ///
@@ -99,10 +101,44 @@ export interface CoverKeyRow {
   createdAt: string;
 }
 
+/**
+ * One commitment of capital to one experience band of one series.
+ *
+ * The vault holds the money against the series and knows nothing of bands, so
+ * this is the record of which band that capital will take. Principal with no
+ * row here is unallocated and stands behind all three bands. See
+ * apps/api/src/capacity.ts.
+ */
+export interface BandSubscriptionRow {
+  subscriptionId: string;
+  /** The series label, the same string `policies.seriesId` carries. */
+  seriesId: string;
+  band: SeniorityBand;
+  /** The account that committed it, as it identifies itself on chain. */
+  holder: string;
+  /** Minor units of the settlement asset. */
+  amount: string;
+  /** The vault subscription this belongs to, where there is one. */
+  chainTx: string | null;
+  createdAt: string;
+}
+
+/** Exposure written in one band, as `bandExposure` sums it. */
+export interface BandExposureRow {
+  band: SeniorityBand;
+  amount: string;
+}
+
 export interface QuoteRow {
   quoteId: string;
   seriesId: string;
   groupKey: string;
+  /**
+   * The experience band the price was struck in, or null for a quote that
+   * named none. Null is priced against the capital that named no band, which
+   * is what every quote before bands existed was priced against.
+   */
+  band: SeniorityBand | null;
   wallet: string;
   walletEvm: string | null;
   coverLimit: string;
@@ -179,6 +215,12 @@ export interface PolicyRow {
   policyId: string;
   seriesId: string;
   groupKey: string;
+  /**
+   * The band the cover was written in, or null for a policy bound before the
+   * question was asked. A null policy keeps every term it had: the band was
+   * never part of the trigger or the payout, only of the price.
+   */
+  band: SeniorityBand | null;
   nullifier: string;
   wallet: string;
   walletEvm: string;
@@ -425,6 +467,17 @@ export interface ReservePolicyInput {
   activeExposure: string;
   /** The principal still behind the series, in minor units. */
   principalRemaining: string;
+  /**
+   * The same two amounts for the band this policy is written in, or for the
+   * capital that named no band when the policy names none.
+   *
+   * Both checks are taken, the series one and the band one. The series one
+   * mirrors what `CoverPool.bind` will enforce a moment later and is the one
+   * that cannot be argued with; the band one is this system's own rule and
+   * stops a band being sold past the capital that actually chose it.
+   */
+  bandExposure: string;
+  bandCapital: string;
   payment: PaymentRow;
 }
 
@@ -438,6 +491,24 @@ export interface Repository {
   credential(jti: string): Promise<CredentialRow | null>;
   insertQuote(row: QuoteRow): Promise<void>;
   quote(quoteId: string): Promise<QuoteRow | null>;
+  /**
+   * Record capital committed to one band of one series.
+   *
+   * The only way a band gets capital. There is no default allocation, no
+   * migration that assigns one and no multiplier standing in for one: a band is
+   * funded because a real holder committed a real amount to it, or it is not
+   * funded at all.
+   */
+  insertBandSubscription(row: BandSubscriptionRow): Promise<void>;
+  /** Every commitment to this series, in the order they were made. */
+  bandSubscriptions(seriesId: string): Promise<BandSubscriptionRow[]>;
+  /**
+   * Exposure written per band on this series, summed over the statuses given.
+   *
+   * The statuses come from apps/api/src/capacity.ts rather than from here, so
+   * that what counts as exposure is decided once and in the open.
+   */
+  bandExposure(seriesId: string, statuses: readonly PolicyStatus[]): Promise<BandExposureRow[]>;
   policy(policyId: string): Promise<PolicyRow | null>;
   /**
    * The policy the one-active-policy rule would refuse a second purchase

@@ -13,6 +13,8 @@ import {
 } from './memory.js';
 import { ACTIVE_POLICY_STATUSES, SIGN_IN_POLICY_STATUSES } from './types.js';
 import type {
+  BandExposureRow,
+  BandSubscriptionRow,
   ClaimEvidenceRow,
   ClaimPaidInput,
   ClaimRow,
@@ -27,6 +29,7 @@ import type {
   RecordDecisionInput,
   PaymentRow,
   PolicyRow,
+  PolicyStatus,
   QuoteRow,
   Repository,
   ReservePolicyInput,
@@ -164,14 +167,15 @@ export class PostgresRepository implements Repository {
 
   async insertQuote(row: QuoteRow): Promise<void> {
     await this.pool.query(
-      `INSERT INTO quotes (quote_id, series_id, group_key, wallet, wallet_evm, cover_limit,
+      `INSERT INTO quotes (quote_id, series_id, group_key, band, wallet, wallet_evm, cover_limit,
                            premium, asset, asset_decimals, annual_rate_bps, pricing_basis,
                            issued_via, created_at, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
       [
         row.quoteId,
         row.seriesId,
         row.groupKey,
+        row.band,
         row.wallet,
         row.walletEvm,
         row.coverLimit,
@@ -190,6 +194,43 @@ export class PostgresRepository implements Repository {
   async quote(quoteId: string): Promise<QuoteRow | null> {
     const { rows } = await this.pool.query('SELECT * FROM quotes WHERE quote_id = $1', [quoteId]);
     return rows[0] === undefined ? null : toQuote(rows[0]);
+  }
+
+  async insertBandSubscription(row: BandSubscriptionRow): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO band_subscriptions (subscription_id, series_id, band, holder, amount,
+                                       chain_tx, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [row.subscriptionId, row.seriesId, row.band, row.holder, row.amount, row.chainTx, row.createdAt],
+    );
+  }
+
+  async bandSubscriptions(seriesId: string): Promise<BandSubscriptionRow[]> {
+    const { rows } = await this.pool.query(
+      'SELECT * FROM band_subscriptions WHERE series_id = $1 ORDER BY created_at',
+      [seriesId],
+    );
+    return rows.map(toBandSubscription);
+  }
+
+  /**
+   * The exposure side of the band sum, as one group-by rather than as a read of
+   * every policy. A band with no live policy simply has no row, which the
+   * caller reads as nothing written rather than as nothing funded: the two are
+   * different states and only the capital side can answer the second.
+   */
+  async bandExposure(
+    seriesId: string,
+    statuses: readonly PolicyStatus[],
+  ): Promise<BandExposureRow[]> {
+    const { rows } = await this.pool.query<{ band: string; amount: string }>(
+      `SELECT band, SUM(cover_limit)::text AS amount
+         FROM policies
+        WHERE series_id = $1 AND band IS NOT NULL AND status = ANY($2::text[])
+        GROUP BY band`,
+      [seriesId, [...statuses]],
+    );
+    return rows.map((row) => ({ band: row.band as BandExposureRow['band'], amount: row.amount }));
   }
 
   async policy(policyId: string): Promise<PolicyRow | null> {
@@ -302,23 +343,30 @@ export class PostgresRepository implements Repository {
       );
       if (quote.rowCount === 0) throw quoteConsumed();
 
+      // Both checks. The series one mirrors what `CoverPool.bind` enforces a
+      // moment later; the band one is this system's own, and it is what stops a
+      // band being sold past the capital that actually chose it.
       if (
         BigInt(input.activeExposure) + BigInt(policy.coverLimit) >
         BigInt(input.principalRemaining)
       ) {
         throw insufficientCapacity();
       }
+      if (BigInt(input.bandExposure) + BigInt(policy.coverLimit) > BigInt(input.bandCapital)) {
+        throw insufficientCapacity();
+      }
 
       await client.query(
-        `INSERT INTO policies (policy_id, series_id, group_key, nullifier, wallet, wallet_evm,
+        `INSERT INTO policies (policy_id, series_id, group_key, band, nullifier, wallet, wallet_evm,
                                cover_limit, premium, asset, asset_decimals, status, quote_id,
                                credential_jti, starts_at, ends_at, claims_payable_from,
                                paid_through, next_due)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
         [
           policy.policyId,
           policy.seriesId,
           policy.groupKey,
+          policy.band,
           policy.nullifier,
           policy.wallet,
           policy.walletEvm,
@@ -929,6 +977,7 @@ function toQuote(row: Row): QuoteRow {
     quoteId: text(row, 'quote_id'),
     seriesId: text(row, 'series_id'),
     groupKey: text(row, 'group_key'),
+    band: maybeText(row, 'band') as QuoteRow['band'],
     wallet: text(row, 'wallet'),
     walletEvm: maybeText(row, 'wallet_evm'),
     coverLimit: text(row, 'cover_limit'),
@@ -950,6 +999,7 @@ function toPolicy(row: Row): PolicyRow {
     policyId: text(row, 'policy_id'),
     seriesId: text(row, 'series_id'),
     groupKey: text(row, 'group_key'),
+    band: maybeText(row, 'band') as PolicyRow['band'],
     nullifier: text(row, 'nullifier'),
     wallet: text(row, 'wallet'),
     walletEvm: text(row, 'wallet_evm'),
@@ -970,6 +1020,18 @@ function toPolicy(row: Row): PolicyRow {
     hcsTopic: maybeText(row, 'hcs_topic'),
     hcsReceiptSeq: maybeNumber(row, 'hcs_receipt_seq'),
     bindTxId: maybeText(row, 'bind_tx_id'),
+  };
+}
+
+function toBandSubscription(row: Row): BandSubscriptionRow {
+  return {
+    subscriptionId: text(row, 'subscription_id'),
+    seriesId: text(row, 'series_id'),
+    band: text(row, 'band') as BandSubscriptionRow['band'],
+    holder: text(row, 'holder'),
+    amount: text(row, 'amount'),
+    chainTx: maybeText(row, 'chain_tx'),
+    createdAt: instant(row, 'created_at'),
   };
 }
 

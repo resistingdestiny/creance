@@ -49,6 +49,20 @@
  * caps the history it serves well short of twenty six years.
  */
 
+import { SENIORITY_BANDS, type SeniorityBand } from './bands';
+
+/**
+ * Which experience bands capital has chosen, per occupation.
+ *
+ * Read live from the API, because it is a fact about what real subscriptions
+ * exist and nothing about it can be a constant. `undefined` for an occupation
+ * means the read did not happen or did not answer, and every helper below
+ * treats that as "unknown" rather than as "none": the experience screen and the
+ * quote are both authoritative a step later, and a first screen that hid an
+ * occupation because a read timed out would be worse than one that showed it.
+ */
+export type FundedBands = Readonly<Record<string, readonly SeniorityBand[]>>;
+
 export interface Occupation {
   readonly key: string;
   readonly label: string;
@@ -193,10 +207,38 @@ export function filterOccupations(
   return rows.filter((row) => row.label.toLowerCase().includes(needle));
 }
 
-/** True when the occupation has a series behind it and can be bought today. */
-export function hasCover(occupation: Occupation): boolean {
-  return occupation.series !== null;
+/**
+ * True when anything at all can be bought for this occupation today.
+ *
+ * Two conditions, and the second is the one T-bands added. A series has to have
+ * been issued for the occupation, which is the old question and is a constant.
+ * And at least one of the three experience bands has to have capital behind it,
+ * which is not a constant and cannot be: capital commits to an occupation and a
+ * band together, so availability has up to forty five answers rather than
+ * fifteen, and most of them are honestly no.
+ *
+ * `funded` absent is unknown, not empty. See `FundedBands`.
+ */
+export function hasCover(occupation: Occupation, funded?: FundedBands): boolean {
+  if (occupation.series === null) return false;
+  const bands = funded?.[occupation.key];
+  return bands === undefined || bands.length > 0;
 }
+
+/**
+ * How many of the three bands have capital behind them, or null when unknown.
+ *
+ * Null and three both render nothing. What is worth saying on a chooser is the
+ * in-between: an occupation somebody can buy cover for, but not at every length
+ * of experience.
+ */
+export function fundedBandCount(occupation: Occupation, funded?: FundedBands): number | null {
+  const bands = funded?.[occupation.key];
+  return bands === undefined ? null : bands.length;
+}
+
+/** The three bands, so a caller has one list rather than its own copy. */
+export const BAND_COUNT = SENIORITY_BANDS.length;
 
 export interface OccupationGroups {
   /** The rows with a series behind them, which are the ones that can be bought. */
@@ -212,10 +254,13 @@ export interface OccupationGroups {
  * search that matches only unbuyable occupations still shows them, under
  * their own heading.
  */
-export function groupOccupations(rows: readonly Occupation[]): OccupationGroups {
+export function groupOccupations(
+  rows: readonly Occupation[],
+  funded?: FundedBands,
+): OccupationGroups {
   return {
-    open: rows.filter(hasCover),
-    noCover: rows.filter((row) => !hasCover(row)),
+    open: rows.filter((row) => hasCover(row, funded)),
+    noCover: rows.filter((row) => !hasCover(row, funded)),
   };
 }
 

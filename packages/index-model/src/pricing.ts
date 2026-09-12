@@ -59,6 +59,60 @@ export function marketRate(guide: number, utilisation: number): number {
   );
 }
 
+/**
+ * The three experience bands cover is sold in.
+ *
+ * They exist on the market term and nowhere else, and the reason is a fact
+ * about the data rather than a preference. The CPS catalogue this index
+ * settles on, data/bls/raw/ln.series.gz, carries 739 unemployment rate series
+ * with an occupation code and 819 unemployed level series with one. Not a
+ * single series in either set also carries an age code. There is no
+ * occupation-by-age unemployment rate published and none can be derived,
+ * because the numerator does not exist. The catalogue's own "experience" field
+ * is binary, experienced against inexperienced labour force, and is not years.
+ *
+ * So the measured hazard cannot tell a person with two years of work from one
+ * with thirty, `guideRate` is band blind by construction, and the trigger, the
+ * settlement and the payout are identical for all three. What a band can
+ * honestly change is the half of the price that was never a measurement:
+ * `marketRate` moves with utilisation, which is an expression of what capital
+ * will take a risk for. Segmenting that claims nothing about the world. It says
+ * capital's appetite differs by band, which is a fact about capital.
+ *
+ * The one rule everything downstream holds to: a band changes what you pay, it
+ * never changes whether you are paid.
+ *
+ * The keys are Root's own three options and the labels are his own words.
+ */
+export const SENIORITY_BANDS = ['0_5', '5_25', '25_plus'] as const;
+
+export type SeniorityBand = (typeof SENIORITY_BANDS)[number];
+
+export const SENIORITY_BAND_LABELS: Record<SeniorityBand, string> = {
+  '0_5': '0 to 5 years',
+  '5_25': '5 to 25 years',
+  '25_plus': '25 or more',
+};
+
+export function isSeniorityBand(value: unknown): value is SeniorityBand {
+  return typeof value === 'string' && (SENIORITY_BANDS as readonly string[]).includes(value);
+}
+
+/**
+ * Utilisation for one band: the exposure written in it over the capital
+ * committed to it.
+ *
+ * Null, never zero, when no capital stands behind the band. A band nothing has
+ * funded is not a band priced at the floor: it is a band that cannot be sold,
+ * and returning 0 would put a price on capacity that does not exist. Every
+ * caller has to answer for the null, which is the point.
+ */
+export function bandUtilisation(exposure: number, capital: number): number | null {
+  if (exposure < 0) throw new Error('exposure cannot be negative');
+  if (capital <= 0) return null;
+  return exposure / capital;
+}
+
 /** Monthly premium for a limit, at an annual rate. */
 export function monthlyPremium(rate: number, limit: number): number {
   return (rate * limit) / 12;

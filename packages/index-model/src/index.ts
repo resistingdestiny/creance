@@ -144,13 +144,17 @@ export { archiveRoot, cacheRoot, docsRoot, hasArchive, repoRoot } from './paths.
 export {
   HAZARD_FIT,
   PRICING,
+  SENIORITY_BANDS,
+  SENIORITY_BAND_LABELS,
+  bandUtilisation,
   fittedHazard,
   guideRate,
   headline,
+  isSeniorityBand,
   marketRate,
   monthlyPremium,
 } from './pricing.js';
-export type { Headline, HeadlineForm } from './pricing.js';
+export type { Headline, HeadlineForm, SeniorityBand } from './pricing.js';
 
 // The empirical hazard the fit above was taken from.
 export { HAZARD_BUCKET_LABELS, hazardTable } from './hazard.js';

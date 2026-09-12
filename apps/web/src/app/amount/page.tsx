@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { reportUnreachable } from '../../lib/api';
 
+import { bandLabel } from '../../lib/bands';
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
 import { readPurchase } from '../../lib/purchase-session';
 import { occupationLabel } from '../../lib/occupations';
@@ -18,6 +19,12 @@ import { WorkerUnavailable } from '../unavailable';
  * The price is a real quote rather than an estimate: a quote takes no capacity
  * hold and expires in fifteen minutes, so pricing the slider is the same call
  * the Pay sheet makes and the figure on screen is a binding price.
+ *
+ * The line under the heading names the occupation and the experience band,
+ * because both went into the price: the occupation decided the risk that was
+ * measured and the band decided which capital it is written against. It is one
+ * line rather than a sentence, because the screen that asked the question
+ * already said what the answer changes and what it does not.
  */
 
 export const metadata: Metadata = { title: 'Cover amount' };
@@ -28,6 +35,7 @@ export default async function AmountPage() {
   const session = await readPurchase();
   const group = session?.group;
   if (!group) redirect('/occupation');
+  if (!session?.band) redirect('/experience');
 
   const limit = session?.limit ?? AMOUNT_DEFAULT;
   try {
@@ -37,6 +45,7 @@ export default async function AmountPage() {
       // The wallet the cover binds to, which is the demo one until somebody
       // connects their own at the payment step.
       wallet: (session?.wallet ?? DEMO_ACCOUNT).accountId,
+      band: session.band,
     });
     return (
       <AmountScreen
@@ -49,7 +58,7 @@ export default async function AmountPage() {
           error: null,
         }}
         limit={limit}
-        occupation={occupationLabel(group)}
+        occupation={`${occupationLabel(group)}, ${bandLabel(session.band)}`}
       />
     );
   } catch (cause) {

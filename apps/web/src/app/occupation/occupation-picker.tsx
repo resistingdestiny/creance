@@ -8,9 +8,12 @@ import { ListRow } from '../../components/list-row';
 import { PillButton } from '../../components/pill-button';
 import { SurfaceGroup } from '../../components/surface-group';
 import {
+  BAND_COUNT,
   filterOccupations,
+  fundedBandCount,
   groupOccupations,
   hasCover,
+  type FundedBands,
   type Occupation,
 } from '../../lib/occupations';
 import { chooseOccupation } from '../purchase-actions';
@@ -40,25 +43,39 @@ import { chooseOccupation } from '../purchase-actions';
  * theirs. A search filters first and groups after, so a query that matches
  * only unbuyable occupations still shows them rather than looking like nothing
  * matched. The landing quote groups the same list the same way.
+ *
+ * Since cover is sold in three bands of experience, capacity is committed to an
+ * occupation and a band together, and "can this be bought" has forty five
+ * answers rather than fifteen. The split above is now "is any band funded", and
+ * a row whose occupation is funded at some lengths of experience and not others
+ * says so in a word. Which bands, and what each costs, is the next screen's
+ * question; this one only has to stop somebody choosing an occupation that
+ * nothing at all stands behind.
  */
 
 export function OccupationPicker({
   rows,
   chosen,
+  funded,
 }: {
   rows: readonly Occupation[];
   chosen: string | null;
+  /** What capital has chosen, per occupation. Absent when the read failed. */
+  funded?: FundedBands;
 }) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(chosen);
-  const groups = useMemo(() => groupOccupations(filterOccupations(query, rows)), [query, rows]);
+  const groups = useMemo(
+    () => groupOccupations(filterOccupations(query, rows), funded),
+    [query, rows, funded],
+  );
   const nothing = groups.open.length === 0 && groups.noCover.length === 0;
 
   const renderRow = (row: Occupation) => {
-    const available = hasCover(row);
+    const available = hasCover(row, funded);
     return (
       <ListRow
-        caption={captionFor(row)}
+        caption={captionFor(row, funded)}
         key={row.key}
         label={
           <span className={available ? 'text-body text-ink' : 'text-body text-ink-2'}>
@@ -180,6 +197,14 @@ export function occupationGroupHeading(part: 'open' | 'noCover', count: number):
  * fifteen it renders nowhere today, and it stays for the deployment where that
  * is not true.
  */
-export function captionFor(row: Occupation): string | undefined {
-  return hasCover(row) ? undefined : NO_COVER_YET;
+export function captionFor(row: Occupation, funded?: FundedBands): string | undefined {
+  if (!hasCover(row, funded)) return NO_COVER_YET;
+  const count = fundedBandCount(row, funded);
+  // Nothing when every band is funded, and nothing when the read did not
+  // happen. A partly funded occupation is the only case worth a word here, and
+  // it gets a count rather than a list: which bands, and what each costs, is
+  // the question the next screen exists to answer.
+  return count === null || count === BAND_COUNT
+    ? undefined
+    : `Funded for ${count} of ${BAND_COUNT} experience bands.`;
 }

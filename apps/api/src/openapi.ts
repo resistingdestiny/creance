@@ -530,6 +530,13 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
               description: 'Optional. When absent the API picks the active series for the group.',
               example: 'ODI-COMP-2026-01',
             },
+            band: {
+              type: 'string',
+              enum: ['0_5', '5_25', '25_plus'],
+              description:
+                'Optional. Years of experience, as one of three bands. It changes the price and nothing else: the trigger, the settlement and the payout are identical in every band, because the published unemployment data has no occupation-by-age series and cannot measure a difference between them. What it changes is which capital the cover is written against, and so the capacity term of the rate. A band no capital has committed to is refused with `band_not_funded` rather than priced. Omit it to be priced against the capital that has named no band.',
+              example: '5_25',
+            },
           },
         },
         Quote: {
@@ -539,6 +546,12 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
             quote_id: { type: 'string', example: 'qte_01K4YBB2R9F3M0N7X5T8W1C4Q6' },
             series_id: { type: 'string', example: 'ODI-COMP-2026-01' },
             group: { type: 'string', enum: GROUP_KEYS },
+            band: {
+              type: 'string',
+              nullable: true,
+              enum: ['0_5', '5_25', '25_plus', null],
+              description: 'The experience band the price was struck in, or null for none.',
+            },
             wallet: { type: 'string', example: '0.0.10366453' },
             limit: { $ref: '#/components/schemas/Money' },
             premium: { $ref: '#/components/schemas/Money' },

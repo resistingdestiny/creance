@@ -1,4 +1,4 @@
-import { PRICING, guideRate, marketRate } from '@creance/index-model';
+import { PRICING, bandUtilisation, guideRate, marketRate } from '@creance/index-model';
 
 /// The price of a policy, in minor units.
 ///
@@ -14,6 +14,12 @@ import { PRICING, guideRate, marketRate } from '@creance/index-model';
 /// the fifteen offered occupations exactly on the floor; that version is
 /// superseded and the deviation is recorded.
 ///
+/// Utilisation is per experience band. The guide rate is not: the index has no
+/// occupation-by-age series to measure a seniority difference with, so the
+/// measured hazard is identical for all three bands and so is the trigger.
+/// What differs is the capital behind each band, and that is what the market
+/// term has always been about. See @creance/index-model's pricing module.
+///
 /// The rate is a float, because it is a rate. The premium is not: the rate is
 /// rounded to whole basis points first and the premium is then integer
 /// arithmetic on the limit, so no float ever reaches an amount.
@@ -25,9 +31,14 @@ export interface PriceInput {
   levelLine: number;
   /** Cover limit in the settlement asset's minor units. */
   limit: bigint;
-  /** Committed exposure and the principal behind it, both in minor units. */
-  activeExposure: bigint;
-  principalRemaining: bigint;
+  /**
+   * The exposure written against this band and the capital committed to it,
+   * both in minor units. Not the series totals: a quote is priced against the
+   * capacity it is actually drawing on. apps/api/src/capacity.ts computes both
+   * from real subscription rows, real policy rows and the chain.
+   */
+  exposure: bigint;
+  capital: bigint;
 }
 
 export interface Price {
@@ -41,6 +52,9 @@ export interface Price {
   basis: {
     distance: string;
     utilisation: string;
+    /** The two amounts the utilisation is the ratio of, so it can be rechecked. */
+    capital: string;
+    exposure: string;
     guide_rate_bps: number;
     separation_given_open: string;
     expected_share_of_limit: string;
@@ -50,10 +64,17 @@ export interface Price {
   };
 }
 
-/** Utilisation is committed exposure over the principal still behind it. */
-export function utilisationOf(activeExposure: bigint, principalRemaining: bigint): number {
-  if (principalRemaining <= 0n) return 0;
-  return Number(activeExposure) / Number(principalRemaining);
+/**
+ * Utilisation is committed exposure over the capital still behind it.
+ *
+ * Null, not zero, when there is no capital. It used to answer zero for an empty
+ * series, which was harmless while capital committed to a series as a whole and
+ * an empty series could not be reached: the capacity check refused first. It is
+ * not harmless per band. A band nobody has funded is not a band at the floor
+ * price, it is a band that is not for sale, and zero is a price.
+ */
+export function utilisationOf(exposure: bigint, capital: bigint): number | null {
+  return bandUtilisation(Number(exposure), Number(capital));
 }
 
 /**
@@ -69,9 +90,17 @@ export function monthlyPremiumMinor(annualRateBps: number, limit: bigint): bigin
   return (numerator + denominator / 2n) / denominator;
 }
 
-export function priceCover(input: PriceInput): Price {
+/**
+ * The price, or null when no capital stands behind what is being priced.
+ *
+ * Null rather than a floor price, for the reason `utilisationOf` gives: an
+ * unfunded band has no price at all and the caller has to say so rather than
+ * quote one.
+ */
+export function priceCover(input: PriceInput): Price | null {
   const distance = input.levelLine - input.ebar;
-  const utilisation = utilisationOf(input.activeExposure, input.principalRemaining);
+  const utilisation = utilisationOf(input.exposure, input.capital);
+  if (utilisation === null) return null;
   const guide = guideRate(distance);
   const rate = marketRate(guide, utilisation);
   const annualRateBps = Math.round(rate * 10_000);
@@ -84,6 +113,8 @@ export function priceCover(input: PriceInput): Price {
     basis: {
       distance: distance.toFixed(4),
       utilisation: utilisation.toFixed(4),
+      capital: input.capital.toString(),
+      exposure: input.exposure.toString(),
       guide_rate_bps: Math.round(guide * 10_000),
       separation_given_open: PRICING.separationGivenOpen.toFixed(3),
       expected_share_of_limit: PRICING.expectedShareOfLimit.toFixed(2),

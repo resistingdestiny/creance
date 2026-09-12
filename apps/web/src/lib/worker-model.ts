@@ -417,6 +417,17 @@ export function priceFailure(limit: number, cause: unknown): PriceResult {
   if (cause instanceof ApiError && cause.code === 'no_capacity_for_group') {
     return noCoverForGroup(limit);
   }
+  // Capital can move between the band being chosen and the price being taken,
+  // and the band the person picked can lose the capital behind it. It is not an
+  // error on their part and the sentence does not treat it as one; it sends
+  // them back to the one screen that can show which bands are funded now.
+  if (cause instanceof ApiError && cause.code === 'band_not_funded') {
+    return {
+      ...empty,
+      full: true,
+      error: 'Nobody is funding that length of experience any more. Choose another.',
+    };
+  }
   return {
     ...empty,
     full: false,
@@ -452,6 +463,8 @@ export function bindMessage(cause: unknown): string {
       return 'You already have cover for this occupation. One person, one cover.';
     case 'insufficient_capacity':
       return 'This series is full. Choose a smaller amount or try again later.';
+    case 'band_not_funded':
+      return 'Nobody is funding that length of experience any more. Choose another.';
     case 'series_not_open_for_binding':
       return 'This series is not taking new cover.';
     case 'credential_expired':

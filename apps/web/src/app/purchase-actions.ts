@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 
 import { ApiError, reportUnreachable } from '../lib/api';
 
+import { bandLabel, isSeniorityBand, type SeniorityBand } from '../lib/bands';
+
 import { forgetCover, openCoverSession } from '../lib/current-cover';
 import { issueEligibilityFor, type EligibilityRequest } from '../lib/eligibility';
 import { AMOUNT_DEFAULT } from '../lib/cover-amount';
@@ -69,6 +71,19 @@ function purchaseWallet(session: PurchaseSession | null): WalletAccount {
 }
 
 /**
+ * The band a quote is asked for in, spread into the body.
+ *
+ * Omitted rather than sent as null when there is none. A request that names no
+ * band is priced against the capital that named no band, which is the landing
+ * page's inline quote and every quote this product took before the question
+ * existed; sending an explicit null would say the same thing in a way the API
+ * would have to be taught to read.
+ */
+function bandOf(session: PurchaseSession | null): { band?: SeniorityBand } {
+  return session?.band == null ? {} : { band: session.band };
+}
+
+/**
  * Start screen: "Get a quote". Nothing calls this since T35.
  *
  * It was the landing page's button, which started a session and left for the
@@ -85,7 +100,15 @@ export async function beginPurchase(): Promise<void> {
   redirect('/occupation');
 }
 
-/** Occupation picker: "Continue". */
+/**
+ * Occupation picker: "Continue".
+ *
+ * It leads to the experience question rather than straight to the amount. The
+ * band decides which capital the cover is written against, so the price on the
+ * amount screen cannot be struck until it has been answered, and a band may
+ * have no capital behind it at all, which is something a person has to be told
+ * before they are shown a figure rather than after.
+ */
 export async function chooseOccupation(formData: FormData): Promise<void> {
   const group = String(formData.get('group') ?? '');
   const occupation = findOccupation(group);
@@ -94,7 +117,24 @@ export async function chooseOccupation(formData: FormData): Promise<void> {
     // is a hand-made request rather than a person, and it goes back to the list.
     redirect('/occupation');
   }
-  await updatePurchase({ group, limit: AMOUNT_DEFAULT, quoteId: null });
+  await updatePurchase({ group, band: null, limit: AMOUNT_DEFAULT, quoteId: null });
+  redirect('/experience');
+}
+
+/**
+ * Experience screen: "Continue".
+ *
+ * The band is checked against the enumeration and nothing else here: whether
+ * capital has chosen it is the API's answer, taken on the quote a moment later,
+ * and a second copy of that rule in the browser's session would be a second
+ * answer to go stale.
+ */
+export async function chooseBand(formData: FormData): Promise<void> {
+  const session = await readPurchase();
+  if (!session?.group) redirect('/occupation');
+  const value = String(formData.get('band') ?? '');
+  if (!isSeniorityBand(value)) redirect('/experience');
+  await updatePurchase({ band: value, quoteId: null });
   redirect('/amount');
 }
 
@@ -121,7 +161,7 @@ export async function quoteOccupation(group: string): Promise<PriceResult> {
     // nothing is written to the session.
     return noCoverForGroup(AMOUNT_DEFAULT);
   }
-  await updatePurchase({ group, limit: AMOUNT_DEFAULT, quoteId: null });
+  await updatePurchase({ group, band: null, limit: AMOUNT_DEFAULT, quoteId: null });
   return await priceCover(AMOUNT_DEFAULT);
 }
 
@@ -142,6 +182,7 @@ export async function priceCover(limit: number): Promise<PriceResult> {
       group,
       limit: toMinorUnits(limit),
       wallet: purchaseWallet(session).accountId,
+      ...bandOf(session),
     });
     await updatePurchase({
       limit,
@@ -376,11 +417,18 @@ export async function openPayment(): Promise<PayConfirmation | null> {
       group,
       limit: toMinorUnits(session.limit ?? AMOUNT_DEFAULT),
       wallet: wallet.accountId,
+      ...bandOf(session),
     });
     await updatePurchase({ quoteId: quote.quote_id, premiumMinorUnits: quote.premium.amount });
     return {
       cover: coverAmount(quote.limit),
-      occupation: occupationLabel(group),
+      // The occupation and the band, because both went into the price being
+      // confirmed. On the landing page's inline quote there is no band and the
+      // row reads exactly as it always did.
+      occupation:
+        session.band === null
+          ? occupationLabel(group)
+          : `${occupationLabel(group)}, ${bandLabel(session.band)}`,
       premium: premiumAmount(quote.premium),
       // Not `quote.pays_from`. The quote echoes the wallet it was asked for,
       // which is the wallet the cover binds to, and that is no longer the
@@ -438,6 +486,7 @@ async function repriceAndBind(session: PurchaseSession): Promise<PayResult> {
       group: session.group,
       limit: toMinorUnits(session.limit),
       wallet: purchaseWallet(session).accountId,
+      ...bandOf(session),
     });
     await updatePurchase({
       quoteId: fresh.quote_id,

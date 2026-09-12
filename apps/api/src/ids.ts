@@ -21,6 +21,8 @@ export const ID_PREFIXES = {
   credential: 'elg',
   claim: 'clm',
   evidence: 'evd',
+  /** One commitment of capital to one experience band of one series. */
+  bandSubscription: 'bsb',
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;

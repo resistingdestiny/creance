@@ -60,7 +60,7 @@ describe('the occupation picker rows', () => {
   });
 
   it('has capacity behind every occupation, one series each', () => {
-    const covered = OCCUPATIONS.filter(hasCover);
+    const covered = OCCUPATIONS.filter((row) => hasCover(row));
     expect(covered).toHaveLength(OCCUPATIONS.length);
     expect(findOccupation('computer_math')?.series).toBe('ODI-COMP-2026-01');
     // The copy deck's worked example, which could not be bought until T39.

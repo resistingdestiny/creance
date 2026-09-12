@@ -51,6 +51,7 @@ async function seed(harness: Harness, patch: Partial<ClaimRow> = {}): Promise<Cl
     policyId: CLAIM_POLICY_ID,
     seriesId: 'ODI-COMP-2026-01',
     groupKey: 'computer_math',
+    band: null,
     nullifier: CLAIM_NULLIFIER,
     wallet: POLICYHOLDER_1.accountId,
     walletEvm: POLICYHOLDER_1.address,

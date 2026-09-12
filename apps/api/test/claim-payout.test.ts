@@ -38,6 +38,9 @@ function policyRow(patch: Partial<PolicyRow> = {}): PolicyRow {
     policyId: CLAIM_POLICY_ID,
     seriesId: 'ODI-COMP-2026-01',
     groupKey: 'computer_math',
+    // Null, which is the cover bought before the band question existed. Its
+    // claim path is the band's whole irrelevance to settlement, tested.
+    band: null,
     nullifier: CLAIM_NULLIFIER,
     wallet: POLICYHOLDER_1.accountId,
     walletEvm: POLICYHOLDER_1.address,

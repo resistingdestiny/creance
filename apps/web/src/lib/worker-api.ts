@@ -22,7 +22,39 @@
  * because the gate is satisfied by the caller and the caller is the server.
  */
 
+import type { SeniorityBand } from './bands';
 import { getJson, postJson, type Money } from './api';
+
+/**
+ * One experience band, as the API reports it.
+ *
+ * `available` false with `reason` `no_capital` is a band capital has not chosen
+ * yet. It is not an error and it is not a zero: `premium` and `utilisation` are
+ * null rather than 0, because a band nothing has funded has no price at all.
+ */
+export interface BandView {
+  readonly band: SeniorityBand;
+  readonly label: string;
+  readonly available: boolean;
+  readonly reason: 'none' | 'no_capital' | 'no_free_capacity';
+  readonly capital: Money;
+  readonly exposure: Money;
+  readonly free: Money;
+  readonly utilisation: string | null;
+  readonly premium: Money | null;
+  readonly annual_rate_bps: number | null;
+  readonly guide_rate_bps: number | null;
+}
+
+export interface SeriesBandsView {
+  readonly series_id: string;
+  readonly group: string;
+  readonly principal_remaining: Money;
+  readonly active_exposure: Money;
+  readonly unallocated: Money;
+  readonly unbanded_exposure: Money;
+  readonly bands: readonly BandView[];
+}
 
 export interface EligibilityView {
   readonly eligibility: string;
@@ -61,6 +93,8 @@ export interface QuoteView {
   readonly quote_id: string;
   readonly series_id: string;
   readonly group: string;
+  /** The experience band the price was struck in, or null when none was named. */
+  readonly band: SeniorityBand | null;
   readonly wallet: string;
   readonly limit: Money;
   readonly premium: Money;
@@ -265,8 +299,34 @@ export function requestQuote(body: {
   /** Minor units, as an integer string. Use toMinorUnits. */
   limit: string;
   wallet: string;
+  /**
+   * The experience band. Optional, and omitted rather than sent as null when
+   * there is none: a request that names no band is priced against the capital
+   * that named no band, which is what every quote before bands was priced
+   * against.
+   */
+  band?: SeniorityBand;
 }): Promise<QuoteView> {
   return postJson<QuoteView>('/v1/quote', body);
+}
+
+/**
+ * What is funded behind one occupation, or behind all fifteen.
+ *
+ * Free and unmetered, deliberately: a person has to be able to learn that no
+ * cover exists for them without paying to be told. With a limit each band
+ * carries its premium, which is what the band question on the purchase flow
+ * shows before anything is pressed.
+ */
+export function fetchBands(group: string, limit: string): Promise<SeriesBandsView> {
+  return getJson<SeriesBandsView>(
+    `/v1/cover/bands?group=${encodeURIComponent(group)}&limit=${encodeURIComponent(limit)}`,
+  );
+}
+
+/** Every occupation with a series, and which of its bands capital has chosen. */
+export function fetchAllBands(): Promise<{ readonly occupations: readonly SeriesBandsView[] }> {
+  return getJson<{ readonly occupations: readonly SeriesBandsView[] }>('/v1/cover/bands');
 }
 
 /**

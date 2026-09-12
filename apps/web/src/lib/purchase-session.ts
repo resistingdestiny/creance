@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import { cookies } from 'next/headers';
 
+import type { SeniorityBand } from './bands';
 import type { WalletAccount } from './wallet';
 
 /**
@@ -27,6 +28,12 @@ const TTL_MS = 30 * 60 * 1000;
 export interface PurchaseSession {
   /** The occupation group key chosen on the picker. */
   group: string | null;
+  /**
+   * The experience band chosen on the screen after it, or null before it is
+   * answered. It decides which capital the cover is written against and so
+   * what it costs; it decides nothing about the trigger or the payout.
+   */
+  band: SeniorityBand | null;
   /** The cover amount in whole units, as the slider carries it. */
   limit: number | null;
   /** The quote the Pay sheet is about to bind. */
@@ -96,6 +103,7 @@ export function freshNullifier(): string {
 function emptySession(): PurchaseSession {
   return {
     group: null,
+    band: null,
     limit: null,
     quoteId: null,
     premiumMinorUnits: null,

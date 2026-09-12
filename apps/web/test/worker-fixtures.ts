@@ -298,6 +298,7 @@ export const QUOTE: QuoteView = {
   quote_id: 'qte_01M1RH76FCPJP35YDF3GPJFF4W',
   series_id: 'ODI-COMP-2026-01',
   group: 'computer_math',
+  band: '5_25',
   wallet: '0.0.10366453',
   limit: {
     amount: '5000000000',

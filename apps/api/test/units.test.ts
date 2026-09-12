@@ -62,34 +62,46 @@ describe('the premium', () => {
       ebar: -0.6,
       levelLine: -0.68,
       limit: 5_000_000_000n,
-      activeExposure: 0n,
-      principalRemaining: 100_000_000_000n,
+      exposure: 0n,
+      capital: 100_000_000_000n,
     });
-    expect(typeof price.premium).toBe('bigint');
-    expect(price.premium).toBe(monthlyPremiumMinor(price.annualRateBps, 5_000_000_000n));
+    expect(price).not.toBeNull();
+    expect(typeof price?.premium).toBe('bigint');
+    expect(price?.premium).toBe(monthlyPremiumMinor(price?.annualRateBps ?? 0, 5_000_000_000n));
   });
 
-  it('charges more as the series fills, which is the capacity term', () => {
+  it('charges more as the band fills, which is the capacity term', () => {
     const empty = priceCover({
       ebar: -0.6,
       levelLine: -0.68,
       limit: 5_000_000_000n,
-      activeExposure: 0n,
-      principalRemaining: 100_000_000_000n,
+      exposure: 0n,
+      capital: 100_000_000_000n,
     });
     const half = priceCover({
       ebar: -0.6,
       levelLine: -0.68,
       limit: 5_000_000_000n,
-      activeExposure: 50_000_000_000n,
-      principalRemaining: 100_000_000_000n,
+      exposure: 50_000_000_000n,
+      capital: 100_000_000_000n,
     });
-    expect(half.annualRateBps).toBeGreaterThan(empty.annualRateBps);
-    expect(half.utilisation).toBeCloseTo(0.5);
+    expect(half?.annualRateBps ?? 0).toBeGreaterThan(empty?.annualRateBps ?? 0);
+    expect(half?.utilisation).toBeCloseTo(0.5);
   });
 
-  it('reports no utilisation on a series with nothing behind it', () => {
-    expect(utilisationOf(5n, 0n)).toBe(0);
+  it('has no price at all for a band nothing has funded', () => {
+    // Not a floor price and not a zero. A band no capital has chosen is not
+    // for sale, and both of those would be a price on capacity that is absent.
+    expect(utilisationOf(0n, 0n)).toBeNull();
+    expect(
+      priceCover({
+        ebar: -0.6,
+        levelLine: -0.68,
+        limit: 5_000_000_000n,
+        exposure: 0n,
+        capital: 0n,
+      }),
+    ).toBeNull();
   });
 
   it('offers only the slider the Amount screen shows', () => {

@@ -1,5 +1,7 @@
+import { isSeniorityBand, SENIORITY_BAND_LABELS, type SeniorityBand } from '@creance/index-model';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 
+import { capacityFor, capacityReason, readSeriesCapacity } from '../capacity.js';
 import { seriesForGroup } from '../config.js';
 import type { QuoteRow } from '../db/types.js';
 import { AppError } from '../errors.js';
@@ -26,12 +28,22 @@ import { buildQuoteView, type QuoteView } from '../views.js';
 /// /v1/bind rechecks under a row lock and against the chain. Holding capacity
 /// would mean expiring holds, and a hold that leaks is a series nobody can
 /// fill.
+///
+/// `band` is the experience band, and it is optional. It changes the price and
+/// nothing else: the guide rate, the trigger, the settlement and the payout are
+/// identical in all three bands, because the index has no occupation-by-age
+/// series and so cannot measure a difference between them. What a band changes
+/// is which capital the cover is written against, and therefore the utilisation
+/// term. A request that names no band is priced against the capital that named
+/// no band either, which is what every quote before bands existed was priced
+/// against and is why they all still price the same. See apps/api/src/capacity.ts.
 
 export interface QuoteBody {
   group?: unknown;
   limit?: unknown;
   wallet?: unknown;
   series_id?: unknown;
+  band?: unknown;
 }
 
 export const quoteRoutes: FastifyPluginAsync<{ services: Services }> = async (app, options) => {
@@ -50,6 +62,7 @@ export async function quote(
 ): Promise<QuoteView> {
   const groupKey = requiredString(body.group, 'group');
   const limit = requiredAmount(body.limit, 'limit');
+  const band = optionalBand(body.band);
 
   const group = await services.repository.group(groupKey);
   if (group === null) {
@@ -114,6 +127,25 @@ export async function quote(
     );
   }
 
+  // The band's own capacity, from real subscription rows and real policy rows.
+  // A band nobody has funded is refused here rather than priced at a floor: it
+  // is capital declining that risk, which is a true thing about the market and
+  // not an error. The sentence says so without apology.
+  const series = await readSeriesCapacity(services.repository, seriesConfig.label, state);
+  const capacity = capacityFor(series, band);
+  const reason = capacityReason(capacity, limit);
+  if (reason === 'no_capital') throw bandNotFunded(band, group.label);
+  if (reason === 'no_free_capacity') {
+    throw new AppError(
+      409,
+      'insufficient_capacity',
+      'No capacity',
+      band === null
+        ? 'The series has no capacity left for a policy of that size.'
+        : `The capital behind ${SENIORITY_BAND_LABELS[band]} has no room left for cover of that size.`,
+    );
+  }
+
   const observations = await services.repository.observations(groupKey, 1);
   const latest = observations[0];
   if (latest === undefined || latest.ebar === null) {
@@ -132,9 +164,14 @@ export async function quote(
     // quote a rate for a trigger that is not the one that pays.
     levelLine: state.levelLine,
     limit,
-    activeExposure: state.activeExposure,
-    principalRemaining: state.principalRemaining,
+    exposure: capacity.exposure,
+    capital: capacity.capital,
   });
+  // Unreachable: the band was refused above when it had no capital. The guard
+  // is here because `priceCover` returns null rather than a floor price for an
+  // unfunded band, and a null that reached the quote row would be a premium of
+  // nothing.
+  if (price === null) throw bandNotFunded(band, group.label);
 
   await services.repository.upsertSeries(seriesRowFrom(seriesConfig, state, services.config));
 
@@ -144,6 +181,7 @@ export async function quote(
     quoteId: newId('quote', now.getTime()),
     seriesId: seriesConfig.label,
     groupKey,
+    band,
     wallet,
     walletEvm: null,
     coverLimit: limit.toString(),
@@ -151,7 +189,12 @@ export async function quote(
     asset: services.config.settlementToken.tokenId,
     assetDecimals: decimals,
     annualRateBps: price.annualRateBps,
-    pricingBasis: { ...price.basis, observed_period: latest.period, source: latest.source },
+    pricingBasis: {
+      ...price.basis,
+      band,
+      observed_period: latest.period,
+      source: latest.source,
+    },
     issuedVia: issuedVia(request),
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + services.config.quoteTtlSeconds * 1000).toISOString(),
@@ -170,10 +213,48 @@ export async function quote(
     attachmentShock: state.attachmentShock,
     levelLine: state.levelLine,
     payoutMode: state.payoutMode,
-    freeBefore: state.freeCapacity,
-    principalRemaining: state.principalRemaining,
-    activeExposure: state.activeExposure,
+    // The capacity a buyer is told about is the capacity they are buying out
+    // of, which is the band's and not the series'. With nothing allocated to
+    // any band the two are the same figure.
+    freeBefore: capacity.free,
+    capital: capacity.capital,
+    exposure: capacity.exposure,
   });
+}
+
+/**
+ * The band, or null when the request named none.
+ *
+ * Null is a state, not a default: it means the capital that named no band. An
+ * unrecognised string is refused rather than read as null, because a caller who
+ * meant a band and misspelled it would otherwise be quoted a price for
+ * something else.
+ */
+export function optionalBand(value: unknown): SeniorityBand | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (!isSeniorityBand(value)) {
+    throw new AppError(400, 'validation_failed', 'Validation failed', 'band is not one offered.', [
+      { path: 'body.band', message: 'expected 0_5, 5_25 or 25_plus' },
+    ]);
+  }
+  return value;
+}
+
+/** Capital has not chosen this band yet. A fact about the market, said plainly. */
+function bandNotFunded(band: SeniorityBand | null, label: string): AppError {
+  return band === null
+    ? new AppError(
+        409,
+        'band_not_funded',
+        'No cover behind this occupation yet',
+        `Every pound behind ${label} has been committed to an experience band, so a quote has to name one.`,
+      )
+    : new AppError(
+        409,
+        'band_not_funded',
+        'Not funded yet',
+        `No capital has been committed to ${SENIORITY_BAND_LABELS[band]} of experience in ${label} yet.`,
+      );
 }
 
 /**

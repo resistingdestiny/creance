@@ -2,6 +2,8 @@ import { AppError } from '../errors.js';
 import {
   ACTIVE_POLICY_STATUSES,
   SIGN_IN_POLICY_STATUSES,
+  type BandExposureRow,
+  type BandSubscriptionRow,
   type ClaimAuditRow,
   type ClaimEvidenceRow,
   type ClaimPaidInput,
@@ -16,6 +18,7 @@ import {
   type ObservationRow,
   type PaymentRow,
   type PolicyRow,
+  type PolicyStatus,
   type QuoteRow,
   type Repository,
   type ReservePolicyInput,
@@ -41,6 +44,7 @@ export class MemoryRepository implements Repository {
   private readonly observationRows = new Map<string, ObservationRow>();
   private readonly claimRows = new Map<string, ClaimAuditRow>();
   private readonly coverKeyRows = new Map<string, CoverKeyRow>();
+  private readonly bandSubscriptionRows = new Map<string, BandSubscriptionRow>();
 
   constructor(groups: GroupRow[] = []) {
     for (const group of groups) this.groupRows.set(group.groupKey, group);
@@ -83,6 +87,32 @@ export class MemoryRepository implements Repository {
 
   async quote(quoteId: string): Promise<QuoteRow | null> {
     return this.quoteRows.get(quoteId) ?? null;
+  }
+
+  async insertBandSubscription(row: BandSubscriptionRow): Promise<void> {
+    this.bandSubscriptionRows.set(row.subscriptionId, row);
+  }
+
+  async bandSubscriptions(seriesId: string): Promise<BandSubscriptionRow[]> {
+    return [...this.bandSubscriptionRows.values()]
+      .filter((row) => row.seriesId === seriesId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async bandExposure(
+    seriesId: string,
+    statuses: readonly PolicyStatus[],
+  ): Promise<BandExposureRow[]> {
+    const totals = new Map<string, bigint>();
+    for (const row of this.policyRows.values()) {
+      if (row.seriesId !== seriesId || row.band === null) continue;
+      if (!statuses.includes(row.status)) continue;
+      totals.set(row.band, (totals.get(row.band) ?? 0n) + BigInt(row.coverLimit));
+    }
+    return [...totals].map(([band, amount]) => ({
+      band: band as BandExposureRow['band'],
+      amount: amount.toString(),
+    }));
   }
 
   async policy(policyId: string): Promise<PolicyRow | null> {
@@ -141,7 +171,13 @@ export class MemoryRepository implements Repository {
     const quote = this.quoteRows.get(input.quoteId);
     if (quote === undefined || quote.consumedAt !== null) throw quoteConsumed();
 
+    // Both checks, the series one and the band one. The first mirrors what the
+    // contract enforces; the second is this system's own, and it is what stops
+    // a band being sold past the capital that chose it.
     if (BigInt(input.activeExposure) + BigInt(policy.coverLimit) > BigInt(input.principalRemaining)) {
+      throw insufficientCapacity();
+    }
+    if (BigInt(input.bandExposure) + BigInt(policy.coverLimit) > BigInt(input.bandCapital)) {
       throw insufficientCapacity();
     }
 

@@ -33,6 +33,12 @@ export interface QuoteView {
   quote_id: string;
   series_id: string;
   group: string;
+  /**
+   * The experience band the price was struck in, or null for a quote that
+   * named none. It changes the price and nothing else: the trigger, the
+   * settlement and the payout are the same in every band.
+   */
+  band: string | null;
   wallet: string;
   limit: Money;
   premium: Money;
@@ -64,8 +70,9 @@ export interface QuoteViewInput {
   levelLine: number;
   payoutMode: string;
   freeBefore: bigint;
-  principalRemaining: bigint;
-  activeExposure: bigint;
+  /** The capital behind this quote's band, and what that band is carrying. */
+  capital: bigint;
+  exposure: bigint;
 }
 
 export function buildQuoteView(input: QuoteViewInput): QuoteView {
@@ -75,6 +82,7 @@ export function buildQuoteView(input: QuoteViewInput): QuoteView {
     quote_id: quote.quoteId,
     series_id: quote.seriesId,
     group: quote.groupKey,
+    band: quote.band,
     wallet: quote.wallet,
     limit: money(quote.coverLimit, quote.asset, quote.assetDecimals),
     premium: money(quote.premium, quote.asset, quote.assetDecimals),
@@ -93,7 +101,7 @@ export function buildQuoteView(input: QuoteViewInput): QuoteView {
     capacity: {
       free_before: input.freeBefore.toString(),
       free_after: (freeAfter < 0n ? 0n : freeAfter).toString(),
-      used_pct: usedPercent(input.activeExposure, input.principalRemaining),
+      used_pct: usedPercent(input.exposure, input.capital),
     },
     expires_at: rfc3339(quote.expiresAt),
     issued_via: quote.issuedVia,
@@ -101,15 +109,17 @@ export function buildQuoteView(input: QuoteViewInput): QuoteView {
 }
 
 /** An integer, computed once here so that two screens cannot round differently. */
-export function usedPercent(activeExposure: bigint, principalRemaining: bigint): number {
-  if (principalRemaining <= 0n) return 0;
-  return Number((activeExposure * 100n) / principalRemaining);
+export function usedPercent(exposure: bigint, capital: bigint): number {
+  if (capital <= 0n) return 0;
+  return Number((exposure * 100n) / capital);
 }
 
 export interface PolicyView {
   policy_id: string;
   series_id: string;
   group: string;
+  /** The band the cover was written in, or null for cover bought before bands. */
+  band: string | null;
   status: string;
   limit: Money;
   premium: Money;
@@ -154,6 +164,7 @@ export function buildPolicyView(
     policy_id: policy.policyId,
     series_id: policy.seriesId,
     group: policy.groupKey,
+    band: policy.band,
     status: policy.status,
     limit: money(policy.coverLimit, policy.asset, policy.assetDecimals),
     premium: money(policy.premium, policy.asset, policy.assetDecimals),

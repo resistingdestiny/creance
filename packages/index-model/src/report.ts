@@ -584,12 +584,35 @@ ${table(
   ]),
 )}
 
+The market term is per experience band, and the guide term is not. Cover is
+sold in three bands of years worked, 0 to 5, 5 to 25 and 25 or more, and a band
+changes the utilisation the market rate is computed at, because utilisation is
+exposure written in a band over capital committed to that band. It changes
+nothing above that line. The distance, the fitted hazard and the guide rate are
+identical in all three bands, and so are the attachment, the level line, the
+loss window and the payout.
+
+That is a limitation and not a design preference. The CPS catalogue this index
+resolves against carries 739 unemployment rate series with an occupation code
+and 819 unemployed level series with one, and not a single series in either set
+also carries an age code. There is no published occupation-by-age unemployment
+rate and none can be derived from these files, because the numerator does not
+exist. The catalogue's own experience field is binary, experienced against
+inexperienced labour force, and is not years. So this index cannot measure
+whether displacement falls harder on a worker of one seniority than another,
+and nothing in this product claims that it can. What a band expresses is
+capital's appetite, which is a fact about capital.
+
 Every assumption in that formula is arguable and all of them are stated. The chance a covered worker is involuntarily separated inside a loss window is taken as ${PRICING.separationGivenOpen}, the JOLTS layoffs and discharges base with a three times open-month uplift over a six month window. The expected share of the limit paid is ${PRICING.expectedShareOfLimit}, partial at attachment and full at twice it. The load is ${((PRICING.load - 1) * 100).toFixed(0)} percent. The floor of ${(PRICING.floorRate * 100).toFixed(1)} percent is a judgment about the least a policy is worth writing, not a measurement, and on this curve it never binds: the flat end of the hazard already prices above it.`);
 
   parts.push(`## Honesty notes
 
 - The index does not attribute cause. A shock that has nothing to do with AI
   opens claims too, and the loss key does not try to tell the two apart.
+- The index has no age or seniority dimension and cannot be given one from
+  these sources. Cover is priced in three experience bands, and that band moves
+  the capacity term of the price and nothing else. It is what capital will take
+  a risk for, not a difference this index has measured.
 - The detailed occupation series carry more sampling noise than the majors. The
   per-series attachments price that in rather than hiding it.
 - First published values settle, and that rests on this pipeline rather than

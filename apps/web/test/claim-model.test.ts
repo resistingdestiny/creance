@@ -112,6 +112,25 @@ describe('the Home states', () => {
     expect(homeStatus('claim_in_progress').pill).toBe('watch');
   });
 
+  it('says so to a stranger too, who has no claim session to read', () => {
+    // Somebody who opened the cover with its key has no claim of their own, so
+    // the state has to come off the policy. Without this a cover with a claim
+    // under review told them "Covered", which is the opposite of what is
+    // happening to it.
+    for (const status of ['claimed', 'under_review', 'approved']) {
+      expect(homeStateOf({ ...OPEN_POLICY, status }, null), status).toBe('claim_in_progress');
+    }
+  });
+
+  it('does not call a declined cover a claim in progress', () => {
+    // The claim is over and the cover is an ordinary one again, which is the
+    // same rule the claim session follows.
+    expect(homeStateOf({ ...OPEN_POLICY, status: 'declined' }, null)).toBe('claims_open');
+    expect(homeStateOf({ ...OPEN_POLICY, status: 'declined', claims: undefined }, null)).toBe(
+      'covered',
+    );
+  });
+
   it('is Paid out once the money has moved, and red', () => {
     expect(homeStateOf(PAID_POLICY, PAID_CLAIM)).toBe('paid');
     expect(homeStatus('paid')).toEqual({ state: 'paid', pill: 'triggered', label: 'Paid out' });

@@ -106,16 +106,38 @@ export function homeStatus(state: HomeState): HomeStatus {
 }
 
 /**
+ * The policy statuses that mean a claim is running on this cover.
+ *
+ * The lifecycle the API writes is claimed, then under_review once it is
+ * referred, then approved or declined, then paid. The first three are a claim
+ * in flight. Declined is not: the claim is over and the cover goes back to
+ * being an ordinary one, which is the same rule the claim session follows
+ * below.
+ */
+const CLAIM_RUNNING = new Set(['claimed', 'under_review', 'approved']);
+
+/**
  * Which state Home is in, from the cover and the claim behind it.
  *
  * The order is the order the states supersede each other. A paid claim is the
  * end of this cover's life, so it wins over everything; a claim in flight wins
  * over the invitation to start one; the amber "Claims open" pill needs both
- * the chain's answer and no claim of this browser's own.
+ * the chain's answer and no claim running on the cover.
+ *
+ * The claim is read twice, from two places, because only one of them is always
+ * there. `claim` is this browser's own claim session and carries the detail the
+ * screen shows; somebody who opened the cover with its key has no session at
+ * all. The cover's own status is on the policy and anybody can read it, so it
+ * is what decides the state, and the session is only what fills it in.
+ *
+ * Without that second test a cover with a claim under review showed a stranger
+ * the word "Covered", which is a screen telling somebody the opposite of what
+ * is happening to their cover.
  */
 export function homeStateOf(policy: PolicyView, claim: ClaimStatusView | null): HomeState {
   if (policy.status === 'paid' || claim?.status === 'paid') return 'paid';
   if (claim !== null && claim.status !== 'declined') return 'claim_in_progress';
+  if (CLAIM_RUNNING.has(policy.status)) return 'claim_in_progress';
   if (policy.status === 'lapsed') return 'lapsed';
   if (policy.claims?.open === true) return 'claims_open';
   return 'covered';

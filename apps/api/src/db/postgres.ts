@@ -21,6 +21,7 @@ import type {
   ClaimStatus,
   CoverKeyRow,
   NewClaimInput,
+  NewsletterSignupRow,
   CredentialRow,
   GroupRow,
   LatestPeriod,
@@ -272,6 +273,34 @@ export class PostgresRepository implements Repository {
       [nullifier, [...SIGN_IN_POLICY_STATUSES]],
     );
     return rows.map(toPolicy);
+  }
+
+  /**
+   * The address, or nothing at all if it is already held.
+   *
+   * `DO NOTHING` rather than an upsert: a repeat must leave the row exactly as
+   * it was, so `created_at` stays the first time the address was given and the
+   * table never records that somebody submitted twice. It is also what lets the
+   * route answer both cases identically, since this cannot report which
+   * happened and therefore cannot be made to.
+   */
+  async recordNewsletterSignup(row: NewsletterSignupRow): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO newsletter_signups (email, created_at)
+        VALUES ($1, $2)
+        ON CONFLICT (email) DO NOTHING`,
+      [row.email, row.createdAt],
+    );
+  }
+
+  async newsletterSignups(): Promise<NewsletterSignupRow[]> {
+    const { rows } = await this.pool.query<{ email: string; created_at: Date }>(
+      'SELECT email, created_at FROM newsletter_signups ORDER BY created_at DESC',
+    );
+    return rows.map((row) => ({
+      email: row.email,
+      createdAt: new Date(row.created_at).toISOString(),
+    }));
   }
 
   async insertCoverKey(row: CoverKeyRow): Promise<void> {

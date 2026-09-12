@@ -14,6 +14,7 @@ import { bindRoutes } from './routes/bind.js';
 import { coverRoutes } from './routes/cover.js';
 import { indexRoutes } from './routes/index-feed.js';
 import { indexHealthRoutes } from './routes/index-health.js';
+import { newsletterRoutes } from './routes/newsletter.js';
 import { opsRoutes } from './routes/ops.js';
 import { policyRoutes } from './routes/policy.js';
 import { quoteRoutes } from './routes/quote.js';
@@ -78,6 +79,7 @@ export async function buildServer(
   await app.register(indexHealthRoutes, { services });
   await app.register(indexRoutes, { services });
   await app.register(bandRoutes, { services });
+  await app.register(newsletterRoutes, { services });
   await app.register(quoteRoutes, { services });
   await app.register(bindRoutes, { services });
   await app.register(policyRoutes, { services });

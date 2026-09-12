@@ -102,6 +102,21 @@ export interface CoverKeyRow {
 }
 
 /**
+ * One address somebody asked to be written to, and when they asked.
+ *
+ * Two fields and no third. The table holds no name, no source, no address of
+ * the machine that sent it and no consent flag, because none of them is needed
+ * to write to somebody once, and a column exists to be filled.
+ *
+ * `email` is stored folded to lower case, so the same address given twice is
+ * one row. See apps/api/migrations/006_newsletter.sql.
+ */
+export interface NewsletterSignupRow {
+  email: string;
+  createdAt: string;
+}
+
+/**
  * One commitment of capital to one experience band of one series.
  *
  * The vault holds the money against the series and knows nothing of bands, so
@@ -528,6 +543,24 @@ export interface Repository {
    * cover is found rather than reported as no cover at all.
    */
   policiesForPerson(nullifier: string): Promise<PolicyRow[]>;
+  /**
+   * Record an address for the newsletter. An address already held is kept as
+   * it was, with the date it was first given, and this returns normally.
+   *
+   * It cannot say whether the row was new, and that is the point: the route
+   * above it answers a repeat exactly as it answers a first, so a caller with
+   * somebody else's address cannot use the endpoint to find out whether they
+   * are on the list.
+   */
+  recordNewsletterSignup(row: NewsletterSignupRow): Promise<void>;
+  /**
+   * Every address held, newest first.
+   *
+   * No route serves this and none should: the list is the one thing on this
+   * table worth taking. It exists so that the tests can read back what the
+   * endpoint wrote, which is the only way to prove that it wrote it.
+   */
+  newsletterSignups(): Promise<NewsletterSignupRow[]>;
   /** Records a cover key by its digest. Many keys may open one cover. */
   insertCoverKey(row: CoverKeyRow): Promise<void>;
   /** The cover a key digest opens, or null. */

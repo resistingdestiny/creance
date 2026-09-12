@@ -11,6 +11,7 @@ import {
   type ClaimStatus,
   type CoverKeyRow,
   type NewClaimInput,
+  type NewsletterSignupRow,
   type RecordDecisionInput,
   type CredentialRow,
   type GroupRow,
@@ -45,6 +46,7 @@ export class MemoryRepository implements Repository {
   private readonly claimRows = new Map<string, ClaimAuditRow>();
   private readonly coverKeyRows = new Map<string, CoverKeyRow>();
   private readonly bandSubscriptionRows = new Map<string, BandSubscriptionRow>();
+  private readonly newsletterRows = new Map<string, NewsletterSignupRow>();
 
   constructor(groups: GroupRow[] = []) {
     for (const group of groups) this.groupRows.set(group.groupKey, group);
@@ -137,6 +139,19 @@ export class MemoryRepository implements Repository {
           row.nullifier === nullifier && SIGN_IN_POLICY_STATUSES.includes(row.status),
       )
       .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
+  }
+
+  async recordNewsletterSignup(row: NewsletterSignupRow): Promise<void> {
+    // First in wins, exactly as the ON CONFLICT DO NOTHING in the schema does,
+    // so the stored date is when the address was first given and a repeat
+    // leaves no trace at all.
+    if (!this.newsletterRows.has(row.email)) this.newsletterRows.set(row.email, row);
+  }
+
+  async newsletterSignups(): Promise<NewsletterSignupRow[]> {
+    return [...this.newsletterRows.values()].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    );
   }
 
   async insertCoverKey(row: CoverKeyRow): Promise<void> {

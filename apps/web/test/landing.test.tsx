@@ -442,13 +442,19 @@ describe('the public index explorer, on the front door', () => {
 describe('the front of the machine', () => {
   it('offers the quote three times, as buttons rather than as a form post', () => {
     // The button opened /occupation through a server action and a redirect. The
-    // quote is on this page now (T35), so it opens in place and there is no
-    // form on the page at all.
+    // quote is on this page now (T35), so it opens in place and nothing about
+    // it posts.
     const buttons = [...live.matchAll(/<button[^>]*>([\s\S]*?)<\/button>/g)].map((match) =>
       visibleText(match[1] ?? ''),
     );
     expect(buttons.filter((label) => label === 'Get a quote')).toHaveLength(3);
-    expect(live).not.toContain('<form');
+    // This used to read "no form on the page at all", which held while the
+    // quote was the only thing on it that could post. The newsletter posts, on
+    // purpose, so that it works before hydration the way the trading forms do.
+    // What still has to be true is that it is the only one.
+    const forms = [...live.matchAll(/<form[^>]*>[\s\S]*?<\/form>/g)].map((match) => match[0]);
+    expect(forms).toHaveLength(1);
+    expect(forms[0]).toContain('type="email"');
   });
 
   it('stands the cover card in the hero until the quote is asked for', () => {

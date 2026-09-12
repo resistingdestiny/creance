@@ -9,13 +9,17 @@ import type {
   LandingPriceView,
   Streamed,
 } from '../../lib/landing-data';
+import type { InvestorBandView } from '../../lib/investor-band';
 import type { LandingFigure } from '../../lib/landing-model';
+import type { NewsletterOutcome } from '../../lib/newsletter-model';
 import { CoverCard } from '../cover-card';
 import { PillLink } from '../pill-button';
 import { ReplayBar } from '../replay-bar';
 import { CHROME_PAGE, SiteHeader } from '../site-chrome';
 import { Skeleton } from '../skeleton';
 import { HeroAmount } from './hero-amount';
+import { InvestorBand } from './investor-band';
+import { NewsletterSignup } from './newsletter-signup';
 import { IndexTicker } from './index-ticker';
 import { LandingExplorer } from './landing-explorer';
 import { QuoteButton } from './quote-button';
@@ -95,8 +99,14 @@ export function LandingScreen({
   data,
   interim = false,
   demo = false,
+  investor = null,
+  news = null,
 }: {
   data: LandingData;
+  /** Who funds the cover, read behind its own boundary. Null renders nothing. */
+  investor?: Streamed<InvestorBandView> | null;
+  /** What to say about a newsletter sign up that has just been made, if one has. */
+  news?: NewsletterOutcome | null;
   /**
    * No World app id in this deployment, so the check step runs the interim
    * issuer and says so. False is the World check running, which is what a
@@ -143,6 +153,18 @@ export function LandingScreen({
           <div className="rounded-[20px] bg-canvas lg:rounded-hero">
             <Questions index={data.index} />
             <IndexSection explorer={data.explorer} index={data.index} />
+            {/* Who funds the cover, and the way to hear when there is news.
+                A visitor who never presses "Earn yield" never learns there is
+                an investor side at all, so the page shows it rather than
+                waiting to be asked. Both render nothing when they have nothing,
+                so a failed read costs the page a section and never the page.
+                The sheet's own bottom padding stands under them. */}
+            <section className={`pb-16 lg:pb-28 ${PAGE}`}>
+              <div className={`flex flex-col gap-16 ${CONTENT} lg:gap-20`}>
+                <InvestorBand view={investor} />
+                <NewsletterSignup outcome={news} />
+              </div>
+            </section>
           </div>
           <Closing note={data.note} />
         </main>

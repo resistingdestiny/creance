@@ -3,7 +3,9 @@ import type { Metadata } from 'next';
 import { LandingScreen } from '../components/landing/landing-screen';
 import { demonstrationOn } from '../lib/demo-states';
 import { isInterimIssuer } from '../lib/eligibility';
+import { readInvestorBand } from '../lib/investor-band';
 import { readLanding } from '../lib/landing-data';
+import { newsletterOutcome } from '../lib/newsletter-model';
 
 /**
  * The front door, from the design of record.
@@ -46,12 +48,25 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default function Landing() {
+export default async function Landing({
+  searchParams,
+}: {
+  /**
+   * The newsletter's outcome comes back in the address because its form is a
+   * plain post with no client state, the same shape the trading forms use. It
+   * is a code from a fixed list and never a sentence, so nothing a visitor
+   * typed can be reflected onto the page.
+   */
+  searchParams: Promise<{ news?: string }>;
+}) {
+  const { news } = await searchParams;
   return (
     <LandingScreen
       data={readLanding()}
       demo={demonstrationOn()}
       interim={isInterimIssuer()}
+      investor={readInvestorBand()}
+      news={newsletterOutcome(news)}
     />
   );
 }

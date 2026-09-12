@@ -2,6 +2,14 @@
 
 Direction 1a (wallet card). Next.js + Tailwind. Light mode only. Screens of record: `Full Set 1a.dc.html`, `Web 1a.dc.html`, `Landing v2.dc.html`.
 
+Money note, added 12 September 2026: every amount in the copy below is a
+specimen from the design tool, not a price. This product quotes at runtime and
+has repriced twice since these were written, so "28.00", "4.25" and "1.51" all
+appear here and none of them is what the product charges. The figures a reader
+sees come from the API, and the arithmetic behind them is
+`packages/index-model/src/pricing.ts` with its assumptions in
+/srv/dbond/board/PRICING.md. Nothing in the product reads this file.
+
 ## 1. Colour tokens
 
 ```js

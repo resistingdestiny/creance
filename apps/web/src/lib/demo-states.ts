@@ -37,7 +37,22 @@ import { serverFlag, serverVar } from './server-env';
 
 const OCCUPATION = 'Computer and mathematical';
 
-/** The demo series' own figures, so a fixture never invents a price. */
+/**
+ * The fixture's figures.
+ *
+ * The comment here used to say these were the demo series' own, so a fixture
+ * never invents a price. That stopped being true when the pricing was solved
+ * from the return capital requires on 12 September 2026: 4.25 was a real quote
+ * on this series under the old formula and is now roughly a sixth of one.
+ *
+ * It is left at 4.25 rather than chased, because chasing it would make the same
+ * comment false again at the next repricing. What makes a fixture honest is not
+ * that its numbers are current, it is that every screen drawn from one says on
+ * its own face that nothing on it came from the API, which they all do. These
+ * three states are also unreachable in this deployment: covered, claims open
+ * and paid out are real covers now, and the states below are the ones that
+ * cannot be reached live.
+ */
 const COVER = 1_000;
 const PREMIUM = '4.25';
 

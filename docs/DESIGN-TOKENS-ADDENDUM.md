@@ -2,6 +2,14 @@
 
 docs/DESIGN-TOKENS.md was produced before the trigger became two keys (DESIGN.md 3.9). This addendum replaces its "Triggered" screen and adds the claim screens. Same tokens, same components, same voice. Where the two documents disagree, this one wins.
 
+Money note, added 12 September 2026: every amount in the copy below is a
+specimen from the design tool, not a price. This product quotes at runtime and
+has repriced twice since these were written, so "28.00", "4.25" and "1.51" all
+appear here and none of them is what the product charges. The figures a reader
+sees come from the API, and the arithmetic behind them is
+`packages/index-model/src/pricing.ts` with its assumptions in
+/srv/dbond/board/PRICING.md. Nothing in the product reads this file.
+
 House style note: docs/DESIGN-TOKENS.md is the design tool's export and contains em and en dashes in its own prose and copy strings. When lifting copy or writing new strings, apply CLAUDE.md's rule: no em or en dashes anywhere in the product; use a comma, a colon, or the word "to" for ranges (56 to 60). Tokens, measurements and CSS are unaffected.
 
 ## Replaced state: Home, claims open

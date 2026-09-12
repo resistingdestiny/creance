@@ -11,7 +11,8 @@ import {
   parseBoundPolicy,
   packetsNeedingCover,
   RUN,
-  showcaseNeedsCover,
+  SHOWCASE,
+  showcasesNeedingCover,
   stagesToRun,
   type SeedRecord,
 } from '../scripts/testnet/demo-seed/plan.js';
@@ -109,30 +110,44 @@ describe('what still needs binding', () => {
   });
 });
 
-describe('the cover a judge opens', () => {
-  const bound = {
-    role: 'policyholder-2',
-    policyId: 'pol_S',
-    accountId: '0.0.10366456',
-    address: '0x9c11',
-    startAt: COVER.startAt,
-    claimsPayableFrom: '2026-01-30',
-    limit: COVER.limit,
-    coverKey: 'K7QPK7QPK7QPK7QPK7QP',
-  };
+describe('the covers a judge opens', () => {
+  function bound(name: string, policyId: string) {
+    return {
+      name,
+      role: 'policyholder-2',
+      policyId,
+      seriesLabel: 'ODI-COMP-2026-01',
+      accountId: '0.0.10366456',
+      address: '0x9c11',
+      startAt: COVER.startAt,
+      claimsPayableFrom: '2026-01-30',
+      limit: COVER.limit,
+      coverKey: 'K7QPK7QPK7QPK7QPK7QP',
+    };
+  }
 
-  it('binds one from nothing', () => {
-    expect(showcaseNeedsCover(emptyRecord('testnet'), () => true)).toBe(true);
+  const all = SHOWCASE.map((plan, index) => bound(plan.name, `pol_S${String(index)}`));
+
+  it('binds every one of them from nothing', () => {
+    expect(showcasesNeedingCover(emptyRecord('testnet'), () => true).map((plan) => plan.name)).toEqual(
+      SHOWCASE.map((plan) => plan.name),
+    );
   });
 
   it('binds nothing on a second run', () => {
-    const record = { ...emptyRecord('testnet'), showcase: bound };
-    expect(showcaseNeedsCover(record, () => true)).toBe(false);
+    const record = { ...emptyRecord('testnet'), showcases: all };
+    expect(showcasesNeedingCover(record, () => true)).toEqual([]);
   });
 
-  it('binds again once the cover it recorded is spent', () => {
-    const record = { ...emptyRecord('testnet'), showcase: bound };
-    expect(showcaseNeedsCover(record, () => false)).toBe(true);
+  it('binds again only the one whose cover was spent', () => {
+    const record = { ...emptyRecord('testnet'), showcases: all };
+    const needed = showcasesNeedingCover(record, (policyId) => policyId !== 'pol_S0');
+    expect(needed.map((plan) => plan.name)).toEqual([SHOWCASE[0]?.name]);
+  });
+
+  it('puts one of them on a series of its own, so Covered has a cover to publish', () => {
+    expect(SHOWCASE.some((plan) => plan.series !== undefined)).toBe(true);
+    expect(SHOWCASE.some((plan) => plan.series === undefined)).toBe(true);
   });
 });
 
@@ -152,13 +167,16 @@ describe('what the seed publishes', () => {
   it('keeps the slots in the order the screen lists them', () => {
     const line = demoCoversSetting([
       { slot: 'paid', key: 'PPPPPPPPPPPPPPPPPPPP' },
+      { slot: 'claims-open', key: 'OOOOOOOOOOOOOOOOOOOO' },
       { slot: 'covered', key: 'CCCCCCCCCCCCCCCCCCCC' },
     ]);
-    expect(line).toBe('WEB_DEMO_COVERS=covered:CCCCCCCCCCCCCCCCCCCC,paid:PPPPPPPPPPPPPPPPPPPP');
+    expect(line).toBe(
+      'WEB_DEMO_COVERS=covered:CCCCCCCCCCCCCCCCCCCC,claims-open:OOOOOOOOOOOOOOOOOOOO,paid:PPPPPPPPPPPPPPPPPPPP',
+    );
   });
 
-  it('knows the two slots the web app parses', () => {
-    expect([...DEMO_COVER_SLOTS]).toEqual(['covered', 'paid']);
+  it('knows the three slots the web app parses', () => {
+    expect([...DEMO_COVER_SLOTS]).toEqual(['covered', 'claims-open', 'paid']);
   });
 });
 

@@ -11,6 +11,13 @@ import { serverFlag, serverVar } from './server-env';
  * Home state from fixtures, behind a private flag, and every screen it renders
  * says on its face that nothing on it came from the API.
  *
+ * A state here is a fallback and not the offer. Where a deployment has bound a
+ * real cover in a state, `DEMO_COVER_SLOTS` publishes it and the screen drops
+ * the fixture: a judge pressing Paid out should reach a cover that really was
+ * paid, with the transaction that paid it. The slot names below are these state
+ * names for exactly that reason, so the two halves line up without a table
+ * between them.
+ *
  * A private variable and never a NEXT_PUBLIC one, in the spirit of the demo
  * eligibility issuer: the web image inlines public variables at build time, and
  * a demo control that cannot be turned off after a build is not off by default.
@@ -78,6 +85,19 @@ const STATES: Record<string, () => HomeView> = {
 /** The states the control can render, for the screen that lists them. */
 export const DEMO_STATES: readonly string[] = Object.keys(STATES);
 
+/**
+ * The states left for fixtures to show, once the real covers have taken theirs.
+ *
+ * A state with a real cover behind it is offered as that cover and not twice, so
+ * the list on the screen shrinks as a deployment gets more of the product into a
+ * state it can publish. On a deployment that has published nothing this is all
+ * six, which is where this control started.
+ */
+export function fixtureStates(covers: readonly DemoCover[]): readonly string[] {
+  const real = new Set<string>(covers.map((cover) => cover.slot));
+  return DEMO_STATES.filter((state) => !real.has(state));
+}
+
 export function demoStatesEnabled(): boolean {
   return serverFlag('WEB_DEMO_STATES');
 }
@@ -95,12 +115,24 @@ export function demoHomeView(name: string): HomeView | null {
  * none of them, so `pnpm demo:seed` captures the key of every cover it binds
  * and prints this line for the operator to set.
  *
- *     WEB_DEMO_COVERS=covered:K7QP...,paid:3ZDN...
+ *     WEB_DEMO_COVERS=covered:K7QP...,claims-open:3ZDN...,paid:9F0R...
  *
- * Two slots and no more, because the screen says in words what each one is and
- * a name it has no words for would be a cover nobody could describe. The seed
- * fills a slot from what the database says the cover is, so a deployment that
- * has paid no claim publishes no paid cover.
+ * A slot is named for the Home state the cover behind it is in, and the three
+ * here are the three states a cover can be put into and then opened cold, by
+ * somebody who has no session of their own:
+ *
+ *     covered       a cover on a series whose claims are shut
+ *     claims-open   a cover on a series whose claims are open
+ *     paid          a cover whose claim was approved and paid
+ *
+ * The other three Home states cannot be reached that way, and stay fixtures.
+ * Claim in progress is read from the browser's own claim session, so a stranger
+ * opening the cover with its key sees no claim. Nothing in this build lapses a
+ * cover. The replay badge is the oracle's mode and belongs to the whole
+ * deployment rather than to one cover.
+ *
+ * The seed fills a slot from what the database and the chain say the cover is,
+ * so a deployment that has paid no claim publishes no paid cover.
  *
  * These keys are bearer keys, exactly as strong as every other cover key, and
  * they are published on purpose. Each opens its own cover and nothing else,
@@ -108,7 +140,7 @@ export function demoHomeView(name: string): HomeView | null {
  * NEXT_PUBLIC name for the same reason as the flag above: the key belongs in
  * the page the server renders, not inlined into every bundle at build time.
  */
-export const DEMO_COVER_SLOTS = ['covered', 'paid'] as const;
+export const DEMO_COVER_SLOTS = ['covered', 'claims-open', 'paid'] as const;
 export type DemoCoverSlot = (typeof DEMO_COVER_SLOTS)[number];
 
 export interface DemoCover {

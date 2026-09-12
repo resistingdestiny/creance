@@ -7,9 +7,9 @@ import { ChevronRight } from '../../../components/icons';
 import { PillButton } from '../../../components/pill-button';
 import { readCoverSession } from '../../../lib/current-cover';
 import {
-  DEMO_STATES,
   demoCovers,
   demoStatesEnabled,
+  fixtureStates,
   type DemoCover,
 } from '../../../lib/demo-states';
 import { signOutOfCover } from '../../purchase-actions';
@@ -23,7 +23,6 @@ import {
   DEMO_REFUSED,
   DEMO_STATES_HEADING,
   DEMO_STATES_HELD,
-  DEMO_STATES_LINE,
   DEMO_STATE_LABELS,
   SIGN_OUT,
 } from '../home-copy';
@@ -46,10 +45,18 @@ import {
  * different is only that it is published rather than kept, which is a decision
  * about these covers and not a change to the mechanism.
  *
- * The states are fixtures, and are on the page because three of them have no
- * server path to force: a cover lapses when a premium goes unpaid, and a cover
- * pays out when a claim is decided, and neither can be arranged for a visitor.
- * They say so here and say so again on the screen they open.
+ * The states under them are fixtures, and only the ones that have to be. A
+ * state a cover can really be put into is published as that cover instead and
+ * drops off the list: Covered is a cover on a series whose claims are shut,
+ * Claims open is one on a series whose claims are open, and Paid out is a cover
+ * whose claim was approved and paid, with the transaction that paid it on the
+ * dashboard behind it. Three states are left, and each is left for a reason.
+ * Claim in progress is read from the browser's own claim session, so a stranger
+ * opening a cover with its key would see no claim on it. Nothing in this build
+ * lapses a cover, so Payment due cannot be arranged. The replay badge is the
+ * oracle's mode and belongs to the whole deployment rather than to one cover.
+ * Each of those three says on the screen it opens that nothing on it came from
+ * the API, which is where a reader is standing when it matters.
  *
  * The page renders on the server, holds no state and needs no script: opening a
  * cover is a form that posts to the same server action the cover key field on
@@ -61,7 +68,7 @@ import {
  * T57 redrew it. It was a heading, three paragraphs and six underlined links
  * in a vertical stack, which is a directory listing and not a way into a
  * product, and it is the first screen of this thing most readers will ever
- * open. The six states are peers, so they are a grid of six equal tiles; the
+ * open. The states left over are peers, so they are a grid of equal tiles; the
  * prose under every heading is gone; and the key is a row with a copy control
  * beside it rather than a figure to be transcribed by eye.
  *
@@ -83,8 +90,8 @@ export default async function DemoPage({
 }) {
   const { refused } = await searchParams;
   const covers = demoCovers();
-  const states = demoStatesEnabled();
-  if (covers.length === 0 && !states) notFound();
+  const fixtures = demoStatesEnabled() ? fixtureStates(covers) : [];
+  if (covers.length === 0 && fixtures.length === 0) notFound();
 
   const held = (await readCoverSession()) !== null;
 
@@ -108,14 +115,11 @@ export default async function DemoPage({
           <PublishedCover cover={cover} key={cover.slot} />
         ))}
 
-        {states ? (
+        {fixtures.length > 0 ? (
           <section className="flex flex-col gap-4" data-testid="demo-states">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-body-lg font-medium text-ink">{DEMO_STATES_HEADING}</h2>
-              <p className="text-secondary text-ink-2">{DEMO_STATES_LINE}</p>
-            </div>
+            <h2 className="text-body-lg font-medium text-ink">{DEMO_STATES_HEADING}</h2>
             <ul className="grid grid-cols-2 gap-3">
-              {DEMO_STATES.map((state) => (
+              {fixtures.map((state) => (
                 <li className="flex" key={state}>
                   <a
                     className="flex min-h-[64px] w-full items-center justify-between gap-2 rounded-field border border-hairline px-4 text-body text-ink no-underline"

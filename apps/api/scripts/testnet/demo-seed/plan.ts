@@ -81,18 +81,37 @@ export const COVER = {
 /** The two noteholders the investor screens and the coupon are shown against. */
 export const INVESTOR_ROLES = ['investor-1', 'investor-2'];
 
-/// The cover a person opens from a published link.
+/// The covers a person opens from a published link.
 ///
 /// Both packet covers are spent by the demonstration: packet a is claimed and
 /// paid, packet b is claimed and declined, so by the time anybody watches the
-/// video neither of them is a cover that is simply running. This third one is
-/// bound exactly the same way and is never claimed on, so the link published
-/// for it keeps showing the state most cover is in.
+/// video neither of them is a cover that is simply running. These are bound
+/// exactly the same way and are never claimed on, so the links published for
+/// them keep showing the states the rest of the book is in.
+///
+/// There are two because the demonstration series has its claims open, and a
+/// cover on an open series is a cover with claims open, whatever else it is.
+/// Covered and Claims open are different states and a reader is invited to look
+/// at both, so the second cover is bound on a series that is not open. Which
+/// slot each one fills is not decided here: it is read back from the database
+/// and the chain at the end of a run, so a deployment that has never replayed a
+/// month publishes two ordinary covers and says so.
 ///
 /// policyholder-2 because it is the only holder in docs/hedera.testnet.json
 /// that carries no packet. The Steward buys for the same account on camera and
 /// that is a separate cover with its own nullifier.
-export const SHOWCASE = { role: 'policyholder-2' };
+export interface ShowcasePlan {
+  /** The name the record files it under, and nothing a screen ever prints. */
+  name: string;
+  role: string;
+  /** The series label, or absent for the series this run is seeding. */
+  series?: string;
+}
+
+export const SHOWCASE: ShowcasePlan[] = [
+  { name: 'demo-series', role: 'policyholder-2' },
+  { name: 'quiet-series', role: 'policyholder-2', series: 'ODI-OFFC-2026-01' },
+];
 
 /** A cover the seed bound, and the one key that opens it. */
 export interface SeededCover {
@@ -118,13 +137,20 @@ export interface SeededPolicy extends SeededCover {
   packet: 'a' | 'b';
 }
 
+export interface SeededShowcase extends SeededCover {
+  /** The `ShowcasePlan` this cover was bound for. */
+  name: string;
+  /** The series it was bound on, which is not always the run's own. */
+  seriesLabel: string;
+}
+
 export interface SeedRecord {
   network: string;
   seededAt?: string;
   series?: { label: string; seriesId: string; groupKey: string };
   policies: SeededPolicy[];
-  /** The cover behind the published link. Absent until the seed binds it. */
-  showcase?: SeededCover;
+  /** The covers behind the published links. Empty until the seed binds them. */
+  showcases: SeededShowcase[];
   investors: { role: string; accountId: string; address: string; note?: string }[];
   packets: { packet: 'a' | 'b'; policyId: string; sha256: string; bytes: number }[];
   /** When each stage last finished, so a second run can say what it skipped. */
@@ -132,7 +158,7 @@ export interface SeedRecord {
 }
 
 export function emptyRecord(network: string): SeedRecord {
-  return { network, policies: [], investors: [], packets: [], stages: {} };
+  return { network, policies: [], showcases: [], investors: [], packets: [], stages: {} };
 }
 
 /**
@@ -165,7 +191,7 @@ export function packetsNeedingCover(record: SeedRecord, usable: (policyId: strin
 }
 
 /**
- * Whether the cover behind the published link still has to be bound.
+ * The covers behind the published links that still have to be bound.
  *
  * The same idempotence rule the packets get: a recorded cover that the database
  * and the chain still call usable is left alone, so a second run binds nothing.
@@ -173,21 +199,32 @@ export function packetsNeedingCover(record: SeedRecord, usable: (policyId: strin
  * would leave the old one running for nothing; `demoCoversSetting` is where
  * that shows up, as a slot nobody can publish.
  */
-export function showcaseNeedsCover(record: SeedRecord, usable: (policyId: string) => boolean): boolean {
-  const held = record.showcase;
-  return held === undefined || !usable(held.policyId);
+export function showcasesNeedingCover(
+  record: SeedRecord,
+  usable: (policyId: string) => boolean,
+): ShowcasePlan[] {
+  return SHOWCASE.filter((plan) => {
+    const held = record.showcases.find((cover) => cover.name === plan.name);
+    return held === undefined || !usable(held.policyId);
+  });
 }
 
 /**
- * The slots a deployment can publish a cover in, and the only two this build
- * knows how to describe honestly on a screen.
+ * The slots a deployment can publish a cover in.
  *
- * The web app parses the same two names out of `WEB_DEMO_COVERS`; see
+ * Each is named for the Home state the cover behind it is in, and these three
+ * are the three states a cover can be put into and then opened cold by somebody
+ * with no session of their own. The other three Home states stay fixtures on
+ * the screen: Claim in progress is read from the browser's own claim session,
+ * nothing in this build lapses a cover, and the replay badge is the oracle's
+ * mode rather than anything about one cover.
+ *
+ * The web app parses the same three names out of `WEB_DEMO_COVERS`; see
  * apps/web/src/lib/demo-states.ts. The two halves are joined by an environment
  * variable and not by an import, because the seed writes it on one machine and
  * the web process reads it on another.
  */
-export const DEMO_COVER_SLOTS = ['covered', 'paid'] as const;
+export const DEMO_COVER_SLOTS = ['covered', 'claims-open', 'paid'] as const;
 export type DemoCoverSlot = (typeof DEMO_COVER_SLOTS)[number];
 
 /**

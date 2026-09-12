@@ -10,8 +10,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * What these tests are about is the ticket's own hard line. A published key is
  * still a whole cover key and is checked by the same server action a typed one
  * is, so nothing here may invent a shorter way in. A cover that is real is
- * offered as real, a state that came from a fixture says so, and a browser that
- * already holds a cover is never shown a state that is not its own.
+ * offered as real, a state with a real cover behind it is never offered as a
+ * fixture as well, and a browser that already holds a cover is never shown a
+ * state that is not its own.
  *
  * The environment is the one thing mocked, because the setting is what a
  * deployment turns this on with, and the cookie store, because the page asks
@@ -40,13 +41,13 @@ vi.mock('next/navigation', () => ({ notFound, redirect: vi.fn() }));
 vi.mock('../src/app/purchase-actions.js', () => ({ signOutOfCover: vi.fn() }));
 vi.mock('../src/app/home/demo/actions.js', () => ({ openPublishedCover: vi.fn() }));
 
-const { DEMO_COVER_SLOTS, demoCovers, demonstrationOn, parseDemoCovers } = await import(
-  '../src/lib/demo-states.js'
-);
+const { DEMO_COVER_SLOTS, DEMO_STATES, demoCovers, demonstrationOn, fixtureStates, parseDemoCovers } =
+  await import('../src/lib/demo-states.js');
 const { default: DemoPage } = await import('../src/app/home/demo/page.js');
 
 /** Twenty characters of Crockford's base 32, as the API issues them. */
 const COVERED = 'K7QPK7QPK7QPK7QPK7QP';
+const OPEN = 'R2VBR2VBR2VBR2VBR2VB';
 const PAID = 'M3WXM3WXM3WXM3WXM3WX';
 
 async function renderPage(query: { refused?: string } = {}) {
@@ -67,9 +68,11 @@ describe('reading the published covers', () => {
     expect(parseDemoCovers(`covered:${COVERED}`)).toEqual([{ slot: 'covered', key: COVERED }]);
   });
 
-  it('reads both slots and lists them in the order the screen shows them', () => {
-    expect(parseDemoCovers(`paid:${PAID},covered:${COVERED}`).map((cover) => cover.slot)).toEqual([
+  it('reads every slot and lists them in the order the screen shows them', () => {
+    const line = `paid:${PAID},claims-open:${OPEN},covered:${COVERED}`;
+    expect(parseDemoCovers(line).map((cover) => cover.slot)).toEqual([
       'covered',
+      'claims-open',
       'paid',
     ]);
   });
@@ -81,6 +84,7 @@ describe('reading the published covers', () => {
 
   it('drops a slot it has no words for, rather than printing its name', () => {
     expect(parseDemoCovers(`lapsed:${COVERED}`)).toEqual([]);
+    expect(parseDemoCovers(`claim-in-progress:${COVERED}`)).toEqual([]);
   });
 
   it('drops a key that is not the shape of a cover key', () => {
@@ -108,8 +112,27 @@ describe('reading the published covers', () => {
     expect(demonstrationOn()).toBe(true);
   });
 
-  it('offers only the two slots the screen can describe', () => {
-    expect([...DEMO_COVER_SLOTS]).toEqual(['covered', 'paid']);
+  it('offers the three states a cover can be put into and opened cold', () => {
+    expect([...DEMO_COVER_SLOTS]).toEqual(['covered', 'claims-open', 'paid']);
+  });
+
+  it('names every slot after the state it is, so the two halves cannot drift', () => {
+    for (const slot of DEMO_COVER_SLOTS) expect(DEMO_STATES).toContain(slot);
+  });
+});
+
+describe('which states are left to a fixture', () => {
+  it('leaves all six where a deployment has published no cover', () => {
+    expect(fixtureStates([])).toEqual(DEMO_STATES);
+  });
+
+  it('drops a state once a real cover stands in it', () => {
+    const left = fixtureStates([
+      { slot: 'covered', key: COVERED },
+      { slot: 'claims-open', key: OPEN },
+      { slot: 'paid', key: PAID },
+    ]);
+    expect([...left]).toEqual(['claim-in-progress', 'lapsed', 'replay']);
   });
 });
 
@@ -120,10 +143,11 @@ describe('the demonstration page', () => {
   });
 
   it('says the covers are real and prints the key that opens each', async () => {
-    env.covers = `covered:${COVERED},paid:${PAID}`;
+    env.covers = `covered:${COVERED},claims-open:${OPEN},paid:${PAID}`;
     await renderPage();
     expect(screen.getByText(/These covers are real/)).toBeTruthy();
     expect(screen.getByText('A cover that is running')).toBeTruthy();
+    expect(screen.getByText('A cover with claims open')).toBeTruthy();
     expect(screen.getByText('A cover that paid out')).toBeTruthy();
     expect(screen.getByText('K7QP K7QP K7QP K7QP K7QP')).toBeTruthy();
   });
@@ -151,10 +175,21 @@ describe('the demonstration page', () => {
     expect(screen.getByTestId('demo-states')).toBeTruthy();
   });
 
-  it('says in plain words that the states came from fixtures', async () => {
+  it('offers the rest as other examples, with nothing under the heading', async () => {
     env.states = true;
     await renderPage();
-    expect(screen.getByText(/drawn from fixtures/)).toBeTruthy();
+    expect(screen.getByText('See other examples')).toBeTruthy();
+    expect(screen.queryByText(/drawn from fixtures/)).toBeNull();
+  });
+
+  it('does not offer a state as a fixture when a real cover stands in it', async () => {
+    env.states = true;
+    env.covers = `covered:${COVERED},claims-open:${OPEN},paid:${PAID}`;
+    await renderPage();
+    expect(screen.queryByText('Paid out')).toBeNull();
+    expect(screen.queryByText('Claims open')).toBeNull();
+    expect(screen.getByText('Claim in progress')).toBeTruthy();
+    expect(screen.getByText('Payment due')).toBeTruthy();
   });
 
   it('does not offer the fixture states where they are turned off', async () => {

@@ -16,6 +16,7 @@ import { seriesNamed } from '../series-argument.js';
 import { createPool } from '../../../src/db/postgres.js';
 import {
   COVER,
+  DEMO_COVER_SLOTS,
   INVESTOR_ROLES,
   PACKETS,
   SHOWCASE,
@@ -25,7 +26,7 @@ import {
   inUnits,
   packetsNeedingCover,
   parseBoundPolicy,
-  showcaseNeedsCover,
+  showcasesNeedingCover,
   stagesToRun,
   type DemoCoverSlot,
   type SeedRecord,
@@ -129,6 +130,7 @@ function stage(context: Context, name: Stage, note: string): void {
 
 interface PolicyRow {
   policy_id: string;
+  series_id: string;
   status: string;
   claims_payable_from: string;
   ends_at: string;
@@ -142,7 +144,7 @@ interface PolicyRow {
 
 async function policyRow(pool: Pool, policyId: string): Promise<PolicyRow | undefined> {
   const rows = await pool.query<PolicyRow>(
-    `SELECT p.policy_id, p.status, to_char(p.claims_payable_from, 'YYYY-MM-DD') AS claims_payable_from,
+    `SELECT p.policy_id, p.series_id, p.status, to_char(p.claims_payable_from, 'YYYY-MM-DD') AS claims_payable_from,
             p.ends_at, p.wallet, p.wallet_evm, p.cover_limit::text AS cover_limit,
             p.nft_serial::text AS nft_serial, p.bind_tx_id,
             (SELECT count(*) FROM claims c WHERE c.policy_id = p.policy_id)::text AS claims
@@ -207,13 +209,15 @@ async function status(context: Context): Promise<void> {
     );
   }
 
-  const showcase = context.record.showcase;
-  const showcaseRow = showcase === undefined ? undefined : await policyRow(context.pool, showcase.policyId);
-  console.log(
-    `  published cover   ${
-      isUsable(showcaseRow) ? `${showcase?.policyId ?? ''} ready` : 'not bound yet'
-    }`,
-  );
+  for (const plan of SHOWCASE) {
+    const held = context.record.showcases.find((cover) => cover.name === plan.name);
+    const row = held === undefined ? undefined : await policyRow(context.pool, held.policyId);
+    console.log(
+      `  published ${plan.name.padEnd(13)} ${
+        isUsable(row) ? `${held?.policyId ?? ''} ready` : 'not bound yet'
+      }`,
+    );
+  }
 
   if (state.lastObservedMonth >= TOP_UP_PERIOD) {
     console.log(
@@ -234,7 +238,7 @@ async function status(context: Context): Promise<void> {
  * The cover key comes back in the same block as the policy id and is kept here
  * and nowhere else, because the command that printed it cannot print it again.
  */
-async function bindOne(context: Context, role: string): Promise<SeededCover> {
+async function bindOne(context: Context, role: string, seriesLabel?: string): Promise<SeededCover> {
   const output = await run('pnpm', [
     '--filter',
     '@creance/api',
@@ -247,6 +251,7 @@ async function bindOne(context: Context, role: string): Promise<SeededCover> {
     COVER.limit,
     '--premium',
     COVER.premium,
+    ...(seriesLabel === undefined ? [] : ['--series', seriesLabel]),
   ]);
   const bound = parseBoundPolicy(output);
   const account = accountOf(context.config, role);
@@ -268,15 +273,15 @@ async function policies(context: Context): Promise<void> {
   const usable = new Map<string, boolean>();
   const known = [
     ...context.record.policies.map((policy) => policy.policyId),
-    ...(context.record.showcase === undefined ? [] : [context.record.showcase.policyId]),
+    ...context.record.showcases.map((cover) => cover.policyId),
   ];
   for (const policyId of known) {
     usable.set(policyId, isUsable(await policyRow(context.pool, policyId)));
   }
   const held = (policyId: string): boolean => usable.get(policyId) === true;
   const needed = packetsNeedingCover(context.record, held);
-  const showcase = showcaseNeedsCover(context.record, held);
-  if (needed.length === 0 && !showcase) {
+  const showcases = showcasesNeedingCover(context.record, held);
+  if (needed.length === 0 && showcases.length === 0) {
     console.log('  every cover this demonstration needs is already bound, nothing bound');
     stage(context, 'policies', 'nothing to do');
     return;
@@ -292,12 +297,17 @@ async function policies(context: Context): Promise<void> {
     context.save();
   }
 
-  if (showcase) {
-    console.log(`  binding the cover a published link opens, on ${SHOWCASE.role}`);
-    context.record.showcase = await bindOne(context, SHOWCASE.role);
+  for (const plan of showcases) {
+    const seriesLabel = plan.series ?? context.series.label;
+    console.log(`  binding the ${plan.name} cover a published link opens, on ${plan.role}`);
+    const cover = await bindOne(context, plan.role, plan.series);
+    context.record.showcases = [
+      ...context.record.showcases.filter((held) => held.name !== plan.name),
+      { ...cover, name: plan.name, seriesLabel },
+    ];
     context.save();
   }
-  stage(context, 'policies', `${needed.length + (showcase ? 1 : 0)} bound`);
+  stage(context, 'policies', `${needed.length + showcases.length} bound`);
 }
 
 // ----------------------------------------------------------------- investors
@@ -426,12 +436,12 @@ async function verify(context: Context): Promise<void> {
       console.log(`    receipt     ${config.policyNftTokenId} serial ${held.nftSerial}`);
     }
   }
-  // The cover behind the published link, in the same block, because it is a
-  // cover an operator has to open a HashScan tab on like any other. The key is
-  // not printed here: it is printed once, below, beside the line to paste.
-  const shown = context.record.showcase;
-  if (shown !== undefined) {
-    console.log(`  published     ${shown.policyId}`);
+  // The covers behind the published links, in the same block, because they are
+  // covers an operator has to open a HashScan tab on like any other. The keys
+  // are not printed here: they are printed once, below, beside the line to
+  // paste.
+  for (const shown of context.record.showcases) {
+    console.log(`  published     ${shown.policyId}  ${shown.seriesLabel}`);
     console.log(`    holder      ${shown.role} ${shown.accountId}  ${hashscanUrl('account', shown.accountId)}`);
     console.log(`    cover       ${inUnits(shown.limit, decimals)} TUSD from ${shown.startAt}, claimable ${shown.claimsPayableFrom}`);
     if (shown.bindTx !== undefined) console.log(`    bind        ${hashscanUrl('transaction', shown.bindTx)}`);
@@ -478,15 +488,18 @@ async function verify(context: Context): Promise<void> {
  * else, and they are printed here because this is the one moment they exist
  * outside the database as anything but a digest.
  *
- * A slot is filled from what the database says the cover is, never from what
- * this run hoped it would be. So a deployment that has paid no claim publishes
- * no paid cover, and the screen cannot claim a payout that did not happen.
+ * A slot is filled from what the database and the chain say the cover is, never
+ * from what this run hoped it would be. So a deployment that has paid no claim
+ * publishes no paid cover, the screen cannot claim a payout that did not
+ * happen, and a cover on a series whose claims opened is published as a cover
+ * with claims open rather than as an ordinary one.
  */
 async function publishable(context: Context): Promise<void> {
   const covers: { slot: DemoCoverSlot; key: string | undefined }[] = [];
-  const showcase = context.record.showcase;
-  if (showcase !== undefined && isUsable(await policyRow(context.pool, showcase.policyId))) {
-    covers.push({ slot: 'covered', key: showcase.coverKey });
+  for (const showcase of context.record.showcases) {
+    const row = await policyRow(context.pool, showcase.policyId);
+    if (!isUsable(row)) continue;
+    covers.push({ slot: await slotOf(context, row?.series_id), key: showcase.coverKey });
   }
   for (const policy of context.record.policies) {
     const row = await policyRow(context.pool, policy.policyId);
@@ -506,10 +519,26 @@ async function publishable(context: Context): Promise<void> {
   console.log(`    ${setting}`);
   console.log('    put that line in the environment the web process reads, beside');
   console.log('    WEB_DEMO_STATES=true, and restart it. Then /home/demo opens each of these.');
-  if (!covers.some((cover) => cover.slot === 'paid')) {
-    console.log('    no cover in this database has been paid, so the payout on /home/demo is the');
-    console.log('    labelled demonstration state until a claim runs here.');
+  for (const slot of DEMO_COVER_SLOTS) {
+    if (covers.some((cover) => cover.slot === slot)) continue;
+    console.log(`    no cover here is in the ${slot} state, so that one stays a labelled fixture`);
   }
+}
+
+/**
+ * Whether a live cover is an ordinary one or one with claims open.
+ *
+ * The chain is asked, not the database: on chain only the series changes status
+ * when a month opens and the policies stay Active until one is paid, which is
+ * the same reason `apps/api/src/claims/openness.ts` reads it there. A series
+ * this run cannot find is published as the ordinary state, because that is the
+ * weaker of the two claims to make.
+ */
+async function slotOf(context: Context, seriesLabel: string | undefined): Promise<DemoCoverSlot> {
+  const series = context.config.series.find((entry) => entry?.label === seriesLabel);
+  if (series === undefined) return 'covered';
+  const state = await context.chain.seriesState(series.seriesId);
+  return state.status === 'claims_open' ? 'claims-open' : 'covered';
 }
 
 // ------------------------------------------------------------------ printing

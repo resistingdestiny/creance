@@ -66,8 +66,13 @@ export const NO_COVER_ACTION = 'Get a quote';
  *
  * Written for a reader with minutes and no reason to trust the screen, so the
  * two halves are kept apart in words as well as in layout: the covers are real,
- * and the states are fixtures and say so twice, here and again on the screen
- * they open.
+ * and the states under them are fixtures.
+ *
+ * The fixtures used to carry a line here saying so. They no longer need one.
+ * Every state a real cover can be put into is now offered as that cover, the
+ * rest are the three that cannot be, and each of those says on its own face
+ * that nothing on it came from the API. A blanket sentence on this screen was
+ * saying it a second time, further from the thing it was about.
  *
  * T57 cut it to that. Every slot carried a title and a sentence of description
  * underneath, and the sentences said what the screen behind the button was
@@ -85,11 +90,11 @@ export const DEMO_OPEN = 'Open this cover';
 /** What each published slot is, in one line, so no slot is a bare name. */
 export const DEMO_COVER_COPY = {
   covered: { title: 'A cover that is running' },
+  'claims-open': { title: 'A cover with claims open' },
   paid: { title: 'A cover that paid out' },
 } as const;
 
-export const DEMO_STATES_HEADING = 'States we cannot show live';
-export const DEMO_STATES_LINE = 'These are drawn from fixtures, and each one says so on its face.';
+export const DEMO_STATES_HEADING = 'See other examples';
 export const DEMO_STATES_HELD =
   'You have a cover open, so these show yours instead. Sign out of it first.';
 

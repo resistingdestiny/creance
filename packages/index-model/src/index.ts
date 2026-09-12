@@ -147,14 +147,17 @@ export {
   SENIORITY_BANDS,
   SENIORITY_BAND_LABELS,
   bandUtilisation,
+  expectedLossRate,
   fittedHazard,
   guideRate,
   headline,
   isSeniorityBand,
   marketRate,
   monthlyPremium,
+  returnSplit,
+  riskCharge,
 } from './pricing.js';
-export type { Headline, HeadlineForm, SeniorityBand } from './pricing.js';
+export type { Headline, HeadlineForm, ReturnSplit, SeniorityBand } from './pricing.js';
 
 // The empirical hazard the fit above was taken from.
 export { HAZARD_BUCKET_LABELS, hazardTable } from './hazard.js';

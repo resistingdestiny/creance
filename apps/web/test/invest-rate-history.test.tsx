@@ -26,7 +26,7 @@ import {
 } from '../src/lib/investor-model.js';
 import { demoInvestorAccount } from '../src/lib/wallet.js';
 
-import { guideRate } from '@creance/index-model/src/pricing';
+import { riskCharge } from '@creance/index-model/src/pricing';
 
 import { COUPONS, INVESTOR_1, INVESTOR_2, SERIES, money } from './investor-fixtures.js';
 
@@ -35,7 +35,7 @@ import { COUPONS, INVESTOR_1, INVESTOR_2, SERIES, money } from './investor-fixtu
  * computed over a whole published series rather than read off one reading.
  *
  * The tests that matter here are the ones about honesty rather than about
- * arithmetic. Every rate has to come out of the product's own `guideRate` over
+ * arithmetic. Every rate has to come out of the product's own `riskCharge` over
  * the product's own published distance, a month the feed never published has
  * to be a hole in the line and never a number, and a series that has paid
  * nothing and traded nothing has to say so in words rather than print nought.
@@ -66,18 +66,18 @@ function visibleText(markup: string): string {
     .trim();
 }
 
-describe('the guide rate month by month', () => {
+describe('the risk charge month by month', () => {
   it('is the published pricing over the published distance and nothing else', () => {
     const points = rateHistory([month('2026-06', 0.3), month('2026-07', 1.2)]);
     expect(points).toEqual([
-      { period: '2026-06', value: guideRate(0.3) * 100 },
-      { period: '2026-07', value: guideRate(1.2) * 100 },
+      { period: '2026-06', value: riskCharge(0.3) * 100 },
+      { period: '2026-07', value: riskCharge(1.2) * 100 },
     ]);
   });
 
   it('floors the distance at the line rather than extrapolating past it', () => {
     const past = rateHistory([month('2026-07', -0.8)])[0];
-    expect(past?.value).toBe(guideRate(0) * 100);
+    expect(past?.value).toBe(riskCharge(0) * 100);
   });
 
   /**
@@ -138,8 +138,8 @@ describe('the scale the histories are drawn against', () => {
 
   it('spans every series it is given, so a column of them is a comparison', () => {
     const across = rateRange([quiet, moved]);
-    expect(across?.low).toBeCloseTo(guideRate(3) * 100, 10);
-    expect(across?.high).toBeCloseTo(guideRate(0) * 100, 10);
+    expect(across?.low).toBeCloseTo(riskCharge(3) * 100, 10);
+    expect(across?.high).toBeCloseTo(riskCharge(0) * 100, 10);
   });
 
   /**
@@ -148,7 +148,7 @@ describe('the scale the histories are drawn against', () => {
    */
   it('bounds every rate the pricing can produce', () => {
     for (const distance of [0, 0.05, 0.3, 1, 2.5, 6, 40]) {
-      const rate = guideRate(distance) * 100;
+      const rate = riskCharge(distance) * 100;
       expect(rate).toBeGreaterThanOrEqual(RATE_BOUNDS.low - 1e-9);
       expect(rate).toBeLessThanOrEqual(RATE_BOUNDS.high + 1e-9);
     }
@@ -247,9 +247,9 @@ describe('what the chart draws', () => {
     );
     expect(bare).toContain('aria-hidden="true"');
     const named = renderToStaticMarkup(
-      <RateChart height={20} high={4} label="Guide rate" low={1} points={points} width={72} />,
+      <RateChart height={20} high={4} label="Risk charge" low={1} points={points} width={72} />,
     );
-    expect(named).toContain('aria-label="Guide rate"');
+    expect(named).toContain('aria-label="Risk charge"');
     expect(named).not.toContain('aria-hidden');
   });
 
@@ -380,14 +380,14 @@ describe('the rate history on a series page', () => {
   it('says what the line is and refuses the words that would make it a lie', () => {
     const text = visibleText(render());
     expect(text).toContain('Rate history');
-    expect(text).toContain('It is a guide rate, not a traded price.');
+    expect(text).toContain('It is the risk half of the price, not a traded price.');
     expect(text.toLowerCase()).not.toContain('price history');
   });
 
   it('ends on the newest month, in the pricing the board prices from', () => {
-    expect(visibleText(render())).toContain(`Guide rate, July 2026`);
+    expect(visibleText(render())).toContain(`Risk charge, July 2026`);
     expect(visibleText(render())).toContain(
-      `${String(Number((guideRate(0.3) * 100).toFixed(2)))} percent a year`,
+      `${String(Number((riskCharge(0.3) * 100).toFixed(2)))} percent a year`,
     );
   });
 
@@ -535,7 +535,7 @@ describe('the rate history on the board', () => {
 
   it('says in the provenance that every row is on one scale', () => {
     expect(visibleText(markup)).toContain(
-      'The rate history beside it is the guide rate alone, month by month, every row on one scale.',
+      'The rate history beside it is the risk charge alone, month by month, every row on one scale.',
     );
   });
 
@@ -545,8 +545,8 @@ describe('the rate history on the board', () => {
    * not the scale every row is drawn against.
    */
   it('names each line with its own high and low', () => {
-    expect(markup).toContain('Guide rate, 0.61 percent a year throughout');
-    expect(markup).toContain('Guide rate, 0.61 to 2.65 percent a year');
+    expect(markup).toContain('Risk charge, 0.61 percent a year throughout');
+    expect(markup).toContain('Risk charge, 0.61 to 2.65 percent a year');
   });
 
   it('keeps a cell for every heading in the row', () => {

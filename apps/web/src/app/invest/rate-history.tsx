@@ -43,7 +43,7 @@ import {
 
 /** What the line is, and what it is not. Two sentences, and both are needed. */
 const RATE_LINE =
-  'What the index said this risk was worth, month by month. It is a guide rate, not a traded price.';
+  'What the index said this risk was worth, month by month. It is the risk half of the price, not a traded price.';
 
 export interface RateHistorySectionProps {
   /** The guide rate by month, or null when the index round could not be read. */
@@ -120,7 +120,7 @@ function Chart({ rates }: { rates: Streamed<readonly RatePoint[] | null> }) {
     <figure className="m-0 flex flex-col gap-2">
       <figcaption className="flex flex-col gap-1">
         <span className="text-secondary text-ink-2">
-          Guide rate, {formatPeriod(latest.period)}
+          Risk charge, {formatPeriod(latest.period)}
         </span>
         <span className="font-display text-title font-semibold tracking-title whitespace-nowrap tabular-nums text-ink">
           {formatPercent(latest.value)} a year

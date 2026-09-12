@@ -1,18 +1,33 @@
-import { PRICING, bandUtilisation, guideRate, marketRate } from '@creance/index-model';
+import {
+  PRICING,
+  bandUtilisation,
+  expectedLossRate,
+  guideRate,
+  marketRate,
+  riskCharge,
+} from '@creance/index-model';
 
 /// The price of a policy, in minor units.
 ///
-/// The formula of record is docs/DECISIONS.md, "Premium is a guide price from
-/// the index multiplied by a capacity term":
+/// The formula of record:
 ///
-///     guide rate  = max(0.005, h(d) * 0.167 * 0.60 * 1.30)
-///     market rate = guide * (1 + utilisation), capped at three times guide
+///     capital charge = 0.08 * 1.20 / 0.85
+///     risk charge    = h(d) * 0.167 * 0.60 * 1.30
+///     guide rate     = max(capital charge, capital charge + risk charge)
+///     market rate    = guide * (1 + utilisation), capped at three times guide
 ///
 /// where `d` is the distance in percentage points from the group's smoothed
 /// excess to its level line and `h` is the fitted hazard. DESIGN.md 3.4 prices
 /// from the backtest frequency of open months instead, which puts thirteen of
 /// the fifteen offered occupations exactly on the floor; that version is
 /// superseded and the deviation is recorded.
+///
+/// The capital charge is the coupon a series owes, with 3.4's own 20 percent
+/// reserve margin, over the utilisation the series is priced to clear at. It is
+/// flat across occupations because `CoverPool.bind` will not let exposure pass
+/// principal, so every unit of limit locks the same unit of capital whatever
+/// the job is. The index sets the risk charge and therefore the whole of the
+/// difference between occupations. It does not set the level.
 ///
 /// Utilisation is per experience band. The guide rate is not: the index has no
 /// occupation-by-age series to measure a seniority difference with, so the
@@ -56,9 +71,16 @@ export interface Price {
     capital: string;
     exposure: string;
     guide_rate_bps: number;
+    /** The two halves of the guide rate, so a reader can see which is which. */
+    capital_charge_bps: number;
+    risk_charge_bps: number;
+    expected_loss_bps: number;
     separation_given_open: string;
     expected_share_of_limit: string;
     load: string;
+    coupon_rate: string;
+    reserve_margin: string;
+    target_utilisation: string;
     floor_rate: string;
     market_cap_multiple: number;
   };
@@ -116,10 +138,16 @@ export function priceCover(input: PriceInput): Price | null {
       capital: input.capital.toString(),
       exposure: input.exposure.toString(),
       guide_rate_bps: Math.round(guide * 10_000),
+      capital_charge_bps: Math.round(PRICING.capitalCharge * 10_000),
+      risk_charge_bps: Math.round(riskCharge(distance) * 10_000),
+      expected_loss_bps: Math.round(expectedLossRate(distance) * 10_000),
       separation_given_open: PRICING.separationGivenOpen.toFixed(3),
       expected_share_of_limit: PRICING.expectedShareOfLimit.toFixed(2),
       load: PRICING.load.toFixed(2),
-      floor_rate: PRICING.floorRate.toFixed(3),
+      coupon_rate: PRICING.couponRate.toFixed(2),
+      reserve_margin: PRICING.reserveMargin.toFixed(2),
+      target_utilisation: PRICING.targetUtilisation.toFixed(2),
+      floor_rate: PRICING.floorRate.toFixed(4),
       market_cap_multiple: PRICING.marketCapMultiple,
     },
   };

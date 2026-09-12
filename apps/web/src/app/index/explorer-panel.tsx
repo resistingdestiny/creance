@@ -575,8 +575,16 @@ function Verdict({
 }
 
 /**
- * The price block. The guide price is what the index says the risk is worth;
- * the market price is what capital that chose this occupation will take it for.
+ * The price block. The guide price is what the cover has to charge to fund
+ * itself: the risk this occupation carries, which is the part the index
+ * measures, plus the cost of the capital held against the cover, which is the
+ * same for every occupation and is the larger of the two. The market price is
+ * what capital that chose this occupation will take it for on top of that.
+ *
+ * Both parts are on the screen. The guide price alone would tell a reader
+ * comparing two occupations almost nothing, because the capital charge they
+ * share swamps the difference between them, and the difference is the whole of
+ * what the index has to say.
  *
  * Capacity is committed per occupation (docs/DECISIONS.md), so an occupation
  * with no series behind it shows the guide price and says plainly that there is
@@ -619,7 +627,8 @@ function Price({
         {buyable ? (
           <>
             <span className="text-caption text-ink-2">
-              Guide price {price.guide} from the index. Capital adds {String(price.addOn)} percent.
+              Guide price {price.guide}, of which {price.risk} is this occupation&rsquo;s own risk.
+              Capital adds {String(price.addOn)} percent for how full the pool is.
             </span>
             {/* Why a price this close to the line is not closer to the limit.
                 The premium looks small beside the cover until you know that

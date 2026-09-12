@@ -1241,7 +1241,7 @@ components:
           $ref: '#/components/schemas/Money'
         annual_rate_bps:
           type: integer
-          example: 2311
+          example: 1246
         pricing_basis:
           type: object
           description: Every assumption behind the rate, so nothing has to be taken on trust.

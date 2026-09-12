@@ -499,7 +499,7 @@ function Sparkline({ row }: { row: MarketRow }) {
       <RateChart
         height={20}
         high={RATE_BOUNDS.high}
-        label={caption === null ? 'Guide rate over five years' : `Guide rate, ${caption}`}
+        label={caption === null ? 'Risk charge over five years' : `Risk charge, ${caption}`}
         low={RATE_BOUNDS.low}
         points={row.rates}
         strokeWidth={1.25}
@@ -758,7 +758,7 @@ function Provenance({ view }: { view: BoardView }) {
         <p>
           The premium rate is the published pricing applied to each occupation&apos;s newest reading
           and its own committed exposure, the same formula that prices a policy. The rate history
-          beside it is the guide rate alone, month by month, every row on one scale.{' '}
+          beside it is the risk charge alone, month by month, every row on one scale.{' '}
           <TextLink href="/index">How the index works</TextLink>
         </p>
       ) : null}

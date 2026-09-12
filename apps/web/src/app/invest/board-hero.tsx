@@ -118,8 +118,8 @@ export function BoardHero({
             high={RATE_BOUNDS.high}
             label={
               reached === null
-                ? `Guide rate over five years for ${featured.name ?? featured.seriesId}`
-                : `Guide rate for ${featured.name ?? featured.seriesId}, ${reached}`
+                ? `Risk charge over five years for ${featured.name ?? featured.seriesId}`
+                : `Risk charge for ${featured.name ?? featured.seriesId}, ${reached}`
             }
             low={RATE_BOUNDS.low}
             points={featured.rates}
@@ -135,9 +135,9 @@ export function BoardHero({
           </p>
         )}
         <p className="text-secondary text-white/66">
-          The guide rate this occupation has been priced off, month by month
-          {reached === null ? '' : `, ${reached}`}. It is a guide rate and not a price anything has
-          changed hands at.
+          The risk this occupation has carried, month by month
+          {reached === null ? '' : `, ${reached}`}. It is the risk half of the price and not a price
+          anything has changed hands at.
         </p>
       </div>
     </div>
@@ -173,6 +173,13 @@ function FeaturedCard({ row }: { row: MarketRow }) {
             {row.premiumPercent === null ? null : rateFigure(row.premiumPercent)}
           </p>
           <p className="text-secondary text-ink">percent a year for cover on this occupation</p>
+          {/* Where that rate goes, which is the question a coupon on its own
+              cannot answer. Three parts and not one netted figure, because the
+              first of the three is the one this deployment does not earn and a
+              single number would state it as income. */}
+          {row.yieldLine === null ? null : (
+            <p className="text-caption text-ink-2">{row.yieldLine}</p>
+          )}
         </div>
       </div>
     </CoverCardShell>

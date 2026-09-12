@@ -843,7 +843,7 @@ export function buildOpenApiDocument(options: DocumentOptions): Record<string, u
             wallet: { type: 'string', example: '0.0.10366453' },
             limit: { $ref: '#/components/schemas/Money' },
             premium: { $ref: '#/components/schemas/Money' },
-            annual_rate_bps: { type: 'integer', example: 2311 },
+            annual_rate_bps: { type: 'integer', example: 1246 },
             pricing_basis: {
               type: 'object',
               description: 'Every assumption behind the rate, so nothing has to be taken on trust.',

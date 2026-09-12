@@ -22,7 +22,7 @@ import { findOccupation, occupationLabel } from './occupations';
 import { bandLabel, marginSentences } from './worker-model';
 import type { IndexView } from './worker-api';
 
-import { guideRate, marketRate, monthlyPremium } from '@creance/index-model/src/pricing';
+import { guideRate, marketRate, monthlyPremium, riskCharge } from '@creance/index-model/src/pricing';
 
 export type IndexForm = 'level' | 'shock';
 
@@ -315,6 +315,16 @@ export interface ExplorerPrice {
   readonly monthly: string;
   /** The monthly premium at the guide rate, before capital's own appetite. */
   readonly guide: string;
+  /**
+   * The part of the guide price that is this occupation's own risk.
+   *
+   * The rest of it is the cost of holding capital against the cover, which is
+   * the same for every occupation because the pool is collateralised one for
+   * one. Published beside the guide price rather than folded into it, because
+   * the risk part is the only part the index has anything to say about and a
+   * reader comparing two occupations is comparing these.
+   */
+  readonly risk: string;
   /** What capital adds over the guide price, as whole percent. */
   readonly addOn: number;
   /** The cover the two figures are for. */
@@ -343,6 +353,7 @@ export function priceFor(
   return {
     monthly: money(monthlyPremium(rate, cover)),
     guide: money(monthlyPremium(guide, cover)),
+    risk: money(monthlyPremium(riskCharge(Math.max(0, distance)), cover)),
     addOn: Math.round((rate / guide - 1) * 100),
     cover,
   };

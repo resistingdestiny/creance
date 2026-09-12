@@ -30,7 +30,13 @@ import type {
 } from './investor-api';
 import { findOccupation } from './occupations';
 
-import { guideRate, marketRate } from '@creance/index-model/src/pricing';
+import {
+  expectedLossRate,
+  guideRate,
+  marketRate,
+  returnSplit,
+  riskCharge,
+} from '@creance/index-model/src/pricing';
 
 /** RFC 3339 in UTC to the date-only string the formatters take. */
 export function isoDay(timestamp: string): string {
@@ -349,12 +355,19 @@ export function firstSettledCoupon(
  * printed today and stopped. Three different things could fill that gap and
  * only two of them exist, so this is what is drawn and what is refused.
  *
- * Drawn: the guide rate, month by month. Every month in the published index
- * carries a distance to the line, `guideRate` turns a distance into the annual
- * rate the risk was worth, and the feed serves five years of them per
+ * Drawn: the risk charge, month by month. Every month in the published index
+ * carries a distance to the line, `riskCharge` turns a distance into the annual
+ * rate that risk was worth, and the feed serves five years of them per
  * occupation. Nothing is fitted, smoothed or interpolated here; it is the
  * product's own pricing function over the product's own published readings, so
  * anybody with the feed can reproduce every point.
+ *
+ * The risk charge rather than the whole guide rate, because the rest of the
+ * guide rate is the cost of the capital held against the cover and it is the
+ * same number in every month for every occupation. Adding a constant to all
+ * sixteen lines moves none of them relative to each other and flattens the
+ * scale they are drawn on. The price a policy is sold at is the board's rate
+ * column, which is the whole of it.
  *
  * Refused: the market rate, month by month. The market rate is
  * `marketRate(guide, utilisation)` and utilisation is the share of a series'
@@ -424,7 +437,7 @@ export function rateHistory(months: readonly ExplorerMonth[]): readonly RatePoin
     const distance = distances.get(period) ?? null;
     points.push({
       period,
-      value: distance === null ? null : guideRate(Math.max(0, distance)) * 100,
+      value: distance === null ? null : riskCharge(Math.max(0, distance)) * 100,
     });
   }
   return points;
@@ -436,22 +449,26 @@ export interface RateRange {
 }
 
 /**
- * The whole range the guide rate can take.
+ * The whole range the risk charge can take.
+ *
+ * This column plots the risk charge and not the guide rate, and the difference
+ * matters. The guide rate a policy is actually sold at is the risk charge plus
+ * the cost of the capital held against the cover, and that capital charge is
+ * identical for every occupation because the pool is collateralised one for
+ * one. Drawn against the guide rate, sixteen occupations differ by about half
+ * again from end to end and every line looks flat. Drawn against the risk
+ * charge they differ by about thirteen times, which is what the index actually
+ * measured and the only thing this column is for.
  *
  * Both ends come out of the pricing rather than being written down here, so
- * they move if the fit does. The bottom is the rate at any distance far enough
- * from the line for the hazard's exponential to have died, which is the
- * hazard's own floor; the top is the rate at the line, which is the most the
- * guide rate is ever worth because the distance is floored there.
- *
- * It is what the board's column is drawn against. Sixteen sparklines each
- * scaled to its own readings would say that an occupation whose rate never
- * left the floor moved as much as one that went to eight percent, and a column
- * that says that is not a comparison.
+ * they move if the fit does. The bottom is the charge at any distance far
+ * enough from the line for the hazard's exponential to have died, which is the
+ * hazard's own floor; the top is the charge at the line, which is the most the
+ * index is ever worth because the distance is floored there.
  */
 export const RATE_BOUNDS: RateRange = {
-  low: guideRate(Number.POSITIVE_INFINITY) * 100,
-  high: guideRate(0) * 100,
+  low: riskCharge(Number.POSITIVE_INFINITY) * 100,
+  high: riskCharge(0) * 100,
 };
 
 /**
@@ -860,6 +877,8 @@ export interface MarketRow {
   readonly decimals: number;
   /** The coupon the note has declared, in percent, where it has declared one. */
   readonly couponPercent: number | null;
+  /** Where the return to capital comes from, in one sentence. See `yieldLine`. */
+  readonly yieldLine: string | null;
   /** The vault on HashScan, so a row's figures can be read off the chain. */
   readonly hashscan: string | null;
   readonly position: MarketPosition | null;
@@ -902,6 +921,51 @@ export function premiumRatePercent(
 }
 
 /**
+ * Where this series' return to capital comes from, in one sentence.
+ *
+ * The question the investor screens could not answer. A coupon on its own says
+ * what is promised and nothing about whether the product can pay it, and until
+ * the pricing was inverted it could not: premium income on the demo series ran
+ * at a fifth of the coupon it owed. The three parts are the whole answer, so
+ * they are given separately rather than netted into one number.
+ *
+ * The first part is not income. The collateral would make it in tokenised
+ * treasuries, and this deployment holds its collateral in a vault on Hedera
+ * testnet where it makes nothing, so the sentence says "implied" and "would"
+ * and names the assumption. Netting it into a single yield figure would state
+ * as earned the one part of this that has not been.
+ *
+ * Null wherever the rate is null, for the reason `premiumRatePercent` gives:
+ * an unpriced risk is not a free one and a split nobody can check is worse
+ * than no split.
+ */
+export function yieldLine(series: SeriesView | null, distance: number | null): string | null {
+  if (series === null || distance === null) return null;
+  const rate = premiumRatePercent(series, distance);
+  if (rate === null) return null;
+  const principal = Number(BigInt(series.vault.principal_funded.amount));
+  const exposure = Number(BigInt(series.cover_pool!.active_exposure.amount));
+  const split = returnSplit(
+    rate / 100,
+    exposure,
+    principal,
+    expectedLossRate(Math.max(0, distance)),
+  );
+  if (split === null) return null;
+  const pct = (value: number) => formatPercent(value * 100);
+  // "At today's capacity" is load bearing rather than a hedge. The premium
+  // share is premium income over principal, so a series nobody has bought
+  // cover from yet shows nought there and a total of the base alone, and
+  // without the clause that reads as a ceiling instead of as an empty pool.
+  return (
+    `At today's capacity: ${pct(split.base)} implied from tokenised treasuries while the capital ` +
+    `waits, ${pct(split.premium)} from premiums, less expected losses of ${pct(split.loss)}. ` +
+    `That is ${pct(split.total)} a year. The first figure is what the collateral would make if it ` +
+    `were deployed; this testnet deployment holds it in the vault and does not deploy it.`
+  );
+}
+
+/**
  * One row of the board, from the three reads behind it.
  *
  * Every argument but the entry is allowed to be null, because each read fails
@@ -934,6 +998,7 @@ export function marketRow(input: {
     distance,
     rates: ranked === null ? [] : rateHistory(ranked.occupation.months),
     premiumPercent: premiumRatePercent(series, distance),
+    yieldLine: yieldLine(series, distance),
     capacityPercent:
       series?.cover_pool?.registered === true ? series.cover_pool.capacity_used_percent : null,
     funded: series === null ? null : BigInt(series.vault.principal_funded.amount),

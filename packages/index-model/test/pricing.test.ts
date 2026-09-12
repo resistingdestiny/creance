@@ -5,11 +5,14 @@ import { hazardTable } from '../src/hazard.js';
 import {
   HAZARD_FIT,
   PRICING,
+  expectedLossRate,
   fittedHazard,
   guideRate,
   headline,
   marketRate,
   monthlyPremium,
+  returnSplit,
+  riskCharge,
 } from '../src/pricing.js';
 import type { Observation } from '../src/core.js';
 
@@ -73,41 +76,127 @@ describe('the fitted hazard', () => {
   });
 });
 
-describe('the guide rate', () => {
+describe('the risk charge', () => {
   it('multiplies the hazard by the separation, share and load assumptions', () => {
     // 0.167 * 0.60 * 1.30 = 0.13026 of the hazard.
     const factor = PRICING.separationGivenOpen * PRICING.expectedShareOfLimit * PRICING.load;
     expect(factor).toBeCloseTo(0.13026, 9);
-    expect(guideRate(0.69)).toBeCloseTo(fittedHazard(0.69) * factor, 12);
+    expect(riskCharge(0.69)).toBeCloseTo(fittedHazard(0.69) * factor, 12);
+    expect(expectedLossRate(0.69)).toBeCloseTo(riskCharge(0.69) / PRICING.load, 12);
   });
 
+  it('carries the whole of the spread between occupations', () => {
+    // The index differentiates here and nowhere else. Arts and design sits on
+    // its line, farming is four and a half points from its own.
+    expect(riskCharge(0.02) / riskCharge(4.56)).toBeGreaterThan(12);
+  });
+});
+
+describe('the capital charge', () => {
+  it('is the coupon less the implied base yield, with its margin, over the target', () => {
+    // (0.08 - 0.04) * 1.20 / 0.85 = 5.65 percent a year. The premium funds the
+    // spread over the base and not the whole coupon, because an insurer's
+    // collateral is not idle while it waits to pay claims.
+    expect(PRICING.capitalCharge).toBeCloseTo(0.056_471, 6);
+    expect(PRICING.capitalCharge).toBeCloseTo(
+      ((PRICING.couponRate - PRICING.impliedBaseYield) * (1 + PRICING.reserveMargin)) /
+        PRICING.targetUtilisation,
+      12,
+    );
+  });
+
+  it('is a judgment about the base yield and not a rate anything looked up', () => {
+    // 4 percent, implied from tokenised treasuries, an assumption of 12
+    // September 2026. Nothing fetches it and this deployment earns none of it:
+    // the collateral sits in a vault on Hedera testnet making nothing.
+    expect(PRICING.impliedBaseYield).toBe(0.04);
+  });
+
+  it('is the same for every occupation', () => {
+    // CoverPool.bind will not let exposure pass principal, so a unit of limit
+    // locks a unit of capital whatever the job is. Only the loss term may vary.
+    for (const distance of [0.02, 0.69, 1.22, 4.56]) {
+      expect(guideRate(distance) - riskCharge(distance)).toBeCloseTo(PRICING.capitalCharge, 12);
+    }
+  });
+
+  it('funds the coupon over the base, its margin and the losses, at the target', () => {
+    // The identity the price is set by, per unit of principal:
+    //   guide * U  =  (coupon - base) * (1 + margin)  +  load * expected loss * U
+    // Below U it does not hold and no price makes it hold: a series nobody has
+    // bought cover from earns nothing and still owes its coupon. And the base
+    // half is assumed rather than received, which is the other thing it does
+    // not say.
+    const u = PRICING.targetUtilisation;
+    for (const distance of [0.02, 0.69, 4.56]) {
+      const income = guideRate(distance) * u;
+      const owed =
+        (PRICING.couponRate - PRICING.impliedBaseYield) * (1 + PRICING.reserveMargin) +
+        expectedLossRate(distance) * PRICING.load * u;
+      expect(income, `d=${distance}`).toBeCloseTo(owed, 12);
+    }
+  });
+});
+
+describe('the guide rate', () => {
   it('reproduces the published spread across the picker', () => {
     // Distance to the line, guide rate, monthly premium on a 5,000 limit.
     const rows: [number, number, number][] = [
-      [0.02, 0.079, 32.9], // arts, design and media
-      [0.69, 0.0096, 4.0], // computer and mathematical
-      [0.71, 0.0093, 3.87], // professional and related
-      [0.89, 0.0075, 3.13], // management and finance
-      [1.22, 0.0064, 2.68], // office and administrative support
+      [0.02, 0.1355, 56.46], // arts, design and media, on its line
+      [0.69, 0.0661, 27.53], // computer and mathematical
+      [0.71, 0.0658, 27.4], // professional and related
+      [0.89, 0.064, 26.66], // management and finance
+      [1.22, 0.0629, 26.21], // office and administrative support
     ];
     for (const [distance, rate, premium] of rows) {
       expect(guideRate(distance), `d=${distance}`).toBeCloseTo(rate, 3);
       expect(monthlyPremium(guideRate(distance), 5000), `d=${distance}`).toBeCloseTo(premium, 1);
     }
-    // A thirteen times spread across the picker, driven entirely by the index.
-    expect(guideRate(0.02) / guideRate(4)).toBeGreaterThan(12);
+    // The spread on the total price is about two times, not thirteen, because
+    // every occupation carries the same capital charge. The thirteen is still
+    // there, in the risk charge, and that is the column to read.
+    expect(guideRate(0.02) / guideRate(4.56)).toBeCloseTo(2.16, 2);
   });
 
   it('flattens out above the floor rather than on it', () => {
-    // The hazard settles at 0.047, which prices at 0.61 percent, so the 0.5
-    // percent floor never binds on this curve. It is there as a judgment about
-    // the least a policy can be worth writing, not as a measurement, and the
-    // pricing page has to say so.
-    expect(guideRate(2)).toBeCloseTo(0.0061, 4);
-    expect(guideRate(100)).toBeCloseTo(HAZARD_FIT.floor * 0.13026, 6);
+    // The hazard settles at 0.047, which is a 0.61 percent risk charge, so the
+    // floor never binds on this curve. The floor is derived and not chosen: it
+    // is the capital charge alone, the price at which a policy pays for the
+    // capital it locks and nothing for the risk.
+    expect(guideRate(2)).toBeCloseTo(PRICING.capitalCharge + 0.0061, 4);
+    expect(guideRate(100)).toBeCloseTo(PRICING.capitalCharge + HAZARD_FIT.floor * 0.13026, 6);
     expect(guideRate(100)).toBeGreaterThan(PRICING.floorRate);
-    // The floor still holds if the curve is ever refitted lower.
-    expect(Math.max(PRICING.floorRate, 0.0001)).toBe(PRICING.floorRate);
+    // And it is no longer below the yield the collateral is assumed to make
+    // just by waiting, which the old 0.5 percent floor was. A policy sold at
+    // the old floor did not pay for the collateral standing behind it.
+    expect(PRICING.floorRate).toBeGreaterThan(PRICING.impliedBaseYield);
+    expect(0.005).toBeLessThan(PRICING.impliedBaseYield);
+  });
+
+  it('charges enough that the coupon is a minority of premium income', () => {
+    // The demo series: 100,000 of principal, 86,000 of limit written against
+    // 97,000 still behind it, an 8 percent coupon. Priced on expected loss
+    // alone this was 1,557 of income against 8,000 of coupon.
+    const principal = 100_000;
+    const exposure = 86_000;
+    const utilisation = exposure / 97_000;
+    const rate = marketRate(guideRate(0.69), utilisation);
+    const income = rate * exposure;
+    const coupon = PRICING.couponRate * principal;
+    expect(income).toBeGreaterThan(coupon);
+
+    // And the whole return clears the coupon it promised, which is the base
+    // the collateral would make waiting plus the premiums less the losses.
+    const split = returnSplit(rate, exposure, principal, expectedLossRate(0.69))!;
+    expect(split.base).toBe(PRICING.impliedBaseYield);
+    expect(split.premium).toBeCloseTo(0.1072, 4);
+    expect(split.loss).toBeCloseTo(0.0063, 4);
+    expect(split.total).toBeCloseTo(0.1408, 4);
+    expect(split.total).toBeGreaterThan(PRICING.couponRate);
+  });
+
+  it('answers nothing for a return split with no principal behind it', () => {
+    expect(returnSplit(0.1, 0, 0, 0.01)).toBeNull();
   });
 });
 
@@ -118,8 +207,8 @@ describe('the market rate', () => {
     expect(marketRate(guide, 1)).toBeCloseTo(guide * 2, 12);
     expect(marketRate(guide, 5)).toBeCloseTo(guide * 3, 12);
     // A job on its line in a thin pool against the same job in a deep pool.
-    expect(monthlyPremium(marketRate(guide, 0.9), 5000)).toBeCloseTo(62.6, 1);
-    expect(monthlyPremium(marketRate(guide, 0), 5000)).toBeCloseTo(32.9, 1);
+    expect(monthlyPremium(marketRate(guide, 0.9), 5000)).toBeCloseTo(107.27, 1);
+    expect(monthlyPremium(marketRate(guide, 0), 5000)).toBeCloseTo(56.46, 1);
   });
 
   it('refuses a negative utilisation', () => {

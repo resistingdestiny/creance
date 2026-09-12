@@ -99,13 +99,14 @@ function committedSeries(exposure: string): SeriesView {
 describe('the price of an occupation', () => {
   it('is the published pricing at the reading and the committed exposure', () => {
     // 100,000 remaining and nothing committed, so the market term is one and
-    // the rate is the guide rate for a point from the line.
-    expect(premiumRatePercent(SERIES, 1)).toBeCloseTo(0.696_985, 5);
+    // the rate is the guide rate for a point from the line: the capital charge
+    // of 5.65 percent plus a risk charge of 0.70.
+    expect(premiumRatePercent(SERIES, 1)).toBeCloseTo(6.344_044, 5);
   });
 
   it('rises with the share of the principal already committed', () => {
     // 86,000 of 100,000 remaining, which is the demo series on testnet.
-    expect(premiumRatePercent(committedSeries('86000000000'), 1)).toBeCloseTo(1.296_4, 3);
+    expect(premiumRatePercent(committedSeries('86000000000'), 1)).toBeCloseTo(11.799_921, 3);
   });
 
   it('floors the distance at the line rather than extrapolating past it', () => {
@@ -348,7 +349,7 @@ describe('the market board', () => {
   it('prints the premium rate and the declared coupon, and nothing where neither exists', () => {
     const text = visibleText(boardMarkup());
     // 0.3 points from the line with nothing committed, and the declared coupon.
-    expect(text).toContain('2.65 percent');
+    expect(text).toContain('8.3 percent');
     expect(text).toContain('8 percent');
     // The maturity demonstration row was read from neither, so it carries the
     // name and the identifier and no figure at all. What follows it is the

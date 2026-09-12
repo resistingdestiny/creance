@@ -60,6 +60,12 @@ Affects T02, T04 and T07.
 
 where h is the fitted hazard on the distance to the level line.
 
+**Superseded on 12 September 2026.** The guide rate is a capital charge plus a
+risk charge now, and the floor is the capital charge rather than 0.5 percent.
+See "The premium is solved from the return capital requires" at the end of this
+file. The risk term above survives intact as the risk charge; what changed is
+that it no longer sets the absolute level on its own.
+
 The formula in DESIGN.md section 3.4 puts thirteen of the fifteen offered
 occupations on the floor, because the per series attachment deliberately
 equalises shock risk. Only proximity to the level line differentiates, so the
@@ -3176,6 +3182,11 @@ document that is complete but outside the repository has to reach the judges
 some other way. Root either attaches it to the submission or puts it back.
 
 ### The premium floor is 0.5 percent a year, not DESIGN's 3 percent
+
+**Superseded on 12 September 2026: there is no 0.5 percent floor any more. The
+floor is the capital charge, which is about 5.65 percent. The entry is kept
+because the discrepancy it records was real and the reasoning still explains
+why a fixed floor of any size was the wrong instrument.**
 
 DESIGN.md 3.4 sets the floor at "3 percent of the cover limit". The formula of
 record, in "Premium is a guide price from the index multiplied by a capacity

@@ -11,7 +11,7 @@ import {
 import { addMonths, comparePeriods, monthOf, type Period } from './period.js';
 import { fmt2 } from './rounding.js';
 import { hazardTable } from './hazard.js';
-import { fittedHazard, guideRate, HAZARD_FIT, PRICING } from './pricing.js';
+import { fittedHazard, guideRate, HAZARD_FIT, PRICING, riskCharge } from './pricing.js';
 import { BACKTEST_FROM } from './calibration.js';
 import { aggregateSeriesId } from './series.js';
 
@@ -567,22 +567,65 @@ edge:
 
     h(d) = ${HAZARD_FIT.floor} + ${HAZARD_FIT.amplitude} * exp(-d / ${HAZARD_FIT.scale})
 
-    guide rate  = max(${PRICING.floorRate}, h(d) * ${PRICING.separationGivenOpen} * ${PRICING.expectedShareOfLimit} * ${PRICING.load})
-    market rate = guide * (1 + utilisation), capped at ${PRICING.marketCapMultiple} times guide
+    expected loss  = h(d) * ${PRICING.separationGivenOpen} * ${PRICING.expectedShareOfLimit}
+    risk charge    = expected loss * ${PRICING.load}
+    capital charge = (${PRICING.couponRate} - ${PRICING.impliedBaseYield}) * (1 + ${PRICING.reserveMargin}) / ${PRICING.targetUtilisation}
+    guide rate     = max(capital charge, capital charge + risk charge)
+    market rate    = guide * (1 + ${PRICING.utilisationLambda} * utilisation), capped at ${PRICING.marketCapMultiple} times guide
+
+The measured index sets the risk charge, and so it sets the whole of the
+difference between one occupation and another. It does not set the level. The
+level is the capital charge, which is what the capital standing behind a unit of
+limit costs for a year over and above what it makes by waiting: the coupon that
+capital is promised, less the ${(PRICING.impliedBaseYield * 100).toFixed(0)} percent a year the collateral is assumed to make
+while it sits, with a ${(PRICING.reserveMargin * 100).toFixed(0)} percent reserve margin on the difference, over the
+utilisation a series is priced to clear at.
+
+That subtraction is deliberate and it halves the price. An insurer's capital is
+not idle while it waits to pay claims, it is invested, and the income on that
+float is a real and usually dominant part of the return, so the premium only has
+to fund the spread the investor is paid for taking displacement risk on top of
+the base. **This deployment does not deploy its collateral.** The ${(PRICING.impliedBaseYield * 100).toFixed(0)} percent is
+what the collateral would make in tokenised treasuries, an assumption of 12
+September 2026 and not a rate anything looked up; the TUSD sits in a
+\`CollateralVault\` on Hedera testnet making nothing, and no yield source is
+implemented.
+
+The capital charge is the same for every occupation, and that is a fact about
+the contract rather than a simplification. \`CoverPool.bind\` refuses any policy
+that would take a series' active exposure past its remaining principal, so the
+pool is collateralised one for one and a unit of limit locks a whole unit of
+capital whatever the job is. A book writing several times its capital would
+divide this term by that multiple. It is the single change that would most
+reduce what a worker pays, and this build cannot make it.
 
 The table starts at 0.05 points rather than at 0, because equality opens the
 level form and there is no cover to price at 0. The curve's value there is the
 limit it approaches, not a quotable rate.
 
 ${table(
-  ['distance to the line', 'fitted hazard', 'guide rate', 'monthly premium on a 5,000 limit'],
+  [
+    'distance to the line',
+    'fitted hazard',
+    'risk charge',
+    'guide rate',
+    'monthly premium on a 5,000 limit',
+  ],
   [0.05, 0.25, 0.5, 1, 2, 4].map((d) => [
     `${d.toFixed(2)} points`,
     `${(fittedHazard(d) * 100).toFixed(1)} percent`,
+    `${(riskCharge(d) * 100).toFixed(2)} percent`,
     `${(guideRate(d) * 100).toFixed(2)} percent`,
     (guideRate(d) * 5000 / 12).toFixed(2),
   ]),
 )}
+
+Read the risk charge column, not the guide column, for what the index is saying.
+Across the offered occupations the risk charge runs about thirteen times from
+the nearest to its line to the furthest, and the guide rate runs about one and a
+half times, because the capital charge every occupation carries equally is much
+the larger of the two. That compression is real and it is what fully
+collateralised cover costs. It is not the measurement being softened.
 
 The market term is per experience band, and the guide term is not. Cover is
 sold in three bands of years worked, 0 to 5, 5 to 25 and 25 or more, and a band
@@ -603,7 +646,9 @@ whether displacement falls harder on a worker of one seniority than another,
 and nothing in this product claims that it can. What a band expresses is
 capital's appetite, which is a fact about capital.
 
-Every assumption in that formula is arguable and all of them are stated. The chance a covered worker is involuntarily separated inside a loss window is taken as ${PRICING.separationGivenOpen}, the JOLTS layoffs and discharges base with a three times open-month uplift over a six month window. The expected share of the limit paid is ${PRICING.expectedShareOfLimit}, partial at attachment and full at twice it. The load is ${((PRICING.load - 1) * 100).toFixed(0)} percent. The floor of ${(PRICING.floorRate * 100).toFixed(1)} percent is a judgment about the least a policy is worth writing, not a measurement, and on this curve it never binds: the flat end of the hazard already prices above it.`);
+Every assumption in that formula is arguable and all of them are stated. The chance a covered worker is involuntarily separated inside a loss window is taken as ${PRICING.separationGivenOpen}, the JOLTS layoffs and discharges base with a three times open-month uplift over a six month window. The expected share of the limit paid is ${PRICING.expectedShareOfLimit}, partial at attachment and full at twice it. The load on the loss term is ${((PRICING.load - 1) * 100).toFixed(0)} percent. The coupon is ${(PRICING.couponRate * 100).toFixed(0)} percent a year, set at issuance, and the reserve margin on it is ${(PRICING.reserveMargin * 100).toFixed(0)} percent. The target utilisation is ${PRICING.targetUtilisation}, which is a judgment about the level a series is priced to clear at and not a measurement of anything. The base yield the collateral is assumed to make while it waits is ${(PRICING.impliedBaseYield * 100).toFixed(0)} percent, implied from tokenised treasuries, and it is an assumption of 12 September 2026 rather than a rate anything looked up. The floor of ${(PRICING.floorRate * 100).toFixed(2)} percent is derived rather than chosen: it is the capital charge on its own, the price at which a policy pays for the spread the capital behind it is owed and nothing for the risk. It never binds, because the flat end of the hazard adds ${(riskCharge(100) * 100).toFixed(2)} percent on top of it even at the far end of the curve. The floor it replaces was 0.5 percent a year, which was less than the collateral is assumed to make sitting still.
+
+Three things this pricing does not claim. It does not claim the base yield has been earned: this deployment holds its collateral in a vault on Hedera testnet, that collateral makes nothing there, and no yield source is implemented or going to be. It does not fund the coupon below the target utilisation, and no price fixes that: a series nobody has bought cover from earns no premium and still owes its coupon on the whole of its principal. And the hazard is fitted to ${hazard.from} to ${hazard.to}, so it describes what displacement has done and not what it is about to do. The history is the floor of what is known rather than the ceiling of what is coming, and nothing here models a trend, because nothing in these sources measures one.`);
 
   parts.push(`## Honesty notes
 

@@ -23,6 +23,7 @@ import {
   premiumRatePercent,
   sortMarketRows,
   takeState,
+  yieldLine,
   type MarketRow,
 } from '../src/lib/investor-model.js';
 import { demoInvestorAccount } from '../src/lib/wallet.js';
@@ -95,6 +96,48 @@ function committedSeries(exposure: string): SeriesView {
     cover_pool: { ...SERIES.cover_pool!, active_exposure: money(exposure), registered: true },
   };
 }
+
+describe('where the yield comes from', () => {
+  /**
+   * The sentence a judge with a calculator was going to ask for. It is three
+   * parts rather than one number because the first part is not income: the
+   * collateral would make it in tokenised treasuries and this deployment holds
+   * it in a vault on testnet where it makes nothing.
+   */
+  it('splits the return and never calls the implied part earned', () => {
+    const line = yieldLine(committedSeries('86000000000'), 0.69) ?? '';
+    expect(line).toContain('implied from tokenised treasuries');
+    expect(line).toContain('from premiums');
+    expect(line).toContain('less expected losses of');
+    expect(line).toContain('would make if it were deployed');
+    expect(line).toContain('does not deploy it');
+    // "Earns" and "yields" about the implied part would be false.
+    expect(line).not.toMatch(/\bearns\b/i);
+  });
+
+  it('says an empty pool is empty rather than printing it as a bad yield', () => {
+    // The band features the occupation nearest its line, and on the fourteen
+    // nobody has written cover against, the split read "0 percent from
+    // premiums ... that is 4 percent a year" under the highest rate on the
+    // board. Every figure was true and the sentence was not: it read as what
+    // the occupation returns rather than as what has been written against it.
+    const line = yieldLine(committedSeries('0'), 0.02) ?? '';
+    expect(line).toContain('No cover has been bought on this occupation yet');
+    expect(line).toContain('priced at');
+    expect(line).not.toContain('0 percent from premiums');
+    expect(line).not.toContain("At today's capacity");
+    // The implied part and its caveat survive the other branch.
+    expect(line).toContain('implied from tokenised treasuries');
+    expect(line).toContain('does not deploy it');
+  });
+
+  it('says nothing at all where the rate could not be worked out', () => {
+    // An unpriced risk is not a free one, and a split nobody can check is
+    // worse than no split.
+    expect(yieldLine(committedSeries('86000000000'), null)).toBeNull();
+    expect(yieldLine(null, 0.69)).toBeNull();
+  });
+});
 
 describe('the price of an occupation', () => {
   it('is the published pricing at the reading and the committed exposure', () => {

@@ -953,15 +953,36 @@ export function yieldLine(series: SeriesView | null, distance: number | null): s
   );
   if (split === null) return null;
   const pct = (value: number) => formatPercent(value * 100);
+  const deployed =
+    `The first figure is what the collateral would make if it were deployed; this testnet ` +
+    `deployment holds it in the vault and does not deploy it.`;
+
+  // An empty pool is not a bad yield, and printing it as one was misleading in
+  // the place it mattered most. The band features the occupation nearest its
+  // line, which is the one capital has most reason to look at, and on the
+  // fourteen series nobody has bought cover from that produced "0 percent from
+  // premiums ... that is 4 percent a year" under the highest rate on the board.
+  // Every figure in it was true and the sentence as a whole was not: it read as
+  // what this occupation returns rather than as what has been written against
+  // it, which is nothing. So an unwritten pool says that, and then says what
+  // the cover it is waiting for is priced at.
+  if (split.premium === 0) {
+    return (
+      `No cover has been bought on this occupation yet, so there is no premium to share. The ` +
+      `capital would make ${pct(split.base)} implied from tokenised treasuries while it waits, ` +
+      `and cover written here is priced at ${formatPercent(rate)} a year of the amount covered. ` +
+      deployed
+    );
+  }
+
   // "At today's capacity" is load bearing rather than a hedge. The premium
-  // share is premium income over principal, so a series nobody has bought
-  // cover from yet shows nought there and a total of the base alone, and
-  // without the clause that reads as a ceiling instead of as an empty pool.
+  // share is premium income over principal, so a partly written pool shares
+  // less than its rate, and without the clause that reads as a ceiling.
   return (
     `At today's capacity: ${pct(split.base)} implied from tokenised treasuries while the capital ` +
     `waits, ${pct(split.premium)} from premiums, less expected losses of ${pct(split.loss)}. ` +
-    `That is ${pct(split.total)} a year. The first figure is what the collateral would make if it ` +
-    `were deployed; this testnet deployment holds it in the vault and does not deploy it.`
+    `That is ${pct(split.total)} a year. ` +
+    deployed
   );
 }
 

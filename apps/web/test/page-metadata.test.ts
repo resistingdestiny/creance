@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import type { Metadata } from 'next';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { PUBLIC_ROUTES } from '../src/app/sitemap.js';
 
@@ -37,6 +37,21 @@ function titleOf(metadata: Metadata): string {
 }
 
 describe.each(PUBLIC_ROUTES)('%s', (path) => {
+  /**
+   * Warm the import before the tests, with a budget that suits what it is.
+   *
+   * These read the real page modules, so the first import of a route pulls its
+   * whole graph through esbuild: the landing page alone drags in the hero, the
+   * quote panel and the explorer. That is seconds of work on a loaded machine,
+   * and inside a test it was spending the default five second budget on the
+   * import and failing the assertion that never ran. It passed alone and failed
+   * under the full suite, which is load rather than behaviour. The module
+   * system caches it, so every test below resolves instantly from here.
+   */
+  beforeAll(async () => {
+    await PAGES[path]();
+  }, 60_000);
+
   it('has a title, a description in a sentence and a canonical of its own', async () => {
     const { metadata } = await PAGES[path]();
     const title = titleOf(metadata);

@@ -8,9 +8,7 @@ import { ListRow } from '../../components/list-row';
 import { PillButton } from '../../components/pill-button';
 import { SurfaceGroup } from '../../components/surface-group';
 import {
-  BAND_COUNT,
   filterOccupations,
-  fundedBandCount,
   groupOccupations,
   hasCover,
   type FundedBands,
@@ -198,13 +196,16 @@ export function occupationGroupHeading(part: 'open' | 'noCover', count: number):
  * is not true.
  */
 export function captionFor(row: Occupation, funded?: FundedBands): string | undefined {
-  if (!hasCover(row, funded)) return NO_COVER_YET;
-  const count = fundedBandCount(row, funded);
-  // Nothing when every band is funded, and nothing when the read did not
-  // happen. A partly funded occupation is the only case worth a word here, and
-  // it gets a count rather than a list: which bands, and what each costs, is
-  // the question the next screen exists to answer.
-  return count === null || count === BAND_COUNT
-    ? undefined
-    : `Funded for ${count} of ${BAND_COUNT} experience bands.`;
+  // One line, and only when the occupation cannot be bought at all.
+  //
+  // A partly funded occupation used to say so here, "Funded for 2 of 3
+  // experience bands.", which is true and useful and still went. Root asked
+  // for this list to be names and nothing else, and the screen immediately
+  // after it is the one whose entire job is to show which bands are funded and
+  // what each costs. Saying it twice is the over explaining he was cutting.
+  //
+  // An occupation with no funded band at all is different and keeps its line,
+  // because that row cannot be chosen and a row that cannot be chosen has to
+  // say why.
+  return hasCover(row, funded) ? undefined : NO_COVER_YET;
 }

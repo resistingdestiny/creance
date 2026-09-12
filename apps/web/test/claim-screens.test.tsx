@@ -370,7 +370,14 @@ describe('C5, review and submit', () => {
         screen.getByText("Something went wrong at our end. Your claim hasn't been sent."),
       ).toBeTruthy(),
     );
-    expect(screen.getByRole('button', { name: 'Submit claim' })).toBeTruthy();
+    // The button is waited for rather than read once. The refusal and the
+    // blocked flag are set together inside the transition, but useTransition's
+    // pending flag settles on its own schedule, and while it is pending this
+    // button is not the one being asked for. Read once, this passed alone and
+    // failed under the whole suite, which is load rather than behaviour.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Submit claim' })).toBeTruthy(),
+    );
   });
 
   /**
@@ -391,8 +398,13 @@ describe('C5, review and submit', () => {
     await waitFor(() =>
       expect(screen.getByText('You have already claimed on this cover.')).toBeTruthy(),
     );
+    // Waited for the same reason, and in this order: the replacement arriving
+    // is the thing being asserted, and a queryBy that runs while the transition
+    // is still pending would pass without the screen ever having settled.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Back to cover' })).toBeTruthy(),
+    );
     expect(screen.queryByRole('button', { name: 'Submit claim' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Back to cover' })).toBeTruthy();
   });
 });
 

@@ -59,17 +59,25 @@ export interface SubscribeBody {
   amount?: unknown;
 }
 
+export interface SubscriptionParty {
+  role: string;
+  /** Null for an account the day 0 record does not name, which only the payer can be. */
+  account_id: string | null;
+  address: string;
+  hashscan: string;
+}
+
 export interface SubscriptionView {
   network: string;
   series_id: string;
   series_key: string;
-  holder: { role: string; account_id: string; address: string; hashscan: string };
+  holder: SubscriptionParty;
   /**
    * The account that paid and signed. Named rather than left implicit: the
    * money left this account and not the holder's, which is the one thing about
    * a subscription on this deployment that a reader should not have to guess.
    */
-  paid_by: { role: string; account_id: string; address: string; hashscan: string };
+  paid_by: SubscriptionParty;
   amount: Money;
   subscription_before: Money;
   subscription_after: Money;
@@ -173,19 +181,26 @@ export async function subscribe(
 
   const asset = services.config.settlementToken;
   const inAsset = (value: bigint): Money => money(value.toString(), asset.tokenId, asset.decimals);
+  // The payer is looked up rather than assumed to be the configured api
+  // account: `HEDERA_API_KEY` can name a different key, and a response that
+  // reported one account's id beside another account's address would be wrong
+  // in the one field somebody would check it by.
+  const payerAddress = vault.payer ?? services.config.api.address;
+  const payer = findAccount(services.config, payerAddress);
   return {
     network: services.config.network,
     series_id: series.label,
     series_key: series.seriesId,
     holder: party(holder, services.config.network),
-    paid_by: party(
-      {
-        role: 'api',
-        accountId: services.config.api.accountId,
-        address: vault.payer ?? services.config.api.address,
-      },
-      services.config.network,
-    ),
+    paid_by:
+      payer === undefined
+        ? {
+            role: 'api',
+            account_id: null,
+            address: payerAddress,
+            hashscan: hashscanUrl('account', payerAddress, services.config.network),
+          }
+        : party(payer, services.config.network),
     amount: inAsset(amount),
     subscription_before: inAsset(before),
     subscription_after: inAsset(after),
@@ -195,7 +210,7 @@ export async function subscribe(
   };
 }
 
-function party(account: RoleAccount, network: string): SubscriptionView['holder'] {
+function party(account: RoleAccount, network: string): SubscriptionParty {
   return {
     role: account.role,
     account_id: account.accountId,

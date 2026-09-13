@@ -61,6 +61,40 @@ export const VAULT_PRINCIPAL_ABI = [
   'function principalRemaining(bytes32 seriesId) view returns (uint256)',
 ] as const;
 
+/// The part of CollateralVault a subscription touches.
+///
+/// `subscribe` is the write. It pulls the settlement token from `msg.sender`,
+/// which is the api account holding SUBSCRIPTION_ROLE, and credits the holder
+/// it names, so the errors it can raise are here with it: a revert reaches the
+/// relay as four bytes of selector and without the fragment there is nothing to
+/// turn it back into an answer a caller can act on. `SafeERC20FailedOperation`
+/// is the one that comes from outside the vault, when the settlement token
+/// refuses the pull.
+///
+/// `seriesOf` and `subscriptionOf` are the two reads that decide whether the
+/// write is worth sending at all.
+export const VAULT_SUBSCRIPTION_ABI = [
+  'function subscribe(bytes32 seriesId, address holder, uint256 amount)',
+  'function subscriptionOf(bytes32 seriesId, address holder) view returns (uint256)',
+  'function seriesOf(bytes32 seriesId) view returns (tuple(uint256 principalFunded, uint256 principalPaid, uint256 principalRedeemed, uint256 reserved, uint256 premiumBalance, uint256 subscriptionsOutstanding, uint64 maturityAt, address atsToken))',
+  'error ZeroAmount()',
+  'error ZeroAddress()',
+  'error SeriesUnknown(bytes32 seriesId)',
+  'error SeriesMatured(bytes32 seriesId, uint64 maturityAt)',
+  'error AccessControlUnauthorizedAccount(address account, bytes32 neededRole)',
+  'error EnforcedPause()',
+  'error SafeERC20FailedOperation(address token)',
+] as const;
+
+/// The settlement asset through the ERC-20 facade every HTS fungible token
+/// answers at its own address. The vault pulls with `transferFrom`, so the api
+/// account has to have approved it and has to hold the money.
+export const SETTLEMENT_TOKEN_ABI = [
+  'function approve(address spender, uint256 amount) returns (bool)',
+  'function allowance(address owner, address spender) view returns (uint256)',
+  'function balanceOf(address owner) view returns (uint256)',
+] as const;
+
 /// A month index is `year * 12 + (month - 1)`, which is how every window rule
 /// inside CoverPool is computed; the raw `SeriesTerms` struct is the one place
 /// an index is visible from outside, so `firstOpenMonth`, `lastOpenMonth` and

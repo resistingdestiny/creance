@@ -7521,3 +7521,55 @@ The contract still permits what the API now refuses. `CoverPool.bind` accepts a
 policy while a series is in the `claims_open` state and nothing was redeployed
 for this. The refusal is a product decision enforced in the API, the gap is
 stated rather than hidden, and closing it in Solidity needs a redeployed pool.
+
+## The subscribe screen sends, 13 September 2026
+
+### POST /v1/subscribe, and the amount adds rather than tops up
+
+This supersedes "The subscribe screen does not sign, and says so before the
+press" above, in its central claim only: there is a subscribe endpoint now. The
+screen still holds no key and never will.
+
+The vault pulls the settlement token from whoever calls `subscribe`, and the
+account holding `SUBSCRIPTION_ROLE` on this deployment is the api account, so
+the write can be made from the API or from nowhere. It is the two calls
+contracts/coupons/vault.ts already makes and has already proven, in the same
+order: `approve` the vault from the api account where the standing allowance
+does not cover the amount, then `subscribe(seriesId, holder, amount)`.
+
+It adds to what the holder already carries. `subscribe` on the vault is
+`_subscription[seriesId][holder] += amount`, and the route passes the amount
+through, so a holder at 50,000 who subscribes 25,000 ends at 75,000.
+contracts/coupons/vault.ts makes the other choice and is right to: it is a
+seeding script working towards a wanted total and a second run of it must not
+subscribe twice. A person pressing a button that says "Subscribe 25,000" means
+25,000 more. The consequence is that the route is not idempotent, so a retry
+after a timeout subscribes again, and `subscription_before` and
+`subscription_after` on the response are how a caller tells what its call did.
+
+The holder is held to an account in the deployment's own record. It names who is
+credited and not who pays, and who pays is the api account out of its own
+settlement balance, so a route that credited whatever address a caller sent
+would be a faucet with that account's money in it. It is the same posture the
+market writes take, for a different reason: there it is what the API can sign
+for, here it is what the API is willing to pay for.
+
+Three reads happen before anything is signed: the series in the vault, the
+standing subscription, and the paying balance. An approve through the HTS
+ERC-20 facade costs about 1.7 HBAR and it is the first of the two calls, so a
+subscription the vault was always going to refuse is refused by reading rather
+than by spending.
+
+The gas limits are the measured figures and not the suggested ones:
+`approve` 1,200,000 against 729,787 measured, `subscribe` 400,000 against
+141,378. contracts/coupons/config.ts carries 1,500,000 for the same call and is
+right to for a script that runs once with twelve HBAR in hand; the relay
+refuses a transaction whose sender cannot cover the limit times the quoted gas
+price, so a limit set four times higher than needed is HBAR the api account has
+to hold on every call it will never spend.
+
+The screen after the press is a receipt now. It shows the total the vault
+carries, read back by the API after the write, with the transaction beside it,
+and never the figure that was on the slider. A refusal is said in words: the
+screen used to fall through to "Nothing was sent", which read the same whether
+the send had failed or had never been attempted.

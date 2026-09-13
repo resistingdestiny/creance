@@ -660,7 +660,15 @@
      ranges are staggered rather than delayed, because a delay on a scroll
      timeline is a delay in distance and reads as a stutter when somebody
      scrolls fast; a range is a position, so each block lands where it lands
-     however quickly you move. */
+     however quickly you move.
+
+     The ranges end in the cover phase rather than in entry. These blocks are
+     about 130px tall against an 810px viewport, so their entry phase is over
+     almost as soon as it starts: measured against the live page, ranges inside
+     entry finished while the blocks were still at the bottom edge and nobody
+     would have seen them. Ending in cover spreads the arrival across the part
+     of the scroll where the blocks are actually being looked at. Measured at
+     a tenth of the way in, the three sit at 0.52, 0.20 and 0.04. */
   @supports (animation-timeline: view()) {
     @media (prefers-reduced-motion: no-preference) {
       .pay-step {
@@ -669,26 +677,26 @@
       }
 
       .pay-step-1 {
-        animation-range: entry 12% entry 62%;
+        animation-range: entry 40% cover 15%;
       }
 
       .pay-step-2 {
-        animation-range: entry 20% entry 70%;
+        animation-range: entry 55% cover 22%;
       }
 
       .pay-step-3 {
-        animation-range: entry 28% entry 78%;
+        animation-range: entry 70% cover 30%;
       }
 
       /* The operators are lighter and arrive between the blocks they join. */
       .pay-mark {
         animation: pay-mark-in linear both;
         animation-timeline: view();
-        animation-range: entry 18% entry 64%;
+        animation-range: entry 48% cover 18%;
       }
 
       .pay-mark-2 {
-        animation-range: entry 26% entry 72%;
+        animation-range: entry 62% cover 26%;
       }
     }
   }

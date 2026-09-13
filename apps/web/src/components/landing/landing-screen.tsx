@@ -610,13 +610,15 @@ function Questions() {
               {index === 0 ? null : (
                 <li
                   aria-hidden="true"
-                  className="flex shrink-0 justify-center font-display text-title text-ink-3 lg:text-headline"
+                  className={`pay-mark flex shrink-0 justify-center font-display text-title text-ink-3 lg:text-headline ${
+                    index === steps.length - 1 ? 'pay-mark-2' : ''
+                  }`}
                 >
                   {index === steps.length - 1 ? '=' : '+'}
                 </li>
               )}
               <li
-                className={`flex flex-1 items-center rounded-group px-5 py-5 text-body-lg lg:min-h-[132px] lg:text-landing-lead ${
+                className={`pay-step pay-step-${String(index + 1)} flex flex-1 items-center rounded-group px-5 py-5 text-body-lg lg:min-h-[132px] lg:text-landing-lead ${
                   index === steps.length - 1
                     ? 'bg-ink font-medium text-canvas'
                     : 'bg-surface text-ink'

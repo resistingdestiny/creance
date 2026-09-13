@@ -576,9 +576,22 @@ describe('motion and focus', () => {
   });
 
   it('runs nothing on scroll', () => {
+    // The sum arrives as you reach it, and the rule this page was built to
+    // still holds: no observer and no scroll listener. The browser drives it
+    // from the element's own position through animation-timeline, which is
+    // declarative and composited and cannot flicker the way a class toggled
+    // by an observer does, which is the reason the rule existed.
     expect(live).not.toContain('IntersectionObserver');
     expect(live).not.toContain('onScroll');
     expect(live).not.toMatch(/animate-(?!none)/);
+  });
+
+  it('gives the sum its blocks and its marks, in order', () => {
+    const steps = [...live.matchAll(/class="pay-step pay-step-(\d)[^"]*"/g)].map((m) => m[1]);
+    expect(steps).toStrictEqual(['1', '2', '3']);
+    // Two operators between three blocks, and the second is the equals.
+    expect(live.match(/class="pay-mark[^"]*"/g)).toHaveLength(2);
+    expect(live).toContain('pay-mark-2');
   });
 
   it('makes every interactive element a button or an anchor, so the outline applies', () => {

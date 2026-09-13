@@ -640,6 +640,81 @@
     }
   }
 
+  /* The sum on the landing page: three blocks that arrive as you reach them.
+     Root asked for it to move the way the pages he likes move.
+
+     It is a scroll driven animation and there is still no observer and no
+     scroll listener anywhere on this page, which is the rule the landing was
+     built to. `animation-timeline: view()` is the browser driving it from the
+     element's own position in the viewport: declarative, composited, and it
+     cannot flicker the way an observer toggling a class does, which is why
+     that rule existed.
+
+     Behind @supports on purpose. Where the timeline is not implemented the
+     rule never applies and the blocks are simply there, which is the correct
+     state and not a degraded one. Nothing is hidden by default: the animation
+     names its own `from`, so a browser that ignores it shows finished blocks
+     rather than blank space.
+
+     Only transform and opacity, so it composites and paints nothing. The
+     ranges are staggered rather than delayed, because a delay on a scroll
+     timeline is a delay in distance and reads as a stutter when somebody
+     scrolls fast; a range is a position, so each block lands where it lands
+     however quickly you move. */
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .pay-step {
+        animation: pay-step-in linear both;
+        animation-timeline: view();
+      }
+
+      .pay-step-1 {
+        animation-range: entry 12% entry 62%;
+      }
+
+      .pay-step-2 {
+        animation-range: entry 20% entry 70%;
+      }
+
+      .pay-step-3 {
+        animation-range: entry 28% entry 78%;
+      }
+
+      /* The operators are lighter and arrive between the blocks they join. */
+      .pay-mark {
+        animation: pay-mark-in linear both;
+        animation-timeline: view();
+        animation-range: entry 18% entry 64%;
+      }
+
+      .pay-mark-2 {
+        animation-range: entry 26% entry 72%;
+      }
+    }
+  }
+
+  @keyframes pay-step-in {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes pay-mark-in {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
   /* Landing only: the soft ground behind the hero card. It is a radial
      gradient and not an elevation, so it is not the one the addendum permits
      and it is not counted against it.

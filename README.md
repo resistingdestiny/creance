@@ -1,244 +1,190 @@
 # Creance
 
-Workers buy monthly parametric cover against their occupation being displaced, and investors fund the payouts by buying Displacement Bond Notes that earn the premiums as coupons. A public occupation index computed from official labour statistics decides when claims open, and a claim pays only when the claimant can also show they lost their job.
+Cover for the day your job is automated.
 
-Everything runs on Hedera testnet. There is no mainnet path and no real money anywhere in this repository.
+You pay a small premium each month. If job losses climb far enough in your
+occupation, and you lose your job, you get paid. The money comes from investors
+who buy notes and take the premiums as coupons.
 
-## Status
+All of it runs on Hedera testnet. There is no mainnet path and no real money
+anywhere in this repository.
 
-Being built. The contracts, the note series, the coupon and maturity runs, the index model, the API, the worker and investor screens, the index oracle, the Steward agent, the Adjuster, the claim flow and the review queue are live on Hedera testnet; the API's three metered endpoints are gated with x402 and settle through Blocky402, one payout and one decline are on the claims topic, and the images and compose file for a public deployment are built. The demonstration is seeded and its shot list is written. The scheduler still prints what it will do instead of doing it, and a later ticket fills it in.
+Live at [creance.co](https://creance.co), API at
+[api.creance.co](https://api.creance.co). You can
+[open a real cover](https://creance.co/home/demo) with a published key and look
+around without buying anything.
 
-## Requirements
+## How it works
 
-- Node 22 or later
-- pnpm 11.25.0, which is pinned by the `packageManager` field in [package.json](package.json). Run `corepack enable` and pnpm will match it.
-- PostgreSQL 14 or later, for the API. Only the API needs it, and only when it runs: `pnpm test` has no database.
-- Ports 3000 and 3210 free. The API refuses to start if 3210 is taken; the web app takes the next free port and prints which one, so read the address it prints rather than assuming 3000.
+Income protection normally ends with a person deciding whether to believe you.
+That is slow, it costs a lot, and you can argue with it. Creance splits the
+decision in two and makes one half a number anyone can check.
 
-## Setup
+### The index says when claims can open
 
-    pnpm install
-    cp .env.example .env
+Once a month the oracle pulls the US Bureau of Labor Statistics Current
+Population Survey, takes the unemployment rate for one occupation group, and
+subtracts the rate across all occupations. Smooth that excess over three months
+and you have the Occupation Displacement Index: one number, per occupation, per
+month, for how far that occupation is slipping against the labour market.
 
-Three lines in `.env` are enough for everything below: `HEDERA_OPERATOR_ID`,
-`HEDERA_OPERATOR_KEY` and `DATABASE_URL`. Leave every other line exactly as the
-example has it. A blank line is read as unset rather than as an empty value, so
-the contract addresses, the token, the topics and the account ids all come from
-the two data files this repository already carries,
-[contracts/deployments/testnet.json](contracts/deployments/testnet.json) and
-[docs/hedera.testnet.json](docs/hedera.testnet.json). The oracle, API, Steward,
-adjuster, policyholder and investor accounts each derive their key from the
-operator key with HKDF, so the operator key is the only Hedera secret a clone
-needs. Every variable is listed with a one line comment in
-[.env.example](.env.example). `.env` is ignored by git and must never be
-committed.
+Every series has a trigger line, fixed when the series was issued. A month's
+reading crosses it and claims open for that occupation. The reading goes to a
+Hedera Consensus Service topic and into the `CoverPool` contract, so what opens
+claims sits on chain and nobody here can nudge it.
 
-`pnpm test` needs none of it: the unit suite touches no chain and no database.
+The index has no idea why an occupation is slipping, and it does not pretend to.
+It fires whatever the cause. The promise on the front of the site is about
+automation; the mechanism underneath measures displacement. We keep those two
+apart deliberately, because the mechanism cannot claim something it does not
+measure.
 
-For the API, create the database and point `DATABASE_URL` at it:
+### Then you have to show you lost your job
 
-    createdb creance
-    pnpm api:migrate
+An open index is not enough on its own. Two things have to be true, and they are
+held in different places. Whether the month opened is on the chain, in
+`CoverPool`. Whether you lost your job is on you, and you show it with a
+termination notice.
 
-`DATABASE_URL` is `postgresql://user:password@localhost:5432/creance` where the
-server wants a password, or `postgresql:///creance?host=/var/run/postgresql`
-where a unix socket and peer authentication are enough.
+You file a packet: a fresh World ID Selfie Check tied to your policy id, your
+documents, and a statement. An adjuster built on Claude pulls the employer, the
+job title, the date and the stated reason out of the PDF, judges that against
+the policy's written rules, and comes back with a decision, its reasons and a
+confidence. It is not deciding your payout. The trigger does that, on chain,
+from published statistics. The model only establishes that this person lost this
+job. Everything it decides goes to a claims topic with the model id and the
+effort setting on it, so you can go and read how your claim was handled instead
+of taking our word for it.
 
-`pnpm api:migrate` applies the migrations under `apps/api/migrations` and seeds the fifteen occupation groups. It is idempotent: running it again prints `nothing to do`. The API also runs it at boot, so a first `pnpm dev` after `createdb` is enough.
+### One person, one cover
 
-## Fifteen minutes from a clean clone
+Selfie Check hands back a World ID 3.0 proof, and its nullifier is stable for a
+given person and action. That is the whole reason we can say the person claiming
+is the person who bought. It is enforced in two places, a unique index in the
+database and `NullifierHasActivePolicy` on the contract, so a second purchase on
+the same World ID is turned away before anyone asks you for money.
 
-The three flows, in the order to run them, with what each one should print. The
-timings are a measured run on 5 September 2026 from a fresh clone of this
-repository: node 22.23.1, pnpm 11.25.0, PostgreSQL on localhost, the operator
-key and `DATABASE_URL` filled in and nothing else.
+### Investors put up the money and carry the risk
 
-| Step | Command | Time |
-| --- | --- | --- |
-| Install | `pnpm install` | 8 seconds against a warm pnpm store, a few minutes on a cold one |
-| Database | `createdb creance` then `pnpm api:migrate` | 3 seconds, prints `applied 001_init, 002_adjuster, 003_claims, 004_cover_keys` |
-| Unit tests, optional | `pnpm test` | 83 seconds |
-| Boot | `pnpm dev` | the API answers `GET /health` after 10 seconds, the web app is ready in 2 |
-| Worker flow | a browser at http://localhost:3000 | under two minutes to a bound policy, most of it waiting on testnet |
-| Steward flow | `pnpm steward:run --as-of 2025-05 --cadence demo` | 38 seconds to a bound policy and three premium schedules |
-| Oracle replay | `pnpm oracle:preflight` then `pnpm oracle:replay --dry-run --interval-ms 250` | 6 seconds, then 12 |
+The capital behind the payouts is an actual security. Each series is a
+Displacement Bond Note, issued through the Hashgraph Asset Tokenization Studio
+as an ERC-3643 bond with an identity registry, a KYC list, transfer restrictions
+and freeze roles. Investors subscribe principal into a collateral vault, take
+the premiums as coupons, and get their principal back at maturity less whatever
+was paid out. Notes can change hands afterwards, and it is the note's own KYC
+register that turns away a buyer who is not on it.
 
-Under four minutes of wall clock from `git clone` to all three flows done,
-skipping the optional unit suite. The two things that stretch it are a
-cold pnpm store and the demo clock at its real cadence, which is ten seconds a
-month by design and is what the video shows.
+### Recurring payment, which x402 cannot do
 
-**The worker flow.** Open http://localhost:3000, press "Get a quote", choose
-any of the fifteen occupations, all of which have a cover series and capacity
-behind them, set the slider and press Continue. The price on screen is a real
-quote from the API and every move of the slider is a paid call. The verify
-screen runs the World Selfie Check when the three `WORLD_` variables are filled
-in and otherwise runs the API's labelled interim issuer, which says on screen
-that it is not a World check; a judge needs no World Developer Portal account
-to finish the flow. Press Pay and the first premium settles over x402 from the
-demo worker's testnet account, the policy binds, the receipt NFT is minted and
-the receipt goes to the payments topic. Every settlement is printed in the
-terminal `pnpm dev` runs in, with its HashScan link.
+The premium comes out of the occupation's own history: a risk charge, a
+selection charge, and what the capital behind it wants in return. The investor
+board prices all fifteen occupations that way.
 
-Binding writes to testnet and commits permanent exposure against the series
-behind the occupation chosen, so bind at the smallest amount the slider offers
-when repeating the run.
+Charging it every month is where the protocol ran out. x402's Hedera `exact`
+scheme wants a bare `TransferTransaction` and will not take one wrapped in a
+`ScheduleCreateTransaction`, so there is no way to say "monthly" in it at all.
+So the first premium is the paid x402 call and the rest are Hedera Scheduled
+Transactions, signed in advance. That runs into a second wall: a schedule cannot
+expire more than 62 days after it was created, so you cannot lay down a year of
+them up front. A watcher creates each month when the one before it executes.
 
-**The Steward flow.** `pnpm steward:run` needs `pnpm dev` running and pays every
-metered call from the agent's own account. On live data the rule usually decides
-hold, which is a complete cycle: it pays for the index, prints the three months
-it read and writes the decision to the agent journal. `--as-of 2025-05` puts the
-vantage on a month whose three month trend is rising, which is what makes the
-rule buy, and the run then quotes, binds over x402, creates the premium
-schedules and journals all of it. See [The Steward agent](#the-steward-agent).
+## What you can do with it
 
-**The oracle replay.** `pnpm oracle:preflight` reads every precondition and
-sends nothing. The replay itself walks January 2025 to the newest month the
-archive carries, all of it computed from the committed BLS snapshot with no
-network and no key. `--dry-run` computes, gates, signs and encodes the whole
-window and sends nothing, which is the right thing to run against the shared
-testnet resources: the index topic already carries this window, and the first
-value published for a period settles it forever. Without `--dry-run` the command
-reads the topic back through the mirror node first and publishes only the months
-that are missing from it. See [Which replay windows run](#which-replay-windows-run).
+Buy cover from the card on the front page. It quotes you, you pick an occupation
+and an amount, you pass a World ID check, you pay, and the policy binds on chain
+with a receipt NFT.
 
-## Commands
+Claim from the cover dashboard, which is the two keys above.
 
-Run all of these from the repository root.
+Invest at [/invest](https://creance.co/invest): put principal in, take coupons,
+and sell notes on the secondary market.
 
-| Command | What it does |
+An agent can do the buying without a person in the loop. The API is metered with
+x402 and published as two gateways anyone can import. See
+[Payment flow](#payment-flow) and [recipes/bazantic](recipes/bazantic).
+
+## What is on chain
+
+Every figure on the site is read from Hedera testnet. Nothing is faked except
+three demonstration states that say so on their face.
+
+| | |
 | --- | --- |
-| `pnpm test` | Runs every unit test in every workspace. Chain free, no credentials needed. |
-| `pnpm test:testnet` | Runs the integration tests against Hedera testnet: the contract lifecycle run through, one policy bound end to end through the API, one paid request of each kind through the x402 gate, then that policy's audit trail read back off the payments topic. Needs credentials and a database. |
-| `pnpm dev` | Runs the web app on http://localhost:3000 and the API on http://localhost:3210, together. The component gallery, which is the design review surface, is at http://localhost:3000/gallery. The worker flow starts at http://localhost:3000 and runs through `/occupation`, `/amount`, `/verify`, `/pay` to `/home` and `/cover/index`. The investor screens are at http://localhost:3000/invest and http://localhost:3000/invest/subscribe, and the receipt for a policy is at http://localhost:3000/receipt/:policyId. All of them read the API. |
-| `pnpm lint` | Runs eslint across the repository. |
-| `pnpm typecheck` | Runs the TypeScript compiler in every workspace without emitting. |
-| `pnpm oracle:once` | One live run. Pulls the sixteen BLS series, computes both trigger forms for every bindable group, runs the QA gates of [docs/INDEX-SPEC.md](docs/INDEX-SPEC.md) section 8, publishes one signed observation per group to the index topic, and submits the groups that have a cover series registered in CoverPool. Options: `--period YYYY-MM` (defaults to the newest month the source carries), `--source archive\|cache\|api` (defaults to `api`, the live path), `--series LABEL` to publish one group only, `--no-submit` to publish without a contract call, and `--dry-run` to compute, gate, sign and encode everything and send nothing. A group and month that already reached the index topic is never published again, whichever command put it there: the demo replay runs to the newest month the source carries and this command defaults to that same month, so running one after the other publishes it once. |
-| `pnpm oracle:replay` | The demo clock. Replays real historical months for one cover series at one month per ten seconds, publishing and submitting exactly as the live path does, and writes the run state the API serves so the web app can show the REPLAY badge. Options: `--from YYYY-MM` (defaults to `2025-01`), `--to YYYY-MM`, `--series LABEL` (defaults to the demo series), `--interval-ms N` (defaults to 10000), `--source archive\|cache\|api` (defaults to `archive`, which covers the whole window with no BLS call), `--scenario NAME` for a labelled synthetic trigger from `apps/oracle/scenarios`, `--no-submit` and `--dry-run`. A scenario never writes the index topic and never calls the contract. Not every window can be replayed: see the note below. |
-| `pnpm oracle:preflight` | Reads every precondition a real run depends on and prints it, sending nothing: the oracle's HBAR balance, the index topic and how many messages it already carries, and each series' status, `activeExposure`, reserve and last observed month. Run it before a testnet replay. |
-| `pnpm oracle:verify` | Reads the index topic back through the mirror node and checks every message: that it is canonical JSON and that the signature recovers to the oracle's address. Public data only. Options: `--topic 0.0.x`, `--signer 0x...`. |
-| `pnpm oracle:backtest` | Prints the open months per occupation group from January 2010 to the newest month the source carries, at the frozen per series attachment and level line, then the same window at the generic attachment of 2.0, a check that every series reproduces its frozen parameters from that source, and the empirical hazard on the distance to the level line. Options: `--from YYYY-MM`, `--source archive\|cache\|api`. |
-| `pnpm oracle:backfill` | Computes the whole index history, settles nothing, and regenerates [docs/INDEX.md](docs/INDEX.md) from it. `pnpm oracle:backfill --from 2000-01` builds the full history. Options: `--from YYYY-MM`, `--source archive\|cache\|api`, `--out PATH`, and `--check` to regenerate and compare without writing. Deterministic: two runs over the same source produce a byte identical file. |
-| `pnpm oracle:schedule` | Runs the daily index check and pipeline with QA gates and alerts. |
-| `pnpm steward:run` | Runs one Steward cycle for the configured principal against Hedera testnet: reads the profile, pays for the index feed, applies the written decision rule, and if the rule says buy, quotes, binds with the first premium over x402, creates the next premiums as Scheduled Transactions and writes a journal entry to the agent-journal topic. Needs the API running with the x402 gate on. Options: `--profile PATH`, `--as-of YYYY-MM`, `--cadence monthly\|demo`, `--interval SECONDS`, `--premiums N`, `--wait`. See [The Steward agent](#the-steward-agent). |
-| `pnpm adjuster:run` | One pass over the claims waiting for a decision: reads the review queue over the admin API, extracts the employer, the name, the job title and the end date from each evidence document with a vision-capable model, evaluates every rule in [docs/CLAIMS.md](docs/CLAIMS.md), publishes the decision record's fingerprint to the claims topic with the adjuster account's own key, and posts the decision back. A pass ends; nothing loops back over what it decided. Options: `--limit N`, `--watch`, `--interval SECONDS`, `--dry-run`. Needs the API running and `ADMIN_TOKEN` set. Without `ANTHROPIC_API_KEY` it still runs, and every claim that needs a document read is referred to the queue. See [The review queue](#the-review-queue). |
-| `pnpm contracts:deploy` | Deploys CoverPool and CollateralVault to Hedera testnet and verifies them. |
-| `pnpm hedera:setup` | Creates the day 0 Hedera testnet accounts, tokens and topics, and writes [docs/HEDERA.md](docs/HEDERA.md). Idempotent: run it again and it creates nothing. Needs the operator credentials in the local environment file. Add `--plan` to print what it would do and stop. |
-| `pnpm hedera:schedule` | Runs the Scheduled Transactions spike against testnet: measures the expiry window, executes a scheduled premium transfer and chains the next month. Writes to testnet and costs fees. Stages: `bisect past immediate future chain`. |
-| `pnpm series:capacity` | Gives every occupation group a series on Hedera testnet with capacity behind it, which is what makes its cover buyable. `register` opens each series in CollateralVault and registers it on CoverPool with that group's frozen calibration, then funds it with 25,000 TUSD so a bind has collateral; `notes` issues the Displacement Bond Note for each as a separate pass; `status` prints what is on chain per group and sends nothing; `all` runs register then notes. Name one group to act on it alone, for example `pnpm series:capacity register office_admin_support`. Idempotent against the chain rather than against the record, and resumable: it reads what the vault, the pool and the note already say, does only what is missing and writes the record after every series, so a run killed half way loses nothing and a second run sends no transactions. The note pass is deliberately last and never gates the cover: a series whose bond deploy fails keeps its capacity and stays buyable, the reason is written to `noteFailure` on that series, the run carries on to the next and exits non-zero at the end. Every series with a link for each transaction is [docs/HEDERA.md](docs/HEDERA.md). |
-| `pnpm ats:issue` | Issues the demo Displacement Bond Note series as an Asset Tokenization Studio bond on Hedera testnet and runs the compliance sequence: roles, the credential issuer, a KYC grant per noteholder, the mints, a blocked then allowed transfer, pause, freeze and the first coupon. Idempotent: run it again and it does nothing. The run through with a link for every transaction is [docs/ATS.md](docs/ATS.md). Stages: `status throwaway issue roles issuer kyc1 mint1 blocked kyc2 allowed mint2 controls coupon couponcheck verify`. A second argument names the series to act on, by group key or by label, as in `pnpm ats:issue issue office_admin_support`; with no arguments it is the demo series and does exactly what it always did. |
-| `pnpm coupons:pay` | Settles a declared coupon on Hedera testnet: seeds the premium account, subscribes the noteholders in the vault, pays each holder with a Scheduled Transaction carrying the vault's `fundCoupon` call, and publishes each settlement to the payments topic. Idempotent: run it again and it does nothing. The run through is [docs/ATS.md](docs/ATS.md) section 14. Stages: `status fund probe seed subscribe pay publish verify`. |
-| `pnpm coupons:mature` | Runs a maturity redemption on Hedera testnet, on a short dated series opened for the purpose because the demo series matures in 2027: opens the series and a matching note, subscribes both noteholders, waits, then burns each holding through ATS and returns the principal from the vault. Stages: `status fund open bond subscribe wait redeem payout`. |
-| `pnpm market:demo` | Deploys the `NoteMarket` venue and runs two trades on the office and administrative support note: a holder offers a lot of note units at a price, a buyer with no place on the note's KYC register is refused, the grant is made, and the same call then settles both legs in one transaction. Idempotent and record driven like `pnpm ats:issue`: it reads `contracts/deployments/testnet.json`, skips what is already there and writes back what it did, so nothing can be run twice into a second trade. The run through with a link for every transaction is [docs/ATS.md](docs/ATS.md) section 18. Stages: `status deploy fund trade verify`. |
-| `pnpm api:dev` | Runs the API alone on port 3210, reading Hedera testnet and the local database. Endpoints: `POST /v1/quote`, `POST /v1/bind`, `GET /v1/policy/:id`, `GET /v1/audit/:id`, `GET /v1/index/:group`, `GET /v1/series`, `GET /v1/series/:id`, `GET /v1/series/:id/coupons`, `POST /v1/subscribe`, the free secondary market at `GET /v1/market/offers`, `GET /v1/market/offers/:id`, `GET /v1/market/positions/:holder`, `POST /v1/market/offers`, `POST /v1/market/offers/:id/fill` and `POST /v1/market/offers/:id/cancel`, `POST /v1/world/rp-context`, `POST /v1/world/verify`, `POST /v1/claims`, `GET /v1/claims/:id`, `GET /v1/replay`, `GET /health`, `GET /healthz` and `GET /.well-known/jwks.json`, with the review queue under `/v1/admin/claims` behind `ADMIN_TOKEN`. The index, quote and bind routes are paid: see [Payment flow](#payment-flow). `GET /v1/replay` is the oracle's run state, which is what puts the REPLAY badge on the web app; it sits outside `/v1/index/` because everything under that prefix is metered. Set `PORT` to move it, and `X402_ENABLED=false` to serve them open. |
-| `pnpm api:migrate` | Creates the API schema and seeds the fifteen occupation groups. Idempotent. |
-| `pnpm --filter @creance/api claims:close-windows` | Reads every registered series and calls `closeWindow` on the ones whose claim window has ended, so the unclaimed reserve returns to the vault. Permissionless: any funded account can run it. It refuses before the deadline and prints when it will work, rather than sending a transaction that reverts. Add `--dry-run` to read and report only. |
-| `pnpm --filter @creance/api testnet:claim` | Submits one proof of loss packet to a running API over HTTP, exactly as the web app will: a claim credential, an attestation signed by the policy wallet with its own key, and one of the committed documents. Options: `--policy pol_...` (required), `--packet a\|b`, `--holder ROLE`, `--url`, `--wait`. Then run `pnpm adjuster:run`. See [Claims](#claims). |
-| `pnpm api:openapi` | Regenerates [recipes/bazantic/openapi.yaml](recipes/bazantic/openapi.yaml) and the JSON beside it from the routes. A test fails if the committed files differ. |
-| `pnpm demo:seed` | Makes everything the demonstration of [docs/DEMO.md](docs/DEMO.md) needs true on Hedera testnet, by composing the commands below rather than repeating them: two policies bound with a backdated start so a separation in the loss window can be claimed, the noteholders on the note and in the vault, and the two committed claim packets fingerprinted and window checked against the cover they will be claimed on. Idempotent and stage based like `pnpm ats:issue`: a second run binds nothing and issues nothing, and it prints an id block with a HashScan link for everything the shot list needs. Stages: `status policies investors packets verify`. Add `--plan` to print what a run would do and stop, or `pnpm demo:seed scenario` to print the shot list. Needs `DATABASE_URL`, `ADMIN_TOKEN`, `EVIDENCE_KEK` and the operator credentials. |
+| CoverPool | [0.0.10367199](https://hashscan.io/testnet/contract/0.0.10367199) |
+| CollateralVault | [0.0.10367194](https://hashscan.io/testnet/contract/0.0.10367194) |
+| NoteMarket | [0.0.10495570](https://hashscan.io/testnet/contract/0.0.10495570) |
+| Displacement Bond Note | [0.0.10368240](https://hashscan.io/testnet/contract/0.0.10368240) |
+| TUSD, the settlement token | [0.0.10366463](https://hashscan.io/testnet/token/0.0.10366463) |
+| Index topic | [0.0.10366470](https://hashscan.io/testnet/topic/0.0.10366470) |
+| Payments topic | [0.0.10366471](https://hashscan.io/testnet/topic/0.0.10366471) |
+| Claims topic | [0.0.10366473](https://hashscan.io/testnet/topic/0.0.10366473) |
 
-Both oracle commands read `data/bls` first, the snapshot of the raw BLS files committed at kick-off, which is verified against its `PROVENANCE.txt` hashes before anything is computed. That makes the published tables reproducible from a clean clone with no network and no credentials. `--source cache` reads whatever a previous live fetch left under `var/cache/bls`, and `--source api` fetches from the BLS Public Data API and caches the raw responses there. The API path works without a key, on the v1 endpoint, at 25 requests a day; set `BLS_API_KEY` in `.env` to use v2 and its higher allowance. Both paths send `BLS_CONTACT` as the User-Agent, because BLS refuses a client that does not identify itself.
-
-### Which replay windows run
-
-The QA gates of [docs/INDEX-SPEC.md](docs/INDEX-SPEC.md) section 8 fail closed,
-and one of them, the jump gate, legitimately refuses April 2020: every white
-collar group moved more than five standard deviations that month. A window
-spanning it therefore cannot be replayed, and the gate is right.
-
-The gates run over the whole window before the first message is published, so a
-window that cannot finish publishes nothing at all and the command exits 1
-naming the month it stopped at and the longest window that would have run. Three
-windows are known to complete:
-
-| Command | Months | Note |
-| --- | --- | --- |
-| `pnpm oracle:replay` | 2025-01 to the newest month | The default, and the demo window of DESIGN.md 3.4. Opens April and May 2026 on the level form. |
-| `pnpm oracle:replay --from 2021-01` | 2021-01 to the newest month | The longest window that runs in one go, 67 months. |
-| `pnpm oracle:replay --from 2019-01 --to 2020-03` | 15 months | Everything before the pandemic. |
-
-`pnpm oracle:replay --from 2019-01` on its own stops at 2020-04 and tells you to
-add `--to 2020-03`. The gates are not overridable: a month that fails one is not
-published, because the first value published for a period settles it forever.
-Add `--dry-run` to test any window without sending anything.
-
-### Replaying against the shared testnet resources
-
-The index topic in [docs/HEDERA.md](docs/HEDERA.md) is one topic and everybody
-running this repository writes to the same one. Because the first value
-published for a period settles it forever, a run reads the topic back through
-the mirror node before it walks and publishes only the months that are not on
-it. A clean clone that runs the demo window therefore publishes nothing and says
-so: `skipped N already published`. Only a month the topic does not carry is
-published, and a month the topic carries without its contract call still gets
-that call, from the message on the topic.
-
-That is the safety net rather than the plan. For a first look, run the window
-with `--dry-run`, which computes, gates, signs and encodes every month and sends
-nothing, and add `--interval-ms 250` so a nineteen month window takes ten
-seconds instead of three minutes. Keep the real cadence for the demo.
-
-A dry run reaches no network at all, so it does not read the topic either and
-reports the whole window as published. That is the run saying what it would have
-done, not a claim about the topic. The real command is the one that reports
-`skipped 19 already published`.
-
-A single workspace can be run on its own, for example `pnpm --filter @creance/index-model test`.
+[What is happening on chain](https://creance.co/activity) lists every index
+month, premium, claim, coupon and trade, newest first, each one linking its
+record on HashScan.
 
 ## Layout
 
-Five applications, two shared packages and one Hardhat project. `apps/api` is
-the integration point: it prices and binds cover, meters three of its routes
-with x402, verifies World proofs, serves the claims and audit reads, and is the
-only thing that talks to Postgres. `apps/web` renders every screen and reads
-that API on the server. `apps/oracle` turns the published BLS series into the
-index, publishes each observation to the index topic and submits it to
-CoverPool, which is what opens a month for an occupation group. `apps/steward`
-buys cover as an agent and `apps/adjuster` decides claims as one, and both reach
-the API over HTTP like any other client. `contracts` holds CoverPool and
-CollateralVault, which hold the policies, the capacity and the money. Everything
-on chain is Hedera testnet, and every account, token, topic and contract id is
-in [docs/HEDERA.md](docs/HEDERA.md).
+Five applications, two shared packages, one Hardhat project.
 
-    apps/web            worker, investor and admin screens, and the demo clock
-    apps/web/src/app    the worker flow: / then /occupation, /amount, /verify, /pay, /home, /cover/index
-    apps/web/src/app/invest  the investor overview at /invest and subscribe at /invest/subscribe
-    apps/web/src/app/receipt  the receipt for one policy at /receipt/:policyId
-    apps/api            quotes, binding, claims, x402 middleware, World verification
-    apps/api/src/investor  the investor endpoints, which read the chain directly
-    apps/oracle         BLS fetch, ODI computation, HCS publish, replay
-    apps/steward        buyer agent: the decision rule, the x402 payer, the premium schedule and the HCS journal
-    apps/steward/profiles  the principal profiles the agent acts for, one file each
-    apps/adjuster       claims agent that decides proof of loss packets
-    contracts           Hardhat project for CoverPool and CollateralVault
-    contracts/ats       issuance and lifecycle of the note in the Asset Tokenization Studio
-    packages/index-model  ODI maths, calibration and backtests, no chain dependencies
-    data/bls            snapshot of the raw BLS source files, with their hashes
-    contracts/coupons   coupon settlement and the maturity demonstration
-    packages/client     API client, the x402 payer helper, Scheduled Transactions, mirror node reads, amount conversion
-    packages/client/src/x402  the payer: one Hedera account key in, a fetch that completes the 402 flow out
-    apps/api/src/x402   the gate: the 402, the facilitator, the payments row and the topic message
-    apps/api/src/audit  the audit trail: the message shapes with no writer yet, and the read that assembles a policy's trail from the topics
-    apps/api/src/world  the World path: the signed rp_context, the verify forward, and the eligibility credential it earns
-    recipes/bazantic    the OpenAPI document the Bazantic gateway imports
+    apps/api        prices and binds cover, meters three routes with x402,
+                    verifies World proofs, serves the claims and audit reads.
+                    The only thing that talks to Postgres.
+    apps/web        every screen, reading that API on the server
+    apps/oracle     BLS to index, published to the topic and submitted to
+                    CoverPool, which is what opens a month
+    apps/steward    buys cover as an agent
+    apps/adjuster   decides claims as an agent
+    packages/*      the shared client and the index model
+    contracts       CoverPool, CollateralVault, NoteMarket, the ATS scripts
 
-The investor screens are desktop, 1280 wide, and they fetch on the server rather than in the browser, so the API has to be running for them to render. `pnpm dev` starts it beside the web app. The origin is `CREANCE_API_URL` and defaults to the address the API listens on, so no configuration is needed to run them locally.
+The steward and the adjuster talk to the API over HTTP like anything else would.
+Every account, token, topic and contract id is in
+[docs/HEDERA.md](docs/HEDERA.md).
 
-The worker flow is a 390 wide mobile design, centred on canvas at a desktop width. It fetches on the server too, so the same API has to be running. All three endpoints it reads are x402 gated, so the web app pays for them: the index read, the quote and the bind are settled from the demo worker's own testnet account, whose key it derives from `HEDERA_OPERATOR_KEY` exactly as the API derives its own. Every settlement is printed in the web app's terminal with its HashScan link. Without an operator key the screens still render against an API whose gate is off (`X402_ENABLED=false`) and say so otherwise.
+## Where the reasoning is
 
-Buying cover writes to Hedera testnet: `/pay` settles the first month's premium, binds a real policy, mints its receipt NFT and publishes a receipt to the payments topic, and every bind commits permanent exposure against the series behind the occupation chosen. Bind at the smallest amount the slider offers when repeating the run.
+Decisions and dead ends are written down as they happen.
 
-The check on `/verify` is a World Selfie Check. Fill in `WORLD_APP_ID`, `WORLD_RP_ID` and `WORLD_RP_SIGNING_KEY` from the World Developer Portal and the screen runs IDKit with the `selfieCheckLegacy` preset, the signal bound to the wallet id and an `rp_context` signed by the API; the completed result goes to the API, which forwards it to World and issues the eligibility credential on the strength of it. Scan the code with the World ID Sandbox App. Leave those variables blank and the API's labelled interim issuer runs instead, which mints the same credential without a check, and the screen says so.
+| | |
+| --- | --- |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | every design decision and why, including the reversed ones |
+| [docs/harness-notes.md](docs/harness-notes.md) | what the SDKs, the docs and the chain actually did, measured, with dates |
+| [docs/INDEX.md](docs/INDEX.md) | the index, its sources, its revisions and its limits |
+| [docs/CLAIMS.md](docs/CLAIMS.md) | the claim path end to end |
+| [docs/ATS.md](docs/ATS.md) | the note, issued, with every transaction |
+| [docs/HEDERA.md](docs/HEDERA.md) | every id, and the measured gas for every call |
 
-The same pages are also a World App Mini App. The root layout mounts `MiniKitProvider` from `@worldcoin/minikit-js`, and [src/lib/surface.ts](apps/web/src/lib/surface.ts) is the one helper that answers whether this is World App or a browser. Inside World App the same `IDKitRequestWidget` runs over the native transport with no QR code, on the same preset, the same signed `rp_context` and the same server side verify, so only the copy changes: the check is confirming rather than waiting, and a failure does not offer a second device. No MiniKit command is called anywhere, so nothing in this build touches World Chain. Set `WORLD_MINI_APP_ID` to the Developer Portal Mini App and `GET /v1/world/mini-app` answers the links that enter it: the launch link `https://world.org/mini-app?app_id=<mini_app_id>`, and the deep link that opens one occupation's index page, `https://world.org/mini-app?app_id=<mini_app_id>&path=%2Fcover%2Findex%2Fcomputer_math`, which lands on `/cover/index/<group>` and works with no session. None of the in-app behaviour has been run on a device: no Mini App is registered yet, and [docs/DECISIONS.md](docs/DECISIONS.md) under T27 says what that leaves untested.
+## Running it yourself
 
-One person holds one active cover per series. That rule is a unique index in the database and a check before the pay step, so a second purchase with the same World ID is refused before anybody is asked to pay. Selfie Check is a medium-assurance credential: World [says so itself](https://docs.world.org/world-id/credentials/11), and it means someone holding two World ID accounts could hold two covers.
+Node 22, pnpm 11 (`corepack enable`), and PostgreSQL 14 for the API only.
 
-Workspaces are named under the `@creance` scope. Every one of them extends [tsconfig.base.json](tsconfig.base.json), which sets TypeScript to strict.
+    pnpm install
+    cp .env.example .env     # then fill in the Hedera and World values
+    pnpm dev                 # the API and the web app together
 
-The API's schema is plain SQL under `apps/api/migrations`, applied in name order and recorded in `schema_migrations`. It is deliberately not owned by an ORM: the index oracle writes `observations`, `runs` and `source_files` in the same database, so the schema has to be readable by something that is not the API process.
+`pnpm test` needs no database and no network. The API will not start if 3210 is
+taken. The web app takes the next free port and prints it, so read what it
+prints rather than assuming 3000.
 
-Solidity sources belong in `contracts/contracts`, which is where Hardhat looks by default. [contracts/hardhat.config.ts](contracts/hardhat.config.ts) configures two networks and no others: the local in process chain for unit tests, and Hedera testnet through the Hashio JSON-RPC relay. The deploy key is read from the environment, so an empty environment simply leaves the account list empty.
+With no operator key the screens still render against an API whose x402 gate is
+off, and say so. With one, the web app pays for its own reads from the demo
+worker's testnet account and prints every settlement with a HashScan link.
+
+The environment variables and what each one turns on are in
+[docs/STARTERS.md](docs/STARTERS.md). The commands worth knowing:
+
+    pnpm test                   the unit suite, no network
+    pnpm test:testnet           the paid flows against Hedera testnet
+    pnpm oracle:once            publish one index month
+    pnpm steward:run            the agent buys cover
+    pnpm adjuster:run           the agent decides submitted claims
+    pnpm demo:seed              seed the demonstration
+    pnpm contracts:deploy       deploy the contracts
+
+The rest of this file is the detail behind each part: the payment flow, the two
+agents, the tokenization run, claims, the review queue, the demo, the audit
+trail, health and deployment.
 
 ## Payment flow
 

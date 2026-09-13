@@ -431,9 +431,13 @@ describe('the public index explorer, on the front door', () => {
     expect(text).toContain('Monthly premium for 5,000 of cover');
   });
 
-  it('says where the same figures can be read without trusting the page', () => {
-    expect(live).toContain(LIVE.explorer.round!.provenance.hashscan!);
-    expect(visibleText(live)).toContain(LIVE.explorer.round!.provenance.source);
+  it('carries no provenance block, on the front door least of all', () => {
+    // The explorer panel dropped it everywhere it renders, and this page is
+    // the one that could least afford it: it is the front door, and the block
+    // was four facts and a paragraph of caption type at the foot of the
+    // section. /activity is where a reader checks the settled record.
+    expect(live).not.toContain(LIVE.explorer.round!.provenance.hashscan!);
+    expect(visibleText(live)).not.toContain(LIVE.explorer.round!.provenance.source);
   });
 
   it('buys nothing of its own: the page shows the round the explorer bought', () => {

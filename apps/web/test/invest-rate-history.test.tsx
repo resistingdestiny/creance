@@ -543,10 +543,11 @@ describe('the rate history on the board', () => {
     expect(text.toLowerCase()).not.toContain('price history');
   });
 
-  it('says in the provenance that every row is on one scale', () => {
-    expect(visibleText(markup)).toContain(
-      'the rate history beside it is the risk charge alone, every row on one scale.',
-    );
+  it('draws every row on one scale, which the accessible names carry', () => {
+    // The provenance block that said this in words is gone with the rest of
+    // it. The claim itself is unchanged and is still checkable, because each
+    // line's accessible name states its own figures against the shared scale.
+    expect(visibleText(markup)).not.toContain('every row on one scale');
   });
 
   /**

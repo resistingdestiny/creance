@@ -6,7 +6,6 @@ import { ExplorerChart } from '../../components/explorer-chart';
 import { Check, ChevronRight } from '../../components/icons';
 import { PlainChart } from '../../components/plain-chart';
 import { StatusPill } from '../../components/status-pill';
-import { TextLink } from '../../components/text-link';
 import type { ExplorerData } from '../../lib/explorer-data';
 import {
   COVER_CLOSED,
@@ -25,7 +24,6 @@ import {
   priceFor,
   priceRows,
   rankByDistance,
-  settledLead,
   stateOf,
   stateWord,
   type ExplorerMonth,
@@ -333,7 +331,6 @@ export function ExplorerPanel({
         </ul>
       </Disclosure>
 
-      <Provenance data={data} />
     </div>
   );
 }
@@ -884,65 +881,20 @@ function Disclosure({ children, summary }: { children: ReactNode; summary: strin
   );
 }
 
-/**
- * Where the numbers came from, and where the same record can be read.
+/*
+ * The provenance block that stood here is gone.
  *
- * Labelled facts and a link. It was three lines of prose saying the newest
- * month, the window on screen and the source, which are four facts with names
- * and not a paragraph; the one sentence left is the one that invites a reader
- * to go and check, and the link it ends on is the whole invitation.
+ * It named the newest month, the window on screen, the source and the index
+ * topic, in a labelled list and a sentence. Every fact in it was true and read
+ * from the feed, and on a phone it was the last screen and a half of this page:
+ * four grey rows and a paragraph of small type under the thing a reader came
+ * for. Root struck it out on sight.
+ *
+ * What is lost is checkability in place, so it is worth saying where the same
+ * proof still is. Every published month is on the index topic and every row of
+ * /activity links its own record on HashScan, which is the page built for
+ * exactly this reading; each series page carries its own contracts. A reader
+ * who wants to check is one press from all of it, and a reader who does not is
+ * no longer paying a screen and a half for the option.
  */
-function Provenance({ data }: { data: ExplorerData }) {
-  const { provenance } = data;
-  const window =
-    provenance.from === null || provenance.to === null
-      ? null
-      : `${String(provenance.months)} months, ${formatPeriodShort(provenance.from)} to ${formatPeriodShort(provenance.to)}`;
 
-  return (
-    <div className="flex flex-col gap-3 border-t border-hairline pt-6 text-caption text-ink-2">
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-1">
-        <Fact label="Newest month">
-          <span className="tabular-nums">
-            {provenance.asOf === null ? 'none' : formatPeriod(provenance.asOf)}
-          </span>
-        </Fact>
-        {window === null ? null : <Fact label="On screen">{window}</Fact>}
-        <Fact label="Source">{provenance.source}</Fact>
-        {data.missing.length === 0 ? null : (
-          <Fact label="No reading">
-            {`${String(data.missing.length)} occupations, when this page was built`}
-          </Fact>
-        )}
-      </dl>
-      <p>
-        {provenance.topicId === null || provenance.hashscan === null ? (
-          'The settled record is published on the index topic.'
-        ) : (
-          <>
-            {/* No `deepest` here. What is settled for the occupation with the
-                deepest history is a second claim inside the sentence and took
-                it to four lines at 390; the market board is where it earns its
-                clause. What is left is the scope of what a reader will find,
-                and the link. */}
-            {settledLead(provenance.published, provenance.groups)}{' '}
-            <TextLink href={provenance.hashscan} rel="noreferrer" target="_blank">
-              {provenance.topicId}
-            </TextLink>
-            , which anyone can read.
-          </>
-        )}
-      </p>
-    </div>
-  );
-}
-
-/** One labelled fact in the provenance list. */
-function Fact({ children, label }: { children: ReactNode; label: string }) {
-  return (
-    <>
-      <dt className="text-ink-3">{label}</dt>
-      <dd className="m-0 text-ink-2">{children}</dd>
-    </>
-  );
-}

@@ -69,53 +69,16 @@ describe('the explorer opens on the newest published month', () => {
     expect(document.querySelector('[data-testid="explorer-meter"]')).not.toBeNull();
   });
 
-  it('prints the newest published month and where the record settles', () => {
-    // Four labelled facts and a link, where there were three lines of prose.
+  it('carries no provenance block under the panel', () => {
+    // Four labelled facts and a sentence naming the index topic stood here.
+    // Every one of them was read from the feed, and on a phone they were the
+    // last screen and a half of this page, under the thing a reader came for.
+    // The same record is still checkable: /activity links every settled month
+    // on HashScan and each series page carries its own contracts.
     render(<ExplorerScreen data={data()} />);
-    expect(screen.getByText('Newest month').nextElementSibling?.textContent).toBe('July 2026');
-    expect(screen.getByText('On screen').nextElementSibling?.textContent).toBe(
-      '60 months, May 2021 to Jul 2026',
-    );
-    expect(screen.getByText('Source').nextElementSibling?.textContent).toContain(
-      'Bureau of Labor Statistics',
-    );
-    const link = screen.getByRole('link', { name: '0.0.10366470' });
-    expect(link.getAttribute('href')).toBe('https://hashscan.io/testnet/topic/0.0.10366470');
-
-    // What the topic actually holds is one message per occupation per
-    // published month, so the sentence counts and never says "every month".
-    // A reader who follows the link is counting the same thing.
-    expect(link.parentElement?.textContent).toBe(
-      'The newest month for every occupation is settled on Hedera topic 0.0.10366470, which anyone can read.',
-    );
-  });
-
-  it('counts what is settled rather than claiming more than the topic holds', () => {
-    render(
-      <ExplorerScreen
-        data={data({
-          provenance: { ...data().provenance, published: 9, deepest: null },
-        })}
-      />,
-    );
-    const link = screen.getByRole('link', { name: '0.0.10366470' });
-    expect(link.parentElement?.textContent).toBe(
-      'The newest month for 9 of 15 occupations is settled on Hedera topic 0.0.10366470, which anyone can read.',
-    );
-  });
-
-  it('claims nothing about months when the topic could not be counted', () => {
-    render(
-      <ExplorerScreen
-        data={data({
-          provenance: { ...data().provenance, published: 0, deepest: null },
-        })}
-      />,
-    );
-    const link = screen.getByRole('link', { name: '0.0.10366470' });
-    expect(link.parentElement?.textContent).toBe(
-      'The index settles on Hedera topic 0.0.10366470, which anyone can read.',
-    );
+    expect(screen.queryByRole('link', { name: '0.0.10366470' })).toBeNull();
+    expect(screen.queryByText(/which anyone can read/)).toBeNull();
+    expect(screen.queryByText('Newest month')).toBeNull();
   });
 
   it('shows the replay badge only while the demo clock walks', () => {

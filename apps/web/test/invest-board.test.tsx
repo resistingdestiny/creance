@@ -556,10 +556,9 @@ describe('the market board', () => {
     }
   });
 
-  it('links every row to its own series and its own vault on HashScan', () => {
+  it('opens every row on its own series page', () => {
     const markup = boardMarkup();
     expect(markup).toContain('href="/invest?series=ODI-COMP-2026-01"');
-    expect(markup).toContain('href="https://hashscan.io/testnet/contract/0.0.10367194"');
   });
 
   it('sorts from the address, so the order can be sent to somebody', () => {
@@ -579,26 +578,28 @@ describe('the market board', () => {
     expect(none).not.toContain('Your notes');
   });
 
-  it('says where the readings came from and where the same record is', () => {
-    const markup = boardMarkup();
-    expect(visibleText(markup)).toContain('July 2026');
-    expect(markup).toContain('href="https://hashscan.io/testnet/topic/0.0.10366470"');
-  });
-
-  it('says so when the round could not be bought rather than leaving a blank column', () => {
-    const text = visibleText(boardMarkup(board({ provenance: null })));
-    expect(text).toContain('The index readings could not be read');
-  });
-
-  it('names the shared vault and pool once, and a row opens its own note', () => {
+  it('drops the provenance block without dropping the chain links', () => {
+    // The provenance block under the board is gone. It named the vault, the
+    // cover pool, the newest month, the source and the index topic in four
+    // paragraphs of caption type, and it was the longest thing on this page at
+    // 390. What is held now is that it did not take the chain links with it:
+    // a row's own identifier is still its note, which is the contract that
+    // belongs to that series alone.
     const markup = boardMarkup();
     const text = visibleText(markup);
-    expect(text).toContain('One collateral vault');
-    expect(text).toContain('one cover pool');
-    expect(text).toContain('0.0.10367194');
-    expect(text).toContain('0.0.10367199');
-    // The row's identifier is its note, not the vault every row shares.
+    expect(text).not.toContain('One collateral vault');
+    expect(text).not.toContain('read from Hedera testnet');
+    expect(markup).not.toContain('href="https://hashscan.io/testnet/topic/0.0.10366470"');
     expect(markup).toContain('href="https://hashscan.io/testnet/contract/0.0.10368240"');
+  });
+
+  it('draws the board at all when the round could not be bought', () => {
+    // The sentence that said so lived in the provenance block. What matters is
+    // that a board with no readings behind it still renders its rows rather
+    // than throwing on a null.
+    const text = visibleText(boardMarkup(board({ provenance: null })));
+    expect(text).toContain('All occupations');
+    expect(text).toContain('Computer and mathematical');
   });
 
   it('puts the notes on offer above the table, with what a note is', () => {

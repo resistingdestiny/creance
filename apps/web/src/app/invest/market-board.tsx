@@ -7,13 +7,10 @@ import { Skeleton } from '../../components/skeleton';
 import { StatusPill } from '../../components/status-pill';
 import { SurfaceGroup } from '../../components/surface-group';
 import { ListRow } from '../../components/list-row';
-import { TextLink } from '../../components/text-link';
-import { settledLead, stateWord, type ExplorerState } from '../../lib/explorer-model';
+import { stateWord, type ExplorerState } from '../../lib/explorer-model';
 import {
   formatDayWithYear,
   formatPercent,
-  formatPeriod,
-  formatPeriodShort,
   formatWholeMoney,
 } from '../../lib/format';
 import type { Streamed } from '../../lib/investor-data';
@@ -194,10 +191,10 @@ function Board({
       <ForSale offers={view.forSale} />
       <section className="mt-10">
         <h2 className="mb-4 text-body-lg font-medium text-ink">All occupations</h2>
+        <MarketList rows={rows} />
         <MarketTable direction={direction} rows={rows} sort={sort} />
       </section>
       {view.holdings.length === 0 ? null : <Positions investor={investor} view={view} />}
-      <Provenance view={view} />
     </>
   );
 }
@@ -392,6 +389,69 @@ function Holding({ holding }: { holding: BoardHolding }) {
 }
 
 /** The board itself. Five columns fold away below the landing breakpoint. */
+/**
+ * The board as a list, below the landing breakpoint.
+ *
+ * The table used to fold down to two columns here, and folding is what made it
+ * ugly. A table cell is as tall as its content, so "Arts, design, entertainment
+ * and media" wrapped to two lines, the chevron floated in the middle of the
+ * second one, the pill sat under it in a third row, and the premium was pinned
+ * to the top right of a cell three lines tall, level with nothing. Sixteen of
+ * those with a hairline between them is a spreadsheet somebody has squeezed,
+ * which is exactly what Root said it looked like.
+ *
+ * So at this width it is not a table. Each occupation is a row that reads left
+ * to right in one pass: the name with the pill under it, then the rate as a
+ * figure at the size the rest of the product prints a figure. The whole row is
+ * the link, rather than the name being a link inside it, so the target is the
+ * row a thumb is already aiming at and there is one tap target instead of
+ * three. The chevron sits on the right edge where a list row puts it, at the
+ * same height as the rate, and the name never has to make room for it.
+ *
+ * The sort controls stay on the table only. They are column headers and this
+ * has no columns; the board still arrives in risk order, which is the order
+ * that answers the question this screen is for, and a reader who wants another
+ * order is on a screen wide enough to have the table.
+ */
+function MarketList({ rows }: { rows: readonly MarketRow[] }) {
+  return (
+    <ul aria-label="Occupations" className="flex flex-col lg:hidden">
+      {rows.map((row) => (
+        <li className="border-b border-hairline first:border-t" key={row.seriesId}>
+          <a
+            className="flex min-h-[76px] items-center gap-4 py-4 no-underline"
+            href={`/invest?series=${encodeURIComponent(row.seriesId)}`}
+          >
+            <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <span className="text-body text-ink">{row.name ?? row.seriesId}</span>
+              {/* `empty:hidden` because a row with no reading behind it draws
+                  no pill and must not leave a gap where one would have been. */}
+              <span className="empty:hidden">
+                <Risk row={row} />
+              </span>
+            </span>
+            <span className="flex shrink-0 flex-col items-end gap-0.5 text-right">
+              {row.premiumPercent === null ? null : (
+                <>
+                  <span className="font-display text-body-lg font-medium tabular-nums text-ink">
+                    {formatPercent(row.premiumPercent)}
+                  </span>
+                  {row.premiumTopPercent === null ? null : (
+                    <span className="text-caption tabular-nums text-ink-2">
+                      to {formatPercent(row.premiumTopPercent)}
+                    </span>
+                  )}
+                </>
+              )}
+            </span>
+            <ChevronRight className="shrink-0 text-ink-3" />
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function MarketTable({
   direction,
   rows,
@@ -421,7 +481,12 @@ function MarketTable({
        column goes with the column; the board still opens in risk order, and
        what a phone gains is the premium rate heading, which was sortable
        before but off the screen. */
-    <div aria-label="Occupations" className="overflow-x-auto" role="region" tabIndex={0}>
+    <div
+      aria-label="Occupations"
+      className="hidden overflow-x-auto lg:block"
+      role="region"
+      tabIndex={0}
+    >
       <table className="w-full border-collapse text-body lg:min-w-[60rem]">
         <caption className="sr-only">
           Every series on Hedera testnet, with what it pays and how near its index is to a payout
@@ -650,12 +715,10 @@ function SeriesName({ row }: { row: MarketRow }) {
         {row.name ?? row.seriesId}
         <ChevronRight className="shrink-0 text-ink-3" />
       </a>
-      {/* `empty:hidden` rather than a second copy of `Risk`'s own guard: a row
-          with no reading behind it draws no pill and must not leave a gap in
-          the column where one would have been. */}
-      <span className="empty:hidden lg:hidden">
-        <Risk row={row} />
-      </span>
+      {/* The pill that stood here was the phone's copy of the risk column,
+          folded under the name. The table is the landing breakpoint and up
+          now, so it could never have drawn, and `MarketList` carries the pill
+          at the widths that used to need it. */}
       {row.noteHashscan === null ? (
         <span className="hidden text-caption tabular-nums whitespace-nowrap text-ink-2 lg:block">
           {row.seriesId}
@@ -815,95 +878,16 @@ function Td({
   );
 }
 
-/**
- * Where the numbers came from, and where the same numbers can be read without
- * this page.
+/*
+ * The provenance block that stood here is gone, for the reason the index
+ * explorer's went: four paragraphs of caption type under the board, naming the
+ * vault, the cover pool, the month, the source, the topic and how a row opens.
+ * True, read, and the longest thing on the page at 390. Root struck it out.
  *
- * It is the index explorer's provenance block for the same reason that page has
- * one: a figure a reader cannot check is a figure they have to take on trust.
- * The month, the source and the topic are what the feed itself said.
- *
- * The first line names the contracts and it is precise about which is which,
- * because it was not. It said the figures were read contract by contract and
- * that each row's identifier opened its vault, and all sixteen identifiers
- * opened the same vault, because there is one. Every word of that was true and
- * a reader who clicked two rows had been told they would see two contracts. So
- * the shared pair are named once here, with their identifiers, and a row's own
- * link is its note, which is the contract that belongs to that series alone.
+ * The contracts it named are still reachable: a row opens its own series page,
+ * which carries that series' note and pool with their HashScan links, and
+ * /activity carries every settled record on the deployment.
  */
-function Provenance({ view }: { view: BoardView }) {
-  const { coverPool, provenance, vault } = view;
-  const priced = view.rows.some((row) => row.premiumPercent !== null);
-  return (
-    <div className="mt-10 flex flex-col gap-2 border-t border-hairline pt-6 text-caption text-ink-2">
-      {/* A register rather than a paragraph. Which contract is which is the
-          whole of what this line has to say, and it said it in fifty five
-          words that named the same two contracts in the middle of a sentence. */}
-      <p>
-        Every figure above is read from Hedera testnet. One collateral vault
-        {vault === null ? null : (
-          <>
-            {', '}
-            <TextLink href={vault.hashscan} rel="noreferrer" target="_blank">
-              {vault.contractId}
-            </TextLink>
-          </>
-        )}
-        , one cover pool
-        {coverPool === null ? null : (
-          <>
-            {', '}
-            <TextLink href={coverPool.hashscan} rel="noreferrer" target="_blank">
-              {coverPool.contractId}
-            </TextLink>
-          </>
-        )}
-        , and a note of its own for each series, which is what a row opens.
-      </p>
-      {provenance === null ? (
-        <p>The index readings could not be read, so no row carries a risk or a premium rate.</p>
-      ) : (
-        <>
-          <p>
-            Newest published month{' '}
-            <span className="tabular-nums text-ink">
-              {provenance.asOf === null ? 'none' : formatPeriod(provenance.asOf)}
-            </span>
-            .{' '}
-            {provenance.from === null || provenance.to === null
-              ? null
-              : `Readings run ${formatPeriodShort(provenance.from)} to ${formatPeriodShort(provenance.to)}.`}{' '}
-            Source: {provenance.source}.
-          </p>
-          {provenance.topicId === null || provenance.hashscan === null ? null : (
-            <p>
-              {settledLead(provenance.published, provenance.groups, provenance.deepest)}{' '}
-              <TextLink href={provenance.hashscan} rel="noreferrer" target="_blank">
-                {provenance.topicId}
-              </TextLink>
-              , so the risk column can be checked without trusting this page.
-            </p>
-          )}
-          {view.missing.length === 0 ? null : (
-            <p>
-              {String(view.missing.length)} of the fifteen occupations had no reading when this page
-              was built.
-            </p>
-          )}
-        </>
-      )}
-      {/* The build up used to be spelled out here in a paragraph and is drawn
-          row by row on the series page, so this points at it instead. */}
-      {priced ? (
-        <p>
-          Opening a row shows how its premium rate is built, step by step, and the rate history
-          beside it is the risk charge alone, every row on one scale.{' '}
-          <TextLink href="/index">How the index works</TextLink>
-        </p>
-      ) : null}
-    </div>
-  );
-}
 
 /**
  * The board at the height it stands at once its figures are in it: the three

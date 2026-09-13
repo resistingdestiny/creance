@@ -1,4 +1,4 @@
-import { Fragment, Suspense, use, type ReactNode } from 'react';
+import { Suspense, use, type ReactNode } from 'react';
 
 import { AMOUNT_DEFAULT } from '../../lib/cover-amount';
 import type {
@@ -20,6 +20,7 @@ import { Skeleton } from '../skeleton';
 import { HeroAmount } from './hero-amount';
 import { InvestorBand } from './investor-band';
 import { NewsletterSignup } from './newsletter-signup';
+import { PaySteps } from './pay-steps';
 import { IndexTicker } from './index-ticker';
 import { LandingExplorer } from './landing-explorer';
 import { QuoteButton } from './quote-button';
@@ -151,7 +152,7 @@ export function LandingScreen({
               and the change of ground is an edge that was drawn rather than
               a seam where one colour stopped. */}
           <div className="rounded-[20px] bg-canvas lg:rounded-hero">
-            <Questions />
+            <PaySteps explorer={data.explorer} group={data.group} />
             <IndexSection explorer={data.explorer} index={data.index} />
             {/* Who funds the cover. A visitor who never presses "Earn yield"
                 never learns there is an investor side at all, so the page shows
@@ -531,104 +532,6 @@ function HeroCard({ occupation }: { occupation: string }) {
       state="covered"
       statusLabel="Covered"
     />
-  );
-}
-
-/**
- * The one question left in the ledger, as a definition list: the question is a
- * term and the answer beside it is its definition, which is what the design's
- * two column ledger is. At 390 the answer sits under its question instead of
- * beside it.
- *
- * There were three (T44). "What does it cost." answered with the from price the
- * hero prints four inches above it, and "Am I covered." answered with the card
- * standing beside it wearing a green "Covered" pill, so both were the page
- * explaining what it was already showing. This one stays because its answer
- * carries the attachment and the full payout level, and the page prints neither
- * of them anywhere else until a quote is taken.
- *
- * The band came down from 128px of padding to 80px at the landing breakpoint
- * with them. It was the height three rows stood in; one row left in it read as
- * a section that had failed to load rather than as one statement. The hairline
- * above it went with T52: the section is the top of the sheet on the night
- * ground now, and a hairline over a change of ground is a second separator
- * doing the same job.
- *
- * The padding is no longer symmetrical. Below this row it met the index
- * section's own 112px, and 192px of nothing between one line of type and the
- * next heading read as a section that had failed to load, which is the same
- * fault the band was cut for in the first place. The space above stays: it is
- * the top of the sheet and the corner needs it.
- */
-/**
- * When it pays, as a sum rather than a sentence.
- *
- * This row read "Two ways, for computer and mathematical: a sudden jump of 2
- * points above trend, or staying within 0.68 points of average. A jump of 4
- * pays in full." Every figure in it was real and read live, and Root's answer
- * on reading it was that he did not know what it meant. He is right: it is the
- * trigger's mechanism, written for somebody who already knows the product, on
- * the one row of the front door that has to be understood by somebody who does
- * not.
- *
- * His own words for it are the copy: levels of job loss rise in your industry,
- * and you lose your job, and you get paid. Two conditions and a result, which
- * is a sum, so it is drawn as one.
- *
- * Deliberately not said here: that the rise is caused by AI. The index fires on
- * any cause and cannot tell them apart, so the hero's promise is the framing
- * and this is the mechanism, and the mechanism may not claim something it does
- * not measure. It is also the only claim on this page that would be checkable
- * and wrong.
- *
- * It carries no figure at all, so it reads nothing, suspends on nothing and
- * rests at nothing. The levels it used to name are on /index, one press away,
- * for a reader who wants them. That is where the chart, the two forms and the
- * distance to each already live.
- */
-function Questions() {
-  const steps = [
-    'Job losses rise in your occupation',
-    'You lose your job',
-    'You get paid',
-  ] as const;
-  return (
-    <section className="mx-5 pb-8 pt-16 lg:mx-10 lg:pb-10 lg:pt-20">
-      <div className={`flex flex-col gap-6 ${CONTENT}`}>
-        <h2 className="font-display text-title font-semibold tracking-title text-ink lg:text-landing-ledger lg:tracking-landing-ledger">
-          When does it pay.
-        </h2>
-        {/* A sum: two conditions and a result. The operators are aria-hidden
-            and the list carries the meaning for a reader who is not seeing
-            it, which is why the steps are an ordered list rather than three
-            divs with symbols between them. */}
-        <ol className="flex flex-col items-stretch gap-3 lg:flex-row lg:items-center lg:gap-4">
-          {steps.map((step, index) => (
-            <Fragment key={step}>
-              {index === 0 ? null : (
-                <li
-                  aria-hidden="true"
-                  className={`pay-mark flex shrink-0 justify-center font-display text-title text-ink-3 lg:text-headline ${
-                    index === steps.length - 1 ? 'pay-mark-2' : ''
-                  }`}
-                >
-                  {index === steps.length - 1 ? '=' : '+'}
-                </li>
-              )}
-              <li
-                className={`pay-step pay-step-${String(index + 1)} flex flex-1 items-center rounded-group px-5 py-5 text-body-lg lg:min-h-[132px] lg:text-landing-lead ${
-                  index === steps.length - 1
-                    ? 'bg-ink font-medium text-canvas'
-                    : 'bg-surface text-ink'
-                }`}
-              >
-                {step}
-              </li>
-            </Fragment>
-          ))}
-        </ol>
-      </div>
-    </section>
   );
 }
 

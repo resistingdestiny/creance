@@ -482,8 +482,15 @@ describe('the hero card as an object', () => {
     expect(live).toContain('cover-card-tilt');
   });
 
-  it('is the metal finish, once, and asks for it nowhere else', () => {
-    expect(live.match(/cover-card--metal/g)).toHaveLength(1);
+  it('spends the shimmer once, and stands the second card still', () => {
+    // The addendum's budget is one shimmering element in view, not one metal
+    // object: src/components/cover-card.tsx says a screen passes 'shimmer' to
+    // exactly one card and 'still' to any other metal on it. There are two
+    // cards on this page since the sum got its pictures, the hero and the one
+    // the sum ends on, so the assertion is on the shimmer and not on the
+    // finish. The still card has the same edge and the same sheen and no
+    // moving band.
+    expect(live.match(/cover-card--metal/g)).toHaveLength(2);
     expect(live.match(/cover-card__shimmer/g)).toHaveLength(1);
   });
 

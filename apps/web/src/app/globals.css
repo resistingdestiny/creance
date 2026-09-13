@@ -681,26 +681,54 @@
       }
 
       .pay-step-1 {
-        animation-range: cover 10% cover 38%;
+        animation-range: cover 4% cover 26%;
       }
 
       .pay-step-2 {
-        animation-range: cover 20% cover 48%;
+        animation-range: cover 10% cover 32%;
       }
 
       .pay-step-3 {
-        animation-range: cover 30% cover 58%;
+        animation-range: cover 16% cover 38%;
       }
 
       /* The operators are lighter and arrive between the blocks they join. */
       .pay-mark {
         animation: pay-mark-in linear both;
         animation-timeline: view();
-        animation-range: cover 15% cover 40%;
+        animation-range: cover 7% cover 29%;
       }
 
       .pay-mark-2 {
-        animation-range: cover 25% cover 50%;
+        animation-range: cover 13% cover 35%;
+      }
+
+      /* What is inside each panel, arriving after the panel it is inside.
+         Three different motions on purpose: the chart is drawn, the notice is
+         laid down, and the card is presented. A single fade repeated three
+         times would be one effect applied three times rather than three things
+         happening. */
+
+      /* The index is drawn left to right, which is the direction it is read
+         in and the direction the months run. A clip on the wrapper rather than
+         a dash offset on the path, because the band and its edge have to be
+         revealed with the line and they are not strokes. */
+      .pay-draw {
+        animation: pay-draw-in linear both;
+        animation-timeline: view();
+        animation-range: cover 12% cover 40%;
+      }
+
+      .pay-notice {
+        animation: pay-notice-in linear both;
+        animation-timeline: view();
+        animation-range: cover 18% cover 42%;
+      }
+
+      .pay-card {
+        animation: pay-card-in linear both;
+        animation-timeline: view();
+        animation-range: cover 24% cover 48%;
       }
     }
   }
@@ -730,6 +758,43 @@
     62% {
       opacity: 1;
       transform: scale(1.12);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* The chart, drawn. The caption under it is inside the clip and arrives with
+     the last of the line, which is why it is one animation and not two. */
+  @keyframes pay-draw-in {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  /* The notice, laid down: it comes in off square and settles flat, the way a
+     sheet of paper does when it is put on a desk. */
+  @keyframes pay-notice-in {
+    from {
+      opacity: 0;
+      transform: translateY(26px) rotate(-3.5deg);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) rotate(0deg);
+    }
+  }
+
+  /* The card, presented: it comes forward rather than up, because it is the
+     answer and the two before it were the conditions. */
+  @keyframes pay-card-in {
+    from {
+      opacity: 0;
+      transform: scale(0.88);
     }
     to {
       opacity: 1;

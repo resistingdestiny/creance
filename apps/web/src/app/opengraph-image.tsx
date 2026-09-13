@@ -20,6 +20,24 @@ import { ImageResponse } from 'next/og';
  * deck; the card carries the cover the hero card shows at rest, which is a
  * cover amount and not a price. docs/DECISIONS.md, T53.
  *
+ * Because it is a redrawing it can fall behind the card, and it had. The
+ * shimmer here was the narrow band with a white core that T52 tried and Root
+ * rejected by name, months after the stylesheet had gone back to T34's wide
+ * soft wash, so the preview was showing a finish the product does not have.
+ * The edge was the plain hairline rather than the metal modifier's cooler
+ * grey, and the hero's inner edge light was missing altogether. Every light
+ * layer below is now the rule it redraws, stop for stop: `.cover-card`,
+ * `.cover-card--hero::after`, `.cover-card--metal` and
+ * `.cover-card__shimmer::before` in the global stylesheet. Anything changed
+ * there has to be changed here, and the way to check is to put this image
+ * beside a screenshot of the live hero card under reduced motion, which is the
+ * state this frame draws.
+ *
+ * The lead line that stood under the headline is gone. It was 27px of 66
+ * percent white, which holds on a link unfurl at 500 wide and disappears in a
+ * submission gallery that renders the same file as a thumbnail. The headline
+ * carries the image on its own.
+ *
  * Fonts. Satori needs font bytes and the next/font cache holds woff2, which it
  * cannot read, so the two families of option A are fetched from Google Fonts
  * as TrueType when this route is built, subset to the characters drawn. That
@@ -38,7 +56,6 @@ export const contentType = 'image/png';
 
 const MARK = 'Creance';
 const HEADLINE = 'Cover for the day your job is automated.';
-const LEAD = 'A monthly payment now. A payout if your occupation is displaced.';
 const OCCUPATION = 'Computer and mathematical';
 const STATUS = 'Covered';
 const CAPTION = 'Cover';
@@ -73,21 +90,30 @@ async function googleFont(
 
 const NIGHT = '#0a0d12';
 const INK = '#000000';
-const EDGE = '#b3bac4';
+/** `.cover-card--metal`: the cooler grey a milled edge catches. */
+const EDGE = '#cfd4dc';
 const HAIRLINE = '#e4e6ea';
 const COVERED = '#0b8a4e';
 
 /** docs/DESIGN-TOKENS.md section 4, the four stop gradient. */
 const METAL = 'linear-gradient(118deg, #fdfdfe 0%, #e9ebef 36%, #f7f8fa 58%, #dfe2e7 100%)';
-/** The diagonal sheen. */
+/** The diagonal sheen, `.cover-card::before`. */
 const SHEEN =
   'linear-gradient(118deg, transparent 40%, rgba(255, 255, 255, 0.85) 48%, transparent 58%)';
-/** The brushing, landing size only. */
+/** The brushing, landing size only, `.cover-card--hero::after`. */
 const BRUSHING =
   'repeating-linear-gradient(118deg, rgba(255, 255, 255, 0.35) 0px, rgba(255, 255, 255, 0.35) 1px, transparent 1px, transparent 5px)';
-/** The reflection, at rest in the centre of the face (T52). */
+/**
+ * The reflection, `.cover-card__shimmer::before`: five pale hues at 16 percent
+ * across a third of a band two and a bit cards wide. The animation stands it in
+ * the centre of the face at rest, which is where a still frame sees it, so the
+ * band is drawn here with no travel.
+ */
 const SHIMMER =
-  'linear-gradient(118deg, transparent 43%, rgba(255, 122, 182, 0.2) 46%, rgba(255, 209, 122, 0.2) 48%, rgba(255, 255, 255, 0.55) 50%, rgba(138, 230, 172, 0.2) 52%, rgba(122, 186, 255, 0.2) 54%, rgba(186, 148, 255, 0.2) 56%, transparent 59%)';
+  'linear-gradient(118deg, transparent 34%, rgba(255, 122, 182, 0.16) 40%, rgba(255, 209, 122, 0.16) 45%, rgba(138, 230, 172, 0.16) 50%, rgba(122, 186, 255, 0.16) 55%, rgba(186, 148, 255, 0.16) 60%, transparent 66%)';
+
+/** The card is drawn at two thirds, so `.cover-card--hero`'s 32px is 21 here. */
+const RADIUS = 21;
 
 const layer = {
   position: 'absolute' as const,
@@ -95,7 +121,7 @@ const layer = {
   right: 0,
   bottom: 0,
   left: 0,
-  borderRadius: 24,
+  borderRadius: RADIUS,
 };
 
 export default async function Image() {
@@ -103,7 +129,7 @@ export default async function Image() {
     await Promise.all([
       googleFont('Inter Tight', 600, `${HEADLINE}${AMOUNT}`),
       googleFont('Inter', 500, `${MARK}${OCCUPATION}${STATUS}`),
-      googleFont('Inter', 400, `${LEAD}${CAPTION}`),
+      googleFont('Inter', 400, CAPTION),
     ])
   ).filter((font) => font !== null);
 
@@ -132,28 +158,21 @@ export default async function Image() {
           }}
         >
           <div style={{ fontSize: 28, fontWeight: 500, lineHeight: 1 }}>{MARK}</div>
+          {/* 72 rather than the 64 it stood at with a lead under it. The
+              headline is the only thing in this column now, and a submission
+              gallery scales the whole image down to a card, so it takes the
+              room the lead was using. */}
           <div
             style={{
               marginTop: 40,
               fontFamily: 'Inter Tight',
-              fontSize: 64,
+              fontSize: 72,
               fontWeight: 600,
-              lineHeight: 1.04,
-              letterSpacing: '-0.02em',
+              lineHeight: 1.02,
+              letterSpacing: '-0.025em',
             }}
           >
             {HEADLINE}
-          </div>
-          <div
-            style={{
-              marginTop: 28,
-              fontSize: 27,
-              fontWeight: 400,
-              lineHeight: 1.3,
-              color: 'rgba(255, 255, 255, 0.66)',
-            }}
-          >
-            {LEAD}
           </div>
         </div>
 
@@ -166,7 +185,7 @@ export default async function Image() {
             display: 'flex',
             width: 480,
             height: 288,
-            borderRadius: 24,
+            borderRadius: RADIUS,
             overflow: 'hidden',
             border: `1px solid ${EDGE}`,
             background: METAL,
@@ -175,7 +194,16 @@ export default async function Image() {
           }}
         >
           <div style={{ ...layer, background: SHEEN }} />
-          <div style={{ ...layer, background: BRUSHING }} />
+          {/* The hero's ::after is one element carrying two things: the
+              brushing, and a one pixel inner edge light that is what makes the
+              top corners of the live card read as a milled lip. */}
+          <div
+            style={{
+              ...layer,
+              border: '1px solid rgba(255, 255, 255, 0.85)',
+              background: BRUSHING,
+            }}
+          />
           {/* The stylesheet draws the band on a box a quarter taller and
               sixty percent wider each side than the card and lets the card
               clip it, so the band is as wide here as it is on the page. */}

@@ -153,20 +153,18 @@ export function LandingScreen({
           <div className="rounded-[20px] bg-canvas lg:rounded-hero">
             <Questions />
             <IndexSection explorer={data.explorer} index={data.index} />
-            {/* Who funds the cover, and the way to hear when there is news.
-                A visitor who never presses "Earn yield" never learns there is
-                an investor side at all, so the page shows it rather than
-                waiting to be asked. Both render nothing when they have nothing,
-                so a failed read costs the page a section and never the page.
-                The sheet's own bottom padding stands under them. */}
+            {/* Who funds the cover. A visitor who never presses "Earn yield"
+                never learns there is an investor side at all, so the page shows
+                it rather than waiting to be asked. It renders nothing when it
+                has nothing, so a failed read costs the page a section and never
+                the page. The sheet's own bottom padding stands under it. */}
             <section className={`pb-16 lg:pb-28 ${PAGE}`}>
-              <div className={`flex flex-col gap-16 ${CONTENT} lg:gap-20`}>
+              <div className={`flex flex-col ${CONTENT}`}>
                 <InvestorBand view={investor} />
-                <NewsletterSignup outcome={news} />
               </div>
             </section>
           </div>
-          <Closing note={data.note} />
+          <Closing news={news} note={data.note} />
         </main>
       </div>
     </QuoteProvider>
@@ -753,7 +751,13 @@ function IndexNote({ index }: { index: Streamed<LandingIndexView> }) {
  * section above is gone: the ground changes, and a hairline over a change of
  * ground is a second separator doing the same job.
  */
-function Closing({ note }: { note: Streamed<LandingNoteView> }) {
+function Closing({
+  news,
+  note,
+}: {
+  news: NewsletterOutcome | null | undefined;
+  note: Streamed<LandingNoteView>;
+}) {
   return (
     <section className={`py-16 lg:py-28 ${PAGE}`} data-tone="night">
       <div className="mx-auto flex max-w-[800px] flex-col items-center text-center">
@@ -771,6 +775,18 @@ function Closing({ note }: { note: Streamed<LandingNoteView> }) {
             <InvestorLine note={note} />
           </Suspense>
         </p>
+        {/* The address field is the last thing on the page, under the two
+            buttons and the line about the investor side, because it is what a
+            reader who wants neither of those is left with. It stood in the
+            light sheet above, where it separated the investor band from the
+            closing band and read as a third proposition; here it is the quiet
+            end of the one closing thought. Centred, because this band is, and
+            night, because this ground is. */}
+        <NewsletterSignup
+          className="mt-14 w-full max-w-[560px] items-center text-center lg:mt-16"
+          outcome={news}
+          tone="night"
+        />
       </div>
     </section>
   );

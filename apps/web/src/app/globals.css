@@ -662,13 +662,17 @@
      scrolls fast; a range is a position, so each block lands where it lands
      however quickly you move.
 
-     The ranges end in the cover phase rather than in entry. These blocks are
-     about 130px tall against an 810px viewport, so their entry phase is over
-     almost as soon as it starts: measured against the live page, ranges inside
-     entry finished while the blocks were still at the bottom edge and nobody
-     would have seen them. Ending in cover spreads the arrival across the part
-     of the scroll where the blocks are actually being looked at. Measured at
-     a tenth of the way in, the three sit at 0.52, 0.20 and 0.04. */
+     Every range is in the cover phase, and none of it is in entry. These
+     blocks are about 130px tall against an 810px viewport, so their entry
+     phase is worth 130px of scroll and is over almost as soon as it starts.
+     Ranges written in entry, and ranges that only ended in cover, both
+     finished while the row was still on the bottom edge of the screen: the
+     first version was measured settled by the time the row's top had reached
+     two thirds of the way down, which is to say before anybody had looked at
+     it. Measured now, with the row's top at 80, 65, 50 and 35 percent down the
+     viewport, the three blocks read 0.33/0.00/0.00, 0.78/0.43/0.07,
+     1.00/0.89/0.53 and 1.00/1.00/0.99. The sum finishes assembling as it
+     arrives in the middle of the screen, which is where it is being read. */
   @supports (animation-timeline: view()) {
     @media (prefers-reduced-motion: no-preference) {
       .pay-step {
@@ -677,45 +681,55 @@
       }
 
       .pay-step-1 {
-        animation-range: entry 40% cover 15%;
+        animation-range: cover 10% cover 38%;
       }
 
       .pay-step-2 {
-        animation-range: entry 55% cover 22%;
+        animation-range: cover 20% cover 48%;
       }
 
       .pay-step-3 {
-        animation-range: entry 70% cover 30%;
+        animation-range: cover 30% cover 58%;
       }
 
       /* The operators are lighter and arrive between the blocks they join. */
       .pay-mark {
         animation: pay-mark-in linear both;
         animation-timeline: view();
-        animation-range: entry 48% cover 18%;
+        animation-range: cover 15% cover 40%;
       }
 
       .pay-mark-2 {
-        animation-range: entry 62% cover 26%;
+        animation-range: cover 25% cover 50%;
       }
     }
   }
 
+  /* The block rises and settles to size. The scale is small on purpose: these
+     are cards with text in them, and text scaling through a fraction is the
+     part of this kind of motion that reads as cheap. */
   @keyframes pay-step-in {
     from {
       opacity: 0;
-      transform: translateY(18px);
+      transform: translateY(28px) scale(0.96);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateY(0) scale(1);
     }
   }
 
+  /* The plus and the equals overshoot and come back, which is the one place on
+     this page where something is allowed to be pleased with itself. They carry
+     no text, so a scale through 1.12 costs nothing to read. */
   @keyframes pay-mark-in {
     from {
       opacity: 0;
-      transform: scale(0.6);
+      transform: scale(0.4);
+    }
+    62% {
+      opacity: 1;
+      transform: scale(1.12);
     }
     to {
       opacity: 1;

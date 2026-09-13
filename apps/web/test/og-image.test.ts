@@ -43,12 +43,64 @@ describe('the preview image route', () => {
     expect(source).not.toMatch(/a month/);
   });
 
-  it('carries the hero copy and the card at rest, with no price', () => {
+  it('carries the hero headline and the card at rest, with no price', () => {
     expect(source).toContain("'Cover for the day your job is automated.'");
-    expect(source).toContain("'A monthly payment now. A payout if your occupation is displaced.'");
     expect(source).toContain("'Covered'");
     expect(source).toContain("'5,000'");
     expect(source).not.toMatch(/From \d/);
+  });
+
+  it('says the headline and nothing under it', () => {
+    // The lead was 27px at 66 percent white. It holds on an unfurl at 500
+    // wide and disappears when the same file is a thumbnail in a gallery, so
+    // the headline carries the image alone.
+    expect(source).not.toContain('A monthly payment now.');
+  });
+
+  /**
+   * The card here is a redrawing and not a render of CoverCard, so it can fall
+   * behind the stylesheet without anything failing. It had: the shimmer was
+   * T52's narrow band with a white core, which was rejected, and the edge was
+   * the plain hairline rather than the metal modifier's. These are the four
+   * rules it redraws, and a change to any of them in globals.css has to land
+   * here too.
+   */
+  it('draws the card the stylesheet draws', () => {
+    const sheet = readFileSync(
+      fileURLToPath(new URL('../src/app/globals.css', import.meta.url)),
+      'utf8',
+    );
+    const stops = (text: string): string[] =>
+      [...text.matchAll(/rgba\(\d+, ?\d+, ?\d+, ?[\d.]+\)|#[0-9a-f]{6}/g)].map((match) =>
+        match[0].replaceAll(' ', ''),
+      );
+
+    // The metal gradient, the sheen and the shimmer, each against its rule.
+    for (const [ours, theirs] of [
+      [
+        /const METAL = '([^']+)'/.exec(source)?.[1],
+        /\.cover-card \{[^}]*background: (linear-gradient\([^;]+)\);/.exec(sheet)?.[1],
+      ],
+      [
+        /const SHEEN =\s*'([^']+)'/.exec(source)?.[1],
+        /\.cover-card::before \{[^}]*background: (linear-gradient\([^;]+)\);/.exec(sheet)?.[1],
+      ],
+      [
+        /const SHIMMER =\s*'([^']+)'/.exec(source)?.[1],
+        /\.cover-card__shimmer::before \{[^}]*background: (linear-gradient\([\s\S]*?)\);/.exec(
+          sheet,
+        )?.[1],
+      ],
+    ]) {
+      expect(ours).toBeDefined();
+      expect(theirs).toBeDefined();
+      expect(stops(ours ?? '')).toEqual(stops(theirs ?? ''));
+    }
+
+    // And the metal modifier's edge colour.
+    const edge = /\.cover-card--metal \{\s*border-color: (#[0-9a-f]{6});/.exec(sheet)?.[1];
+    expect(edge).toBeDefined();
+    expect(source).toContain(`const EDGE = '${edge ?? ''}'`);
   });
 
   it('fetches only the two families of option A, as TrueType, from Google Fonts', () => {

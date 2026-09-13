@@ -306,8 +306,14 @@ describe('the dark marketing ground', () => {
     // The stylesheet's one night rule reads data-tone (T52). The hero's pills
     // and chips and the closing band's pills stand on the night ground, so
     // both sections carry it; the sheet between them does not.
+    //
+    // Three, not two, since the address field moved under the closing line:
+    // the newsletter declares its own ground because it is written to stand on
+    // either one, and here that puts a night inside a night. Nesting costs
+    // nothing, the rule is the same rule, and the alternative is a component
+    // that only knows where it is when its parent tells it.
     const sections = [...live.matchAll(/<section[^>]*data-tone="night"/g)];
-    expect(sections).toHaveLength(2);
+    expect(sections).toHaveLength(3);
     const sheet = /<div class="rounded-\[20px\] bg-canvas lg:rounded-hero">[\s\S]*?<\/div><section/.exec(live)?.[0] ?? '';
     expect(sheet).not.toContain('data-tone');
   });

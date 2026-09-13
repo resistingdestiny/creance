@@ -28,7 +28,15 @@ import { demoInvestorAccount } from '../../../lib/wallet';
  * screen shows that: the two are only the same on a first subscription.
  */
 
-/** The slider's range, in whole units of the settlement asset. */
+/**
+ * The slider's range, in whole units of the settlement asset.
+ *
+ * Restated here rather than imported from the screen, and not exported from
+ * here either: a `'use server'` module may export async functions and nothing
+ * else, so these two cannot be the shared copy. The screen offers the range and
+ * this checks it, which is the split anyway, because a form on a public page
+ * can carry any number a caller likes.
+ */
 const MIN_AMOUNT = 5_000;
 const MAX_AMOUNT = 50_000;
 

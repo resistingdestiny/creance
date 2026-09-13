@@ -481,71 +481,74 @@ function MarketTable({
        column goes with the column; the board still opens in risk order, and
        what a phone gains is the premium rate heading, which was sortable
        before but off the screen. */
-    <div
-      aria-label="Occupations"
-      className="hidden overflow-x-auto lg:block"
-      role="region"
-      tabIndex={0}
-    >
-      <table className="w-full border-collapse text-body lg:min-w-[60rem]">
+    <div aria-label="Occupations" className="hidden lg:block">
+      <table className="w-full table-fixed border-collapse text-body">
         <caption className="sr-only">
           Every series on Hedera testnet, with what it pays and how near its index is to a payout
         </caption>
+        {/* Fixed widths, because the browser was sizing these columns off their
+            content and doing it badly: the occupation column came out at 290
+            and wrapped "Installation, maintenance and repair" over three lines
+            while the last column sat half empty. A fixed table gives every row
+            the same height and the name the room to stay on one line. */}
+        {/* Measured against the longest name on the board, which is
+            "Installation, maintenance and repair" at about 245px: the first
+            column has to clear that plus the chevron or the truncation is
+            back. The rest is what each figure needs and no more. */}
+        <colgroup>
+          <col className="w-[31%]" />
+          <col className="w-[15%]" />
+          <col className="w-[14%]" />
+          <col className="w-[12%]" />
+          <col className="w-[12%]" />
+          <col className="w-[16%]" />
+        </colgroup>
         <thead>
           <tr className="border-b border-hairline">
             <SortableTh column="name" direction={direction} sort={sort}>
               Occupation
             </SortableTh>
-            <SortableTh column="risk" direction={direction} sort={sort} wide>
+            <SortableTh column="risk" direction={direction} sort={sort}>
               Index
             </SortableTh>
             <SortableTh column="premium" direction={direction} numeric sort={sort}>
               Premium rate
             </SortableTh>
             {/* Not sortable, because there is no one number in it to sort by.
-                It is a shape, and the two columns either side of it are the
-                figures a person orders a board by. */}
-            <Th wide>Rate history</Th>
-            <SortableTh column="capacity" direction={direction} numeric sort={sort} wide>
+                It is a shape, and the columns either side of it are the figures
+                a person orders a board by. */}
+            <Th>Rate history</Th>
+            <SortableTh column="capacity" direction={direction} numeric sort={sort}>
               Capacity
             </SortableTh>
-            <SortableTh column="principal" direction={direction} numeric sort={sort} wide>
+            <SortableTh column="principal" direction={direction} numeric sort={sort}>
               Principal
-            </SortableTh>
-            <SortableTh column="coupon" direction={direction} numeric sort={sort} wide>
-              Coupon
-            </SortableTh>
-            <SortableTh column="traded" direction={direction} numeric sort={sort} wide>
-              Last traded
             </SortableTh>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr className="border-b border-hairline" key={row.seriesId}>
+            <tr
+              className="border-b border-hairline transition-colors duration-150 ease-out hover:bg-surface motion-reduce:transition-none"
+              key={row.seriesId}
+            >
               <Td>
                 <SeriesName row={row} />
               </Td>
-              <Td wide>
+              <Td>
                 <Risk row={row} />
               </Td>
               <Td numeric>
                 <Premium row={row} />
               </Td>
-              <Td wide>
+              <Td>
                 <Sparkline row={row} />
               </Td>
-              <Td numeric wide>
-                {row.capacityPercent === null ? null : formatPercent(row.capacityPercent)}
+              <Td numeric>
+                <Capacity row={row} />
               </Td>
-              <Td numeric wide>
+              <Td numeric>
                 <Principal row={row} />
-              </Td>
-              <Td numeric wide>
-                {row.couponPercent === null ? null : formatPercent(row.couponPercent)}
-              </Td>
-              <Td numeric wide>
-                <Traded row={row} />
               </Td>
             </tr>
           ))}
@@ -571,11 +574,40 @@ function MarketTable({
 function Premium({ row }: { row: MarketRow }) {
   if (row.premiumPercent === null) return null;
   return (
-    <span className="flex flex-col gap-0.5">
-      <span>{formatPercent(row.premiumPercent)}</span>
+    <span className="flex flex-col items-end gap-0.5">
+      {/* The one figure this board is read for, so it is printed as a figure
+          rather than as another line of body type among seven. */}
+      <span className="font-display text-body-lg font-medium">
+        {formatPercent(row.premiumPercent)}
+      </span>
       {row.premiumTopPercent === null ? null : (
         <span className="text-caption text-ink-2">to {formatPercent(row.premiumTopPercent)}</span>
       )}
+    </span>
+  );
+}
+
+/**
+ * How much of a pool is spoken for, as a bar and a figure.
+ *
+ * It was the figure alone, and eleven of the sixteen series have taken no
+ * cover yet, so the column was a stack of the words "0 percent" repeated. A
+ * bar says the same thing without saying anything: an empty track reads as
+ * untouched at a glance and a filled one stands out, which is the comparison
+ * somebody scanning this column is making.
+ */
+function Capacity({ row }: { row: MarketRow }) {
+  if (row.capacityPercent === null) return null;
+  const filled = Math.max(0, Math.min(100, row.capacityPercent));
+  return (
+    <span className="flex flex-col items-end gap-1.5">
+      <span>{formatPercent(row.capacityPercent)}</span>
+      <span aria-hidden="true" className="block h-1 w-16 rounded-full bg-hairline">
+        <span
+          className="block h-full rounded-full bg-ink"
+          style={{ width: `${String(filled)}%` }}
+        />
+      </span>
     </span>
   );
 }
@@ -613,36 +645,17 @@ function Principal({ row }: { row: MarketRow }) {
   );
 }
 
-/**
- * What a note of this series last changed hands for, and what it can be bought
- * for now.
+/*
+ * The "Last traded" and "Coupon" columns are gone from the table.
  *
- * A filled offer is the only record of what a unit was worth to somebody, which
- * is why the book is read with its fills and not only its open side. The
- * caption is the live half: an offer standing today, at a price a person can
- * act on by opening the series. A series nobody has ever traded carries neither
- * and the cell is empty, because there is no price to print.
+ * Both were empty on nearly every row: one series has paid a coupon and four
+ * have ever been offered, so fourteen of sixteen cells in each were blank and
+ * the two columns together took a fifth of the width to say nothing. What was
+ * in them is not lost. The notes standing for sale are the ForSale block above
+ * this table, which is where somebody who wants to buy one is looking, and the
+ * coupon and the trade history of a series are on the series' own page, which
+ * is what a row opens.
  */
-function Traded({ row }: { row: MarketRow }) {
-  const quote = row.quote;
-  if (quote === null || (quote.lastTraded === null && quote.bestAsk === null)) return null;
-  return (
-    <span className="flex flex-col gap-0.5">
-      {/* No figure where nothing has traded. A series with an offer standing on
-          it and no fill behind it has a price somebody is asking and not a
-          price anybody has paid, and the two are not the same number. */}
-      {quote.lastTraded === null ? null : (
-        <span>{formatWholeMoney(BigInt(quote.lastTraded.amount), quote.lastTraded.decimals)}</span>
-      )}
-      {quote.bestAsk === null ? null : (
-        <span className="text-caption whitespace-nowrap text-ink-2">
-          {quote.unitsForSale} for sale at{' '}
-          {formatWholeMoney(BigInt(quote.bestAsk.amount), quote.bestAsk.decimals)}
-        </span>
-      )}
-    </span>
-  );
-}
 
 /**
  * Five years of the occupation's guide rate, in one cell.
@@ -664,15 +677,15 @@ function Sparkline({ row }: { row: MarketRow }) {
   if (row.rates.length === 0) return null;
   const caption = rateRangeCaption(rateRange([row.rates]));
   return (
-    <span className="block h-5 w-18">
+    <span className="block h-7 w-full max-w-[140px]">
       <RateChart
-        height={20}
+        height={28}
         high={RATE_BOUNDS.high}
         label={caption === null ? 'Risk charge over five years' : `Risk charge, ${caption}`}
         low={RATE_BOUNDS.low}
         points={row.rates}
-        strokeWidth={1.25}
-        width={72}
+        strokeWidth={1.4}
+        width={140}
       />
     </span>
   );
@@ -700,40 +713,21 @@ function Sparkline({ row }: { row: MarketRow }) {
  */
 function SeriesName({ row }: { row: MarketRow }) {
   return (
-    <span className="flex flex-col gap-0.5">
-      {/* The chevron is the sheet's own mark for a row that opens something,
-          which is what a list row carries. Without it nothing on a board of
-          plain text says that a name is a door, and sixteen underlined names
-          would be the only other way to say it. */}
-      {/* `min-h-11` is the sheet's tap minimum. A long occupation wraps past it
-          on its own; a one word one like Legal is twenty four pixels of link in
-          a row a thumb is aiming at. */}
-      <a
-        className="inline-flex min-h-11 w-fit items-center gap-1 text-body text-ink underline-offset-[3px] hover:underline"
-        href={`/invest?series=${encodeURIComponent(row.seriesId)}`}
-      >
+    // The whole cell is the link, and the chevron sits on the right of it
+    // rather than after the words. Trailing the text, it landed in the middle
+    // of a name that had wrapped, which is what made the column look broken.
+    <a
+      className="flex min-h-11 items-center justify-between gap-3 text-body text-ink no-underline hover:underline underline-offset-[3px]"
+      href={`/invest?series=${encodeURIComponent(row.seriesId)}`}
+    >
+      {/* One line. The identifier that stood under it is on the page this
+          opens, where it links the series' own note contract; here it was a
+          third line of grey under a name already wrapping to two. */}
+      <span className="truncate" title={row.name ?? row.seriesId}>
         {row.name ?? row.seriesId}
-        <ChevronRight className="shrink-0 text-ink-3" />
-      </a>
-      {/* The pill that stood here was the phone's copy of the risk column,
-          folded under the name. The table is the landing breakpoint and up
-          now, so it could never have drawn, and `MarketList` carries the pill
-          at the widths that used to need it. */}
-      {row.noteHashscan === null ? (
-        <span className="hidden text-caption tabular-nums whitespace-nowrap text-ink-2 lg:block">
-          {row.seriesId}
-        </span>
-      ) : (
-        <a
-          className="hidden w-fit text-caption tabular-nums whitespace-nowrap text-ink-2 underline-offset-[3px] hover:underline lg:block"
-          href={row.noteHashscan}
-          rel="noreferrer"
-          target="_blank"
-        >
-          {row.seriesId}
-        </a>
-      )}
-    </span>
+      </span>
+      <ChevronRight className="shrink-0 text-ink-3" />
+    </a>
   );
 }
 

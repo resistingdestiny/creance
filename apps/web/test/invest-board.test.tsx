@@ -530,16 +530,15 @@ describe('the market board', () => {
     expect(text).toContain('claims open');
   });
 
-  it('prints the premium rate and the declared coupon, and nothing where neither exists', () => {
+  it('prints the premium rate, and nothing where there is none', () => {
     const text = visibleText(boardMarkup());
-    // 0.3 points from the line with nothing committed, and the declared coupon.
+    // 0.3 points from the line with nothing committed.
     expect(text).toContain('15 percent');
-    expect(text).toContain('8 percent');
-    // The maturity demonstration row was read from neither, so it carries the
-    // name and the identifier and no figure at all. What follows it is the
-    // holdings heading, which is the next thing on the page now that this
+    // The maturity demonstration row was read from neither the index nor a
+    // quote, so it carries the name and no figure at all. What follows it is
+    // the holdings heading, which is the next thing on the page now that this
     // account's own notes stand under the board rather than over it.
-    expect(text).toContain('Maturity demonstration ODI-MAT-1 Your notes');
+    expect(text).toContain('Maturity demonstration Your notes');
   });
 
   it('writes percent as a word and uses no dash, as every screen does', () => {
@@ -590,7 +589,10 @@ describe('the market board', () => {
     expect(text).not.toContain('One collateral vault');
     expect(text).not.toContain('read from Hedera testnet');
     expect(markup).not.toContain('href="https://hashscan.io/testnet/topic/0.0.10366470"');
-    expect(markup).toContain('href="https://hashscan.io/testnet/contract/0.0.10368240"');
+    // The note's own contract link moved with the identifier it sat under: it
+    // is on the series page a row opens, which is where a thing about one
+    // series belongs.
+    expect(markup).toContain('href="/invest?series=ODI-COMP-2026-01"');
   });
 
   it('draws the board at all when the round could not be bought', () => {
@@ -800,16 +802,17 @@ describe('the market on the board', () => {
     };
   }
 
-  it('prints what a note last changed hands for and what is on offer now', () => {
+  it('keeps the market off the board, because it has its own block above it', () => {
+    // The board carried a "Last traded" column: a fill price with the standing
+    // ask under it. Four series of sixteen have ever been offered, so twelve
+    // cells were blank and the column took a seventh of the width to say
+    // nothing. The notes standing for sale are the ForSale block over the
+    // table, which is where somebody who wants to buy one is already looking,
+    // and a series' own trade history is on the page a row opens. The quotes
+    // are still read and still on the row; nothing is printed here.
     const text = visibleText(boardMarkup(traded()));
-    expect(text).toContain('1,100');
-    expect(text).toContain('1 for sale at 1,150');
-  });
-
-  it('leaves the column empty on a series the venue has never seen', () => {
-    const text = visibleText(boardMarkup());
-    expect(text).toContain('Last traded');
-    expect(text).not.toContain('for sale at');
+    expect(text).not.toContain('Last traded');
+    expect(text).not.toContain('1 for sale at 1,150');
   });
 
   it('prints no traded price for a series with an offer standing and no fill behind it', () => {
@@ -822,15 +825,9 @@ describe('the market on the board', () => {
     expect(quote?.lastTraded).toBeNull();
     expect(quote?.bestAsk?.amount).toBe('1000000000');
 
-    const base = board();
-    const text = visibleText(
-      boardMarkup({
-        ...base,
-        rows: base.rows.map((row, at) => (at === 0 ? { ...row, quote: quote ?? null } : row)),
-      }),
-    );
-    expect(text).toContain('1 for sale at 1,000');
-    expect(text).not.toContain('1,000 1 for sale');
+    // The board no longer draws a cell from this, so the reading itself is
+    // what is held: an ask is what somebody wants, a fill is what somebody
+    // paid, and `marketQuotes` keeps the two apart.
   });
 
   it("says what a trade just did, in the product's own words and not the wire's", () => {

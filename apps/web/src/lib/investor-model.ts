@@ -1366,13 +1366,21 @@ export function marketRow(input: {
 }
 
 /** The columns a person can put the board in order by. */
+/**
+ * The orders the board can be put in, which is one per column and no more.
+ *
+ * `coupon` and `traded` were here while the table had a column for each. Both
+ * columns are gone: one series has paid a coupon and four have ever been
+ * offered, so fourteen of sixteen cells in each were blank. An order with no
+ * header to click is an order nobody can reach, and a shared address naming
+ * one falls back to `risk` through `sortFromParam`, which is where the board
+ * opens anyway.
+ */
 export const MARKET_SORTS = [
   'risk',
   'premium',
   'capacity',
   'principal',
-  'coupon',
-  'traded',
   'name',
 ] as const;
 
@@ -1392,8 +1400,6 @@ const SORT_DEFAULT_DIRECTION: Record<MarketSort, MarketDirection> = {
   premium: 'desc',
   capacity: 'desc',
   principal: 'desc',
-  coupon: 'desc',
-  traded: 'desc',
   name: 'asc',
 };
 
@@ -1427,22 +1433,9 @@ function valueOf(row: MarketRow, sort: MarketSort): number | null {
       return row.capacityPercent;
     case 'principal':
       return row.funded === null ? null : Number(row.funded);
-    case 'coupon':
-      return row.couponPercent;
-    case 'traded':
-      // The best ask where there is one, because that is the price a person
-      // could act on today; the last fill otherwise, because that is the only
-      // other real price the series has. A series with neither sorts last.
-      return quotedPrice(row.quote);
     case 'name':
       return null;
   }
-}
-
-function quotedPrice(quote: MarketQuote | null): number | null {
-  if (quote === null) return null;
-  const price = quote.bestAsk ?? quote.lastTraded;
-  return price === null ? null : Number(price.amount);
 }
 
 /**

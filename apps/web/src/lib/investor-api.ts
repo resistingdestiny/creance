@@ -233,6 +233,45 @@ export function fetchSeriesList(): Promise<SeriesListView> {
   return read<SeriesListView>('/v1/series');
 }
 
+/** What the vault holds for one account on one series, after a subscription. */
+export interface SubscriptionView {
+  readonly network: string;
+  readonly series_id: string;
+  readonly series_key: string;
+  readonly holder: MarketParty;
+  readonly paid_by: MarketParty;
+  readonly amount: Money;
+  readonly subscription_before: Money;
+  readonly subscription_after: Money;
+  readonly transactions: { readonly approve: string | null; readonly subscribe: string };
+  readonly gas_used: string;
+  readonly hashscan: string;
+}
+
+/**
+ * Put principal into a series.
+ *
+ * The one write the investor screens have. It is `POST /v1/subscribe`, and the
+ * API makes the two calls on chain: it approves the vault from the api account,
+ * which is the account holding the subscription role, and calls `subscribe` on
+ * the vault, which records the holder named here as the subscriber. Nothing in
+ * this app holds a key for either leg.
+ *
+ * The amount is added to whatever the holder already carries. Two calls
+ * subscribe twice, so a caller that cannot tell whether the first landed reads
+ * `subscription_before` and `subscription_after` rather than repeating it.
+ *
+ * Throws `MarketApiError`, which is this module's envelope for any write the
+ * API refused, with the problem document's `code` on it.
+ */
+export function subscribeToSeries(request: {
+  series: string;
+  holder: string;
+  amount: string;
+}): Promise<SubscriptionView> {
+  return write<SubscriptionView>('/v1/subscribe', request);
+}
+
 // ---------------------------------------------------------- the market
 
 /**

@@ -906,6 +906,72 @@ export function marketOutcomeMessage(outcome: MarketOutcome): MarketOutcomeMessa
   return OUTCOME_MESSAGES[outcome];
 }
 
+/**
+ * What a refused subscription says, and whether pressing again could work.
+ *
+ * The second half is the part that matters, for the reason claimSubmitRefusal
+ * in src/lib/claim-model.ts gives: a matured series, a series this vault never
+ * opened and a deployment holding no key all answer the same way to the
+ * hundredth attempt, and a screen that says "try again" to any of them is
+ * lying. The codes are the API's own, from apps/api/src/routes/subscribe.ts.
+ *
+ * None of these sentences names the api account's balance as the person's
+ * problem, because it is not theirs: the API pays for a subscription and the
+ * account it pays from is ours to keep funded.
+ */
+export interface SubscribeRefusal {
+  /** One sentence, in the deck's voice, with no code in it. */
+  readonly message: string;
+  /** True when the same press could succeed. */
+  readonly retry: boolean;
+}
+
+export function subscribeRefusal(code: string | null, status: number | null): SubscribeRefusal {
+  switch (code) {
+    case 'series_matured':
+      return { message: 'That series has matured, so it takes no more money.', retry: false };
+    case 'series_not_found':
+    case 'series_not_open':
+      return { message: 'That series is not open for subscriptions.', retry: false };
+    case 'holder_unknown':
+    case 'holder_invalid':
+      return {
+        message: 'This deployment cannot subscribe for that account.',
+        retry: false,
+      };
+    case 'amount_invalid':
+    case 'validation_failed':
+      return { message: 'That is not an amount this series can take.', retry: false };
+    case 'settlement_balance_short':
+      return {
+        message:
+          'The account that settles a subscription is out of funds, so nothing was sent. That is our side, not yours.',
+        retry: false,
+      };
+    case 'subscription_writes_unavailable':
+    case 'subscription_role_missing':
+      return {
+        message: 'Subscriptions are not being settled here right now. Nothing was sent.',
+        retry: false,
+      };
+    case 'vault_paused':
+      return {
+        message: 'The vault is paused, so no money moves in or out of it. Nothing was sent.',
+        retry: false,
+      };
+    case 'settlement_transfer_failed':
+    case 'chain_write_failed':
+      return { message: 'The chain refused it. Nothing was subscribed.', retry: true };
+    default:
+      // No response at all, or a code with no case of its own. A 5xx is this
+      // deployment having a bad minute and is worth another press; a 4xx is
+      // something about the request another press will not change.
+      return status !== null && status < 500
+        ? { message: 'That subscription was refused. Nothing was sent.', retry: false }
+        : { message: "We couldn't send that subscription. Try again.", retry: true };
+  }
+}
+
 /** What this account holds of one series, from the series' own holder list. */
 export interface MarketPosition {
   /** Whole notes held, as the note reports them. */

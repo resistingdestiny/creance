@@ -61,7 +61,7 @@ export function JobForm({
 
   return (
     <AppFrame>
-      <form action={submit} className="flex min-h-frame flex-col justify-between gap-8 px-5 py-10">
+      <form action={submit} className="flex min-h-frame flex-col justify-between lg:justify-start lg:gap-10 gap-8 px-5 py-10">
         <div className="flex flex-col gap-6">
           <header className="flex flex-col gap-4">
             <ClaimSteps current={1} />

@@ -209,7 +209,7 @@ describe('the frames', () => {
     // measure the only thing that differs, 480 for the worker column and the
     // sheet's 1280 for a desktop page.
     expect(worker).toContain('flex flex-1 justify-center bg-canvas');
-    expect(worker).toContain('w-full max-w-[480px]');
+    expect(worker).toContain('w-full max-w-[480px] lg:max-w-[640px]');
     for (const markup of [investor, explorer]) {
       expect(markup).toContain('flex flex-1 flex-col bg-canvas');
       expect(markup).toContain('min-h-frame py-12 mx-auto w-full max-w-[1280px] px-5 lg:px-10');

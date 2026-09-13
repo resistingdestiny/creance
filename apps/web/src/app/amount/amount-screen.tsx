@@ -90,7 +90,7 @@ export function AmountScreen({
           </p>
         )}
 
-        <div className="mt-auto flex flex-col items-start gap-3">
+        <div className="mt-auto lg:mt-0 flex flex-col items-start gap-3">
           <TextLink href="/cover/index">How the index works</TextLink>
           <form action={continueToVerify} className="w-full">
             <PillButton

@@ -30,6 +30,14 @@ import { SiteHeader } from './site-chrome';
  * stamp, and narrow enough that one column is still the right shape for a form
  * a person fills in on a phone.
  *
+ * 640 from the landing breakpoint up, which T58 added on top of that. 480 was
+ * measured against the content and it is right on a laptop; on a 1718 wide
+ * display it is a sixth of the screen, and Root's word for it was "super
+ * narrow". 640 is still one column and still the shape of a form somebody
+ * fills in on a phone, and it is the width the invest screens already give
+ * their own single column, so the product stops changing measure between the
+ * two halves of itself.
+ *
  * At 390 nothing changed at all: the column is the viewport, there is no ground
  * beside it and no box around the app, which is the view that matters most.
  *
@@ -44,7 +52,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
     <div className="flex flex-1 flex-col">
       <SiteHeader />
       <div className="flex flex-1 justify-center bg-canvas">
-        <div className="w-full max-w-[480px]">{children}</div>
+        <div className="w-full max-w-[480px] lg:max-w-[640px]">{children}</div>
       </div>
     </div>
   );

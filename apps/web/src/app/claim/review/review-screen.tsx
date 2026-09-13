@@ -69,7 +69,7 @@ export function ReviewScreen({
 
   return (
     <AppFrame>
-      <main className="flex min-h-frame flex-col justify-between gap-8 px-5 py-10">
+      <main className="flex min-h-frame flex-col justify-between lg:justify-start lg:gap-10 gap-8 px-5 py-10">
         <div className="flex flex-col gap-6">
           <header className="flex flex-col gap-4">
             <ClaimSteps current={4} />

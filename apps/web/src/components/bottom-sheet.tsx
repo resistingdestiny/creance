@@ -50,21 +50,34 @@ export function BottomSheet({ open, title, onClose, children, inline = false }: 
       ].join(' ')}
       data-state={open ? 'open' : 'closed'}
     >
+      {/* The scrim, and only over the viewport. An inline sheet is not an
+          overlay on top of a screen, it is the screen: /pay renders it `open`
+          with no state behind it, so the 32 percent black was painted
+          permanently over the app column and nothing else. At 390 that is
+          invisible, because the column is the viewport. At 1718 it was a grey
+          vertical band exactly 480px wide with white either side, which is
+          what Root saw and correctly called strange. Inline keeps the click
+          target, because it is the way back, and gives up the wash. */}
       <button
         aria-label="Close"
         className={[
-          'absolute inset-0 bg-[rgba(0,0,0,0.32)] transition-opacity duration-200 ease-out motion-reduce:transition-none',
+          'absolute inset-0 transition-opacity duration-200 ease-out motion-reduce:transition-none',
+          inline ? '' : 'bg-[rgba(0,0,0,0.32)]',
           open ? 'opacity-100' : 'opacity-0',
         ].join(' ')}
         onClick={onClose}
         tabIndex={open ? 0 : -1}
         type="button"
       />
+      {/* 480 and not 390: T57 widened the worker frame's measure and this
+          sheet was missed, so the one step of the purchase that runs inside it
+          stayed a 390 column inside a 480 one, narrower than the screen it
+          stands on and narrower than every step before it. */}
       <div
         aria-hidden={open ? undefined : true}
         aria-label={title}
         className={[
-          'relative w-full max-w-[390px] rounded-t-card bg-canvas px-5 pb-8 transition-transform duration-200 ease-out motion-reduce:transition-none',
+          'relative w-full max-w-[480px] rounded-t-card bg-canvas px-5 pb-8 transition-transform duration-200 ease-out motion-reduce:transition-none',
           open ? 'translate-y-0' : 'translate-y-full',
         ].join(' ')}
         ref={panel}

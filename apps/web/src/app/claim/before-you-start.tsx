@@ -35,7 +35,7 @@ export function BeforeYouStart({ policy }: { policy: PolicyView }) {
 
   return (
     <AppFrame>
-      <main className="flex min-h-frame flex-col justify-between gap-8 px-5 py-10">
+      <main className="flex min-h-frame flex-col justify-between lg:justify-start lg:gap-10 gap-8 px-5 py-10">
         <div className="flex flex-col gap-8">
           <h1 className="text-title font-display font-semibold tracking-title text-ink">
             Before you start

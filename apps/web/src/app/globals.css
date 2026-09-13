@@ -136,9 +136,26 @@
    action sits at the bottom of the viewport, or whose tab bar does, still
    reaches exactly the bottom of the viewport with the header above it rather
    than 72px past it. Every worker screen used min-h-dvh before T50 and this is
-   that measurement with the chrome taken off. */
+   that measurement with the chrome taken off.
+
+   Capped from the landing breakpoint up, and this is the whole of the fix for
+   a fault that showed on every screen in the flow at once. A primary anchored
+   to the bottom of the viewport is a phone pattern: the thumb is there. On a
+   1958px display the same rule made the column 1886px tall, so /verify put
+   "Verify with World ID" roughly fifteen hundred pixels below the heading it
+   belongs to, with nothing in between, and /pay put the same distance between
+   the amount and the sheet. It read as a screen that had failed to load.
+
+   760 is a phone's worth of column, so above the breakpoint the screen is as
+   tall as it needs to be and the primary sits under the thing it acts on. At
+   390, and on any viewport shorter than 832, the value is unchanged and the
+   min() resolves to the old measurement exactly. */
 @utility min-h-frame {
   min-height: calc(100dvh - var(--spacing-chrome));
+
+  @media (min-width: 1024px) {
+    min-height: min(calc(100dvh - var(--spacing-chrome)), 760px);
+  }
 }
 
 /* The single permitted elevation, landing hero card only, from

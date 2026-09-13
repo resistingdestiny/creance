@@ -142,7 +142,7 @@ export function OccupationPicker({
           </div>
         )}
 
-        <form action={chooseOccupation} className="mt-auto flex flex-col gap-3">
+        <form action={chooseOccupation} className="mt-auto lg:mt-0 flex flex-col gap-3">
           <input name="group" type="hidden" value={selected ?? ''} />
           <p className="text-secondary text-ink-2">
             You tell us your occupation. We do not check it against an employer.

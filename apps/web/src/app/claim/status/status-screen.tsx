@@ -252,7 +252,7 @@ function Screen({
           ))}
         </div>
         {children}
-        <div className="mt-auto flex flex-col items-center gap-5">{actions}</div>
+        <div className="mt-auto lg:mt-0 flex flex-col items-center gap-5">{actions}</div>
       </main>
     </AppFrame>
   );

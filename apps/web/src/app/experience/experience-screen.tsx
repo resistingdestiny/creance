@@ -118,7 +118,7 @@ export function ExperienceScreen({
           </p>
         ) : null}
 
-        <form action={chooseBand} className="mt-auto flex flex-col gap-3">
+        <form action={chooseBand} className="mt-auto lg:mt-0 flex flex-col gap-3">
           <input name="band" type="hidden" value={selected ?? ''} />
           <PillButton disabled={selected === null} type="submit">
             Continue

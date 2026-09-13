@@ -214,7 +214,7 @@ export function HomeScreen({
 
           {/* The one thing to do, then the two quiet ways off this screen side
               by side rather than stacked under it. */}
-          <div className="mt-auto flex flex-col gap-5 pt-2">
+          <div className="mt-auto lg:mt-0 flex flex-col gap-5 pt-2">
             {state === 'claims_open' ? (
               <PillButton
                 className="w-full"

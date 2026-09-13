@@ -53,6 +53,24 @@ import { requiredAmount, requiredString } from './quote.js';
 /// series in the vault, the holder's standing subscription, and the paying
 /// account's balance.
 
+/**
+ * The most one call may move, in settlement asset minor units: 50,000.
+ *
+ * The route restricts who a subscription can be credited to, which stops the
+ * api account's money leaving for a stranger's address. It does not stop the
+ * money leaving. Without a ceiling, one anonymous request can put the whole of
+ * that account's settlement balance into a series, and the balance is what
+ * every other paid path on this deployment spends, so draining it takes the
+ * demonstration down with it.
+ *
+ * 50,000 is the top of the subscribe screen's own slider, so the ceiling
+ * refuses nothing a person can ask for and refuses everything larger. It is
+ * deliberately not a rate limit: this is a testnet demonstration and a cap that
+ * bounds the worst single call is the proportionate thing, where a limiter
+ * would need state this API does not keep.
+ */
+export const SUBSCRIPTION_CEILING = 50_000_000_000n;
+
 export interface SubscribeBody {
   series?: unknown;
   holder?: unknown;
@@ -124,6 +142,14 @@ export async function subscribe(
       'amount_invalid',
       'Amount refused',
       'A subscription is more than nought, in the settlement asset minor units.',
+    );
+  }
+  if (amount > SUBSCRIPTION_CEILING) {
+    throw new AppError(
+      400,
+      'amount_above_ceiling',
+      'Amount refused',
+      `One subscription moves at most ${SUBSCRIPTION_CEILING.toString()} and this one is ${amount.toString()}.`,
     );
   }
   if (!vault.canSign) {

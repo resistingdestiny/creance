@@ -8,7 +8,7 @@ import {
   type VaultSeriesTerms,
 } from '../src/chain/vault.js';
 import { registerErrorHandling } from '../src/errors.js';
-import { subscribeRoutes } from '../src/routes/subscribe.js';
+import { SUBSCRIPTION_CEILING, subscribeRoutes } from '../src/routes/subscribe.js';
 import { buildTestServer, buildTestServices, CONFIG, DEMO_SERIES_KEY } from './policy-fixtures.js';
 
 /// POST /v1/subscribe, driven through Fastify's own injector with a vault that
@@ -233,6 +233,33 @@ describe('POST /v1/subscribe', () => {
     expect(response.statusCode).toBe(400);
     expect(response.json().code).toBe('amount_invalid');
     expect(vault.calls).toEqual([]);
+  });
+
+  it('refuses an amount above the ceiling, before anything is signed', async () => {
+    // The route says who a subscription may be credited to, which keeps the api
+    // account's money from leaving for a stranger. It does not keep the money
+    // from leaving. Without this, one anonymous request moves that account's
+    // whole settlement balance, and the balance is what every other paid path
+    // on this deployment spends.
+    const vault = new FakeVault();
+    const response = await post(vault, {
+      series: 'ODI-COMP-2026-01',
+      holder: 'investor-1',
+      amount: (SUBSCRIPTION_CEILING + 1n).toString(),
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().code).toBe('amount_above_ceiling');
+    expect(vault.calls).toEqual([]);
+  });
+
+  it('takes the ceiling itself, which is the top of the slider the screen offers', async () => {
+    const vault = new FakeVault();
+    const response = await post(vault, {
+      series: 'ODI-COMP-2026-01',
+      holder: 'investor-1',
+      amount: SUBSCRIPTION_CEILING.toString(),
+    });
+    expect(response.statusCode).toBe(201);
   });
 
   it('answers 503 on a deployment holding no key for the paying account', async () => {

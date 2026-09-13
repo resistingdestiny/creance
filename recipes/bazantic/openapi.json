@@ -637,6 +637,88 @@
         }
       }
     },
+    "/v1/subscribe": {
+      "post": {
+        "tags": [
+          "series"
+        ],
+        "operationId": "subscribe",
+        "summary": "Put principal into a series",
+        "description": "Free. Approves the vault from the paying account where the standing\nallowance does not already cover the amount, then writes the subscription,\nand answers with both transactions and what the vault says the holder was\ncarrying before and after.\n\nThe amount is added to whatever the holder already has. It is not a top up\nto a total: a holder carrying 50000000000 who subscribes 25000000000 ends\nup with 75000000000. So the call is not idempotent, and a retry after a\ntimeout subscribes again. `subscription_before` and `subscription_after`\nare how a caller tells what its call did.\n\nThe money comes out of the API account, not the holder. The vault pulls\nthe settlement token from whoever calls it, and the account holding the\nsubscription role on this deployment is the API account, so a subscription\nis the API paying for the holder and recording the holder as the\nsubscriber. That is why `holder` is held to an account this deployment\nalready speaks for: it names who is credited, not who pays. A deployment\nwith no key for the paying account answers 503 and serves every read as\nbefore.\n\nThree reads happen before anything is signed, because an approve through\nthe HTS ERC-20 facade costs about 1.7 HBAR and it is the first of the two\ncalls: the series in the vault, the standing subscription, and the paying\nbalance. A subscription that was always going to be refused is refused\nwithout spending that.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscribeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The subscription, and the transactions that made it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`validation_failed` for a missing field, `amount_invalid` for anything that is not a whole number of minor units above nought, `holder_unknown` for an account this deployment does not pay for, `holder_invalid` for an empty address.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`series_not_found`: no series with that id on this network. `series_not_open`: the vault has never opened that series.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`series_matured`: the series has reached maturity and takes no more principal. `settlement_balance_short`: the paying account holds less than the amount, and nothing was sent. `vault_paused`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`subscription_role_missing`, `settlement_transfer_failed` or `chain_write_failed`: the chain refused the write and nothing was subscribed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`subscription_writes_unavailable`: this deployment reads the series but holds no key for the account that pays.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/market/offers": {
       "get": {
         "tags": [
@@ -2615,6 +2697,92 @@
             "items": {
               "$ref": "#/components/schemas/Offer"
             }
+          }
+        }
+      },
+      "SubscribeRequest": {
+        "type": "object",
+        "required": [
+          "series",
+          "holder",
+          "amount"
+        ],
+        "properties": {
+          "series": {
+            "type": "string",
+            "description": "The series to subscribe to, by label, bytes32 id or occupation group.",
+            "example": "ODI-COMP-2026-01"
+          },
+          "holder": {
+            "type": "string",
+            "description": "The account to credit, by its demo role, its Hedera account id or its EVM address. It is the account the vault records as the subscriber and the account a redemption at maturity pays; it is not the account that pays now.",
+            "example": "investor-1"
+          },
+          "amount": {
+            "type": "string",
+            "description": "How much to add, an integer in the settlement asset smallest unit. 25,000 TUSD is 25000000000. It is added to what the holder already has rather than being a total.",
+            "example": "25000000000"
+          }
+        }
+      },
+      "Subscription": {
+        "type": "object",
+        "description": "A subscription as the vault now holds it. Every amount is Money, and the two subscription figures are read from the chain before and after the write rather than computed here.",
+        "required": [
+          "network",
+          "series_id",
+          "holder",
+          "amount",
+          "subscription_before",
+          "subscription_after",
+          "transactions"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "testnet"
+          },
+          "series_id": {
+            "type": "string",
+            "example": "ODI-COMP-2026-01"
+          },
+          "series_key": {
+            "type": "string"
+          },
+          "holder": {
+            "$ref": "#/components/schemas/MarketParty"
+          },
+          "paid_by": {
+            "$ref": "#/components/schemas/MarketParty"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "subscription_before": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "subscription_after": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "transactions": {
+            "type": "object",
+            "description": "The two calls, in the order they were made. `approve` is null where the standing allowance already covered the amount and none was sent.",
+            "properties": {
+              "approve": {
+                "type": "string",
+                "nullable": true
+              },
+              "subscribe": {
+                "type": "string"
+              }
+            }
+          },
+          "gas_used": {
+            "type": "string",
+            "example": "141378"
+          },
+          "hashscan": {
+            "type": "string"
           }
         }
       },

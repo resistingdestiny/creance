@@ -4,9 +4,11 @@ Cover for the day your job is automated.
 
 You pay a small premium each month. If job losses climb far enough in your
 occupation, and you lose your job, you get paid. Investors put up the money and
-take the premiums as coupons.
+take the premiums as coupons. They can also trade notes creating a real-time prediction
+market on what professions are most at risk of automation. 
 
-Hedera testnet only. No mainnet, no real money.
+Deployed on the Hedera testnet, usign world for human-validation (including selfie check) 
+and offers two Bazantic gateways and recipes. 
 
 [creance.co](https://creance.co) · [api.creance.co](https://api.creance.co) ·
 [open a real cover](https://creance.co/home/demo) with a published key
@@ -19,15 +21,13 @@ Occupation Displacement Index. Every series has a line it has to cross before
 claims open.
 
 It goes to a Hedera topic and into the `CoverPool` contract, so what opens
-claims is on chain and we cannot move it. The source is the US Bureau of Labor
-Statistics.
+claims is on chain and we cannot move it. The source is currently the US Bureau of Labor
+Statistics but in future could be augmented with data from job adverts, company reports etc.
 
-The index does not know why an occupation is slipping. It fires whatever the
-cause.
 
 ## Your half
 
-An open index is not enough. You also have to show you lost the job.
+An open index is not enough - you also have to show you lost the job.
 
 You file a World ID Selfie Check tied to your policy, your termination notice
 and a statement. An adjuster built on Claude reads it and decides. It is not

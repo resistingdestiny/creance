@@ -79,6 +79,15 @@ export const CONFIG: ApiConfig = {
     address: '0x639444758b987b4d938c57169a1f61a62b2d009c',
     key: undefined,
   },
+  // The day 0 accounts, as docs/hedera.testnet.json names them. The two
+  // investors are the noteholders POST /v1/subscribe can pay for.
+  accounts: [
+    { role: 'operator', accountId: '0.0.10362512', address: '0x639444758b987b4d938c57169a1f61a62b2d009c' },
+    { role: 'api', accountId: '0.0.10366450', address: '0x7c02879d6b95f923681f517b0487aa45af2b8fdf' },
+    { role: 'policyholder-1', accountId: POLICYHOLDER_1.accountId, address: POLICYHOLDER_1.address },
+    { role: 'investor-1', accountId: '0.0.10366460', address: '0xb6c2ff466e3c73f1a49a3f1b936f8e3837112931' },
+    { role: 'investor-2', accountId: '0.0.10366462', address: '0xcaa1184cd59b9296f757efc7303a10ecec6ce51e' },
+  ],
   credentialTtlSeconds: 1800,
   quoteTtlSeconds: 900,
   world: {

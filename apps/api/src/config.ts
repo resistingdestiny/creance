@@ -23,6 +23,11 @@ export interface AccountConfig {
   address: string;
 }
 
+/** An account with the role it was created under on day 0. */
+export interface RoleAccount extends AccountConfig {
+  role: string;
+}
+
 export interface SeriesConfig {
   label: string;
   /** The bytes32 key the contracts take. */
@@ -58,6 +63,17 @@ export interface ApiConfig {
    * key".
    */
   operator: AccountConfig & { key: string | undefined };
+  /**
+   * Every account the day 0 record names, the operator included, without a key
+   * for any of them.
+   *
+   * POST /v1/subscribe is what reads it. The api account pays for a
+   * subscription out of its own settlement balance, so the holder it credits is
+   * held to the accounts this deployment already speaks for: a write that paid
+   * for whatever address a caller named would be a faucet with the api
+   * account's money in it.
+   */
+  accounts: RoleAccount[];
   credentialTtlSeconds: number;
   quoteTtlSeconds: number;
   /** The World ID app this deployment runs its Selfie Check against. */
@@ -187,6 +203,16 @@ export function loadApiConfig(
 
   const apiAccount = resources?.accounts?.api;
   const operator = resources?.operator;
+  const accounts: RoleAccount[] = [
+    ...(operator === undefined
+      ? []
+      : [{ role: 'operator', accountId: operator.accountId, address: operator.evmAddress }]),
+    ...Object.entries(resources?.accounts ?? {}).map(([role, account]) => ({
+      role,
+      accountId: account.accountId,
+      address: account.evmAddress,
+    })),
+  ];
 
   return {
     network,
@@ -224,6 +250,7 @@ export function loadApiConfig(
       address: operator?.evmAddress ?? '',
       key: fromEnv('HEDERA_OPERATOR_KEY'),
     },
+    accounts,
     credentialTtlSeconds: seconds('CREDENTIAL_TTL_SECONDS', 1800),
     world: loadWorldConfig(),
     quoteTtlSeconds: seconds('QUOTE_TTL_SECONDS', 900),
@@ -244,6 +271,24 @@ export function findSeries(config: ApiConfig, id: string): SeriesConfig | undefi
       series.label.toLowerCase() === wanted ||
       series.seriesId.toLowerCase() === wanted ||
       series.groupKey.toLowerCase() === wanted,
+  );
+}
+
+/**
+ * The account a request names, by role, account id or EVM address.
+ *
+ * All three spellings, because a screen holds an address, a receipt holds an
+ * account id and a person writing a call by hand holds neither. Case
+ * insensitive: an EVM address that differs only in its checksum casing is the
+ * same account.
+ */
+export function findAccount(config: ApiConfig, id: string): RoleAccount | undefined {
+  const wanted = id.trim().toLowerCase();
+  return config.accounts.find(
+    (account) =>
+      account.role.toLowerCase() === wanted ||
+      account.accountId.toLowerCase() === wanted ||
+      account.address.toLowerCase() === wanted,
   );
 }
 
